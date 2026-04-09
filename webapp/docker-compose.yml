@@ -4,28 +4,34 @@ services:
     ports:
       - "8402:80"
     depends_on:
-      - journal
+      - journal-server
     restart: unless-stopped
 
-  # Reference to journal-server (adjust to match actual deployment)
-  journal:
-    image: ghcr.io/johnmathews/journal-server:latest
+  journal-server:
+    image: ghcr.io/johnmathews/journal-agent:latest
     ports:
       - "8400:8400"
     environment:
       - DB_PATH=/data/journal.db
-      - CHROMADB_HOST=chromadb
+      - CHROMADB_HOST=journal-chromadb
       - CHROMADB_PORT=8000
-      - API_CORS_ORIGINS=http://localhost:8402
     volumes:
       - journal-data:/data
+    depends_on:
+      journal-chromadb:
+        condition: service_healthy
 
-  chromadb:
+  journal-chromadb:
     image: chromadb/chroma:latest
     ports:
       - "8401:8000"
     volumes:
       - chromadb-data:/chroma/chroma
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   journal-data:
