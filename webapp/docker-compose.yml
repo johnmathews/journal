@@ -1,6 +1,6 @@
 services:
   webapp:
-    build: .
+    image: ghcr.io/johnmathews/journal-webapp:latest
     ports:
       - "8402:80"
     depends_on:
