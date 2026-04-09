@@ -31,6 +31,8 @@ See [docs/development.md](docs/development.md) for setup, commands, project stru
 
 See [docs/architecture.md](docs/architecture.md) for technical architecture.
 
+See [docs/deployment.md](docs/deployment.md) for Docker, nginx, and production deployment.
+
 See [docs/future-features.md](docs/future-features.md) for planned features and required backend changes.
 
 ## Tech Stack
