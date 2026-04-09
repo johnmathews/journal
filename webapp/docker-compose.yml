@@ -1,0 +1,32 @@
+services:
+  webapp:
+    build: .
+    ports:
+      - "8402:80"
+    depends_on:
+      - journal
+    restart: unless-stopped
+
+  # Reference to journal-server (adjust to match actual deployment)
+  journal:
+    image: ghcr.io/johnmathews/journal-server:latest
+    ports:
+      - "8400:8400"
+    environment:
+      - DB_PATH=/data/journal.db
+      - CHROMADB_HOST=chromadb
+      - CHROMADB_PORT=8000
+      - API_CORS_ORIGINS=http://localhost:8402
+    volumes:
+      - journal-data:/data
+
+  chromadb:
+    image: chromadb/chroma:latest
+    ports:
+      - "8401:8000"
+    volumes:
+      - chromadb-data:/chroma/chroma
+
+volumes:
+  journal-data:
+  chromadb-data:
