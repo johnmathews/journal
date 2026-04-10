@@ -93,4 +93,4 @@ npm run test:unit        # Run once
 npm run test:watch       # Watch mode
 ```
 
-Component tests mount Vue components with PrimeVue, Pinia, and Router plugins. Composable tests run in isolation with reactive refs.
+Component tests mount Vue components with Pinia and Router plugins. Composable tests run in isolation with reactive refs. View tests assert against `data-testid` attributes rather than CSS classes for stability across styling changes.

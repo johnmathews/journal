@@ -6,16 +6,16 @@ Vue 3 frontend for the Journal Analysis Tool. Displays journal entries, enables 
 
 ```
 src/
-  api/           — API client layer (fetch wrappers, typed endpoints)
-  assets/        — Static resources
-  components/    — Global reusable components
-  composables/   — Composition functions (useEntryEditor, etc.)
-  layouts/       — Page layout components (DefaultLayout)
-  router/        — Vue Router configuration
-  stores/        — Pinia stores (entries, etc.)
-  types/         — TypeScript type definitions
-  utils/         — Pure utility functions
-  views/         — Page components (EntryListView, EntryDetailView)
+  api/                  — API client layer (fetch wrappers, typed endpoints)
+  assets/               — Tailwind entry (main.css) and component classes (utility-patterns.css)
+  components/layout/    — Mosaic-derived shell: Sidebar, Header, ThemeToggle
+  composables/          — Composition functions (useEntryEditor, etc.)
+  layouts/              — DefaultLayout wraps Sidebar + Header + <slot/>
+  router/               — Vue Router configuration
+  stores/               — Pinia stores (entries, etc.)
+  types/                — TypeScript type definitions
+  utils/                — mosaic.ts (CSS/color helpers), chartjs-config.ts
+  views/                — Page components (EntryListView, EntryDetailView)
 ```
 
 ## Commands
@@ -30,12 +30,15 @@ src/
 ## Tech Stack
 
 - Vue 3.5+ with TypeScript (script setup, Composition API)
-- Vite (build tool)
-- PrimeVue 4.5 (Aura theme) — UI components
-- Pinia — State management
-- Vue Router 4 — Routing
-- Vitest + Vue Test Utils + happy-dom — Testing
-- Chart.js via PrimeVue Chart — Charts (future dashboards)
+- Vite (build tool) + `@tailwindcss/vite` plugin
+- Tailwind CSS 4 — CSS-first config in `src/assets/main.css`, no `tailwind.config.*`
+- `@tailwindcss/forms` — form element reset, registered via `@plugin` directive
+- `@vueuse/core` — `useDark()` powers the ThemeToggle
+- Shell derived from Cruip Mosaic Vue admin template (ported to TypeScript)
+- Pinia — state management
+- Vue Router — routing
+- Vitest + Vue Test Utils + happy-dom — testing
+- Chart.js 4 — charts via `src/utils/chartjs-config.ts` (direct, no wrapper)
 
 ## Backend
 

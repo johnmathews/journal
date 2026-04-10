@@ -6,24 +6,30 @@ The journal-webapp is a Vue 3 single-page application that provides a web interf
 
 ## Tech Stack
 
-| Technology    | Purpose                          |
-|---------------|----------------------------------|
-| Vue 3.5+      | UI framework (Composition API)   |
-| TypeScript    | Type safety                      |
-| Vite          | Build tool and dev server         |
-| PrimeVue 4.5  | UI component library (Aura theme)|
-| Pinia         | State management                  |
-| Vue Router 4  | Client-side routing               |
-| Chart.js      | Charts (via PrimeVue Chart)       |
-| Vitest        | Unit and component testing         |
+| Technology       | Purpose                                   |
+|------------------|-------------------------------------------|
+| Vue 3.5+         | UI framework (Composition API)            |
+| TypeScript       | Type safety                               |
+| Vite             | Build tool and dev server                 |
+| Tailwind CSS 4   | Utility-first styling, CSS-first config   |
+| @tailwindcss/vite| Tailwind integration for Vite             |
+| @tailwindcss/forms| Form element reset and utility classes   |
+| @vueuse/core     | Composition utilities (useDark for theme) |
+| Pinia            | State management                          |
+| Vue Router       | Client-side routing                       |
+| Chart.js 4       | Charts (via src/utils/chartjs-config.ts)  |
+| Vitest           | Unit and component testing                |
+
+Shell components (Sidebar, Header, ThemeToggle, DefaultLayout) are derived from the
+[Cruip Mosaic](https://cruip.com/mosaic/) admin template, ported to TypeScript.
 
 ## Layers
 
 ### Views (`src/views/`)
 Page-level components, one per route. Each view composes layout, components, and store interactions.
 
-- **EntryListView** — PrimeVue DataTable with server-side pagination, date formatting, row click navigation
-- **EntryDetailView** — Side-by-side OCR review editor with Splitter, dirty tracking, save with re-processing
+- **EntryListView** — Native HTML table with Tailwind styling, hand-rolled pagination controls (rows-per-page select, prev/next buttons), row click navigation
+- **EntryDetailView** — Static 50/50 flex layout with two textareas (readonly OCR + editable corrected), inline save error banner, dirty tracking, save with re-processing
 
 ### Composables (`src/composables/`)
 Reusable Composition API functions encapsulating reactive logic.

@@ -18,7 +18,7 @@ Planned features and the backend changes they require. Features are roughly orde
 ## Phase 2: Dashboards
 
 **Frontend:**
-- Dashboard view with Chart.js charts via PrimeVue Chart component
+- Dashboard view with Chart.js 4 rendered directly via `src/utils/chartjs-config.ts` (styled to match the Mosaic chart aesthetic)
 - Writing frequency chart (entries per week/month over time)
 - Word count trends (average words per entry over time)
 - Mood trends visualization (line chart with multi-dimensional mood scores)
