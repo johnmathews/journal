@@ -60,16 +60,24 @@ function escapeHtml(input: string): string {
  * renderer emits bare escaped text (no `<mark>` wrapper). Chunk spans
  * carry a thick left border plus a saturated background so the chunk
  * boundary is unmistakable even when a single chunk covers a long
- * run of text. Token spans use a lighter background fill without
+ * run of text. Token spans use a brighter background fill without
  * borders (the boundary is communicated by the alternation itself).
  *
+ * **Text colour is explicit on every kind.** The HTML `<mark>` element
+ * has a user-agent default `color: black` (because it's intended for
+ * dark text on yellow highlighter). Without an explicit override the
+ * text would be black in dark mode — unreadable against our tinted
+ * backgrounds and ignoring the `text-gray-100` the overlay container
+ * inherits. `text-gray-900 dark:text-white` restores the expected
+ * light/dark behaviour.
+ *
  * Colour strategy:
- * - Light mode uses the `200` shades at full opacity — strong enough
- *   to read against a white/near-white panel without washing out.
- * - Dark mode uses the `500` shade at ~25% opacity — bright mid
- *   colours at low alpha are dramatically more visible against a
- *   near-black panel than the old `900` shade at 40% (which was just
- *   dark blue on dark gray and barely visible).
+ * - Light mode uses the `200` shades with `text-gray-900` — strong
+ *   enough to read against a white panel without washing out.
+ * - Dark mode uses the `400` shade at 40% opacity with `text-white`
+ *   — `sky-400` (#38bdf8) is noticeably brighter than `sky-500`
+ *   (#0ea5e9) and 40% alpha gives a clearly visible tint while
+ *   letting the white text punch through.
  *
  * `sky` and `green` are defined in the project's Tailwind `@theme`
  * palette and are unused elsewhere. `emerald` is deliberately avoided:
@@ -79,13 +87,15 @@ function escapeHtml(input: string): string {
 const CLASS_FOR_KIND: Record<OverlayKind, string> = {
   plain: '',
   'chunk-a':
-    'bg-sky-200 dark:bg-sky-500/25 border-l-[3px] border-sky-600 dark:border-sky-300 rounded-r-[2px]',
+    'text-gray-900 dark:text-white bg-sky-200 dark:bg-sky-400/40 border-l-[3px] border-sky-600 dark:border-sky-300 rounded-r-[2px]',
   'chunk-b':
-    'bg-green-200 dark:bg-green-500/25 border-l-[3px] border-green-600 dark:border-green-300 rounded-r-[2px]',
+    'text-gray-900 dark:text-white bg-green-200 dark:bg-green-400/40 border-l-[3px] border-green-600 dark:border-green-300 rounded-r-[2px]',
   'chunk-overlap':
-    'bg-violet-200 dark:bg-violet-500/30 border-l-[3px] border-violet-600 dark:border-violet-300 rounded-r-[2px]',
-  'token-a': 'bg-sky-200 dark:bg-sky-500/25 rounded-[1px]',
-  'token-b': 'bg-green-200 dark:bg-green-500/25 rounded-[1px]',
+    'text-gray-900 dark:text-white bg-violet-200 dark:bg-violet-400/45 border-l-[3px] border-violet-600 dark:border-violet-300 rounded-r-[2px]',
+  'token-a':
+    'text-gray-900 dark:text-white bg-sky-200 dark:bg-sky-400/35 rounded-[1px]',
+  'token-b':
+    'text-gray-900 dark:text-white bg-green-200 dark:bg-green-400/35 rounded-[1px]',
 }
 
 /**
