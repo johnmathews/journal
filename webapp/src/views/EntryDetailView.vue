@@ -1,13 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, onBeforeRouteLeave } from 'vue-router'
-import Splitter from 'primevue/splitter'
-import SplitterPanel from 'primevue/splitterpanel'
-import Textarea from 'primevue/textarea'
-import Button from 'primevue/button'
-import Tag from 'primevue/tag'
-import Toast from 'primevue/toast'
-import { useToast } from 'primevue/usetoast'
 import { useEntriesStore } from '@/stores/entries'
 import { useEntryEditor } from '@/composables/useEntryEditor'
 
@@ -16,10 +9,10 @@ const props = defineProps<{
 }>()
 
 const router = useRouter()
-const toast = useToast()
 const store = useEntriesStore()
-const { editedText, saving, saveError, isDirty, isModified, reset } =
-  useEntryEditor(() => store.currentEntry)
+const { editedText, saving, saveError, isDirty, isModified, reset } = useEntryEditor(
+  () => store.currentEntry,
+)
 
 onMounted(() => {
   store.loadEntry(Number(props.id))
@@ -31,20 +24,8 @@ async function save() {
   saveError.value = null
   try {
     await store.saveEntryText(store.currentEntry.id, editedText.value)
-    toast.add({
-      severity: 'success',
-      summary: 'Saved',
-      detail: 'Entry text updated and re-processed.',
-      life: 3000,
-    })
   } catch (e) {
     saveError.value = e instanceof Error ? e.message : 'Failed to save'
-    toast.add({
-      severity: 'error',
-      summary: 'Error',
-      detail: saveError.value,
-      life: 5000,
-    })
   } finally {
     saving.value = false
   }
@@ -63,7 +44,6 @@ function formatDate(dateStr: string): string {
   })
 }
 
-// Warn on unsaved changes when navigating away
 onBeforeRouteLeave((_to, _from, next) => {
   if (isDirty.value) {
     const answer = window.confirm('You have unsaved changes. Leave anyway?')
@@ -73,7 +53,6 @@ onBeforeRouteLeave((_to, _from, next) => {
   }
 })
 
-// Warn on browser close with unsaved changes
 function handleBeforeUnload(e: BeforeUnloadEvent) {
   if (isDirty.value) {
     e.preventDefault()
@@ -90,186 +69,138 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="entry-detail">
-    <Toast />
-
-    <div v-if="store.loading && !store.currentEntry" class="loading">
-      Loading entry...
+  <div class="entry-detail" data-testid="entry-detail-view">
+    <!-- Loading state -->
+    <div
+      v-if="store.loading && !store.currentEntry"
+      class="py-16 text-center text-gray-500 dark:text-gray-400"
+      data-testid="loading-state"
+    >
+      Loading entry…
     </div>
 
-    <div v-else-if="store.error && !store.currentEntry" class="error-message">
+    <!-- Fatal error (no entry loaded) -->
+    <div
+      v-else-if="store.error && !store.currentEntry"
+      class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+      data-testid="error-banner"
+    >
       {{ store.error }}
     </div>
 
     <template v-else-if="store.currentEntry">
-      <div class="detail-header">
-        <div class="header-left">
-          <Button
-            icon="pi pi-arrow-left"
-            text
-            rounded
-            severity="secondary"
-            @click="goBack"
-          />
-          <h2>{{ formatDate(store.currentEntry.entry_date) }}</h2>
-          <Tag v-if="isModified" value="Modified" severity="warn" />
-        </div>
-        <div class="header-meta">
-          <span>{{ store.currentEntry.source_type.toUpperCase() }}</span>
-          <span
-            >{{ store.currentEntry.word_count.toLocaleString() }} words</span
-          >
-          <span>{{ store.currentEntry.chunk_count }} chunks</span>
-          <span
-            >{{ store.currentEntry.page_count }} page{{
-              store.currentEntry.page_count !== 1 ? 's' : ''
-            }}</span
-          >
+      <!-- Header row: back + title + meta -->
+      <div class="mb-6">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
+          <div class="flex items-center gap-3">
+            <button
+              class="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
+              data-testid="back-button"
+              @click="goBack"
+            >
+              <svg class="w-4 h-4 fill-current mr-1" viewBox="0 0 16 16">
+                <path d="M9.4 13.4L4 8l5.4-5.4 1.4 1.4L6.8 8l4 4z" />
+              </svg>
+              Back
+            </button>
+            <h1 class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
+              {{ formatDate(store.currentEntry.entry_date) }}
+            </h1>
+            <span
+              v-if="isModified"
+              class="inline-flex text-xs font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400 rounded-full px-2.5 py-0.5"
+              data-testid="modified-tag"
+            >
+              Modified
+            </span>
+          </div>
+
+          <div class="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+            <span>{{ store.currentEntry.source_type.toUpperCase() }}</span>
+            <span>{{ store.currentEntry.word_count.toLocaleString() }} words</span>
+            <span>{{ store.currentEntry.chunk_count }} chunks</span>
+            <span>
+              {{ store.currentEntry.page_count }} page{{
+                store.currentEntry.page_count !== 1 ? 's' : ''
+              }}
+            </span>
+          </div>
         </div>
       </div>
 
-      <div class="editor-toolbar">
-        <div class="toolbar-left">
-          <span v-if="isDirty" class="unsaved-indicator">Unsaved changes</span>
+      <!-- Save error banner -->
+      <div
+        v-if="saveError"
+        class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+        data-testid="save-error-banner"
+      >
+        {{ saveError }}
+      </div>
+
+      <!-- Editor toolbar -->
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div class="min-h-[2rem] flex items-center">
+          <span
+            v-if="isDirty"
+            class="text-sm font-medium text-yellow-600 dark:text-yellow-400"
+            data-testid="unsaved-indicator"
+          >
+            Unsaved changes
+          </span>
         </div>
-        <div class="toolbar-right">
-          <Button
-            label="Reset"
-            icon="pi pi-undo"
-            text
-            severity="secondary"
-            :disabled="!isDirty"
+        <div class="flex items-center gap-2">
+          <button
+            class="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="!isDirty || saving"
+            data-testid="reset-button"
             @click="reset"
-          />
-          <Button
-            label="Save"
-            icon="pi pi-check"
-            :disabled="!isDirty"
-            :loading="saving"
+          >
+            <svg class="w-4 h-4 fill-current mr-1" viewBox="0 0 16 16">
+              <path
+                d="M8 2a6 6 0 1 0 5.197 3H15a8 8 0 1 1-1-4.928V1a1 1 0 1 1 2 0v3a1 1 0 0 1-1 1h-3a1 1 0 1 1 0-2h.228A6 6 0 0 0 8 2Z"
+              />
+            </svg>
+            Reset
+          </button>
+          <button
+            class="btn bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="!isDirty || saving"
+            data-testid="save-button"
             @click="save"
-          />
+          >
+            <svg class="w-4 h-4 fill-current mr-1" viewBox="0 0 16 16">
+              <path d="M13.7 4.3 6 12l-3.7-3.7 1.4-1.4L6 9.2l6.3-6.3z" />
+            </svg>
+            {{ saving ? 'Saving…' : 'Save' }}
+          </button>
         </div>
       </div>
 
-      <Splitter class="editor-splitter">
-        <SplitterPanel :size="50" :min-size="30">
-          <div class="panel">
-            <div class="panel-header">Original OCR</div>
-            <Textarea
-              :model-value="store.currentEntry.raw_text"
-              readonly
-              auto-resize
-              class="text-area readonly"
-            />
-          </div>
-        </SplitterPanel>
-        <SplitterPanel :size="50" :min-size="30">
-          <div class="panel">
-            <div class="panel-header">Corrected Text</div>
-            <Textarea v-model="editedText" auto-resize class="text-area" />
-          </div>
-        </SplitterPanel>
-      </Splitter>
+      <!-- Side-by-side editor panels (static 50/50) -->
+      <div class="flex flex-col lg:flex-row gap-4 min-h-[500px]">
+        <section class="flex-1 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4">
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
+            Original OCR
+          </h2>
+          <textarea
+            :value="store.currentEntry.raw_text"
+            readonly
+            class="form-textarea flex-1 w-full font-serif text-[0.9375rem] leading-relaxed bg-gray-50 dark:bg-gray-900/40 text-gray-600 dark:text-gray-400 resize-none"
+            data-testid="ocr-textarea"
+          />
+        </section>
+
+        <section class="flex-1 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4">
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
+            Corrected Text
+          </h2>
+          <textarea
+            v-model="editedText"
+            class="form-textarea flex-1 w-full font-serif text-[0.9375rem] leading-relaxed resize-none"
+            data-testid="corrected-textarea"
+          />
+        </section>
+      </div>
     </template>
   </div>
 </template>
-
-<style scoped>
-.entry-detail {
-  max-width: 1200px;
-}
-
-.loading,
-.error-message {
-  padding: 2rem;
-  text-align: center;
-}
-
-.error-message {
-  background: var(--p-red-50);
-  color: var(--p-red-700);
-  border-radius: 6px;
-}
-
-.detail-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.header-left h2 {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 600;
-}
-
-.header-meta {
-  display: flex;
-  gap: 1rem;
-  color: var(--p-surface-500);
-  font-size: 0.875rem;
-}
-
-.editor-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.75rem;
-  min-height: 2.5rem;
-}
-
-.toolbar-right {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.unsaved-indicator {
-  color: var(--p-orange-600);
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-
-.editor-splitter {
-  border: 1px solid var(--p-surface-200);
-  border-radius: 6px;
-  min-height: 400px;
-}
-
-.panel {
-  padding: 1rem;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.panel-header {
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--p-surface-500);
-  margin-bottom: 0.75rem;
-}
-
-.text-area {
-  width: 100%;
-  min-height: 300px;
-  font-family: 'Georgia', serif;
-  font-size: 0.9375rem;
-  line-height: 1.7;
-}
-
-.text-area.readonly {
-  background: var(--p-surface-50);
-  color: var(--p-surface-600);
-}
-</style>
