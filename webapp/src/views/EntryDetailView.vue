@@ -14,6 +14,9 @@ const store = useEntriesStore()
 const { editedText, saving, saveError, isDirty, isModified, reset } =
   useEntryEditor(() => store.currentEntry)
 
+const deleting = ref(false)
+const deleteError = ref<string | null>(null)
+
 // Original text as a reactive ref the composable can watch.
 const originalText = ref('')
 watch(
@@ -70,6 +73,29 @@ async function save() {
 
 function goBack() {
   router.push({ name: 'entries' })
+}
+
+async function confirmDelete() {
+  if (!store.currentEntry || deleting.value) return
+  const dateStr = formatDate(store.currentEntry.entry_date)
+  const ok = window.confirm(
+    `Delete the journal entry for ${dateStr}? This cannot be undone.`,
+  )
+  if (!ok) return
+
+  deleting.value = true
+  deleteError.value = null
+  try {
+    await store.deleteEntry(store.currentEntry.id)
+    // Once the store clears currentEntry, isDirty flips to false, so
+    // the onBeforeRouteLeave guard will let us navigate without a
+    // second confirmation.
+    router.push({ name: 'entries' })
+  } catch (e) {
+    deleteError.value = e instanceof Error ? e.message : 'Failed to delete'
+  } finally {
+    deleting.value = false
+  }
 }
 
 function formatDate(dateStr: string): string {
@@ -180,6 +206,15 @@ onBeforeUnmount(() => {
         {{ saveError }}
       </div>
 
+      <!-- Delete error banner -->
+      <div
+        v-if="deleteError"
+        class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+        data-testid="delete-error-banner"
+      >
+        {{ deleteError }}
+      </div>
+
       <!-- Editor toolbar -->
       <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div class="min-h-[2rem] flex items-center gap-4">
@@ -223,6 +258,19 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <div class="flex items-center gap-2">
+          <button
+            class="btn bg-white dark:bg-gray-800 border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="saving || deleting"
+            data-testid="delete-button"
+            @click="confirmDelete"
+          >
+            <svg class="w-4 h-4 fill-current mr-1" viewBox="0 0 16 16">
+              <path
+                d="M5 3V2a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1h3a1 1 0 1 1 0 2h-.117l-.72 9.36A2 2 0 0 1 11.17 16H4.83a2 2 0 0 1-1.993-1.64L2.117 5H2a1 1 0 0 1 0-2h3Zm2 0h2V3H7Zm-2.88 2 .71 9.25a.01.01 0 0 0 .01.01h6.32a.01.01 0 0 0 .01-.01L11.88 5H4.12Z"
+              />
+            </svg>
+            {{ deleting ? 'Deleting…' : 'Delete' }}
+          </button>
           <button
             class="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
             :disabled="!isDirty || saving"

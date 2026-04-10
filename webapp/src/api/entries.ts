@@ -40,6 +40,14 @@ export function updateEntryText(
   })
 }
 
+export function deleteEntry(
+  id: number,
+): Promise<{ deleted: boolean; id: number }> {
+  return apiFetch<{ deleted: boolean; id: number }>(`/api/entries/${id}`, {
+    method: 'DELETE',
+  })
+}
+
 export function fetchStats(
   params: { start_date?: string; end_date?: string } = {},
 ): Promise<Statistics> {

@@ -1,7 +1,12 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { EntrySummary, EntryDetail, EntryListParams } from '@/types/entry'
-import { fetchEntries, fetchEntry, updateEntryText } from '@/api/entries'
+import {
+  fetchEntries,
+  fetchEntry,
+  updateEntryText,
+  deleteEntry as deleteEntryApi,
+} from '@/api/entries'
 
 export const useEntriesStore = defineStore('entries', () => {
   // State
@@ -69,6 +74,24 @@ export const useEntriesStore = defineStore('entries', () => {
     }
   }
 
+  async function deleteEntry(id: number) {
+    loading.value = true
+    error.value = null
+    try {
+      await deleteEntryApi(id)
+      entries.value = entries.value.filter((entry) => entry.id !== id)
+      total.value = Math.max(0, total.value - 1)
+      if (currentEntry.value?.id === id) {
+        currentEntry.value = null
+      }
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to delete entry'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     entries,
     currentEntry,
@@ -82,5 +105,6 @@ export const useEntriesStore = defineStore('entries', () => {
     loadEntries,
     loadEntry,
     saveEntryText,
+    deleteEntry,
   }
 })

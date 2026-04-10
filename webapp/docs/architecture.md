@@ -30,7 +30,7 @@ Shell components (Sidebar, Header, ThemeToggle, DefaultLayout) are derived from 
 Page-level components, one per route. Each view composes layout, components, and store interactions.
 
 - **EntryListView** — Native HTML table with Tailwind styling, hand-rolled pagination controls (rows-per-page select, prev/next buttons), row click navigation
-- **EntryDetailView** — Static 50/50 flex layout for OCR correction. The left panel renders the original OCR text as a read-only `<div>` with diff highlights; the right panel uses a mirror-div overlay (transparent textarea over a styled backdrop `<div>`) so the user can edit the corrected text and see live highlights in the same spot. A "Show diff" toggle turns highlighting on/off. Includes an inline save error banner, dirty tracking, and re-processing on save.
+- **EntryDetailView** — Static 50/50 flex layout for OCR correction. The left panel renders the original OCR text as a read-only `<div>` with diff highlights; the right panel uses a mirror-div overlay (transparent textarea over a styled backdrop `<div>`) so the user can edit the corrected text and see live highlights in the same spot. A "Show diff" toggle turns highlighting on/off. Includes an inline save error banner, dirty tracking, and re-processing on save. Also exposes a Delete button (with a `window.confirm` guard) that removes the entry from both SQLite and ChromaDB and navigates back to the list on success.
 
 ### Composables (`src/composables/`)
 Reusable Composition API functions encapsulating reactive logic.

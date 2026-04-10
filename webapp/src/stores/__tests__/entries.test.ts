@@ -6,12 +6,19 @@ vi.mock('@/api/entries', () => ({
   fetchEntries: vi.fn(),
   fetchEntry: vi.fn(),
   updateEntryText: vi.fn(),
+  deleteEntry: vi.fn(),
 }))
 
-import { fetchEntries, fetchEntry, updateEntryText } from '@/api/entries'
+import {
+  fetchEntries,
+  fetchEntry,
+  updateEntryText,
+  deleteEntry,
+} from '@/api/entries'
 const mockFetchEntries = vi.mocked(fetchEntries)
 const mockFetchEntry = vi.mocked(fetchEntry)
 const mockUpdateEntryText = vi.mocked(updateEntryText)
+const mockDeleteEntry = vi.mocked(deleteEntry)
 
 describe('useEntriesStore', () => {
   beforeEach(() => {
@@ -203,6 +210,86 @@ describe('useEntriesStore', () => {
     await store.loadEntries()
 
     expect(store.hasEntries).toBe(true)
+  })
+
+  it('deleteEntry removes the entry from the list and decrements total', async () => {
+    mockFetchEntries.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          entry_date: '2026-01-01',
+          source_type: 'ocr',
+          page_count: 1,
+          word_count: 10,
+          chunk_count: 1,
+          created_at: '',
+        },
+        {
+          id: 2,
+          entry_date: '2026-01-02',
+          source_type: 'ocr',
+          page_count: 1,
+          word_count: 20,
+          chunk_count: 2,
+          created_at: '',
+        },
+      ],
+      total: 2,
+      limit: 20,
+      offset: 0,
+    })
+    mockDeleteEntry.mockResolvedValue({ deleted: true, id: 1 })
+
+    const store = useEntriesStore()
+    await store.loadEntries()
+    await store.deleteEntry(1)
+
+    expect(mockDeleteEntry).toHaveBeenCalledWith(1)
+    expect(store.entries.map((e) => e.id)).toEqual([2])
+    expect(store.total).toBe(1)
+    expect(store.error).toBeNull()
+  })
+
+  it('deleteEntry clears currentEntry when the deleted entry is loaded', async () => {
+    const entry = {
+      id: 42,
+      entry_date: '2026-01-01',
+      source_type: 'ocr' as const,
+      raw_text: 'raw',
+      final_text: 'final',
+      page_count: 1,
+      word_count: 10,
+      chunk_count: 2,
+      language: 'en',
+      created_at: '',
+      updated_at: '',
+    }
+    mockFetchEntry.mockResolvedValue(entry)
+    mockDeleteEntry.mockResolvedValue({ deleted: true, id: 42 })
+
+    const store = useEntriesStore()
+    await store.loadEntry(42)
+    expect(store.currentEntry?.id).toBe(42)
+
+    await store.deleteEntry(42)
+    expect(store.currentEntry).toBeNull()
+  })
+
+  it('deleteEntry sets error and rethrows on failure', async () => {
+    mockDeleteEntry.mockRejectedValue(new Error('Not found'))
+
+    const store = useEntriesStore()
+    await expect(store.deleteEntry(99)).rejects.toThrow('Not found')
+    expect(store.error).toBe('Not found')
+    expect(store.loading).toBe(false)
+  })
+
+  it('deleteEntry falls back to a generic message when a non-Error is thrown', async () => {
+    mockDeleteEntry.mockRejectedValue('boom')
+
+    const store = useEntriesStore()
+    await expect(store.deleteEntry(1)).rejects.toBe('boom')
+    expect(store.error).toBe('Failed to delete entry')
   })
 
   it('loadEntries merges new params over currentParams', async () => {

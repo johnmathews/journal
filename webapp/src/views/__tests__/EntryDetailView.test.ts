@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
@@ -32,6 +32,7 @@ vi.mock('@/api/entries', () => ({
     created_at: '2026-03-23T10:30:00Z',
     updated_at: '2026-03-23T10:30:00Z',
   }),
+  deleteEntry: vi.fn().mockResolvedValue({ deleted: true, id: 1 }),
 }))
 
 const router = createRouter({
@@ -263,6 +264,114 @@ describe('EntryDetailView', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('[data-testid="modified-tag"]').exists()).toBe(true)
+  })
+
+  describe('delete flow', () => {
+    // happy-dom doesn't provide window.confirm, so we stub it directly
+    // for each test in this block and restore afterwards.
+    let confirmMock: ReturnType<typeof vi.fn>
+    let originalConfirm: typeof window.confirm
+
+    beforeEach(() => {
+      originalConfirm = window.confirm
+      confirmMock = vi.fn().mockReturnValue(true)
+      window.confirm = confirmMock as unknown as typeof window.confirm
+    })
+
+    afterEach(() => {
+      window.confirm = originalConfirm
+    })
+
+    it('renders a delete button once the entry has loaded', async () => {
+      const wrapper = mountComponent()
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="delete-button"]').exists()).toBe(true)
+    })
+
+    it('does not call deleteEntry when the user cancels the confirm', async () => {
+      confirmMock.mockReturnValue(false)
+
+      const wrapper = mountComponent()
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      const { deleteEntry } = await import('@/api/entries')
+      const mockDelete = vi.mocked(deleteEntry)
+      mockDelete.mockClear()
+
+      await wrapper.find('[data-testid="delete-button"]').trigger('click')
+      await flushPromises()
+
+      expect(confirmMock).toHaveBeenCalled()
+      expect(mockDelete).not.toHaveBeenCalled()
+    })
+
+    it('calls deleteEntry and navigates to the list on confirm', async () => {
+      const wrapper = mountComponent()
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      const pushSpy = vi.spyOn(router, 'push')
+      const { deleteEntry } = await import('@/api/entries')
+      const mockDelete = vi.mocked(deleteEntry)
+      mockDelete.mockClear()
+      mockDelete.mockResolvedValueOnce({ deleted: true, id: 1 })
+
+      await wrapper.find('[data-testid="delete-button"]').trigger('click')
+      await flushPromises()
+
+      expect(mockDelete).toHaveBeenCalledWith(1)
+      expect(pushSpy).toHaveBeenCalledWith({ name: 'entries' })
+    })
+
+    it('shows an inline delete error banner when deleteEntry rejects', async () => {
+      const { deleteEntry } = await import('@/api/entries')
+      const mockDelete = vi.mocked(deleteEntry)
+      mockDelete.mockRejectedValueOnce(new Error('Could not delete'))
+
+      const wrapper = mountComponent()
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      await wrapper.find('[data-testid="delete-button"]').trigger('click')
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      const banner = wrapper.find('[data-testid="delete-error-banner"]')
+      expect(banner.exists()).toBe(true)
+      expect(banner.text()).toContain('Could not delete')
+    })
+
+    it('does not trigger the unsaved-changes prompt when deleting a dirty entry', async () => {
+      const wrapper = mountComponent()
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      // Make the editor dirty.
+      await wrapper
+        .find('[data-testid="corrected-textarea"]')
+        .setValue('dirty edit')
+      expect(wrapper.find('[data-testid="unsaved-indicator"]').exists()).toBe(
+        true,
+      )
+
+      const pushSpy = vi.spyOn(router, 'push')
+      const { deleteEntry } = await import('@/api/entries')
+      const mockDelete = vi.mocked(deleteEntry)
+      mockDelete.mockClear()
+      mockDelete.mockResolvedValueOnce({ deleted: true, id: 1 })
+
+      await wrapper.find('[data-testid="delete-button"]').trigger('click')
+      await flushPromises()
+
+      // Exactly one confirm: the delete confirmation. The unsaved-changes
+      // guard should NOT fire because the delete flow resets the editor
+      // before navigating.
+      expect(confirmMock).toHaveBeenCalledTimes(1)
+      expect(pushSpy).toHaveBeenCalledWith({ name: 'entries' })
+    })
   })
 
   describe('beforeunload guard', () => {

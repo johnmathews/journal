@@ -3,6 +3,7 @@ import {
   fetchEntries,
   fetchEntry,
   updateEntryText,
+  deleteEntry,
   fetchStats,
 } from '../entries'
 
@@ -76,6 +77,15 @@ describe('entries API', () => {
       method: 'PATCH',
       body: JSON.stringify({ final_text: 'corrected' }),
     })
+  })
+
+  it('deleteEntry sends DELETE to the entry endpoint', async () => {
+    mockApiFetch.mockResolvedValue({ deleted: true, id: 7 })
+    const result = await deleteEntry(7)
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/entries/7', {
+      method: 'DELETE',
+    })
+    expect(result).toEqual({ deleted: true, id: 7 })
   })
 
   it('fetchStats calls correct endpoint', async () => {
