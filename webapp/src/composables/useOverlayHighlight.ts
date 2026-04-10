@@ -74,28 +74,35 @@ function escapeHtml(input: string): string {
  * Colour strategy:
  * - Light mode uses the `200` shades with `text-gray-900` — strong
  *   enough to read against a white panel without washing out.
- * - Dark mode uses the `400` shade at 40% opacity with `text-white`
- *   — `sky-400` (#38bdf8) is noticeably brighter than `sky-500`
- *   (#0ea5e9) and 40% alpha gives a clearly visible tint while
- *   letting the white text punch through.
+ * - Dark mode uses the `400` shade at 50–55% opacity with `text-white`
+ *   — `sky-400` etc. are noticeably brighter than `sky-500`, and
+ *   bumping the alpha into the 50s gives a properly saturated tint
+ *   that the white text still punches through cleanly.
  *
- * `sky` and `green` are defined in the project's Tailwind `@theme`
- * palette and are unused elsewhere. `emerald` is deliberately avoided:
- * the diff composable uses it but it's not redefined in `@theme`, so
- * its values are inconsistent with the project's palette.
+ * Overlap uses `fuchsia` (not violet) because violet sits too close
+ * to both sky and green in hue space — in dark mode the three tints
+ * at similar lightness become hard to tell apart. Fuchsia is much
+ * further from both in oklab space (warm magenta vs cool blue/green),
+ * so overlap regions are unmistakable even against the dark panel.
+ *
+ * `sky`, `green`, and `fuchsia` are defined in the project's Tailwind
+ * `@theme` palette (see `src/assets/main.css`). `emerald` is
+ * deliberately avoided: the diff composable uses it but it is not
+ * redefined in `@theme`, so its values are inconsistent with the
+ * project's palette.
  */
 const CLASS_FOR_KIND: Record<OverlayKind, string> = {
   plain: '',
   'chunk-a':
-    'text-gray-900 dark:text-white bg-sky-200 dark:bg-sky-400/40 border-l-[3px] border-sky-600 dark:border-sky-300 rounded-r-[2px]',
+    'text-gray-900 dark:text-white bg-sky-200 dark:bg-sky-400/50 border-l-[3px] border-sky-600 dark:border-sky-300 rounded-r-[2px]',
   'chunk-b':
-    'text-gray-900 dark:text-white bg-green-200 dark:bg-green-400/40 border-l-[3px] border-green-600 dark:border-green-300 rounded-r-[2px]',
+    'text-gray-900 dark:text-white bg-green-200 dark:bg-green-400/50 border-l-[3px] border-green-600 dark:border-green-300 rounded-r-[2px]',
   'chunk-overlap':
-    'text-gray-900 dark:text-white bg-violet-200 dark:bg-violet-400/45 border-l-[3px] border-violet-600 dark:border-violet-300 rounded-r-[2px]',
+    'text-gray-900 dark:text-white bg-fuchsia-200 dark:bg-fuchsia-400/55 border-l-[3px] border-fuchsia-600 dark:border-fuchsia-300 rounded-r-[2px]',
   'token-a':
-    'text-gray-900 dark:text-white bg-sky-200 dark:bg-sky-400/35 rounded-[1px]',
+    'text-gray-900 dark:text-white bg-sky-200 dark:bg-sky-400/45 rounded-[1px]',
   'token-b':
-    'text-gray-900 dark:text-white bg-green-200 dark:bg-green-400/35 rounded-[1px]',
+    'text-gray-900 dark:text-white bg-green-200 dark:bg-green-400/45 rounded-[1px]',
 }
 
 /**

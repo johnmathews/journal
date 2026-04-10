@@ -85,6 +85,27 @@
   --color-yellow-900: #4f3d0e;
   --color-yellow-950: #342809;
 
+  /*
+   * Fuchsia is used exclusively by the chunk-overlay feature to mark
+   * regions where two chunks overlap (see useOverlayHighlight.ts).
+   * It was picked because it sits far from both sky (the chunk-a
+   * colour) and green (chunk-b) in hue space, so overlap regions are
+   * visually unmistakable even at partial opacity in dark mode.
+   * Values are Tailwind's defaults — there is no design reason to
+   * retune them since they are only used for this one feature.
+   */
+  --color-fuchsia-50: #fdf4ff;
+  --color-fuchsia-100: #fae8ff;
+  --color-fuchsia-200: #f5d0fe;
+  --color-fuchsia-300: #f0abfc;
+  --color-fuchsia-400: #e879f9;
+  --color-fuchsia-500: #d946ef;
+  --color-fuchsia-600: #c026d3;
+  --color-fuchsia-700: #a21caf;
+  --color-fuchsia-800: #86198f;
+  --color-fuchsia-900: #701a75;
+  --color-fuchsia-950: #4a044e;
+
   --font-inter: 'Inter', 'sans-serif';
 
   --text-xs: 0.75rem;
