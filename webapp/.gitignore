@@ -20,6 +20,11 @@ coverage/
 .env.local
 .env.*.local
 
+# Secrets
+*.key
+*.pem
+credentials.json
+
 # Logs
 *.log
 npm-debug.log*
