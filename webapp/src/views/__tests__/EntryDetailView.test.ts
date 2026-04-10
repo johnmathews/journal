@@ -4,6 +4,15 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
 import EntryDetailView from '../EntryDetailView.vue'
 
+// Entity fetches used by EntryDetailView for the chip strip — mocked
+// to return an empty list so the tests don't hit the network.
+vi.mock('@/api/entities', () => ({
+  fetchEntryEntities: vi.fn().mockResolvedValue({
+    entry_id: 1,
+    entities: [],
+  }),
+}))
+
 vi.mock('@/api/entries', () => ({
   fetchEntries: vi.fn(),
   fetchEntry: vi.fn().mockResolvedValue({
@@ -342,6 +351,87 @@ describe('EntryDetailView', () => {
     await flushPromises()
 
     expect(mockUpdate).toHaveBeenCalledWith(1, 'Updated text')
+  })
+
+  it('refetches chunks after save when the overlay is next switched on', async () => {
+    // Regression for next-session item 5. After the user saves an
+    // edit, the previously-fetched chunks describe the OLD final_text
+    // and the offsets no longer line up with the re-chunked server
+    // state. Flipping the overlay off→on after a save must refetch,
+    // not reuse the stale cache.
+    const { fetchEntryChunks, updateEntryText } = await import('@/api/entries')
+    const fetchSpy = vi.mocked(fetchEntryChunks)
+    const updateSpy = vi.mocked(updateEntryText)
+    fetchSpy.mockClear()
+    updateSpy.mockClear()
+
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    // Warm the chunks cache: switch overlay on, let the fetch happen.
+    await wrapper.find('[data-testid="overlay-radio-chunks"]').setValue(true)
+    await flushPromises()
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+
+    // Switch overlay off so the next on→chunks flip is observable.
+    await wrapper.find('[data-testid="overlay-radio-off"]').setValue(true)
+    await flushPromises()
+
+    // With the old behaviour, switching back on would NOT refetch
+    // (the cache survived). Verify the baseline by flipping on and
+    // confirming no additional fetch happens — then mutate and save.
+    await wrapper.find('[data-testid="overlay-radio-chunks"]').setValue(true)
+    await flushPromises()
+    expect(fetchSpy).toHaveBeenCalledTimes(1) // still cached
+
+    // Switch off, dirty the textarea, and save.
+    await wrapper.find('[data-testid="overlay-radio-off"]').setValue(true)
+    await flushPromises()
+
+    await wrapper
+      .find('[data-testid="corrected-textarea"]')
+      .setValue('Updated text that will re-chunk')
+    await wrapper.find('[data-testid="save-button"]').trigger('click')
+    await flushPromises()
+    expect(updateSpy).toHaveBeenCalled()
+
+    // After the save, flipping chunks on must trigger a fresh fetch.
+    await wrapper.find('[data-testid="overlay-radio-chunks"]').setValue(true)
+    await flushPromises()
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('refetches tokens after save when the overlay is next switched on', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    const { fetchEntryTokens, updateEntryText } = await import('@/api/entries')
+    const fetchSpy = vi.mocked(fetchEntryTokens)
+    const updateSpy = vi.mocked(updateEntryText)
+    fetchSpy.mockClear()
+    updateSpy.mockClear()
+
+    // Warm the tokens cache.
+    await wrapper.find('[data-testid="overlay-radio-tokens"]').setValue(true)
+    await flushPromises()
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+
+    // Switch off, dirty, save.
+    await wrapper.find('[data-testid="overlay-radio-off"]').setValue(true)
+    await flushPromises()
+    await wrapper
+      .find('[data-testid="corrected-textarea"]')
+      .setValue('Different content')
+    await wrapper.find('[data-testid="save-button"]').trigger('click')
+    await flushPromises()
+    expect(updateSpy).toHaveBeenCalled()
+
+    // Next flip on → fresh fetch.
+    await wrapper.find('[data-testid="overlay-radio-tokens"]').setValue(true)
+    await flushPromises()
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
   })
 
   it('shows an inline save error banner when updateEntryText rejects', async () => {

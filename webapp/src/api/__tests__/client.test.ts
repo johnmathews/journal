@@ -1,9 +1,19 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { apiFetch, ApiRequestError } from '../client'
+
+// client.ts reads the API token from `import.meta.env` inside
+// `apiFetch` (per-call, not at import time), so `vi.stubEnv` in a
+// beforeEach takes effect for every test without needing dynamic
+// imports or module re-loads.
 
 describe('apiFetch', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    vi.stubEnv('VITE_JOURNAL_API_TOKEN', 'test-token-abc')
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('makes a GET request and returns JSON', async () => {
@@ -20,6 +30,62 @@ describe('apiFetch', () => {
       expect.objectContaining({
         headers: expect.objectContaining({
           'Content-Type': 'application/json',
+        }),
+      }),
+    )
+  })
+
+  it('sends the bearer token in the Authorization header when configured', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({}),
+    } as Response)
+
+    await apiFetch('/api/entries')
+
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/entries',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-token-abc',
+        }),
+      }),
+    )
+  })
+
+  it('omits the Authorization header when no token is configured', async () => {
+    vi.stubEnv('VITE_JOURNAL_API_TOKEN', '')
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({}),
+    } as Response)
+
+    await apiFetch('/api/entries')
+
+    // Introspect the call args to assert the header is absent rather
+    // than present-with-some-value.
+    const call = vi.mocked(fetch).mock.calls[0]
+    const init = call[1] as RequestInit
+    const headers = init.headers as Record<string, string>
+    expect(headers.Authorization).toBeUndefined()
+    expect(headers['Content-Type']).toBe('application/json')
+  })
+
+  it('allows a caller to override the Authorization header', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({}),
+    } as Response)
+
+    await apiFetch('/api/entries', {
+      headers: { Authorization: 'Bearer override-xyz' },
+    })
+
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/entries',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer override-xyz',
         }),
       }),
     )

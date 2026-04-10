@@ -14,6 +14,17 @@ const router = createRouter({
       component: () => import('@/views/EntryDetailView.vue'),
       props: true,
     },
+    {
+      path: '/entities',
+      name: 'entities',
+      component: () => import('@/views/EntityListView.vue'),
+    },
+    {
+      path: '/entities/:id',
+      name: 'entity-detail',
+      component: () => import('@/views/EntityDetailView.vue'),
+      props: true,
+    },
   ],
 })
 

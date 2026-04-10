@@ -9,8 +9,10 @@ import {
   type OverlayMode,
 } from '@/composables/useOverlayHighlight'
 import { fetchEntryChunks, fetchEntryTokens } from '@/api/entries'
+import { fetchEntryEntities } from '@/api/entities'
 import { ApiRequestError } from '@/api/client'
 import type { Chunk, TokenSpan } from '@/types/entry'
+import type { EntryEntityRef, EntityType } from '@/types/entity'
 
 const props = defineProps<{
   id: string
@@ -133,8 +135,44 @@ watch(correctedHtml, () => {
   nextTick(syncCorrectedScroll)
 })
 
+// Entity chips shown in the header. Fetched lazily so the editor
+// loads even if the extraction job hasn't run yet for this entry.
+// Silently empty on failure (e.g. pre-extraction entries that return
+// 404 from /api/entries/{id}/entities).
+const entryEntities = ref<EntryEntityRef[]>([])
+
+async function loadEntryEntities(entryId: number) {
+  try {
+    const resp = await fetchEntryEntities(entryId)
+    entryEntities.value = resp.entities
+  } catch {
+    // Swallow — the strip just stays hidden if there's nothing to show.
+    entryEntities.value = []
+  }
+}
+
+function entityChipClass(type: EntityType): string {
+  switch (type) {
+    case 'person':
+      return 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300'
+    case 'place':
+      return 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300'
+    case 'activity':
+      return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+    case 'organization':
+      return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300'
+    case 'topic':
+      return 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300'
+    case 'other':
+    default:
+      return 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300'
+  }
+}
+
 onMounted(() => {
-  store.loadEntry(Number(props.id))
+  const entryId = Number(props.id)
+  store.loadEntry(entryId)
+  loadEntryEntities(entryId)
 })
 
 async function save() {
@@ -143,6 +181,21 @@ async function save() {
   saveError.value = null
   try {
     await store.saveEntryText(store.currentEntry.id, editedText.value)
+    // Invalidate cached chunks/tokens — the server re-chunks and
+    // re-embeds on save, so the previously-fetched offsets and token
+    // spans no longer describe the persisted final_text. The next
+    // overlay-mode flip will refetch fresh data. We do NOT touch
+    // overlayMode itself: if the user was looking at chunks before
+    // the save, the watch(overlayMode) effect won't refire, so we
+    // leave the mode but null the cache so the panel will show the
+    // overlay-display (backed by overlayHtml over persistedText)
+    // with the stale-until-next-toggle gap that already existed and
+    // was flagged as a minor UX issue, not a bug. The important bit
+    // is that switching off→on now picks up fresh data rather than
+    // showing the pre-save chunks.
+    chunks.value = null
+    tokens.value = null
+    overlayError.value = null
   } catch (e) {
     saveError.value = e instanceof Error ? e.message : 'Failed to save'
   } finally {
@@ -273,6 +326,29 @@ onBeforeUnmount(() => {
               }}
             </span>
           </div>
+        </div>
+
+        <!-- Entity chips: lazy-fetched tags for entities extracted
+             from this entry. Hidden when nothing has been extracted
+             (e.g. before the user runs the batch extraction job). -->
+        <div
+          v-if="entryEntities.length"
+          class="flex flex-wrap gap-2 mt-3"
+          data-testid="entry-entity-chips"
+        >
+          <RouterLink
+            v-for="chip in entryEntities"
+            :key="chip.entity_id"
+            :to="{
+              name: 'entity-detail',
+              params: { id: chip.entity_id },
+            }"
+            class="inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-0.5 capitalize hover:opacity-80 transition-opacity"
+            :class="entityChipClass(chip.entity_type)"
+            :data-testid="`entry-entity-chip-${chip.entity_id}`"
+          >
+            {{ chip.canonical_name }}
+          </RouterLink>
         </div>
       </div>
 
