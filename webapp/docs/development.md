@@ -106,4 +106,17 @@ Coverage is collected by `@vitest/coverage-v8` using V8's native coverage instru
 
 The coverage config excludes files that aren't meaningful to measure: test files themselves, `src/main.ts` (bootstrap), `src/router/**` (trivial wiring), `src/types/**` (interfaces have no runtime), and `src/assets/**` (CSS). The `coverage/` directory is gitignored.
 
-There is no minimum coverage threshold enforced. Treat the coverage report as a map of where tests could be added, not a gate. When adding new code, especially in `src/api`, `src/stores`, `src/composables`, and `src/utils`, aim to leave the coverage numbers flat or improving.
+CI runs `npm run test:coverage` on every push to `main` and every PR, and enforces minimum thresholds defined in `vitest.config.ts`:
+
+| Metric     | Minimum | Current baseline |
+| ---------- | ------- | ---------------- |
+| Statements | 90%     | 96.36%           |
+| Branches   | 85%     | 91.48%           |
+| Functions  | 90%     | 97.01%           |
+| Lines      | 90%     | 98.06%           |
+
+The thresholds are set a few points below the current baseline so small incidental changes (a refactor that adds a handful of uncovered lines) don't flicker CI red, but a real regression (dropping a whole test file, introducing a large untested feature) will fail the build and block the Docker image from being published.
+
+The CI workflow also uploads the HTML coverage report as a GitHub Actions artifact named `coverage-report` (14-day retention). To inspect coverage for a past CI run, open the run in the Actions tab, scroll to Artifacts, download `coverage-report.zip`, and open `index.html` in a browser.
+
+When adding new code, especially in `src/api`, `src/stores`, `src/composables`, and `src/utils`, aim to leave the coverage numbers flat or improving. If a legitimate refactor drops a metric close to its threshold, bump the threshold up or down deliberately rather than letting it erode silently.

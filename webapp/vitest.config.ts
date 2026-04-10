@@ -22,6 +22,16 @@ export default mergeConfig(
           'src/types/**',
           'src/assets/**',
         ],
+        // Minimum coverage the suite must hit; CI fails if any metric
+        // drops below these numbers. Set a few points below the current
+        // baseline so small, incidental changes don't flicker CI red.
+        // Current as of 2026-04-10: stmts 96.36 / branch 91.48 / funcs 97.01 / lines 98.06.
+        thresholds: {
+          statements: 90,
+          branches: 85,
+          functions: 90,
+          lines: 90,
+        },
       },
     },
   }),
