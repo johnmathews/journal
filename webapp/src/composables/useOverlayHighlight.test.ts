@@ -96,6 +96,46 @@ describe('buildChunkSegments', () => {
     const segs = buildChunkSegments('hello', [chunk(0, 0, 5, 7)])
     expect(segs[0].title).toBe('chunk 0 — 7 tokens')
   })
+
+  it('tags the first segment of each chunk with chunkStartIndex', () => {
+    // Two contiguous chunks → two segments, each carrying its index.
+    const segs = buildChunkSegments('aaaabbbb', [
+      chunk(0, 0, 4),
+      chunk(1, 4, 8),
+    ])
+    expect(segs[0].chunkStartIndex).toBe(0)
+    expect(segs[1].chunkStartIndex).toBe(1)
+  })
+
+  it('does not tag subsequent segments of the same chunk', () => {
+    // One chunk spans a range that gets split by a smaller chunk inside.
+    //   chunk 0: [0, 10)   "0123456789"
+    //   chunk 1: [4, 6)    "45" (overlap)
+    // Breakpoints: 0, 4, 6, 10. Intervals:
+    //   [0, 4)  — chunk 0 alone, chunk-a, startIndex=0
+    //   [4, 6)  — chunks 0+1, chunk-overlap, startIndex=1 (start of chunk 1)
+    //   [6, 10) — chunk 0 alone, chunk-a, NO startIndex (already consumed)
+    const segs = buildChunkSegments('0123456789', [
+      chunk(0, 0, 10),
+      chunk(1, 4, 6),
+    ])
+    expect(segs).toHaveLength(3)
+    expect(segs[0].chunkStartIndex).toBe(0)
+    expect(segs[1].chunkStartIndex).toBe(1)
+    expect(segs[2].chunkStartIndex).toBeUndefined()
+  })
+
+  it('plain segments never carry a chunk start index', () => {
+    // Gap between two non-contiguous chunks.
+    const segs = buildChunkSegments('aaaxxxbbb', [
+      chunk(0, 0, 3),
+      chunk(1, 6, 9),
+    ])
+    expect(segs[0].chunkStartIndex).toBe(0)
+    expect(segs[1].kind).toBe('plain')
+    expect(segs[1].chunkStartIndex).toBeUndefined()
+    expect(segs[2].chunkStartIndex).toBe(1)
+  })
 })
 
 describe('buildTokenSegments', () => {
@@ -147,7 +187,7 @@ describe('segmentsToHtml', () => {
       { kind: 'chunk-a', text: 'hello', title: 'chunk 0 — 3 tokens' },
     ])
     expect(html).toContain('<mark')
-    expect(html).toContain('bg-sky-100')
+    expect(html).toContain('bg-sky-200')
     expect(html).toContain('title="chunk 0 — 3 tokens"')
     expect(html).toContain('hello')
   })
@@ -171,6 +211,34 @@ describe('segmentsToHtml', () => {
       { kind: 'plain', text: 'kept' },
     ])
     expect(html).toBe('kept')
+  })
+
+  it('emits a chunk-start badge when chunkStartIndex is set', () => {
+    const html = segmentsToHtml([
+      {
+        kind: 'chunk-a',
+        text: 'Hello world',
+        chunkStartIndex: 0,
+        title: 'chunk 0 — 12 tokens',
+      },
+    ])
+    expect(html).toContain('aria-label="chunk 0 start"')
+    expect(html).toContain('>0<') // badge content
+    expect(html).toContain('Hello world')
+  })
+
+  it('does not emit a badge when chunkStartIndex is undefined', () => {
+    const html = segmentsToHtml([{ kind: 'chunk-a', text: 'Hello world' }])
+    expect(html).not.toContain('aria-label="chunk')
+  })
+
+  it('renders chunk indices 0 and 1 as distinct badges', () => {
+    const html = segmentsToHtml([
+      { kind: 'chunk-a', text: 'first', chunkStartIndex: 0 },
+      { kind: 'chunk-b', text: 'second', chunkStartIndex: 1 },
+    ])
+    expect(html).toContain('aria-label="chunk 0 start"')
+    expect(html).toContain('aria-label="chunk 1 start"')
   })
 })
 
@@ -202,7 +270,7 @@ describe('useOverlayHighlight', () => {
       chunks: ref([chunk(0, 0, 5)]),
       tokens: ref(null),
     })
-    expect(overlayHtml.value).toContain('bg-sky-100')
+    expect(overlayHtml.value).toContain('bg-sky-200')
     expect(overlayHtml.value).toContain('Hello')
     expect(overlayHtml.value).toContain(' world')
   })
@@ -215,7 +283,7 @@ describe('useOverlayHighlight', () => {
       tokens: ref([token(0, 0, 1), token(1, 1, 2)]),
     })
     expect(overlayHtml.value).toContain('token-a'.split('-')[0]) // sanity: sky
-    expect(overlayHtml.value).toContain('bg-green-100')
+    expect(overlayHtml.value).toContain('bg-green-200')
   })
 
   it('reacts to mode changes', () => {
@@ -228,6 +296,6 @@ describe('useOverlayHighlight', () => {
     })
     expect(overlayHtml.value).toBe('hello')
     mode.value = 'chunks'
-    expect(overlayHtml.value).toContain('bg-sky-100')
+    expect(overlayHtml.value).toContain('bg-sky-200')
   })
 })

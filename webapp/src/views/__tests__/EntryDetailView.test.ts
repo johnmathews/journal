@@ -218,8 +218,10 @@ describe('EntryDetailView', () => {
     )
     const overlay = wrapper.find('[data-testid="overlay-display"]')
     expect(overlay.exists()).toBe(true)
-    // The chunk-a class (sky background) should appear in the rendered HTML.
-    expect(overlay.html()).toContain('bg-sky-100')
+    // The chunk-a class (sky background) should appear in the rendered HTML,
+    // and the chunk-start badge should mark where chunk 0 begins.
+    expect(overlay.html()).toContain('bg-sky-200')
+    expect(overlay.html()).toContain('aria-label="chunk 0 start"')
   })
 
   it('switches to tokens overlay and fetches tokens', async () => {

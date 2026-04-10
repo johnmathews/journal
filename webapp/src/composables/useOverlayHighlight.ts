@@ -31,6 +31,14 @@ export interface OverlaySegment {
   text: string
   /** Human-readable label shown on hover (title attribute). Optional. */
   title?: string
+  /**
+   * When this segment is the first interval of a new chunk in a
+   * chunks-mode overlay, this carries the chunk's index. The renderer
+   * emits a small inline badge (`[N]`) before the segment text so the
+   * user can see exactly where each chunk begins, even when a single
+   * chunk covers a long run of uniform background colour.
+   */
+  chunkStartIndex?: number
 }
 
 /**
@@ -50,27 +58,46 @@ function escapeHtml(input: string): string {
 /**
  * Tailwind classes for each overlay kind. `plain` has no class so the
  * renderer emits bare escaped text (no `<mark>` wrapper). Chunk spans
- * carry a left border so boundaries are visible even when the
- * background colours blend together. Token spans use a lighter
- * background fill without borders.
+ * carry a thick left border plus a saturated background so the chunk
+ * boundary is unmistakable even when a single chunk covers a long
+ * run of text. Token spans use a lighter background fill without
+ * borders (the boundary is communicated by the alternation itself).
  *
- * Colour choice: `sky` and `green` are defined in the project's
- * Tailwind `@theme` palette and are currently unused elsewhere, so
- * they are safe to reserve for the overlay. `emerald` is deliberately
- * avoided — the diff composable uses it but it's not redefined in
- * `@theme`, so values are inconsistent.
+ * Colour strategy:
+ * - Light mode uses the `200` shades at full opacity — strong enough
+ *   to read against a white/near-white panel without washing out.
+ * - Dark mode uses the `500` shade at ~25% opacity — bright mid
+ *   colours at low alpha are dramatically more visible against a
+ *   near-black panel than the old `900` shade at 40% (which was just
+ *   dark blue on dark gray and barely visible).
+ *
+ * `sky` and `green` are defined in the project's Tailwind `@theme`
+ * palette and are unused elsewhere. `emerald` is deliberately avoided:
+ * the diff composable uses it but it's not redefined in `@theme`, so
+ * its values are inconsistent with the project's palette.
  */
 const CLASS_FOR_KIND: Record<OverlayKind, string> = {
   plain: '',
   'chunk-a':
-    'bg-sky-100/70 dark:bg-sky-900/40 border-l-2 border-sky-500/60 rounded-r-[2px]',
+    'bg-sky-200 dark:bg-sky-500/25 border-l-[3px] border-sky-600 dark:border-sky-300 rounded-r-[2px]',
   'chunk-b':
-    'bg-green-100/70 dark:bg-green-900/40 border-l-2 border-green-500/60 rounded-r-[2px]',
+    'bg-green-200 dark:bg-green-500/25 border-l-[3px] border-green-600 dark:border-green-300 rounded-r-[2px]',
   'chunk-overlap':
-    'bg-violet-100/70 dark:bg-violet-900/40 border-l-2 border-violet-500/60 rounded-r-[2px]',
-  'token-a': 'bg-sky-100/80 dark:bg-sky-900/50 rounded-[1px]',
-  'token-b': 'bg-green-100/80 dark:bg-green-900/50 rounded-[1px]',
+    'bg-violet-200 dark:bg-violet-500/30 border-l-[3px] border-violet-600 dark:border-violet-300 rounded-r-[2px]',
+  'token-a': 'bg-sky-200 dark:bg-sky-500/25 rounded-[1px]',
+  'token-b': 'bg-green-200 dark:bg-green-500/25 rounded-[1px]',
 }
+
+/**
+ * Inline badge prepended to the first interval of each chunk in
+ * chunks mode. Small dark-on-light (inverted in dark mode) pill
+ * showing the chunk's index. The badge is the primary "here is where
+ * chunk N starts" marker — the alternating backgrounds reinforce it
+ * but are not sufficient on their own (especially for the degenerate
+ * single-chunk case where there is no alternation to see).
+ */
+const CHUNK_BADGE_CLASS =
+  'inline-block text-[0.65rem] font-bold leading-none px-1.5 py-[2px] mr-1 rounded bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 align-[0.15em] font-mono'
 
 /**
  * Render segments to an HTML string. Empty segments are dropped. The
@@ -84,11 +111,19 @@ export function segmentsToHtml(segments: OverlaySegment[]): string {
     if (seg.text.length === 0) continue
     const safe = escapeHtml(seg.text)
     const cls = CLASS_FOR_KIND[seg.kind]
+    // Badge markup is emitted INSIDE the `<mark>` so it picks up the
+    // chunk's own background tint and reads as part of the chunk. It
+    // only applies when the segment is a chunk kind — plain and token
+    // segments never set `chunkStartIndex`.
+    const badgeHtml =
+      seg.chunkStartIndex !== undefined
+        ? `<span class="${CHUNK_BADGE_CLASS}" aria-label="chunk ${seg.chunkStartIndex} start">${seg.chunkStartIndex}</span>`
+        : ''
     if (cls) {
       const title = seg.title ? ` title="${escapeHtml(seg.title)}"` : ''
-      parts.push(`<mark class="${cls}"${title}>${safe}</mark>`)
+      parts.push(`<mark class="${cls}"${title}>${badgeHtml}${safe}</mark>`)
     } else {
-      parts.push(safe)
+      parts.push(`${badgeHtml}${safe}`)
     }
   }
   return parts.join('')
@@ -118,15 +153,26 @@ export function buildChunkSegments(
   }
 
   // Collect unique breakpoints: text boundaries plus every chunk edge,
-  // clamped to [0, text.length].
+  // clamped to [0, text.length]. Also record which char position marks
+  // the start of each chunk — the renderer prepends a `[N]` badge to
+  // the first interval that begins at that position.
   const breakpoints = new Set<number>([0, text.length])
+  const chunkStartAt = new Map<number, number>() // char_start -> chunk.index
   for (const c of chunks) {
     const start = Math.max(0, Math.min(text.length, c.char_start))
     const end = Math.max(0, Math.min(text.length, c.char_end))
     breakpoints.add(start)
     breakpoints.add(end)
+    // If multiple chunks happen to start at the same offset, keep the
+    // lowest index so the badge shown is the "earliest" chunk — this
+    // matches the visual ordering the user expects.
+    const existing = chunkStartAt.get(start)
+    if (existing === undefined || c.index < existing) {
+      chunkStartAt.set(start, c.index)
+    }
   }
   const sorted = [...breakpoints].sort((a, b) => a - b)
+  const consumedStart = new Set<number>()
 
   const segments: OverlaySegment[] = []
   for (let i = 0; i < sorted.length - 1; i++) {
@@ -148,7 +194,22 @@ export function buildChunkSegments(
       kind = 'chunk-overlap'
       title = `overlap: chunks ${covering.map((c) => c.index).join(', ')}`
     }
-    segments.push({ kind, text: text.slice(start, end), title })
+    // Badge only on chunk segments — plain intervals between chunks
+    // shouldn't carry a chunk label.
+    let chunkStartIndex: number | undefined
+    if (kind !== 'plain' && !consumedStart.has(start)) {
+      const startIdx = chunkStartAt.get(start)
+      if (startIdx !== undefined) {
+        chunkStartIndex = startIdx
+        consumedStart.add(start)
+      }
+    }
+    segments.push({
+      kind,
+      text: text.slice(start, end),
+      title,
+      chunkStartIndex,
+    })
   }
   return segments
 }
