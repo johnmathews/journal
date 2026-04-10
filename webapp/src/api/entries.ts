@@ -1,7 +1,9 @@
 import type {
+  EntryChunksResponse,
   EntryDetail,
   EntryListParams,
   EntryListResponse,
+  EntryTokensResponse,
   Statistics,
 } from '@/types/entry'
 import { apiFetch } from './client'
@@ -53,4 +55,25 @@ export function fetchStats(
 ): Promise<Statistics> {
   const query = buildQuery({ ...params })
   return apiFetch<Statistics>(`/api/stats${query}`)
+}
+
+/** Fetch persisted chunks (with source character offsets) for an entry.
+ *
+ * Used by the entry-detail overlay to draw chunk boundaries on top of
+ * the text. The server returns a 404 with `error: "chunks_not_backfilled"`
+ * for entries ingested before chunk persistence landed — callers should
+ * inspect `ApiRequestError.errorCode` to surface the dedicated message.
+ */
+export function fetchEntryChunks(id: number): Promise<EntryChunksResponse> {
+  return apiFetch<EntryChunksResponse>(`/api/entries/${id}/chunks`)
+}
+
+/** Fetch the tiktoken `cl100k_base` tokenisation of an entry's text.
+ *
+ * Computed on demand server-side from `final_text` (or `raw_text` as
+ * fallback). Every token carries its char range in the source text so
+ * the overlay can slice the original text for rendering.
+ */
+export function fetchEntryTokens(id: number): Promise<EntryTokensResponse> {
+  return apiFetch<EntryTokensResponse>(`/api/entries/${id}/tokens`)
 }

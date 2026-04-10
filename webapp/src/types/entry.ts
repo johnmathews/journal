@@ -54,3 +54,50 @@ export interface ApiError {
   error: string
   message: string
 }
+
+/** A single chunk with its source character range and token count.
+ *
+ * `char_start` / `char_end` are character offsets into the entry's
+ * `final_text` (or `raw_text` as fallback) — `char_end` is exclusive.
+ * Slicing `final_text[char_start:char_end]` yields the source range
+ * the chunk covers. `text` is the chunk's rendered content with
+ * normalised paragraph/sentence separators and may differ slightly
+ * from the source slice.
+ */
+export interface Chunk {
+  index: number
+  text: string
+  char_start: number
+  char_end: number
+  token_count: number
+}
+
+export interface EntryChunksResponse {
+  entry_id: number
+  chunks: Chunk[]
+}
+
+/** One token as seen by the embedding model's tokenizer.
+ *
+ * `char_start` / `char_end` are character offsets into `final_text`
+ * (valid UTF-8 round-trips exactly through tiktoken, so slicing
+ * reconstructs the text). Leading whitespace is part of the token
+ * (e.g. `" world"`), which matches how the model sees the text.
+ */
+export interface TokenSpan {
+  index: number
+  token_id: number
+  text: string
+  char_start: number
+  char_end: number
+}
+
+export interface EntryTokensResponse {
+  entry_id: number
+  /** The tiktoken encoding name used to tokenise the entry. */
+  encoding: string
+  /** Hint at which model's tokenizer this matches (e.g. text-embedding-3-large). */
+  model_hint: string
+  token_count: number
+  tokens: TokenSpan[]
+}

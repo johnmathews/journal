@@ -1,9 +1,16 @@
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, ref, nextTick, watch } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref, nextTick, watch } from 'vue'
 import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useEntriesStore } from '@/stores/entries'
 import { useEntryEditor } from '@/composables/useEntryEditor'
 import { useDiffHighlight } from '@/composables/useDiffHighlight'
+import {
+  useOverlayHighlight,
+  type OverlayMode,
+} from '@/composables/useOverlayHighlight'
+import { fetchEntryChunks, fetchEntryTokens } from '@/api/entries'
+import { ApiRequestError } from '@/api/client'
+import type { Chunk, TokenSpan } from '@/types/entry'
 
 const props = defineProps<{
   id: string
@@ -34,6 +41,78 @@ const { originalHtml, correctedHtml } = useDiffHighlight(
   editedText,
   showDiff,
 )
+
+// -- Overlay feature (chunks / tokens) -----------------------------------
+// The overlay renders against the persisted final_text — NOT editedText —
+// because chunks carry char offsets into the server's stored text. While
+// the overlay is active the corrected panel is read-only so the user
+// cannot silently desync the text from the offsets. Turning overlay off
+// restores the normal diff-editor view, including any unsaved edits.
+const overlayMode = ref<OverlayMode>('off')
+const chunks = ref<Chunk[] | null>(null)
+const tokens = ref<TokenSpan[] | null>(null)
+const overlayError = ref<string | null>(null)
+const overlayLoading = ref(false)
+
+const persistedText = computed(() => store.currentEntry?.final_text ?? '')
+
+const { overlayHtml } = useOverlayHighlight({
+  text: persistedText,
+  mode: overlayMode,
+  chunks,
+  tokens,
+})
+
+// Clear overlay caches whenever we switch to a different entry — cached
+// chunks/tokens belong to the previous entry and must not be reused.
+watch(
+  () => store.currentEntry?.id,
+  () => {
+    chunks.value = null
+    tokens.value = null
+    overlayError.value = null
+    overlayMode.value = 'off'
+  },
+)
+
+// Lazy fetch: on first switch to a mode, fetch the data for it and cache
+// it on the view. Subsequent switches off→on re-use the cached data.
+watch(overlayMode, async (mode) => {
+  overlayError.value = null
+  if (mode === 'off') return
+  const entry = store.currentEntry
+  if (!entry) return
+
+  overlayLoading.value = true
+  try {
+    if (mode === 'chunks' && chunks.value === null) {
+      try {
+        const resp = await fetchEntryChunks(entry.id)
+        chunks.value = resp.chunks
+      } catch (e) {
+        if (
+          e instanceof ApiRequestError &&
+          e.errorCode === 'chunks_not_backfilled'
+        ) {
+          overlayError.value = e.message
+        } else {
+          overlayError.value =
+            e instanceof Error ? e.message : 'Failed to load chunks'
+        }
+      }
+    } else if (mode === 'tokens' && tokens.value === null) {
+      try {
+        const resp = await fetchEntryTokens(entry.id)
+        tokens.value = resp.tokens
+      } catch (e) {
+        overlayError.value =
+          e instanceof Error ? e.message : 'Failed to load tokens'
+      }
+    }
+  } finally {
+    overlayLoading.value = false
+  }
+})
 
 // Mirror-div overlay scroll sync: keep the backdrop scrolled to the
 // same Y as the editable textarea so highlight positions line up with
@@ -215,6 +294,15 @@ onBeforeUnmount(() => {
         {{ deleteError }}
       </div>
 
+      <!-- Overlay error banner (e.g. chunks_not_backfilled) -->
+      <div
+        v-if="overlayError"
+        class="mb-4 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800/40 rounded-lg px-4 py-3 text-sm"
+        data-testid="overlay-error-banner"
+      >
+        {{ overlayError }}
+      </div>
+
       <!-- Editor toolbar -->
       <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div class="min-h-[2rem] flex items-center gap-4">
@@ -237,6 +325,43 @@ onBeforeUnmount(() => {
             />
             Show diff
           </label>
+          <!--
+            Overlay mode: segmented radio group. Renders chunk or token
+            boundaries on top of the corrected panel. While active the
+            textarea becomes read-only so edits can't drift away from the
+            offsets the server returned.
+          -->
+          <div
+            class="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-300 select-none"
+            data-testid="overlay-mode-group"
+            role="radiogroup"
+            aria-label="Overlay mode"
+          >
+            <span
+              class="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mr-1"
+            >
+              Overlay
+            </span>
+            <label
+              v-for="m in ['off', 'chunks', 'tokens'] as const"
+              :key="m"
+              class="cursor-pointer"
+            >
+              <input
+                v-model="overlayMode"
+                type="radio"
+                :value="m"
+                name="overlay-mode"
+                class="sr-only peer"
+                :data-testid="`overlay-radio-${m}`"
+              />
+              <span
+                class="inline-block px-2 py-0.5 rounded text-xs border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 peer-checked:bg-violet-500 peer-checked:text-white peer-checked:border-violet-500 peer-focus-visible:ring-2 peer-focus-visible:ring-violet-400"
+              >
+                {{ m }}
+              </span>
+            </label>
+          </div>
           <!-- Legend (only visible when diff is on) -->
           <div
             v-if="showDiff"
@@ -332,31 +457,58 @@ onBeforeUnmount(() => {
             Corrected Text
           </h2>
           <!--
-            Mirror-div overlay: a styled backdrop renders the highlighted
-            HTML underneath a transparent textarea. The textarea catches
-            all keyboard/mouse input and scroll; we keep the backdrop
-            scrolled in lockstep so highlights stay aligned with glyphs.
+            Two presentation modes:
+
+            1. Overlay OFF — mirror-div editor: a styled backdrop
+               renders the diff-highlighted HTML underneath a
+               transparent textarea. The textarea catches all
+               keyboard/mouse input; the backdrop is kept scrolled in
+               lockstep so highlights line up with glyphs.
+
+            2. Overlay ON — read-only chunk/token overlay: the backdrop
+               renders `overlayHtml` against `persistedText` (the
+               server's final_text). The textarea is hidden; the user
+               cannot edit while the overlay is active, so chunk/token
+               offsets cannot drift from the rendered text.
           -->
           <div
             class="corrected-wrapper relative flex-1 rounded-md border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-900/40 overflow-hidden"
           >
-            <!-- eslint-disable vue/no-v-html -->
-            <div
-              ref="correctedBackdrop"
-              class="diff-surface absolute inset-0 overflow-auto px-3 py-2 pointer-events-none text-gray-900 dark:text-gray-100"
-              aria-hidden="true"
-              v-html="correctedHtml"
-            />
-            <!-- eslint-enable vue/no-v-html -->
-            <textarea
-              ref="correctedTextarea"
-              v-model="editedText"
-              spellcheck="false"
-              class="diff-surface absolute inset-0 w-full h-full bg-transparent text-transparent caret-gray-900 dark:caret-white resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/40 rounded-md px-3 py-2"
-              data-testid="corrected-textarea"
-              @scroll="syncCorrectedScroll"
-              @input="syncCorrectedScroll"
-            />
+            <template v-if="overlayMode === 'off'">
+              <!-- eslint-disable vue/no-v-html -->
+              <div
+                ref="correctedBackdrop"
+                class="diff-surface absolute inset-0 overflow-auto px-3 py-2 pointer-events-none text-gray-900 dark:text-gray-100"
+                aria-hidden="true"
+                v-html="correctedHtml"
+              />
+              <!-- eslint-enable vue/no-v-html -->
+              <textarea
+                ref="correctedTextarea"
+                v-model="editedText"
+                spellcheck="false"
+                class="diff-surface absolute inset-0 w-full h-full bg-transparent text-transparent caret-gray-900 dark:caret-white resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/40 rounded-md px-3 py-2"
+                data-testid="corrected-textarea"
+                @scroll="syncCorrectedScroll"
+                @input="syncCorrectedScroll"
+              />
+            </template>
+            <template v-else>
+              <!-- eslint-disable vue/no-v-html -->
+              <div
+                class="diff-surface absolute inset-0 overflow-auto px-3 py-2 text-gray-900 dark:text-gray-100"
+                data-testid="overlay-display"
+                v-html="overlayHtml"
+              />
+              <!-- eslint-enable vue/no-v-html -->
+              <div
+                v-if="overlayLoading"
+                class="absolute top-2 right-2 text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300"
+                data-testid="overlay-loading"
+              >
+                Loading…
+              </div>
+            </template>
           </div>
         </section>
       </div>

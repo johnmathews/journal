@@ -33,6 +33,37 @@ vi.mock('@/api/entries', () => ({
     updated_at: '2026-03-23T10:30:00Z',
   }),
   deleteEntry: vi.fn().mockResolvedValue({ deleted: true, id: 1 }),
+  fetchEntryChunks: vi.fn().mockResolvedValue({
+    entry_id: 1,
+    chunks: [
+      {
+        index: 0,
+        text: 'Corrected',
+        char_start: 0,
+        char_end: 9,
+        token_count: 2,
+      },
+      {
+        index: 1,
+        text: 'text here.',
+        char_start: 10,
+        char_end: 20,
+        token_count: 3,
+      },
+    ],
+  }),
+  fetchEntryTokens: vi.fn().mockResolvedValue({
+    entry_id: 1,
+    encoding: 'cl100k_base',
+    model_hint: 'text-embedding-3-large',
+    token_count: 4,
+    tokens: [
+      { index: 0, token_id: 1, text: 'Cor', char_start: 0, char_end: 3 },
+      { index: 1, token_id: 2, text: 'rected', char_start: 3, char_end: 9 },
+      { index: 2, token_id: 3, text: ' text', char_start: 9, char_end: 14 },
+      { index: 3, token_id: 4, text: ' here.', char_start: 14, char_end: 20 },
+    ],
+  }),
 }))
 
 const router = createRouter({
@@ -151,6 +182,104 @@ describe('EntryDetailView', () => {
     expect(wrapper.find('[data-testid="ocr-display"]').html()).not.toContain(
       '<mark',
     )
+  })
+
+  it('defaults the overlay mode to off with the textarea visible', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    const offRadio = wrapper.find('[data-testid="overlay-radio-off"]')
+      .element as HTMLInputElement
+    expect(offRadio.checked).toBe(true)
+    // Textarea is rendered in off mode
+    expect(wrapper.find('[data-testid="corrected-textarea"]').exists()).toBe(
+      true,
+    )
+    // Overlay display is not rendered
+    expect(wrapper.find('[data-testid="overlay-display"]').exists()).toBe(false)
+  })
+
+  it('switches to chunks overlay, fetches data, and renders the overlay', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[data-testid="overlay-radio-chunks"]').setValue(true)
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    const { fetchEntryChunks } = await import('@/api/entries')
+    expect(fetchEntryChunks).toHaveBeenCalledWith(1)
+
+    // Textarea is hidden, overlay display is shown.
+    expect(wrapper.find('[data-testid="corrected-textarea"]').exists()).toBe(
+      false,
+    )
+    const overlay = wrapper.find('[data-testid="overlay-display"]')
+    expect(overlay.exists()).toBe(true)
+    // The chunk-a class (sky background) should appear in the rendered HTML.
+    expect(overlay.html()).toContain('bg-sky-100')
+  })
+
+  it('switches to tokens overlay and fetches tokens', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[data-testid="overlay-radio-tokens"]').setValue(true)
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    const { fetchEntryTokens } = await import('@/api/entries')
+    expect(fetchEntryTokens).toHaveBeenCalledWith(1)
+
+    const overlay = wrapper.find('[data-testid="overlay-display"]')
+    expect(overlay.exists()).toBe(true)
+  })
+
+  it('restores the textarea when overlay is switched back to off', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[data-testid="overlay-radio-chunks"]').setValue(true)
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-testid="corrected-textarea"]').exists()).toBe(
+      false,
+    )
+
+    await wrapper.find('[data-testid="overlay-radio-off"]').setValue(true)
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-testid="corrected-textarea"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('[data-testid="overlay-display"]').exists()).toBe(false)
+  })
+
+  it('surfaces the chunks_not_backfilled error message', async () => {
+    const entriesApi = await import('@/api/entries')
+    const { ApiRequestError } = await import('@/api/client')
+    vi.mocked(entriesApi.fetchEntryChunks).mockRejectedValueOnce(
+      new ApiRequestError(
+        404,
+        'chunks_not_backfilled',
+        'This entry was ingested before chunk persistence was available.',
+      ),
+    )
+
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[data-testid="overlay-radio-chunks"]').setValue(true)
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    const banner = wrapper.find('[data-testid="overlay-error-banner"]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('chunk persistence')
   })
 
   it('navigates back to the entries list when Back is clicked', async () => {
