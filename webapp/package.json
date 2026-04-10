@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test:unit": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "lint": "eslint . --fix",
     "format": "prettier --write src/"
   },
@@ -35,6 +36,7 @@
     "@tailwindcss/vite": "^4.0.2",
     "@tsconfig/node22": "^22.0.5",
     "@vitejs/plugin-vue": "^6.0.5",
+    "@vitest/coverage-v8": "^4.1.4",
     "@vue/eslint-config-prettier": "^10.2.0",
     "@vue/eslint-config-typescript": "^14.7.0",
     "@vue/test-utils": "^2.4.6",
