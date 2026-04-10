@@ -91,6 +91,19 @@ Tests use Vitest with happy-dom. API calls are mocked — no backend needed.
 ```bash
 npm run test:unit        # Run once
 npm run test:watch       # Watch mode
+npm run test:coverage    # Run once + generate HTML coverage report in coverage/
 ```
 
 Component tests mount Vue components with Pinia and Router plugins. Composable tests run in isolation with reactive refs. View tests assert against `data-testid` attributes rather than CSS classes for stability across styling changes.
+
+### Coverage
+
+Coverage is collected by `@vitest/coverage-v8` using V8's native coverage instrumentation (configured in `vitest.config.ts`). After running `npm run test:coverage`:
+
+- A text summary prints to the terminal
+- An HTML report is written to `coverage/index.html` — open it in a browser for line-by-line drill-down
+- A `coverage/coverage-summary.json` file is produced for machine consumption (e.g., future CI badges)
+
+The coverage config excludes files that aren't meaningful to measure: test files themselves, `src/main.ts` (bootstrap), `src/router/**` (trivial wiring), `src/types/**` (interfaces have no runtime), and `src/assets/**` (CSS). The `coverage/` directory is gitignored.
+
+There is no minimum coverage threshold enforced. Treat the coverage report as a map of where tests could be added, not a gate. When adding new code, especially in `src/api`, `src/stores`, `src/composables`, and `src/utils`, aim to leave the coverage numbers flat or improving.

@@ -24,6 +24,7 @@ src/
 - `npm run build` — Type-check and build for production
 - `npm run test:unit` — Run unit tests with Vitest
 - `npm run test:watch` — Run tests in watch mode
+- `npm run test:coverage` — Run tests once + generate HTML coverage report in `coverage/`
 - `npm run lint` — Lint and fix with ESLint
 - `npm run format` — Format with Prettier
 
