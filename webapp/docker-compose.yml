@@ -8,7 +8,7 @@ services:
     restart: unless-stopped
 
   journal-server:
-    image: ghcr.io/johnmathews/journal-agent:latest
+    image: ghcr.io/johnmathews/journal-server:latest
     ports:
       - "8400:8400"
     environment:

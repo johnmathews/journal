@@ -1,6 +1,7 @@
 # Journal Webapp
 
-Web interface for the [Journal Analysis Tool](https://github.com/johnmathews/journal-server). Browse journal entries, review OCR output, and correct transcription errors.
+Web interface for the [Journal Analysis Tool](https://github.com/johnmathews/journal-server). Browse journal entries,
+review OCR output, and correct transcription errors.
 
 ## Features
 
