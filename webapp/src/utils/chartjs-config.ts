@@ -28,7 +28,12 @@ export function chartAreaGradient(
   if (!ctx || !chartArea || !colorStops || colorStops.length === 0) {
     return 'transparent'
   }
-  const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top)
+  const gradient = ctx.createLinearGradient(
+    0,
+    chartArea.bottom,
+    0,
+    chartArea.top,
+  )
   for (const { stop, color } of colorStops) {
     gradient.addColorStop(stop, color)
   }

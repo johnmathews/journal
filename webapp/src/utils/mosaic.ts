@@ -4,7 +4,9 @@
  */
 
 export function getCssVariable(variable: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(variable).trim()
+  return getComputedStyle(document.documentElement)
+    .getPropertyValue(variable)
+    .trim()
 }
 
 function adjustHexOpacity(hexColor: string, opacity: number): string {
@@ -20,7 +22,10 @@ function adjustHslOpacity(hslColor: string, opacity: number): string {
 }
 
 function adjustOklchOpacity(oklchColor: string, opacity: number): string {
-  return oklchColor.replace(/oklch\((.*?)\)/, (_match, inner: string) => `oklch(${inner} / ${opacity})`)
+  return oklchColor.replace(
+    /oklch\((.*?)\)/,
+    (_match, inner: string) => `oklch(${inner} / ${opacity})`,
+  )
 }
 
 export function adjustColorOpacity(color: string, opacity: number): string {

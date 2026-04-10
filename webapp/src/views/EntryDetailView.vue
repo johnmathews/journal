@@ -10,9 +10,8 @@ const props = defineProps<{
 
 const router = useRouter()
 const store = useEntriesStore()
-const { editedText, saving, saveError, isDirty, isModified, reset } = useEntryEditor(
-  () => store.currentEntry,
-)
+const { editedText, saving, saveError, isDirty, isModified, reset } =
+  useEntryEditor(() => store.currentEntry)
 
 onMounted(() => {
   store.loadEntry(Number(props.id))
@@ -103,7 +102,9 @@ onBeforeUnmount(() => {
               </svg>
               Back
             </button>
-            <h1 class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
+            <h1
+              class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold"
+            >
               {{ formatDate(store.currentEntry.entry_date) }}
             </h1>
             <span
@@ -115,9 +116,13 @@ onBeforeUnmount(() => {
             </span>
           </div>
 
-          <div class="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+          <div
+            class="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400"
+          >
             <span>{{ store.currentEntry.source_type.toUpperCase() }}</span>
-            <span>{{ store.currentEntry.word_count.toLocaleString() }} words</span>
+            <span
+              >{{ store.currentEntry.word_count.toLocaleString() }} words</span
+            >
             <span>{{ store.currentEntry.chunk_count }} chunks</span>
             <span>
               {{ store.currentEntry.page_count }} page{{
@@ -178,8 +183,12 @@ onBeforeUnmount(() => {
 
       <!-- Side-by-side editor panels (static 50/50) -->
       <div class="flex flex-col lg:flex-row gap-4 min-h-[500px]">
-        <section class="flex-1 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4">
-          <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
+        <section
+          class="flex-1 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
+        >
+          <h2
+            class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3"
+          >
             Original OCR
           </h2>
           <textarea
@@ -190,8 +199,12 @@ onBeforeUnmount(() => {
           />
         </section>
 
-        <section class="flex-1 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4">
-          <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
+        <section
+          class="flex-1 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
+        >
+          <h2
+            class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3"
+          >
             Corrected Text
           </h2>
           <textarea

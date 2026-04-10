@@ -14,7 +14,9 @@ onMounted(() => {
 })
 
 const currentPage = computed(() => Math.floor(first.value / rows.value) + 1)
-const totalPages = computed(() => Math.max(1, Math.ceil(store.total / rows.value)))
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(store.total / rows.value)),
+)
 
 function goToPage(page: number) {
   const target = Math.min(Math.max(1, page), totalPages.value)
@@ -63,11 +65,17 @@ function formatDateTime(dateStr: string): string {
     <!-- Page header -->
     <div class="sm:flex sm:justify-between sm:items-center mb-8">
       <div class="mb-4 sm:mb-0">
-        <h1 class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
+        <h1
+          class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold"
+        >
           Journal Entries
         </h1>
       </div>
-      <div v-if="store.total > 0" class="text-sm text-gray-500 dark:text-gray-400" data-testid="entry-count">
+      <div
+        v-if="store.total > 0"
+        class="text-sm text-gray-500 dark:text-gray-400"
+        data-testid="entry-count"
+      >
         {{ store.total }} entries
       </div>
     </div>
@@ -82,16 +90,34 @@ function formatDateTime(dateStr: string): string {
     </div>
 
     <!-- Table card -->
-    <div class="bg-white dark:bg-gray-800 shadow-xs rounded-xl border border-gray-200 dark:border-gray-700/60">
+    <div
+      class="bg-white dark:bg-gray-800 shadow-xs rounded-xl border border-gray-200 dark:border-gray-700/60"
+    >
       <!-- Loading state -->
       <div
         v-if="store.loading"
         class="flex items-center justify-center py-16 text-gray-500 dark:text-gray-400"
         data-testid="loading-state"
       >
-        <svg class="animate-spin w-6 h-6 mr-3 text-violet-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+        <svg
+          class="animate-spin w-6 h-6 mr-3 text-violet-500"
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <circle
+            class="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            stroke-width="4"
+          />
+          <path
+            class="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+          />
         </svg>
         Loading…
       </div>
@@ -108,7 +134,9 @@ function formatDateTime(dateStr: string): string {
       <!-- Table -->
       <div v-else class="overflow-x-auto">
         <table class="table-auto w-full dark:text-gray-300">
-          <thead class="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700/60">
+          <thead
+            class="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700/60"
+          >
             <tr>
               <th class="px-4 py-3 whitespace-nowrap text-left">Date</th>
               <th class="px-4 py-3 whitespace-nowrap text-center">Pages</th>
@@ -117,7 +145,9 @@ function formatDateTime(dateStr: string): string {
               <th class="px-4 py-3 whitespace-nowrap text-left">Ingested</th>
             </tr>
           </thead>
-          <tbody class="text-sm divide-y divide-gray-200 dark:divide-gray-700/60">
+          <tbody
+            class="text-sm divide-y divide-gray-200 dark:divide-gray-700/60"
+          >
             <tr
               v-for="entry in store.entries"
               :key="entry.id"
@@ -125,7 +155,9 @@ function formatDateTime(dateStr: string): string {
               data-testid="entry-row"
               @click="onRowClick(entry.id)"
             >
-              <td class="px-4 py-3 whitespace-nowrap text-gray-800 dark:text-gray-100 font-medium">
+              <td
+                class="px-4 py-3 whitespace-nowrap text-gray-800 dark:text-gray-100 font-medium"
+              >
                 {{ formatDate(entry.entry_date) }}
               </td>
               <td class="px-4 py-3 whitespace-nowrap text-center">
@@ -137,7 +169,9 @@ function formatDateTime(dateStr: string): string {
               <td class="px-4 py-3 whitespace-nowrap text-right">
                 {{ entry.chunk_count }}
               </td>
-              <td class="px-4 py-3 whitespace-nowrap text-gray-500 dark:text-gray-400">
+              <td
+                class="px-4 py-3 whitespace-nowrap text-gray-500 dark:text-gray-400"
+              >
                 {{ formatDateTime(entry.created_at) }}
               </td>
             </tr>
@@ -150,7 +184,9 @@ function formatDateTime(dateStr: string): string {
         v-if="!store.loading && store.entries.length > 0"
         class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-t border-gray-200 dark:border-gray-700/60"
       >
-        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <div
+          class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400"
+        >
           <label for="rows-per-page">Rows per page:</label>
           <select
             id="rows-per-page"
@@ -165,7 +201,10 @@ function formatDateTime(dateStr: string): string {
         </div>
 
         <div class="flex items-center gap-3">
-          <span class="text-sm text-gray-500 dark:text-gray-400" data-testid="page-indicator">
+          <span
+            class="text-sm text-gray-500 dark:text-gray-400"
+            data-testid="page-indicator"
+          >
             Page {{ currentPage }} of {{ totalPages }}
           </span>
           <div class="flex gap-1">

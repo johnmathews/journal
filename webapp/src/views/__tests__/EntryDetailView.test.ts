@@ -63,7 +63,9 @@ describe('EntryDetailView', () => {
 
   it('mounts without error', () => {
     const wrapper = mountComponent()
-    expect(wrapper.find('[data-testid="entry-detail-view"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="entry-detail-view"]').exists()).toBe(
+      true,
+    )
   })
 
   it('loads entry on mount', async () => {
@@ -82,7 +84,9 @@ describe('EntryDetailView', () => {
     // After the mock resolves, either the loading state clears and the
     // view renders, or we're still in loading. Either way the root
     // container must exist.
-    expect(wrapper.find('[data-testid="entry-detail-view"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="entry-detail-view"]').exists()).toBe(
+      true,
+    )
     // When the fetch resolves, the back button becomes visible.
     expect(wrapper.find('[data-testid="back-button"]').exists()).toBe(true)
   })
