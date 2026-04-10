@@ -12,7 +12,9 @@ describe('adjustColorOpacity', () => {
     })
 
     it('handles mixed-case hex', () => {
-      expect(adjustColorOpacity('#AbCdEf', 0.25)).toBe('rgba(171, 205, 239, 0.25)')
+      expect(adjustColorOpacity('#AbCdEf', 0.25)).toBe(
+        'rgba(171, 205, 239, 0.25)',
+      )
     })
 
     it('supports fully transparent', () => {
@@ -58,7 +60,9 @@ describe('adjustColorOpacity', () => {
     })
 
     it('throws on empty strings', () => {
-      expect(() => adjustColorOpacity('', 0.5)).toThrow(/Unsupported color format/)
+      expect(() => adjustColorOpacity('', 0.5)).toThrow(
+        /Unsupported color format/,
+      )
     })
   })
 })

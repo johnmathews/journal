@@ -114,4 +114,111 @@ describe('useEntriesStore', () => {
 
     expect(store.totalPages).toBe(3)
   })
+
+  it('loadEntries falls back to a generic message when a non-Error is thrown', async () => {
+    mockFetchEntries.mockRejectedValue('raw string')
+
+    const store = useEntriesStore()
+    await store.loadEntries()
+
+    expect(store.error).toBe('Failed to load entries')
+  })
+
+  it('loadEntry sets error on failure', async () => {
+    mockFetchEntry.mockRejectedValue(new Error('Not found'))
+
+    const store = useEntriesStore()
+    await store.loadEntry(99)
+
+    expect(store.currentEntry).toBeNull()
+    expect(store.error).toBe('Not found')
+    expect(store.loading).toBe(false)
+  })
+
+  it('loadEntry falls back to a generic message when a non-Error is thrown', async () => {
+    mockFetchEntry.mockRejectedValue({ unexpected: true })
+
+    const store = useEntriesStore()
+    await store.loadEntry(1)
+
+    expect(store.error).toBe('Failed to load entry')
+  })
+
+  it('saveEntryText sets error and rethrows on failure', async () => {
+    mockUpdateEntryText.mockRejectedValue(new Error('Conflict'))
+
+    const store = useEntriesStore()
+    await expect(store.saveEntryText(1, 'new')).rejects.toThrow('Conflict')
+    expect(store.error).toBe('Conflict')
+    expect(store.loading).toBe(false)
+  })
+
+  it('saveEntryText falls back to a generic message when a non-Error is thrown', async () => {
+    mockUpdateEntryText.mockRejectedValue('kaboom')
+
+    const store = useEntriesStore()
+    await expect(store.saveEntryText(1, 'new')).rejects.toBe('kaboom')
+    expect(store.error).toBe('Failed to save entry')
+  })
+
+  it('currentPage defaults to 1 before any load', () => {
+    const store = useEntriesStore()
+    expect(store.currentPage).toBe(1)
+  })
+
+  it('currentPage reflects offset/limit after loadEntries', async () => {
+    mockFetchEntries.mockResolvedValue({
+      items: [],
+      total: 100,
+      limit: 20,
+      offset: 40,
+    })
+
+    const store = useEntriesStore()
+    await store.loadEntries({ limit: 20, offset: 40 })
+
+    expect(store.currentPage).toBe(3)
+  })
+
+  it('hasEntries flips from false to true after a successful load', async () => {
+    const store = useEntriesStore()
+    expect(store.hasEntries).toBe(false)
+
+    mockFetchEntries.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          entry_date: '2026-01-01',
+          source_type: 'ocr',
+          page_count: 1,
+          word_count: 10,
+          chunk_count: 1,
+          created_at: '',
+        },
+      ],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    })
+    await store.loadEntries()
+
+    expect(store.hasEntries).toBe(true)
+  })
+
+  it('loadEntries merges new params over currentParams', async () => {
+    mockFetchEntries.mockResolvedValue({
+      items: [],
+      total: 0,
+      limit: 20,
+      offset: 0,
+    })
+
+    const store = useEntriesStore()
+    await store.loadEntries({ limit: 50 })
+
+    expect(mockFetchEntries).toHaveBeenLastCalledWith(
+      expect.objectContaining({ limit: 50, offset: 0 }),
+    )
+    expect(store.currentParams.limit).toBe(50)
+  })
 })
