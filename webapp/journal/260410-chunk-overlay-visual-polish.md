@@ -35,7 +35,31 @@ All four base combinations plus multi-chunk + overlap captured via Playwright ag
 
 Plus updated the existing view test to assert the badge appears in the rendered overlay HTML.
 
+## Second polish pass — `<mark>` text colour override
+
+User pushed back: dark mode was still low-contrast after the brightness bump. Reloaded the browser, inspected a rendered token via `getComputedStyle`, found the root cause:
+
+```
+container text color: rgb(243, 244, 246)  ← text-gray-100 (light, correct)
+<mark> text color:    rgb(0, 0, 0)        ← black, overriding the inherited light colour
+```
+
+The HTML `<mark>` element has a **user-agent default `color: black`** baked in because it is designed for dark-text-on-yellow highlighter semantics. My class was only setting `background-color`, so the default `color: black` rule had higher specificity than the inherited `text-gray-100` from the container — the text was literally black against the tinted backgrounds in dark mode, which no amount of background tuning would have fixed.
+
+Fix: explicit `text-gray-900 dark:text-white` on every overlay kind. Verified via `getComputedStyle` — text colour now reads `rgb(255, 255, 255)` in dark mode. Also bumped dark-mode alphas in the same commit (`sky-500/25` → `sky-400/40`, etc.) since I was touching the class map.
+
+## Third polish pass — fuchsia overlap + brightness boost
+
+User: "colors are good enough for now" — then pivoted after seeing a real 5-chunk entry: the violet overlap region was still hard to distinguish from the adjacent green chunk-b in dark mode. `getComputedStyle` confirmed the diagnosis — violet, sky, and green all sit at similar lightness in oklab space (L≈0.70-0.80 at α≈0.40-0.45), so at dark-mode opacities they blur together even though their hues are distinct.
+
+Two fixes:
+1. **Swap overlap hue from violet to fuchsia.** Fuchsia sits far from both sky (cool blue) and green in oklab — it's a warm magenta, hue-distance ~0.22 instead of ~0.05. Added the full Tailwind-default fuchsia scale to the project's `@theme` block in `src/assets/main.css` with a comment explaining it exists exclusively for this feature.
+2. **Bump dark-mode alphas across the board.** Chunks 40% → 50%, overlap 45% → 55%, tokens 35% → 45%. Combined with the hue change, dark-mode overlay is now clearly readable and all three chunk kinds are immediately distinguishable at a glance.
+
+Verified in both themes with both single-chunk (the default seed entries) and synthetic multi-chunk (re-backfilled entry 5 with `CHUNKING_MAX_TOKENS=25` to force 5 chunks with overlap between 0 and 1). Restored the default chunker config afterwards.
+
 ## Follow-ups still open
 
 1. The original 277-word / 5-chunks investigation. Now that the overlay works, next step is to point it at the actual entry and see the boundaries. Not done in this session.
 2. `refreshCachesOnSave` — cached chunks/tokens still don't invalidate on successful save; only on entry-id change. Minor; noted in the previous journal entry.
+3. Chunker defaults (`max_tokens=150 overlap_tokens=40`) were discussed during the session. 150 is not canonically optimal — it is on the small side compared to LangChain/LlamaIndex defaults — but is a reasonable choice for a personal journal where sharper retrieval beats broader synthesis. The project ships a `journal eval-chunking` CLI which would let us sweep values against a real corpus if we ever wanted to validate this empirically.
