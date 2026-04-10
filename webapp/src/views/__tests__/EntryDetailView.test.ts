@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
 import EntryDetailView from '../EntryDetailView.vue'
@@ -57,6 +57,8 @@ function mountComponent() {
 }
 
 describe('EntryDetailView', () => {
+  enableAutoUnmount(beforeEach)
+
   beforeEach(() => {
     setActivePinia(createPinia())
   })
@@ -90,4 +92,184 @@ describe('EntryDetailView', () => {
     // When the fetch resolves, the back button becomes visible.
     expect(wrapper.find('[data-testid="back-button"]').exists()).toBe(true)
   })
+
+  it('renders both textareas when the entry has loaded', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="ocr-textarea"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="corrected-textarea"]').exists()).toBe(
+      true,
+    )
+  })
+
+  it('navigates back to the entries list when Back is clicked', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    const pushSpy = vi.spyOn(router, 'push')
+    await wrapper.find('[data-testid="back-button"]').trigger('click')
+
+    expect(pushSpy).toHaveBeenCalledWith({ name: 'entries' })
+  })
+
+  it('Save and Reset start disabled when the editor is not dirty', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    const save = wrapper.find('[data-testid="save-button"]')
+      .element as HTMLButtonElement
+    const reset = wrapper.find('[data-testid="reset-button"]')
+      .element as HTMLButtonElement
+    expect(save.disabled).toBe(true)
+    expect(reset.disabled).toBe(true)
+  })
+
+  it('enables Save and Reset once the corrected textarea is edited', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[data-testid="corrected-textarea"]').setValue('edited')
+
+    const save = wrapper.find('[data-testid="save-button"]')
+      .element as HTMLButtonElement
+    const reset = wrapper.find('[data-testid="reset-button"]')
+      .element as HTMLButtonElement
+    expect(save.disabled).toBe(false)
+    expect(reset.disabled).toBe(false)
+    expect(wrapper.find('[data-testid="unsaved-indicator"]').exists()).toBe(
+      true,
+    )
+  })
+
+  it('calls updateEntryText on Save with the edited text', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    const { updateEntryText } = await import('@/api/entries')
+    const mockUpdate = vi.mocked(updateEntryText)
+    mockUpdate.mockClear()
+
+    await wrapper
+      .find('[data-testid="corrected-textarea"]')
+      .setValue('Updated text')
+    await wrapper.find('[data-testid="save-button"]').trigger('click')
+    await flushPromises()
+
+    expect(mockUpdate).toHaveBeenCalledWith(1, 'Updated text')
+  })
+
+  it('shows an inline save error banner when updateEntryText rejects', async () => {
+    const { updateEntryText } = await import('@/api/entries')
+    const mockUpdate = vi.mocked(updateEntryText)
+    mockUpdate.mockRejectedValueOnce(new Error('Server exploded'))
+
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    await wrapper
+      .find('[data-testid="corrected-textarea"]')
+      .setValue('bad edit')
+    await wrapper.find('[data-testid="save-button"]').trigger('click')
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    const banner = wrapper.find('[data-testid="save-error-banner"]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('Server exploded')
+  })
+
+  it('Reset restores the edited text to the entry final_text', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    const textarea = wrapper.find('[data-testid="corrected-textarea"]')
+    await textarea.setValue('dirty')
+    expect(wrapper.find('[data-testid="unsaved-indicator"]').exists()).toBe(
+      true,
+    )
+
+    await wrapper.find('[data-testid="reset-button"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect((textarea.element as HTMLTextAreaElement).value).toBe(
+      'Corrected text here.',
+    )
+    expect(wrapper.find('[data-testid="unsaved-indicator"]').exists()).toBe(
+      false,
+    )
+  })
+
+  it('renders the Modified badge when raw_text differs from final_text', async () => {
+    // Default mock has raw_text="Original OCR text here."
+    // and final_text="Corrected text here." — they differ, so the badge is shown.
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="modified-tag"]').exists()).toBe(true)
+  })
+
+  describe('beforeunload guard', () => {
+    it('prevents the browser close when there are unsaved changes', async () => {
+      const wrapper = mountComponent()
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      await wrapper
+        .find('[data-testid="corrected-textarea"]')
+        .setValue('dirty edit')
+
+      const event = new Event('beforeunload', {
+        cancelable: true,
+      }) as BeforeUnloadEvent
+      const prevent = vi.spyOn(event, 'preventDefault')
+      window.dispatchEvent(event)
+
+      expect(prevent).toHaveBeenCalled()
+    })
+
+    it('does not prevent the browser close when the editor is clean', async () => {
+      const wrapper = mountComponent()
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      const event = new Event('beforeunload', {
+        cancelable: true,
+      }) as BeforeUnloadEvent
+      const prevent = vi.spyOn(event, 'preventDefault')
+      window.dispatchEvent(event)
+
+      expect(prevent).not.toHaveBeenCalled()
+    })
+
+    it('removes the beforeunload listener on unmount', async () => {
+      const removeSpy = vi.spyOn(window, 'removeEventListener')
+      const wrapper = mountComponent()
+      await flushPromises()
+      wrapper.unmount()
+
+      expect(removeSpy).toHaveBeenCalledWith(
+        'beforeunload',
+        expect.any(Function),
+      )
+      removeSpy.mockRestore()
+    })
+  })
+
+  // The onBeforeRouteLeave guard at the top of EntryDetailView.vue is left
+  // uncovered here. Testing it cleanly requires mounting the component
+  // through a <router-view> parent so vue-router knows which route the
+  // guard belongs to; mounting the component directly (as this file does
+  // everywhere else) leaves the guard un-registered in the router's
+  // matched-route list. The 7 lines of coverage aren't worth the test
+  // plumbing — the guard is exercised in manual testing and via the
+  // Playwright check done during the Mosaic migration.
 })

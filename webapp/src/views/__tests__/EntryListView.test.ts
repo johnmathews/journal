@@ -81,4 +81,142 @@ describe('EntryListView', () => {
     expect(count.exists()).toBe(true)
     expect(count.text()).toContain('2 entries')
   })
+
+  it('renders one row per entry', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAll('[data-testid="entry-row"]')).toHaveLength(2)
+  })
+
+  it('navigates to entry-detail when a row is clicked', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    const pushSpy = vi.spyOn(router, 'push')
+    await wrapper.findAll('[data-testid="entry-row"]')[0].trigger('click')
+
+    expect(pushSpy).toHaveBeenCalledWith({
+      name: 'entry-detail',
+      params: { id: 1 },
+    })
+  })
+
+  it('shows an error banner when the store load fails', async () => {
+    const { fetchEntries } = await import('@/api/entries')
+    const mock = vi.mocked(fetchEntries)
+    mock.mockRejectedValueOnce(new Error('Network down'))
+
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    const banner = wrapper.find('[data-testid="error-banner"]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('Network down')
+  })
+
+  it('shows the empty state when there are no entries', async () => {
+    const { fetchEntries } = await import('@/api/entries')
+    const mock = vi.mocked(fetchEntries)
+    mock.mockResolvedValueOnce({
+      items: [],
+      total: 0,
+      limit: 20,
+      offset: 0,
+    })
+
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="empty-state"]').exists()).toBe(true)
+  })
+
+  it('renders the page indicator text', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="page-indicator"]').text()).toMatch(
+      /Page 1 of 1/,
+    )
+  })
+
+  it('disables Prev and Next when there is only one page of data', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    const prev = wrapper.find('[data-testid="prev-page"]')
+      .element as HTMLButtonElement
+    const next = wrapper.find('[data-testid="next-page"]')
+      .element as HTMLButtonElement
+    expect(prev.disabled).toBe(true)
+    expect(next.disabled).toBe(true)
+  })
+
+  it('Next click refetches with the next offset when multiple pages exist', async () => {
+    const { fetchEntries } = await import('@/api/entries')
+    const mock = vi.mocked(fetchEntries)
+    mock.mockResolvedValue({
+      items: Array.from({ length: 20 }, (_, i) => ({
+        id: i + 1,
+        entry_date: '2026-01-01',
+        source_type: 'ocr' as const,
+        page_count: 1,
+        word_count: 1,
+        chunk_count: 1,
+        created_at: '',
+      })),
+      total: 45,
+      limit: 20,
+      offset: 0,
+    })
+
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    mock.mockClear()
+    const next = wrapper.find('[data-testid="next-page"]')
+    await next.trigger('click')
+
+    expect(mock).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 20, offset: 20 }),
+    )
+  })
+
+  it('changes rows-per-page and refetches from offset 0', async () => {
+    const { fetchEntries } = await import('@/api/entries')
+    const mock = vi.mocked(fetchEntries)
+    mock.mockResolvedValue({
+      items: Array.from({ length: 20 }, (_, i) => ({
+        id: i + 1,
+        entry_date: '2026-01-01',
+        source_type: 'ocr' as const,
+        page_count: 1,
+        word_count: 1,
+        chunk_count: 1,
+        created_at: '',
+      })),
+      total: 100,
+      limit: 20,
+      offset: 0,
+    })
+
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    mock.mockClear()
+    const select = wrapper.find('#rows-per-page')
+    await select.setValue('50')
+
+    expect(mock).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 50, offset: 0 }),
+    )
+  })
 })
