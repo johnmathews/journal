@@ -93,14 +93,62 @@ describe('EntryDetailView', () => {
     expect(wrapper.find('[data-testid="back-button"]').exists()).toBe(true)
   })
 
-  it('renders both textareas when the entry has loaded', async () => {
+  it('renders the original OCR display and the corrected editor when the entry has loaded', async () => {
     const wrapper = mountComponent()
     await flushPromises()
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.find('[data-testid="ocr-textarea"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="ocr-display"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="corrected-textarea"]').exists()).toBe(
       true,
+    )
+  })
+
+  it('renders the diff toggle on by default with a visible legend', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    const toggle = wrapper.find('[data-testid="diff-toggle"]')
+      .element as HTMLInputElement
+    expect(toggle.checked).toBe(true)
+    expect(wrapper.find('[data-testid="diff-legend"]').exists()).toBe(true)
+  })
+
+  it('highlights diff spans in both panels when original and corrected differ', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    // Mock data: raw_text="Original OCR text here.", final_text="Corrected text here."
+    // The diff should produce at least one delete span in the original
+    // panel and one insert span on the corrected backdrop.
+    const originalHtml = wrapper.find('[data-testid="ocr-display"]').html()
+    expect(originalHtml).toContain('<mark')
+    expect(originalHtml).toContain('bg-red-100')
+
+    const correctedBackdropHtml = wrapper.find('.corrected-wrapper').html()
+    expect(correctedBackdropHtml).toContain('bg-emerald-100')
+  })
+
+  it('hides the legend and strips highlight marks when the diff toggle is turned off', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    // With diff on, the original panel contains mark tags.
+    expect(wrapper.find('[data-testid="ocr-display"]').html()).toContain(
+      '<mark',
+    )
+
+    // Flip the toggle off.
+    const toggle = wrapper.find('[data-testid="diff-toggle"]')
+    await toggle.setValue(false)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="diff-legend"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="ocr-display"]').html()).not.toContain(
+      '<mark',
     )
   })
 

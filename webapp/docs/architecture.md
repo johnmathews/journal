@@ -18,6 +18,7 @@ The journal-webapp is a Vue 3 single-page application that provides a web interf
 | Pinia            | State management                          |
 | Vue Router       | Client-side routing                       |
 | Chart.js 4       | Charts (via src/utils/chartjs-config.ts)  |
+| diff-match-patch | Live diff highlighting in the OCR editor  |
 | Vitest           | Unit and component testing                |
 
 Shell components (Sidebar, Header, ThemeToggle, DefaultLayout) are derived from the
@@ -29,12 +30,13 @@ Shell components (Sidebar, Header, ThemeToggle, DefaultLayout) are derived from 
 Page-level components, one per route. Each view composes layout, components, and store interactions.
 
 - **EntryListView** — Native HTML table with Tailwind styling, hand-rolled pagination controls (rows-per-page select, prev/next buttons), row click navigation
-- **EntryDetailView** — Static 50/50 flex layout with two textareas (readonly OCR + editable corrected), inline save error banner, dirty tracking, save with re-processing
+- **EntryDetailView** — Static 50/50 flex layout for OCR correction. The left panel renders the original OCR text as a read-only `<div>` with diff highlights; the right panel uses a mirror-div overlay (transparent textarea over a styled backdrop `<div>`) so the user can edit the corrected text and see live highlights in the same spot. A "Show diff" toggle turns highlighting on/off. Includes an inline save error banner, dirty tracking, and re-processing on save.
 
 ### Composables (`src/composables/`)
 Reusable Composition API functions encapsulating reactive logic.
 
 - **useEntryEditor** — Manages editor state: text syncing, dirty tracking, modification detection, reset
+- **useDiffHighlight** — Computes the diff between the original OCR text and the edited text via `diff-match-patch` (with `diff_cleanupSemantic`), then returns two reactive HTML strings — one for each panel — containing `<mark>` spans for removed (red) and inserted (green) segments. Every character is escaped before being wrapped in markup so it is safe to render with `v-html`. The span-list data model is designed to accept additional highlight sources in the future (e.g. low-confidence OCR regions) without reshaping the API.
 
 ### Stores (`src/stores/`)
 Pinia stores for server state management.

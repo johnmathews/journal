@@ -41,3 +41,6 @@ Thumbs.db
 
 # Playwright MCP artifacts
 .playwright-mcp/
+
+# UI verification screenshots (kept on disk for manual inspection)
+screenshots/

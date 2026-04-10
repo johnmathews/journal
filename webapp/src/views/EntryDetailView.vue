@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount } from 'vue'
+import { onMounted, onBeforeUnmount, ref, nextTick, watch } from 'vue'
 import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useEntriesStore } from '@/stores/entries'
 import { useEntryEditor } from '@/composables/useEntryEditor'
+import { useDiffHighlight } from '@/composables/useDiffHighlight'
 
 const props = defineProps<{
   id: string
@@ -12,6 +13,43 @@ const router = useRouter()
 const store = useEntriesStore()
 const { editedText, saving, saveError, isDirty, isModified, reset } =
   useEntryEditor(() => store.currentEntry)
+
+// Original text as a reactive ref the composable can watch.
+const originalText = ref('')
+watch(
+  () => store.currentEntry?.raw_text,
+  (t) => {
+    if (t !== undefined) originalText.value = t
+  },
+  { immediate: true },
+)
+
+// Toggle for the live diff highlighting. Defaults to on.
+const showDiff = ref(true)
+const { originalHtml, correctedHtml } = useDiffHighlight(
+  originalText,
+  editedText,
+  showDiff,
+)
+
+// Mirror-div overlay scroll sync: keep the backdrop scrolled to the
+// same Y as the editable textarea so highlight positions line up with
+// the characters the user sees.
+const correctedBackdrop = ref<HTMLDivElement | null>(null)
+const correctedTextarea = ref<HTMLTextAreaElement | null>(null)
+
+function syncCorrectedScroll() {
+  if (correctedBackdrop.value && correctedTextarea.value) {
+    correctedBackdrop.value.scrollTop = correctedTextarea.value.scrollTop
+    correctedBackdrop.value.scrollLeft = correctedTextarea.value.scrollLeft
+  }
+}
+
+// Re-sync scroll after content changes (the backdrop's height can shift
+// as the user types, so wait for the DOM to settle first).
+watch(correctedHtml, () => {
+  nextTick(syncCorrectedScroll)
+})
 
 onMounted(() => {
   store.loadEntry(Number(props.id))
@@ -144,7 +182,7 @@ onBeforeUnmount(() => {
 
       <!-- Editor toolbar -->
       <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div class="min-h-[2rem] flex items-center">
+        <div class="min-h-[2rem] flex items-center gap-4">
           <span
             v-if="isDirty"
             class="text-sm font-medium text-yellow-600 dark:text-yellow-400"
@@ -152,6 +190,37 @@ onBeforeUnmount(() => {
           >
             Unsaved changes
           </span>
+          <label
+            class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 cursor-pointer select-none"
+            data-testid="diff-toggle-label"
+          >
+            <input
+              v-model="showDiff"
+              type="checkbox"
+              class="form-checkbox rounded text-violet-500 focus:ring-violet-500"
+              data-testid="diff-toggle"
+            />
+            Show diff
+          </label>
+          <!-- Legend (only visible when diff is on) -->
+          <div
+            v-if="showDiff"
+            class="hidden sm:flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400"
+            data-testid="diff-legend"
+          >
+            <span class="flex items-center gap-1">
+              <span
+                class="inline-block w-3 h-3 rounded bg-red-100 dark:bg-red-900/40 border border-red-200 dark:border-red-800/40"
+              />
+              removed
+            </span>
+            <span class="flex items-center gap-1">
+              <span
+                class="inline-block w-3 h-3 rounded bg-emerald-100 dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800/40"
+              />
+              added
+            </span>
+          </div>
         </div>
         <div class="flex items-center gap-2">
           <button
@@ -191,12 +260,19 @@ onBeforeUnmount(() => {
           >
             Original OCR
           </h2>
-          <textarea
-            :value="store.currentEntry.raw_text"
-            readonly
-            class="form-textarea flex-1 w-full font-serif text-[0.9375rem] leading-relaxed bg-gray-50 dark:bg-gray-900/40 text-gray-600 dark:text-gray-400 resize-none"
-            data-testid="ocr-textarea"
+          <!--
+            Original text: read-only, renders highlighted HTML from the diff.
+            The HTML is produced by useDiffHighlight, which escapes every
+            chunk of user text via escapeHtml() before wrapping it in
+            <mark> spans. Safe to v-html.
+          -->
+          <!-- eslint-disable vue/no-v-html -->
+          <div
+            class="diff-surface flex-1 w-full overflow-auto bg-gray-50 dark:bg-gray-900/40 text-gray-600 dark:text-gray-400 rounded-md border border-gray-200 dark:border-gray-700/60 px-3 py-2"
+            data-testid="ocr-display"
+            v-html="originalHtml"
           />
+          <!-- eslint-enable vue/no-v-html -->
         </section>
 
         <section
@@ -207,13 +283,63 @@ onBeforeUnmount(() => {
           >
             Corrected Text
           </h2>
-          <textarea
-            v-model="editedText"
-            class="form-textarea flex-1 w-full font-serif text-[0.9375rem] leading-relaxed resize-none"
-            data-testid="corrected-textarea"
-          />
+          <!--
+            Mirror-div overlay: a styled backdrop renders the highlighted
+            HTML underneath a transparent textarea. The textarea catches
+            all keyboard/mouse input and scroll; we keep the backdrop
+            scrolled in lockstep so highlights stay aligned with glyphs.
+          -->
+          <div
+            class="corrected-wrapper relative flex-1 rounded-md border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-900/40 overflow-hidden"
+          >
+            <!-- eslint-disable vue/no-v-html -->
+            <div
+              ref="correctedBackdrop"
+              class="diff-surface absolute inset-0 overflow-auto px-3 py-2 pointer-events-none text-gray-900 dark:text-gray-100"
+              aria-hidden="true"
+              v-html="correctedHtml"
+            />
+            <!-- eslint-enable vue/no-v-html -->
+            <textarea
+              ref="correctedTextarea"
+              v-model="editedText"
+              spellcheck="false"
+              class="diff-surface absolute inset-0 w-full h-full bg-transparent text-transparent caret-gray-900 dark:caret-white resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/40 rounded-md px-3 py-2"
+              data-testid="corrected-textarea"
+              @scroll="syncCorrectedScroll"
+              @input="syncCorrectedScroll"
+            />
+          </div>
         </section>
       </div>
     </template>
   </div>
 </template>
+
+<style scoped>
+/*
+  The backdrop div and the textarea above it MUST use identical
+  typography so that highlighted spans line up character-for-character
+  with the glyphs the user is actually editing.
+*/
+.diff-surface {
+  font-family: ui-serif, Georgia, Cambria, 'Times New Roman', serif;
+  font-size: 0.9375rem;
+  line-height: 1.625;
+  letter-spacing: normal;
+  tab-size: 4;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/*
+  Selection on a text-transparent textarea is normally invisible.
+  Restore a subtle selection background so the user can still see what
+  they've selected while editing.
+*/
+.diff-surface::selection {
+  background: rgba(139, 92, 246, 0.25); /* violet-500 @ 25% */
+  color: transparent;
+}
+</style>

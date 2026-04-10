@@ -69,6 +69,20 @@ Planned features and the backend changes they require. Features are roughly orde
 - Multi-page ingestion REST endpoint (wrapping existing `ingest_multi_page_entry`)
 - File upload endpoint (currently ingestion is via base64 or URL)
 
+## Phase 3: Low-Confidence OCR Highlighting
+
+The OCR editor already runs a live diff between `raw_text` and `final_text` (via `useDiffHighlight` + the mirror-div overlay in `EntryDetailView.vue`). A natural extension is to also highlight regions of the original OCR that the model marked as low-confidence — typically proper names, unusual punctuation, or messy handwriting where the OCR result is most likely wrong.
+
+**Frontend:**
+- Render a second kind of highlight span in the Original panel — e.g. a dashed underline in amber — alongside the existing diff-delete highlights. `useDiffHighlight` returns segments as `{kind, text}` tuples specifically so multiple span sources can be merged before rendering.
+- Legend updates to include the new "low confidence" swatch
+- Optional: click a low-confidence span to jump the editor's caret to the same offset in the corrected panel
+
+**Backend changes required:**
+- Ask the OCR provider (Anthropic Claude) to return per-region confidence metadata alongside the extracted text. Store it on `entries` (new column, probably JSON) or on `entry_pages` per-page.
+- Extend `GET /api/entries/{id}` to include the confidence spans — either as character offsets into `raw_text` or as a parallel structure.
+- Consider how the data migrates when the user edits `final_text` — once a correction has been made the original span may no longer be relevant.
+
 ## Phase 4: Voice Note Playback
 
 **Frontend:**
