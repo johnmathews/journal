@@ -2,8 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
-import PrimeVue from 'primevue/config'
-import Aura from '@primeuix/themes/aura'
 import EntryListView from '../EntryListView.vue'
 
 vi.mock('@/api/entries', () => ({
@@ -51,7 +49,7 @@ const router = createRouter({
 function mountComponent() {
   return mount(EntryListView, {
     global: {
-      plugins: [createPinia(), router, [PrimeVue, { theme: { preset: Aura } }]],
+      plugins: [createPinia(), router],
     },
   })
 }
@@ -63,14 +61,12 @@ describe('EntryListView', () => {
 
   it('renders the heading', () => {
     const wrapper = mountComponent()
-    expect(wrapper.find('h2').text()).toBe('Journal Entries')
+    expect(wrapper.find('h1').text()).toBe('Journal Entries')
   })
 
   it('loads entries on mount', async () => {
-    const wrapper = mountComponent()
-    // Wait for onMounted + async loadEntries
+    mountComponent()
     await new Promise((r) => setTimeout(r, 50))
-    await wrapper.vm.$nextTick()
 
     const { fetchEntries } = await import('@/api/entries')
     expect(fetchEntries).toHaveBeenCalled()
@@ -81,8 +77,8 @@ describe('EntryListView', () => {
     await new Promise((r) => setTimeout(r, 50))
     await wrapper.vm.$nextTick()
 
-    const countSpan = wrapper.find('.entry-count')
-    expect(countSpan.exists()).toBe(true)
-    expect(countSpan.text()).toContain('2 entries')
+    const count = wrapper.find('[data-testid="entry-count"]')
+    expect(count.exists()).toBe(true)
+    expect(count.text()).toContain('2 entries')
   })
 })

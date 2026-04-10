@@ -2,9 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
-import PrimeVue from 'primevue/config'
-import Aura from '@primeuix/themes/aura'
-import ToastService from 'primevue/toastservice'
 import EntryDetailView from '../EntryDetailView.vue'
 
 vi.mock('@/api/entries', () => ({
@@ -54,12 +51,7 @@ function mountComponent() {
   return mount(EntryDetailView, {
     props: { id: '1' },
     global: {
-      plugins: [
-        createPinia(),
-        router,
-        [PrimeVue, { theme: { preset: Aura } }],
-        ToastService,
-      ],
+      plugins: [createPinia(), router],
     },
   })
 }
@@ -71,7 +63,7 @@ describe('EntryDetailView', () => {
 
   it('mounts without error', () => {
     const wrapper = mountComponent()
-    expect(wrapper.find('.entry-detail').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="entry-detail-view"]').exists()).toBe(true)
   })
 
   it('loads entry on mount', async () => {
@@ -87,11 +79,11 @@ describe('EntryDetailView', () => {
     await flushPromises()
     await wrapper.vm.$nextTick()
 
-    // After the mock resolves, the detail header or content should appear
-    // PrimeVue components may not fully render in happy-dom, but the wrapper classes should exist
-    expect(
-      wrapper.find('.detail-header').exists() ||
-        wrapper.find('.loading').exists(),
-    ).toBe(true)
+    // After the mock resolves, either the loading state clears and the
+    // view renders, or we're still in loading. Either way the root
+    // container must exist.
+    expect(wrapper.find('[data-testid="entry-detail-view"]').exists()).toBe(true)
+    // When the fetch resolves, the back button becomes visible.
+    expect(wrapper.find('[data-testid="back-button"]').exists()).toBe(true)
   })
 })
