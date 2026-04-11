@@ -4,6 +4,8 @@ import { useDashboardStore, rangeToDates } from '../dashboard'
 
 vi.mock('@/api/dashboard', () => ({
   fetchWritingStats: vi.fn(),
+  fetchMoodDimensions: vi.fn(),
+  fetchMoodTrends: vi.fn(),
 }))
 vi.mock('@/api/client', () => ({
   ApiRequestError: class extends Error {
@@ -17,9 +19,15 @@ vi.mock('@/api/client', () => ({
   },
 }))
 
-import { fetchWritingStats } from '@/api/dashboard'
+import {
+  fetchMoodDimensions,
+  fetchMoodTrends,
+  fetchWritingStats,
+} from '@/api/dashboard'
 import { ApiRequestError } from '@/api/client'
 const mockFetch = vi.mocked(fetchWritingStats)
+const mockMoodDims = vi.mocked(fetchMoodDimensions)
+const mockMoodTrends = vi.mocked(fetchMoodTrends)
 
 describe('rangeToDates', () => {
   const now = new Date('2026-04-11T12:00:00Z')
@@ -155,5 +163,177 @@ describe('useDashboardStore', () => {
     expect(store.hasLoaded).toBe(true)
     expect(store.bins).toEqual([])
     expect(store.totalEntriesInRange).toBe(0)
+  })
+})
+
+describe('useDashboardStore — mood surface', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  const fakeDimensions = [
+    {
+      name: 'joy_sadness',
+      positive_pole: 'joy',
+      negative_pole: 'sadness',
+      scale_type: 'bipolar' as const,
+      score_min: -1.0,
+      score_max: 1.0,
+      notes: '...',
+    },
+    {
+      name: 'agency',
+      positive_pole: 'agency',
+      negative_pole: 'apathy',
+      scale_type: 'unipolar' as const,
+      score_min: 0.0,
+      score_max: 1.0,
+      notes: '...',
+    },
+  ]
+
+  it('initial mood state is empty, flag off', () => {
+    const store = useDashboardStore()
+    expect(store.moodDimensions).toEqual([])
+    expect(store.moodBins).toEqual([])
+    expect(store.moodScoringEnabled).toBe(false)
+    expect(store.hasMoodData).toBe(false)
+    expect(store.hiddenMoodDimensions.size).toBe(0)
+  })
+
+  it('loadMoodDimensions populates state and flips the enabled flag', async () => {
+    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    const store = useDashboardStore()
+    await store.loadMoodDimensions()
+    expect(store.moodDimensions).toHaveLength(2)
+    expect(store.moodScoringEnabled).toBe(true)
+  })
+
+  it('loadMoodDimensions swallows errors and leaves state empty', async () => {
+    mockMoodDims.mockRejectedValue(new Error('network down'))
+    const store = useDashboardStore()
+    await store.loadMoodDimensions()
+    expect(store.moodDimensions).toEqual([])
+    expect(store.moodScoringEnabled).toBe(false)
+  })
+
+  it('loadMoodTrends populates moodBins on success', async () => {
+    mockMoodTrends.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: [
+        {
+          period: '2026-03-02',
+          dimension: 'joy_sadness',
+          avg_score: 0.5,
+          entry_count: 3,
+        },
+        {
+          period: '2026-03-02',
+          dimension: 'agency',
+          avg_score: 0.7,
+          entry_count: 3,
+        },
+      ],
+    })
+    const store = useDashboardStore()
+    await store.loadMoodTrends()
+    expect(store.moodBins).toHaveLength(2)
+    expect(store.hasMoodData).toBe(true)
+    expect(store.moodHasLoaded).toBe(true)
+    expect(store.moodError).toBeNull()
+  })
+
+  it('loadMoodTrends surfaces ApiRequestError verbatim', async () => {
+    mockMoodTrends.mockRejectedValue(
+      new ApiRequestError(400, 'invalid_bin', 'Unsupported granularity'),
+    )
+    const store = useDashboardStore()
+    await store.loadMoodTrends()
+    expect(store.moodError).toBe('Unsupported granularity')
+    expect(store.moodBins).toEqual([])
+  })
+
+  it('loadMoodTrends falls back on non-Error throw', async () => {
+    mockMoodTrends.mockRejectedValue('kaboom')
+    const store = useDashboardStore()
+    await store.loadMoodTrends()
+    expect(store.moodError).toBe('Failed to load mood data')
+  })
+
+  it('toggleMoodDimension flips visibility on and off', () => {
+    const store = useDashboardStore()
+    store.toggleMoodDimension('joy_sadness')
+    expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(true)
+    store.toggleMoodDimension('joy_sadness')
+    expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(false)
+  })
+
+  it('toggleMoodDimension creates a new Set so Vue reactivity fires', () => {
+    const store = useDashboardStore()
+    const before = store.hiddenMoodDimensions
+    store.toggleMoodDimension('joy_sadness')
+    const after = store.hiddenMoodDimensions
+    // Must be a different Set instance — mutating in place would
+    // not trigger watchers in the DashboardView.
+    expect(after).not.toBe(before)
+    expect(after.has('joy_sadness')).toBe(true)
+  })
+
+  it('reset wipes mood state back to defaults', async () => {
+    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    mockMoodTrends.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: [
+        {
+          period: '2026-03-02',
+          dimension: 'joy_sadness',
+          avg_score: 0.5,
+          entry_count: 1,
+        },
+      ],
+    })
+    const store = useDashboardStore()
+    await store.loadMoodDimensions()
+    await store.loadMoodTrends()
+    store.toggleMoodDimension('joy_sadness')
+
+    store.reset()
+
+    expect(store.moodDimensions).toEqual([])
+    expect(store.moodBins).toEqual([])
+    expect(store.moodScoringEnabled).toBe(false)
+    expect(store.hiddenMoodDimensions.size).toBe(0)
+    expect(store.moodHasLoaded).toBe(false)
+  })
+
+  it('loadMoodTrends applies range override', async () => {
+    mockMoodTrends.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: [],
+    })
+    const store = useDashboardStore()
+    await store.loadMoodTrends({ range: 'last_6_months' })
+    expect(store.range).toBe('last_6_months')
+  })
+
+  it('loadMoodTrends applies bin override', async () => {
+    mockMoodTrends.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'month',
+      bins: [],
+    })
+    const store = useDashboardStore()
+    await store.loadMoodTrends({ bin: 'month' })
+    expect(store.bin).toBe('month')
+    const call = mockMoodTrends.mock.calls[0][0]
+    expect(call?.bin).toBe('month')
   })
 })

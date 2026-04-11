@@ -1,10 +1,16 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { ApiRequestError } from '@/api/client'
-import { fetchWritingStats } from '@/api/dashboard'
+import {
+  fetchMoodDimensions,
+  fetchMoodTrends,
+  fetchWritingStats,
+} from '@/api/dashboard'
 import type {
   DashboardBin,
   DashboardRange,
+  MoodDimension,
+  MoodTrendBin,
   WritingFrequencyBin,
 } from '@/types/dashboard'
 
@@ -69,9 +75,31 @@ export const useDashboardStore = defineStore('dashboard', () => {
   // from "loaded but the corpus is empty".
   const hasLoaded = ref(false)
 
+  // Mood chart state — independent of writing stats. The view
+  // fires `loadMoodData` alongside `loadWritingStats` when they
+  // share a filter change (the same range + bin controls both
+  // series). `moodDimensions` is loaded lazily on first view
+  // mount and cached for the session; `moodBins` is refreshed
+  // on every range/bin change.
+  const moodDimensions = ref<MoodDimension[]>([])
+  const moodBins = ref<MoodTrendBin[]>([])
+  // Dimensions the user has toggled OFF in the chart UI. Stored
+  // as a Set<string> so flipping a toggle is O(1). Not
+  // persisted across sessions — the default is "show everything".
+  const hiddenMoodDimensions = ref<Set<string>>(new Set())
+  const moodLoading = ref(false)
+  const moodError = ref<string | null>(null)
+  // True once at least one mood load has completed, regardless
+  // of result. Used to distinguish "still loading" from "loaded
+  // but the server has no mood data".
+  const moodHasLoaded = ref(false)
+
   const totalEntriesInRange = computed(() =>
     bins.value.reduce((sum, b) => sum + b.entry_count, 0),
   )
+
+  const hasMoodData = computed(() => moodBins.value.length > 0)
+  const moodScoringEnabled = computed(() => moodDimensions.value.length > 0)
 
   async function loadWritingStats(
     overrides: { range?: DashboardRange; bin?: DashboardBin } = {},
@@ -104,6 +132,71 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
   }
 
+  /**
+   * Fetch the currently-loaded mood dimensions from the server.
+   * Idempotent and cheap — the server returns a fixed TOML
+   * config. Called once on view mount, cached for the session.
+   * Safe to call again after a config edit + server restart;
+   * the new set replaces the old one.
+   */
+  async function loadMoodDimensions(): Promise<void> {
+    try {
+      const response = await fetchMoodDimensions()
+      moodDimensions.value = response.dimensions
+    } catch {
+      // Swallow — if the dimensions load fails, the view shows
+      // the generic "mood scoring not configured" state instead
+      // of a loud error. The separate `moodError` below only
+      // fires on mood-trends failures so the writing chart is
+      // unaffected by mood-pipeline hiccups.
+      moodDimensions.value = []
+    }
+  }
+
+  async function loadMoodTrends(
+    overrides: { range?: DashboardRange; bin?: DashboardBin } = {},
+  ): Promise<void> {
+    if (overrides.range !== undefined) range.value = overrides.range
+    if (overrides.bin !== undefined) bin.value = overrides.bin
+
+    moodLoading.value = true
+    moodError.value = null
+    try {
+      const { from, to } = rangeToDates(range.value)
+      const response = await fetchMoodTrends({
+        bin: bin.value,
+        from: from ?? undefined,
+        to: to ?? undefined,
+      })
+      moodBins.value = response.bins
+      moodHasLoaded.value = true
+    } catch (e) {
+      if (e instanceof ApiRequestError) {
+        moodError.value = e.message
+      } else if (e instanceof Error) {
+        moodError.value = e.message
+      } else {
+        moodError.value = 'Failed to load mood data'
+      }
+      moodBins.value = []
+    } finally {
+      moodLoading.value = false
+    }
+  }
+
+  function toggleMoodDimension(name: string): void {
+    // Build a new Set on every toggle so Vue's reactivity sees
+    // the change — mutating the existing Set wouldn't trigger
+    // dependents.
+    const next = new Set(hiddenMoodDimensions.value)
+    if (next.has(name)) {
+      next.delete(name)
+    } else {
+      next.add(name)
+    }
+    hiddenMoodDimensions.value = next
+  }
+
   function reset(): void {
     range.value = 'last_3_months'
     bin.value = 'week'
@@ -111,6 +204,12 @@ export const useDashboardStore = defineStore('dashboard', () => {
     loading.value = false
     error.value = null
     hasLoaded.value = false
+    moodDimensions.value = []
+    moodBins.value = []
+    hiddenMoodDimensions.value = new Set()
+    moodLoading.value = false
+    moodError.value = null
+    moodHasLoaded.value = false
   }
 
   return {
@@ -122,6 +221,18 @@ export const useDashboardStore = defineStore('dashboard', () => {
     hasLoaded,
     totalEntriesInRange,
     loadWritingStats,
+    // Mood surface
+    moodDimensions,
+    moodBins,
+    hiddenMoodDimensions,
+    moodLoading,
+    moodError,
+    moodHasLoaded,
+    hasMoodData,
+    moodScoringEnabled,
+    loadMoodDimensions,
+    loadMoodTrends,
+    toggleMoodDimension,
     reset,
   }
 })
