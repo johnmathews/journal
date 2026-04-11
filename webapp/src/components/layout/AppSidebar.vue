@@ -66,16 +66,20 @@ onUnmounted(() => {
   document.removeEventListener('keydown', keyHandler)
 })
 
-watch(sidebarExpanded, () => {
-  localStorage.setItem('sidebar-expanded', String(sidebarExpanded.value))
-  const body = document.querySelector('body')
-  if (!body) return
-  if (sidebarExpanded.value) {
-    body.classList.add('sidebar-expanded')
-  } else {
-    body.classList.remove('sidebar-expanded')
-  }
-})
+watch(
+  sidebarExpanded,
+  () => {
+    localStorage.setItem('sidebar-expanded', String(sidebarExpanded.value))
+    const body = document.querySelector('body')
+    if (!body) return
+    if (sidebarExpanded.value) {
+      body.classList.add('sidebar-expanded')
+    } else {
+      body.classList.remove('sidebar-expanded')
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -134,16 +138,9 @@ watch(sidebarExpanded, () => {
       <div class="space-y-8">
         <div>
           <h3
-            class="text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold pl-3"
+            class="text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold pl-3 lg:hidden lg:sidebar-expanded:block 2xl:block"
           >
-            <span
-              class="hidden lg:block lg:sidebar-expanded:hidden 2xl:hidden text-center w-6"
-              aria-hidden="true"
-              >•••</span
-            >
-            <span class="lg:hidden lg:sidebar-expanded:block 2xl:block"
-              >Journal</span
-            >
+            Journal
           </h3>
           <ul class="mt-3">
             <!-- Dashboard link (home / `/`) -->
