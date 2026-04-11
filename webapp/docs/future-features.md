@@ -1,5 +1,18 @@
 # Future Features
 
+> **Superseded 2026-04-11 by [`journal-server/docs/roadmap.md`](../../journal-server/docs/roadmap.md).**
+> The consolidated roadmap pulls together this file, `phase-2-brief.md`,
+> the pending task list, and deferred items from recent journal entries
+> into a single source of truth. The items below are still tracked there
+> (mostly in Tier 1 Search UI / Dashboards and Tier 3 polish items) —
+> do not add new work here.
+>
+> **Note:** the "Phase 2: Authentication" section below is obsolete. The
+> backend shipped bearer-token auth in the 2026-04-11 security session
+> and the webapp already sends `Authorization: Bearer <token>`. See
+> roadmap deferred item D7 for what remains (at most a settings page for
+> user-supplied tokens).
+
 Planned features and the backend changes they require. Features are roughly ordered by priority.
 
 ## Phase 2: Authentication
