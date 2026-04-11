@@ -1,19 +1,30 @@
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
 /**
- * Read the API bearer token from the build-time env. Called per-request
- * rather than captured as a module-level constant so Vitest's
- * `vi.stubEnv('VITE_JOURNAL_API_TOKEN', ...)` can change the value at
- * runtime without the test having to re-import the module. In
- * production the value is inlined by Vite at build time, so this is
- * effectively free.
+ * Read the API bearer token.
  *
- * The token is required by journal-server on every /api/* and /mcp
- * request. In dev the Vite proxy forwards the header unchanged to
- * localhost:8400. In prod the built bundle must be served with this
- * value injected via `VITE_JOURNAL_API_TOKEN=...` at build time.
+ * Two sources, in priority order:
+ *
+ *  1. `window.__JOURNAL_CONFIG__.apiToken` — the runtime value, written
+ *     to `/config.js` at container startup by `docker/40-journal-config.sh`
+ *     from the `JOURNAL_API_TOKEN` env var. This is the production path:
+ *     the token lives only in the host's `.env`, never in the ghcr.io
+ *     image, and rotates with a `docker compose up -d` (no rebuild).
+ *
+ *  2. `import.meta.env.VITE_JOURNAL_API_TOKEN` — the build-time value,
+ *     inlined by Vite. Used in dev (set via `.env.local`) and in unit
+ *     tests (via `vi.stubEnv`). Also used as a fallback in prod if the
+ *     runtime injection stub was never replaced — which would be a
+ *     deployment mistake, and the fallback is empty in that case, so
+ *     the server will reject requests with 401 and the mistake is loud.
+ *
+ * Called per-request rather than captured as a module-level constant
+ * so `vi.stubEnv` takes effect for every test without re-importing
+ * the module.
  */
 function getApiToken(): string {
+  const runtime = window.__JOURNAL_CONFIG__?.apiToken
+  if (runtime) return runtime
   return import.meta.env.VITE_JOURNAL_API_TOKEN || ''
 }
 

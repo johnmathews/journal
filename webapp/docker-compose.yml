@@ -3,6 +3,11 @@ services:
     image: ghcr.io/johnmathews/journal-webapp:latest
     ports:
       - "8402:80"
+    environment:
+      # Bearer token written to /config.js at container startup by
+      # docker/40-journal-config.sh. Must match journal-server's
+      # JOURNAL_API_TOKEN. See docs/deployment.md (Runtime token injection).
+      - JOURNAL_API_TOKEN=${JOURNAL_API_TOKEN:?set JOURNAL_API_TOKEN in .env or the shell environment}
     depends_on:
       - journal-server
     restart: unless-stopped
@@ -15,6 +20,7 @@ services:
       - DB_PATH=/data/journal.db
       - CHROMADB_HOST=journal-chromadb
       - CHROMADB_PORT=8000
+      - JOURNAL_API_TOKEN=${JOURNAL_API_TOKEN:?set JOURNAL_API_TOKEN in .env or the shell environment}
     volumes:
       - journal-data:/data
     depends_on:

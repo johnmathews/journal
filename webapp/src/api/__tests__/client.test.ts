@@ -10,10 +10,16 @@ describe('apiFetch', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     vi.stubEnv('VITE_JOURNAL_API_TOKEN', 'test-token-abc')
+    // Runtime config path (window.__JOURNAL_CONFIG__) is the production
+    // source of the token. Default each test to "no runtime config" so
+    // the fallback to import.meta.env is exercised by default; tests
+    // that cover the runtime path set it explicitly.
+    delete (window as { __JOURNAL_CONFIG__?: unknown }).__JOURNAL_CONFIG__
   })
 
   afterEach(() => {
     vi.unstubAllEnvs()
+    delete (window as { __JOURNAL_CONFIG__?: unknown }).__JOURNAL_CONFIG__
   })
 
   it('makes a GET request and returns JSON', async () => {
@@ -69,6 +75,46 @@ describe('apiFetch', () => {
     const headers = init.headers as Record<string, string>
     expect(headers.Authorization).toBeUndefined()
     expect(headers['Content-Type']).toBe('application/json')
+  })
+
+  it('prefers the runtime token on window.__JOURNAL_CONFIG__ over the build-time env', async () => {
+    window.__JOURNAL_CONFIG__ = { apiToken: 'runtime-token-xyz' }
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({}),
+    } as Response)
+
+    await apiFetch('/api/entries')
+
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/entries',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer runtime-token-xyz',
+        }),
+      }),
+    )
+  })
+
+  it('falls back to the build-time env when the runtime stub is empty', async () => {
+    // Simulates the dev path (empty stub in public/config.js) and the
+    // "deployment mistake" path where the entrypoint never ran.
+    window.__JOURNAL_CONFIG__ = {}
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({}),
+    } as Response)
+
+    await apiFetch('/api/entries')
+
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/entries',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-token-abc',
+        }),
+      }),
+    )
   })
 
   it('allows a caller to override the Authorization header', async () => {
