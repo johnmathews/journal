@@ -897,6 +897,7 @@ describe('EntryDetailView', () => {
         language: 'en',
         created_at: '2026-03-23T10:30:00Z',
         updated_at: '2026-03-23T10:30:00Z',
+        uncertain_spans: [],
       })
       await flushPromises()
     })
@@ -990,6 +991,138 @@ describe('EntryDetailView', () => {
       expect(
         wrapper.find('[data-testid="entry-entity-chip-42"]').exists(),
       ).toBe(true)
+    })
+  })
+
+  describe('Review toggle', () => {
+    /**
+     * The Review toggle overlays OCR uncertainty highlights on the
+     * Original OCR panel. These tests exercise the UI wiring
+     * end-to-end — mount the view, stub the fetch, assert on rendered
+     * classes and toggle state. The underlying highlight logic has
+     * its own unit tests in useDiffHighlight.test.ts.
+     */
+
+    async function mountWithSpans(
+      uncertain_spans: Array<{ char_start: number; char_end: number }>,
+      rawText = 'Hello Ritsya from Vienna.',
+    ) {
+      const { fetchEntry } = await import('@/api/entries')
+      vi.mocked(fetchEntry).mockResolvedValueOnce({
+        id: 1,
+        entry_date: '2026-03-22',
+        source_type: 'ocr',
+        raw_text: rawText,
+        final_text: rawText,
+        page_count: 1,
+        word_count: rawText.split(/\s+/).length,
+        chunk_count: 0,
+        language: 'en',
+        created_at: '2026-03-23T10:30:00Z',
+        updated_at: '2026-03-23T10:30:00Z',
+        uncertain_spans,
+      } as never)
+      const wrapper = mountComponent()
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+      return wrapper
+    }
+
+    it('renders the Review toggle in the toolbar', async () => {
+      const wrapper = await mountWithSpans([])
+      expect(wrapper.find('[data-testid="review-toggle"]').exists()).toBe(true)
+      expect(
+        wrapper.find('[data-testid="review-toggle-label"]').text(),
+      ).toContain('Review')
+    })
+
+    it('disables the toggle when the entry has no uncertain spans', async () => {
+      const wrapper = await mountWithSpans([])
+      const input = wrapper.find<HTMLInputElement>(
+        '[data-testid="review-toggle"]',
+      )
+      expect(input.element.disabled).toBe(true)
+      expect(input.element.checked).toBe(false)
+      // The tooltip on the label explains why it's inert.
+      const label = wrapper.find('[data-testid="review-toggle-label"]')
+      expect(label.attributes('title')).toMatch(/no uncertain spans/i)
+    })
+
+    it('enables the toggle when the entry has uncertain spans', async () => {
+      const wrapper = await mountWithSpans([{ char_start: 6, char_end: 12 }])
+      const input = wrapper.find<HTMLInputElement>(
+        '[data-testid="review-toggle"]',
+      )
+      expect(input.element.disabled).toBe(false)
+      const label = wrapper.find('[data-testid="review-toggle-label"]')
+      expect(label.attributes('title')).toMatch(/uncertain/i)
+      expect(label.attributes('title')).not.toMatch(/no uncertain spans/i)
+    })
+
+    it('applies uncertainty highlighting to the Original OCR panel when toggled on', async () => {
+      const wrapper = await mountWithSpans(
+        // "Ritsya" at offsets 6..12 in "Hello Ritsya from Vienna."
+        [{ char_start: 6, char_end: 12 }],
+      )
+      const original = wrapper.find('[data-testid="ocr-display"]')
+      expect(original.exists()).toBe(true)
+      // Before toggling, the Original OCR panel should not show the
+      // uncertainty class.
+      expect(original.html()).not.toContain('bg-yellow-200')
+
+      // Turn the Review toggle on.
+      const input = wrapper.find<HTMLInputElement>(
+        '[data-testid="review-toggle"]',
+      )
+      await input.setValue(true)
+      await wrapper.vm.$nextTick()
+
+      // Now the uncertain word is highlighted on the Original OCR side.
+      const afterHtml = wrapper.find('[data-testid="ocr-display"]').html()
+      expect(afterHtml).toContain('bg-yellow-200')
+      expect(afterHtml).toContain('Ritsya')
+    })
+
+    it('does not affect the Corrected Text panel when toggled on', async () => {
+      const wrapper = await mountWithSpans([{ char_start: 6, char_end: 12 }])
+      const input = wrapper.find<HTMLInputElement>(
+        '[data-testid="review-toggle"]',
+      )
+      await input.setValue(true)
+      await wrapper.vm.$nextTick()
+
+      // The Original OCR panel carries the yellow class…
+      const ocrHtml = wrapper.find('[data-testid="ocr-display"]').html()
+      expect(ocrHtml).toContain('bg-yellow-200')
+
+      // …but the Corrected Text panel does not. The corrected side
+      // renders as either an editable textarea or an overlay display;
+      // the textarea is the default view when no chunks/tokens
+      // overlay mode is active (our mountWithSpans fixture leaves
+      // overlay off). A <textarea> is plain text — no <mark> wrapper
+      // — so it cannot carry a tailwind class at all.
+      const textarea = wrapper.find('[data-testid="corrected-textarea"]')
+      expect(textarea.exists()).toBe(true)
+      // Defensive: the textarea's own class attribute must not
+      // contain any yellow-background utility (it shouldn't today,
+      // but this guards the CSS vocabulary).
+      const textareaClass = textarea.attributes('class') ?? ''
+      expect(textareaClass).not.toContain('bg-yellow')
+    })
+
+    it('shows the uncertain legend only when the Review toggle is on', async () => {
+      const wrapper = await mountWithSpans([{ char_start: 6, char_end: 12 }])
+      // Legend is absent before the toggle is flipped.
+      expect(wrapper.find('[data-testid="review-legend"]').exists()).toBe(false)
+      const input = wrapper.find<HTMLInputElement>(
+        '[data-testid="review-toggle"]',
+      )
+      await input.setValue(true)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.find('[data-testid="review-legend"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="review-legend"]').text()).toContain(
+        'uncertain',
+      )
     })
   })
 })

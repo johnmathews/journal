@@ -1,14 +1,27 @@
 import { computed, type Ref } from 'vue'
 import DiffMatchPatch, { type Diff } from 'diff-match-patch'
+import type { UncertainSpan } from '@/types/entry'
 
 /**
- * Kinds of span the renderer knows how to style. `diff-delete` and
- * `diff-insert` come from comparing original vs corrected text. `equal`
- * is used to render untouched chunks so the template can still escape
- * them safely. Other kinds (e.g. OCR low-confidence regions) can be
- * added later without reshaping the API.
+ * Kinds of span the renderer knows how to style.
+ *
+ * - `equal` — untouched text; no markup. Used so the template's v-html
+ *   consumer can still escape safely.
+ * - `diff-delete` / `diff-insert` — from comparing original vs corrected.
+ * - `uncertain` — a character range the OCR model flagged as uncertain
+ *   at ingestion time. Applied only to the Original OCR side (where it
+ *   is anchored) when the Review toggle is on.
+ * - `diff-delete-uncertain` — composite kind for the overlap case: an
+ *   uncertain span that falls inside a diff-delete region. Rendered
+ *   with the red-delete background and a yellow ring so the user sees
+ *   both signals without one drowning the other.
  */
-export type HighlightKind = 'equal' | 'diff-delete' | 'diff-insert'
+export type HighlightKind =
+  | 'equal'
+  | 'diff-delete'
+  | 'diff-insert'
+  | 'uncertain'
+  | 'diff-delete-uncertain'
 
 export interface HighlightSegment {
   kind: HighlightKind
@@ -35,6 +48,14 @@ const CLASS_FOR_KIND: Record<HighlightKind, string> = {
     'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200 rounded-[2px]',
   'diff-insert':
     'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200 rounded-[2px]',
+  uncertain:
+    'bg-yellow-200 text-yellow-900 dark:bg-yellow-400/40 dark:text-yellow-100 rounded-[2px] underline decoration-dotted decoration-yellow-700 dark:decoration-yellow-300 underline-offset-2',
+  // Composite: the red-delete background + a yellow ring. The ring
+  // sits outside the rounded corners so it reads as a distinct signal
+  // rather than "the red got a bit yellower". Order matters — this
+  // class list must not conflict with the diff-delete base.
+  'diff-delete-uncertain':
+    'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200 ring-1 ring-yellow-500 dark:ring-yellow-400 rounded-[2px]',
 }
 
 /**
@@ -58,9 +79,144 @@ export function segmentsToHtml(segments: HighlightSegment[]): string {
 }
 
 /**
+ * Overlay uncertain spans onto a list of original-side segments.
+ *
+ * The diff walker builds `originalSegments` in order — so the
+ * concatenation of their `.text` equals the original string, and
+ * each segment occupies a contiguous character range that we can
+ * reconstruct with a running offset. This function walks those
+ * segments, and for each character range that falls inside any
+ * uncertain span, splits the segment and promotes the inner portion
+ * to the `uncertain` or `diff-delete-uncertain` kind (depending on
+ * whether the underlying segment was equal or a delete).
+ *
+ * `diff-insert` segments cannot appear on the original side, so we
+ * don't need to handle them here — uncertainty is an Original-OCR
+ * concept.
+ *
+ * The returned list still satisfies `join(.text) === original` so
+ * downstream offset-sensitive consumers (there are none today, but
+ * there could be) don't lose alignment.
+ */
+export function applyUncertainOverlay(
+  segments: HighlightSegment[],
+  spans: UncertainSpan[],
+): HighlightSegment[] {
+  if (spans.length === 0) return segments
+
+  // Normalise: sort by char_start, drop invalid/zero-length entries,
+  // and merge overlaps. The server guarantees sorted/non-overlapping
+  // input today, but the composable is public and we'd rather not
+  // trust a caller to hand us clean data.
+  const normalised = normaliseSpans(spans)
+  if (normalised.length === 0) return segments
+
+  const result: HighlightSegment[] = []
+  let offset = 0
+  let spanIdx = 0
+
+  for (const seg of segments) {
+    const segStart = offset
+    const segEnd = offset + seg.text.length
+    offset = segEnd
+
+    if (seg.text.length === 0) {
+      result.push(seg)
+      continue
+    }
+
+    // Skip spans that ended before this segment started. Spans are
+    // sorted, so once we're past the current segment we can advance
+    // the cursor for good.
+    while (
+      spanIdx < normalised.length &&
+      normalised[spanIdx].char_end <= segStart
+    ) {
+      spanIdx += 1
+    }
+
+    // Collect every span that overlaps this segment. Because spans
+    // are sorted, once we hit one that starts after the segment we
+    // can stop — the rest are in later segments.
+    const touching: UncertainSpan[] = []
+    for (let i = spanIdx; i < normalised.length; i += 1) {
+      const s = normalised[i]
+      if (s.char_start >= segEnd) break
+      touching.push(s)
+    }
+
+    if (touching.length === 0) {
+      result.push(seg)
+      continue
+    }
+
+    const promotedKind: HighlightKind =
+      seg.kind === 'diff-delete' ? 'diff-delete-uncertain' : 'uncertain'
+
+    let cursor = segStart
+    for (const span of touching) {
+      const spanStart = Math.max(span.char_start, segStart)
+      const spanEnd = Math.min(span.char_end, segEnd)
+      if (cursor < spanStart) {
+        result.push({
+          kind: seg.kind,
+          text: seg.text.slice(cursor - segStart, spanStart - segStart),
+        })
+      }
+      result.push({
+        kind: promotedKind,
+        text: seg.text.slice(spanStart - segStart, spanEnd - segStart),
+      })
+      cursor = spanEnd
+    }
+    if (cursor < segEnd) {
+      result.push({
+        kind: seg.kind,
+        text: seg.text.slice(cursor - segStart),
+      })
+    }
+  }
+
+  return result
+}
+
+/**
+ * Sort `spans` by `char_start`, drop empty/invalid entries, and merge
+ * any overlapping pairs into the minimum set of disjoint spans that
+ * cover the same characters. Returns a fresh array — does not mutate
+ * the input.
+ */
+function normaliseSpans(spans: UncertainSpan[]): UncertainSpan[] {
+  const valid = spans.filter((s) => s.char_end > s.char_start)
+  if (valid.length === 0) return []
+  const sorted = [...valid].sort((a, b) => a.char_start - b.char_start)
+  const merged: UncertainSpan[] = []
+  for (const s of sorted) {
+    const last = merged[merged.length - 1]
+    if (last && s.char_start <= last.char_end) {
+      if (s.char_end > last.char_end) {
+        merged[merged.length - 1] = {
+          char_start: last.char_start,
+          char_end: s.char_end,
+        }
+      }
+    } else {
+      merged.push({ char_start: s.char_start, char_end: s.char_end })
+    }
+  }
+  return merged
+}
+
+/**
  * Compute the diff between two strings and return two parallel segment
  * lists — one for the "original" panel (contains equal + delete spans)
  * and one for the "corrected" panel (contains equal + insert spans).
+ *
+ * When `uncertainSpans` is provided, the original-side segments also
+ * pick up `uncertain` / `diff-delete-uncertain` markup for the
+ * flagged character ranges. `uncertainSpans` addresses the
+ * `original` string, not `corrected` — the uncertainty is a property
+ * of the Original OCR reading.
  *
  * Exported so it can be used directly in unit tests without a Vue
  * reactive context.
@@ -68,6 +224,7 @@ export function segmentsToHtml(segments: HighlightSegment[]): string {
 export function diffToSegments(
   original: string,
   corrected: string,
+  uncertainSpans: UncertainSpan[] = [],
 ): {
   originalSegments: HighlightSegment[]
   correctedSegments: HighlightSegment[]
@@ -98,33 +255,68 @@ export function diffToSegments(
     }
   }
 
-  return { originalSegments, correctedSegments }
+  return {
+    originalSegments: applyUncertainOverlay(originalSegments, uncertainSpans),
+    correctedSegments,
+  }
+}
+
+/**
+ * Optional second argument bag for `useDiffHighlight`. Kept as a
+ * separate object so adding more overlays later doesn't keep growing
+ * the positional argument list.
+ */
+export interface DiffHighlightOptions {
+  /** OCR uncertainty spans in `original` coordinates. Applied only when
+   * `showReview.value` is true. */
+  uncertainSpans?: Ref<UncertainSpan[]>
+  /** Review toggle state. When false, uncertainty overlays are
+   * suppressed regardless of `uncertainSpans`. */
+  showReview?: Ref<boolean>
 }
 
 /**
  * Reactive wrapper. Given refs to the original text (read-only) and the
  * corrected text (editable), returns reactive HTML strings ready to be
- * rendered with `v-html`. When `enabled` is false, the HTML output is
- * the raw text (escaped) with no highlight markup — matching what a
- * plain textarea would show.
+ * rendered with `v-html`.
+ *
+ * - When `enabled` is false, the output is the raw text (escaped) with
+ *   no highlight markup — matching a plain textarea.
+ * - When `options.showReview` is true and `options.uncertainSpans` is
+ *   non-empty, the Original OCR side also renders uncertainty
+ *   highlights. The Corrected Text side is never affected by
+ *   uncertainty — uncertainty is a property of the raw reading, not
+ *   the user's correction.
  */
 export function useDiffHighlight(
   original: Ref<string>,
   corrected: Ref<string>,
   enabled: Ref<boolean>,
+  options: DiffHighlightOptions = {},
 ) {
   const segments = computed(() => {
     // See `diffToSegments` — coerce null/undefined to empty string so
     // a malformed entry payload doesn't crash the diff render.
     const originalText = original.value ?? ''
     const correctedText = corrected.value ?? ''
+    const spans =
+      options.showReview?.value && options.uncertainSpans
+        ? options.uncertainSpans.value
+        : []
     if (!enabled.value) {
+      // Diff overlay off. Build a single "equal" segment and apply
+      // the uncertainty overlay by hand so the Review toggle still
+      // works on its own.
+      const originalSegments = applyUncertainOverlay(
+        [{ kind: 'equal' as const, text: originalText }],
+        spans,
+      )
       return {
-        originalSegments: [{ kind: 'equal' as const, text: originalText }],
+        originalSegments,
         correctedSegments: [{ kind: 'equal' as const, text: correctedText }],
       }
     }
-    return diffToSegments(originalText, correctedText)
+    return diffToSegments(originalText, correctedText, spans)
   })
 
   const originalHtml = computed(() =>

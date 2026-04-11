@@ -8,6 +8,20 @@ export interface EntrySummary {
   created_at: string
 }
 
+/** A character range in `EntryDetail.raw_text` that the OCR model
+ * flagged as uncertain at ingestion time. Offsets are half-open:
+ * `raw_text.slice(char_start, char_end)` yields the uncertain span.
+ *
+ * Spans are always anchored to `raw_text`, never `final_text`. This
+ * makes them immune to user edits — editing `final_text` never
+ * invalidates a span, because `raw_text` is immutable. The webapp's
+ * Review toggle overlays these spans on the Original OCR panel only.
+ */
+export interface UncertainSpan {
+  char_start: number
+  char_end: number
+}
+
 export interface EntryDetail {
   id: number
   entry_date: string
@@ -20,6 +34,11 @@ export interface EntryDetail {
   language: string
   created_at: string
   updated_at: string
+  /** Character ranges in `raw_text` flagged as uncertain by the OCR
+   * model. Always present in API responses; empty for entries
+   * ingested before migration 0005 and for entries where the model
+   * was fully confident. */
+  uncertain_spans: UncertainSpan[]
 }
 
 export interface EntryListResponse {

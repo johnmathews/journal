@@ -1,10 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { ref, nextTick } from 'vue'
 import {
+  applyUncertainOverlay,
   diffToSegments,
   segmentsToHtml,
   useDiffHighlight,
+  type HighlightSegment,
 } from '../useDiffHighlight'
+import type { UncertainSpan } from '@/types/entry'
 
 describe('diffToSegments', () => {
   it('returns one equal segment per panel when texts are identical', () => {
@@ -207,5 +210,290 @@ describe('useDiffHighlight', () => {
     enabled.value = true
     await nextTick()
     expect(correctedHtml.value).toContain('<mark')
+  })
+})
+
+describe('applyUncertainOverlay', () => {
+  const eq = (text: string): HighlightSegment => ({ kind: 'equal', text })
+  const del = (text: string): HighlightSegment => ({
+    kind: 'diff-delete',
+    text,
+  })
+  const span = (char_start: number, char_end: number): UncertainSpan => ({
+    char_start,
+    char_end,
+  })
+
+  it('returns input unchanged when spans is empty', () => {
+    const input = [eq('hello world')]
+    expect(applyUncertainOverlay(input, [])).toBe(input)
+  })
+
+  it('promotes an uncertain region inside an equal segment', () => {
+    // "hello world", span (6, 11) covers "world"
+    const out = applyUncertainOverlay([eq('hello world')], [span(6, 11)])
+    expect(out).toEqual([
+      { kind: 'equal', text: 'hello ' },
+      { kind: 'uncertain', text: 'world' },
+    ])
+    // Concatenation still equals the original text.
+    expect(out.map((s) => s.text).join('')).toBe('hello world')
+  })
+
+  it('emits a leading equal portion and a trailing equal portion around a middle span', () => {
+    // "foo bar baz", span (4, 7) covers "bar"
+    const out = applyUncertainOverlay([eq('foo bar baz')], [span(4, 7)])
+    expect(out).toEqual([
+      { kind: 'equal', text: 'foo ' },
+      { kind: 'uncertain', text: 'bar' },
+      { kind: 'equal', text: ' baz' },
+    ])
+  })
+
+  it('handles a span at the start of the text', () => {
+    const out = applyUncertainOverlay([eq('foo bar')], [span(0, 3)])
+    expect(out).toEqual([
+      { kind: 'uncertain', text: 'foo' },
+      { kind: 'equal', text: ' bar' },
+    ])
+  })
+
+  it('handles a span at the end of the text', () => {
+    const out = applyUncertainOverlay([eq('foo bar')], [span(4, 7)])
+    expect(out).toEqual([
+      { kind: 'equal', text: 'foo ' },
+      { kind: 'uncertain', text: 'bar' },
+    ])
+  })
+
+  it('handles multiple disjoint spans in a single segment', () => {
+    const out = applyUncertainOverlay(
+      [eq('foo plain bar baz end')],
+      [span(0, 3), span(10, 17)], // "foo" and "bar baz"
+    )
+    expect(out).toEqual([
+      { kind: 'uncertain', text: 'foo' },
+      { kind: 'equal', text: ' plain ' },
+      { kind: 'uncertain', text: 'bar baz' },
+      { kind: 'equal', text: ' end' },
+    ])
+    expect(out.map((s) => s.text).join('')).toBe('foo plain bar baz end')
+  })
+
+  it('promotes a span inside a diff-delete to diff-delete-uncertain', () => {
+    // Input: one equal "hello " segment (0..6) then a delete "world"
+    // (6..11). Uncertain span (6, 11) sits exactly inside the delete.
+    const out = applyUncertainOverlay(
+      [eq('hello '), del('world')],
+      [span(6, 11)],
+    )
+    expect(out).toEqual([
+      { kind: 'equal', text: 'hello ' },
+      { kind: 'diff-delete-uncertain', text: 'world' },
+    ])
+  })
+
+  it('splits a span that straddles a segment boundary', () => {
+    // "hello world" — equal "hello " (0..6), delete "world" (6..11).
+    // Span (3, 9) crosses the boundary: 'l','o',' ' in equal and
+    // 'w','o','r' in delete. Expect the equal portion to become
+    // 'uncertain' and the delete portion 'diff-delete-uncertain'.
+    const out = applyUncertainOverlay(
+      [eq('hello '), del('world')],
+      [span(3, 9)],
+    )
+    expect(out).toEqual([
+      { kind: 'equal', text: 'hel' },
+      { kind: 'uncertain', text: 'lo ' },
+      { kind: 'diff-delete-uncertain', text: 'wor' },
+      { kind: 'diff-delete', text: 'ld' },
+    ])
+    expect(out.map((s) => s.text).join('')).toBe('hello world')
+  })
+
+  it('normalises out-of-order input spans', () => {
+    const out = applyUncertainOverlay(
+      [eq('foo bar baz')],
+      [span(8, 11), span(0, 3)], // "baz" first, then "foo"
+    )
+    expect(out).toEqual([
+      { kind: 'uncertain', text: 'foo' },
+      { kind: 'equal', text: ' bar ' },
+      { kind: 'uncertain', text: 'baz' },
+    ])
+  })
+
+  it('merges overlapping input spans before applying', () => {
+    const out = applyUncertainOverlay(
+      [eq('abcdefgh')],
+      // (1..5) and (4..7) overlap — merged to (1..7)
+      [span(1, 5), span(4, 7)],
+    )
+    expect(out).toEqual([
+      { kind: 'equal', text: 'a' },
+      { kind: 'uncertain', text: 'bcdefg' },
+      { kind: 'equal', text: 'h' },
+    ])
+  })
+
+  it('drops spans with zero or negative length', () => {
+    const out = applyUncertainOverlay(
+      [eq('hello')],
+      [span(2, 2), span(3, 1) as UncertainSpan],
+    )
+    expect(out).toEqual([eq('hello')])
+  })
+
+  it('preserves the exact original text concatenation under any span mix', () => {
+    const text = 'The quick brown fox jumps over the lazy dog'
+    const spans: UncertainSpan[] = [
+      span(0, 3), // "The"
+      span(10, 15), // "brown"
+      span(20, 25), // "jumps"
+      span(35, 39), // "lazy"
+    ]
+    // Guard that we got the offsets right before exercising the overlay.
+    expect(text.slice(0, 3)).toBe('The')
+    expect(text.slice(10, 15)).toBe('brown')
+    expect(text.slice(20, 25)).toBe('jumps')
+    expect(text.slice(35, 39)).toBe('lazy')
+    const out = applyUncertainOverlay([eq(text)], spans)
+    expect(out.map((s) => s.text).join('')).toBe(text)
+    // And all four uncertain segments must be present.
+    const uncertainTexts = out
+      .filter((s) => s.kind === 'uncertain')
+      .map((s) => s.text)
+    expect(uncertainTexts).toEqual(['The', 'brown', 'jumps', 'lazy'])
+  })
+})
+
+describe('diffToSegments with uncertain spans', () => {
+  it('applies uncertainty overlay to the original panel only', () => {
+    const { originalSegments, correctedSegments } = diffToSegments(
+      'hello world',
+      'hello world',
+      [{ char_start: 6, char_end: 11 }],
+    )
+    expect(originalSegments).toEqual([
+      { kind: 'equal', text: 'hello ' },
+      { kind: 'uncertain', text: 'world' },
+    ])
+    // Corrected side is never affected by uncertainty.
+    expect(correctedSegments).toEqual([{ kind: 'equal', text: 'hello world' }])
+  })
+
+  it('overlay survives a diff with inserts on the corrected side', () => {
+    // Original "hello world", corrected "hello brave world" — the
+    // insert lives on the corrected side and should not interfere
+    // with the original's uncertainty highlighting.
+    const { originalSegments, correctedSegments } = diffToSegments(
+      'hello world',
+      'hello brave world',
+      [{ char_start: 6, char_end: 11 }],
+    )
+    expect(originalSegments.some((s) => s.kind === 'uncertain')).toBe(true)
+    expect(originalSegments.map((s) => s.text).join('')).toBe('hello world')
+    expect(correctedSegments.some((s) => s.kind === 'diff-insert')).toBe(true)
+    // No uncertainty mark bled into the corrected panel.
+    expect(correctedSegments.some((s) => s.kind === 'uncertain')).toBe(false)
+  })
+})
+
+describe('useDiffHighlight with Review toggle', () => {
+  it('suppresses uncertainty highlight when showReview is false', () => {
+    const original = ref('hello world')
+    const corrected = ref('hello world')
+    const enabled = ref(true)
+    const showReview = ref(false)
+    const uncertainSpans = ref<UncertainSpan[]>([
+      { char_start: 6, char_end: 11 },
+    ])
+    const { originalHtml } = useDiffHighlight(original, corrected, enabled, {
+      showReview,
+      uncertainSpans,
+    })
+    expect(originalHtml.value).not.toContain('bg-yellow')
+  })
+
+  it('applies uncertainty highlight when showReview is true', () => {
+    const original = ref('hello world')
+    const corrected = ref('hello world')
+    const enabled = ref(true)
+    const showReview = ref(true)
+    const uncertainSpans = ref<UncertainSpan[]>([
+      { char_start: 6, char_end: 11 },
+    ])
+    const { originalHtml, correctedHtml } = useDiffHighlight(
+      original,
+      corrected,
+      enabled,
+      { showReview, uncertainSpans },
+    )
+    // Original side shows the highlight.
+    expect(originalHtml.value).toContain('bg-yellow-200')
+    expect(originalHtml.value).toContain('>world</mark>')
+    // Corrected side does not.
+    expect(correctedHtml.value).not.toContain('bg-yellow')
+  })
+
+  it('reacts to toggling showReview on and off', async () => {
+    const original = ref('hello world')
+    const corrected = ref('hello world')
+    const enabled = ref(true)
+    const showReview = ref(false)
+    const uncertainSpans = ref<UncertainSpan[]>([
+      { char_start: 6, char_end: 11 },
+    ])
+    const { originalHtml } = useDiffHighlight(original, corrected, enabled, {
+      showReview,
+      uncertainSpans,
+    })
+    expect(originalHtml.value).not.toContain('bg-yellow')
+
+    showReview.value = true
+    await nextTick()
+    expect(originalHtml.value).toContain('bg-yellow-200')
+
+    showReview.value = false
+    await nextTick()
+    expect(originalHtml.value).not.toContain('bg-yellow')
+  })
+
+  it('applies uncertainty even when diff enabled is false', () => {
+    // The Review toggle must work whether or not the diff overlay is
+    // on — they are independent dimensions.
+    const original = ref('hello world')
+    const corrected = ref('hello world')
+    const enabled = ref(false)
+    const showReview = ref(true)
+    const uncertainSpans = ref<UncertainSpan[]>([
+      { char_start: 6, char_end: 11 },
+    ])
+    const { originalHtml } = useDiffHighlight(original, corrected, enabled, {
+      showReview,
+      uncertainSpans,
+    })
+    expect(originalHtml.value).toContain('bg-yellow-200')
+    expect(originalHtml.value).toContain('>world</mark>')
+  })
+
+  it('renders composite style when an uncertain span falls inside a delete region', () => {
+    // Original "hello world", corrected "hello" — "world" becomes a
+    // delete. Uncertainty on (6, 11) exactly overlaps the delete.
+    const original = ref('hello world')
+    const corrected = ref('hello')
+    const enabled = ref(true)
+    const showReview = ref(true)
+    const uncertainSpans = ref<UncertainSpan[]>([
+      { char_start: 6, char_end: 11 },
+    ])
+    const { originalHtml } = useDiffHighlight(original, corrected, enabled, {
+      showReview,
+      uncertainSpans,
+    })
+    // The composite class should appear, carrying both the red
+    // delete background and the yellow ring.
+    expect(originalHtml.value).toContain('bg-red-100')
+    expect(originalHtml.value).toContain('ring-yellow-500')
   })
 })

@@ -77,6 +77,7 @@ describe('useEntriesStore', () => {
       language: 'en',
       created_at: '',
       updated_at: '',
+      uncertain_spans: [],
     }
     mockFetchEntry.mockResolvedValue(entry)
 
@@ -99,6 +100,7 @@ describe('useEntriesStore', () => {
       language: 'en',
       created_at: '',
       updated_at: '',
+      uncertain_spans: [],
     }
     mockUpdateEntryText.mockResolvedValue(updated)
 
@@ -263,6 +265,7 @@ describe('useEntriesStore', () => {
       language: 'en',
       created_at: '',
       updated_at: '',
+      uncertain_spans: [],
     }
     mockFetchEntry.mockResolvedValue(entry)
     mockDeleteEntry.mockResolvedValue({ deleted: true, id: 42 })

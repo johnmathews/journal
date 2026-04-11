@@ -11,7 +11,7 @@ import {
 import { fetchEntryChunks, fetchEntryTokens } from '@/api/entries'
 import { fetchEntryEntities } from '@/api/entities'
 import { ApiRequestError } from '@/api/client'
-import type { Chunk, TokenSpan } from '@/types/entry'
+import type { Chunk, TokenSpan, UncertainSpan } from '@/types/entry'
 import type { EntryEntityRef, EntityType } from '@/types/entity'
 
 const props = defineProps<{
@@ -42,10 +42,34 @@ watch(
 
 // Toggle for the live diff highlighting. Defaults to on.
 const showDiff = ref(true)
+
+// OCR uncertainty ("Review") toggle. Highlights the words that the
+// OCR model flagged as uncertain at ingestion time, overlaid on the
+// Original OCR panel only. Defaults to off — the toggle is disabled
+// in the template when the current entry has no uncertain spans
+// recorded (old entries, or clean pages), so users don't waste a
+// click on an inert control.
+const showReview = ref(false)
+const uncertainSpans = computed<UncertainSpan[]>(
+  () => store.currentEntry?.uncertain_spans ?? [],
+)
+const hasUncertainSpans = computed(() => uncertainSpans.value.length > 0)
+
+// Reset the toggle when switching entries — the new entry may not
+// have any spans, and carrying the old toggle state into it would be
+// confusing.
+watch(
+  () => store.currentEntry?.id,
+  () => {
+    showReview.value = false
+  },
+)
+
 const { originalHtml, correctedHtml } = useDiffHighlight(
   originalText,
   editedText,
   showDiff,
+  { showReview, uncertainSpans },
 )
 
 // -- Overlay feature (chunks / tokens) -----------------------------------
@@ -500,6 +524,37 @@ onBeforeUnmount(() => {
             Show diff
           </label>
           <!--
+            Review toggle: overlays OCR uncertainty highlights on the
+            Original OCR panel. Disabled (and greyed) for entries with
+            no recorded uncertain spans — old entries ingested before
+            migration 0005 and entries where the model was fully
+            confident. The disabled state has a tooltip so users know
+            why it won't light up.
+          -->
+          <label
+            class="flex items-center gap-2 text-sm select-none"
+            :class="
+              hasUncertainSpans
+                ? 'text-gray-600 dark:text-gray-300 cursor-pointer'
+                : 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+            "
+            :title="
+              hasUncertainSpans
+                ? 'Highlight words the OCR model flagged as uncertain'
+                : 'No uncertain spans recorded for this entry'
+            "
+            data-testid="review-toggle-label"
+          >
+            <input
+              v-model="showReview"
+              type="checkbox"
+              :disabled="!hasUncertainSpans"
+              class="form-checkbox rounded text-yellow-500 focus:ring-yellow-500 disabled:opacity-50"
+              data-testid="review-toggle"
+            />
+            Review
+          </label>
+          <!--
             Overlay mode: segmented radio group. Renders chunk or token
             boundaries on top of the corrected panel. While active the
             textarea becomes read-only so edits can't drift away from the
@@ -536,23 +591,33 @@ onBeforeUnmount(() => {
               </span>
             </label>
           </div>
-          <!-- Legend (only visible when diff is on) -->
+          <!-- Legend (visible when diff or review is on) -->
           <div
-            v-if="showDiff"
+            v-if="showDiff || showReview"
             class="hidden sm:flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400"
             data-testid="diff-legend"
           >
-            <span class="flex items-center gap-1">
+            <span v-if="showDiff" class="flex items-center gap-1">
               <span
                 class="inline-block w-3 h-3 rounded bg-red-100 dark:bg-red-900/40 border border-red-200 dark:border-red-800/40"
               />
               removed
             </span>
-            <span class="flex items-center gap-1">
+            <span v-if="showDiff" class="flex items-center gap-1">
               <span
                 class="inline-block w-3 h-3 rounded bg-emerald-100 dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800/40"
               />
               added
+            </span>
+            <span
+              v-if="showReview"
+              class="flex items-center gap-1"
+              data-testid="review-legend"
+            >
+              <span
+                class="inline-block w-3 h-3 rounded bg-yellow-200 dark:bg-yellow-400/40 border border-yellow-300 dark:border-yellow-500/40"
+              />
+              uncertain
             </span>
           </div>
         </div>
