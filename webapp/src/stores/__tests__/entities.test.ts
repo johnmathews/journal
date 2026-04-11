@@ -119,6 +119,42 @@ describe('entities store', () => {
     expect(fetchEntityRelationships).toHaveBeenCalledWith(10)
   })
 
+  it('loadEntities falls back to a generic message when the rejection is not an Error', async () => {
+    const { fetchEntities } = await import('@/api/entities')
+    // Reject with a plain string so `e instanceof Error` is false — covers
+    // the fallback branch of the ternary.
+    vi.mocked(fetchEntities).mockRejectedValue('boom')
+
+    const store = useEntitiesStore()
+    await store.loadEntities()
+
+    expect(store.error).toBe('Failed to load entities')
+    expect(store.loading).toBe(false)
+  })
+
+  it('loadEntity surfaces the error message when fetch rejects with an Error', async () => {
+    const { fetchEntity } = await import('@/api/entities')
+    vi.mocked(fetchEntity).mockRejectedValue(new Error('not found'))
+
+    const store = useEntitiesStore()
+    await store.loadEntity(99)
+
+    expect(store.error).toBe('not found')
+    expect(store.detailLoading).toBe(false)
+    expect(store.currentEntity).toBeNull()
+  })
+
+  it('loadEntity falls back to a generic message when the rejection is not an Error', async () => {
+    const { fetchEntity } = await import('@/api/entities')
+    vi.mocked(fetchEntity).mockRejectedValue({ kind: 'plain-object' })
+
+    const store = useEntitiesStore()
+    await store.loadEntity(99)
+
+    expect(store.error).toBe('Failed to load entity')
+    expect(store.detailLoading).toBe(false)
+  })
+
   it('clearCurrent resets current entity state', async () => {
     const store = useEntitiesStore()
     store.currentEntity = {

@@ -137,4 +137,165 @@ describe('EntityDetailView', () => {
 
     expect(pushSpy).toHaveBeenCalledWith({ name: 'entities' })
   })
+
+  it('renders description and first_seen when present', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    // The description and first_seen v-if paths both evaluate true for
+    // the default fixture (description = "my daughter", first_seen set).
+    expect(wrapper.text()).toContain('my daughter')
+    expect(wrapper.text()).toContain('first seen')
+  })
+
+  it('renders incoming relationships and hits typeBadgeClass for each subject type', async () => {
+    // Swap in a richer fixture covering every entity_type the switch
+    // handles (activity, organization, topic, other) plus an incoming
+    // relationship.
+    const { fetchEntity, fetchEntityMentions, fetchEntityRelationships } =
+      await import('@/api/entities')
+    vi.mocked(fetchEntity).mockResolvedValueOnce({
+      id: 99,
+      entity_type: 'other',
+      canonical_name: 'Mystery',
+      description: '',
+      aliases: [],
+      first_seen: '',
+      created_at: '',
+      updated_at: '',
+    })
+    vi.mocked(fetchEntityMentions).mockResolvedValueOnce({
+      entity_id: 99,
+      mentions: [],
+      total: 0,
+    })
+    vi.mocked(fetchEntityRelationships).mockResolvedValueOnce({
+      entity_id: 99,
+      outgoing: [
+        {
+          id: 1,
+          subject_entity_id: 99,
+          subject_name: 'Mystery',
+          subject_type: 'other',
+          predicate: 'part_of',
+          object_entity_id: 2,
+          object_name: 'Acme Corp',
+          object_type: 'organization',
+          quote: '',
+          entry_id: 1,
+          entry_date: '2026-03-01',
+          confidence: 0.8,
+        },
+        {
+          id: 2,
+          subject_entity_id: 99,
+          subject_name: 'Mystery',
+          subject_type: 'other',
+          predicate: 'at',
+          object_entity_id: 3,
+          object_name: 'Running',
+          object_type: 'activity',
+          quote: '',
+          entry_id: 1,
+          entry_date: '2026-03-01',
+          confidence: 0.8,
+        },
+      ],
+      incoming: [
+        {
+          id: 3,
+          subject_entity_id: 4,
+          subject_name: 'AI',
+          subject_type: 'topic',
+          predicate: 'mentioned',
+          object_entity_id: 99,
+          object_name: 'Mystery',
+          object_type: 'other',
+          quote: '',
+          entry_id: 1,
+          entry_date: '2026-03-01',
+          confidence: 0.8,
+        },
+      ],
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const outgoing = wrapper.findAll('[data-testid="relationship-outgoing"]')
+    expect(outgoing).toHaveLength(2)
+    // Outgoing badges should show organization (yellow) and activity (emerald).
+    expect(outgoing[0].html()).toContain('yellow')
+    expect(outgoing[1].html()).toContain('emerald')
+
+    const incoming = wrapper.findAll('[data-testid="relationship-incoming"]')
+    expect(incoming).toHaveLength(1)
+    // Incoming subject is a topic — hits the `case 'topic'` branch.
+    expect(incoming[0].html()).toContain('rose')
+    expect(incoming[0].text()).toContain('AI')
+    expect(incoming[0].text()).toContain('mentioned')
+
+    // The main entity is `other` — hits the default branch of the
+    // outer type badge.
+    expect(wrapper.find('[data-testid="entity-type-badge"]').html()).toContain(
+      'gray',
+    )
+  })
+
+  it('shows the empty state for mentions and relationships when none exist', async () => {
+    const { fetchEntity, fetchEntityMentions, fetchEntityRelationships } =
+      await import('@/api/entities')
+    vi.mocked(fetchEntity).mockResolvedValueOnce({
+      id: 77,
+      entity_type: 'place',
+      canonical_name: 'Lonely Café',
+      description: '',
+      aliases: [],
+      first_seen: '',
+      created_at: '',
+      updated_at: '',
+    })
+    vi.mocked(fetchEntityMentions).mockResolvedValueOnce({
+      entity_id: 77,
+      mentions: [],
+      total: 0,
+    })
+    vi.mocked(fetchEntityRelationships).mockResolvedValueOnce({
+      entity_id: 77,
+      outgoing: [],
+      incoming: [],
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('No relationships recorded yet')
+    expect(wrapper.text()).toContain('No mentions recorded yet')
+  })
+
+  it('re-fetches when the :id route param changes (without remounting)', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const { fetchEntity } = await import('@/api/entities')
+    const spy = vi.mocked(fetchEntity)
+    spy.mockClear()
+    spy.mockResolvedValueOnce({
+      id: 43,
+      entity_type: 'person',
+      canonical_name: 'Other',
+      description: '',
+      aliases: [],
+      first_seen: '2026-01-01',
+      created_at: '',
+      updated_at: '',
+    })
+
+    await wrapper.setProps({ id: '43' })
+    await flushPromises()
+
+    // loadEntity is fired via the props.id watcher (line 22-23),
+    // which pulls fetchEntity through.
+    expect(spy).toHaveBeenCalled()
+  })
 })
