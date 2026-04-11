@@ -154,15 +154,6 @@ describe('AppSidebar', () => {
     wrapper.unmount()
   })
 
-  it('emits close-sidebar when the mobile close button is clicked', async () => {
-    const wrapper = await mountSidebar(true)
-
-    await wrapper.find('button[aria-controls="sidebar"]').trigger('click')
-
-    expect(wrapper.emitted('close-sidebar')).toBeTruthy()
-    wrapper.unmount()
-  })
-
   it('emits close-sidebar when the ESC key is pressed while the sidebar is open', async () => {
     const wrapper = await mountSidebar(true)
 
@@ -194,17 +185,44 @@ describe('AppSidebar', () => {
     wrapper.unmount()
   })
 
-  it('does NOT emit close-sidebar when the click target is inside the sidebar', async () => {
+  it('does NOT emit close-sidebar when the outside-click handler sees an in-sidebar click', async () => {
     const wrapper = await mountSidebar(true)
 
-    // Click on the close-button (which lives inside the sidebar DOM)
-    const insideBtn = wrapper.find('button[aria-controls="sidebar"]').element
-    insideBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    // Dispatch a click on the sidebar root itself (not a nav link). The
+    // outside-click handler should treat it as "inside" and bail out.
+    const sidebarEl = wrapper.find('#sidebar').element
+    sidebarEl.dispatchEvent(new MouseEvent('click', { bubbles: true }))
 
-    // Note: the close button itself emits close-sidebar, so we expect exactly
-    // one emission (from the click handler on the button), NOT a second
-    // one from the outside-click handler.
-    expect(wrapper.emitted('close-sidebar')).toHaveLength(1)
+    expect(wrapper.emitted('close-sidebar')).toBeFalsy()
+    wrapper.unmount()
+  })
+
+  it('emits close-sidebar when a nav link is clicked (even same-route)', async () => {
+    const wrapper = await mountSidebar(true)
+
+    // Click the Dashboard link while already on "/". This does not change
+    // the route, so we rely on the nav-list click handler — not the route
+    // watcher — to close the overlay.
+    await wrapper.find('[data-testid="sidebar-dashboard-link"]').trigger('click')
+
+    expect(wrapper.emitted('close-sidebar')).toBeTruthy()
+    wrapper.unmount()
+  })
+
+  it('auto-closes the sidebar on route navigation', async () => {
+    const router = makeRouter()
+    await router.push('/')
+    await router.isReady()
+    const wrapper = mount(AppSidebar, {
+      props: { sidebarOpen: true },
+      attachTo: document.body,
+      global: { plugins: [router] },
+    })
+
+    await router.push('/entries')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.emitted('close-sidebar')).toBeTruthy()
     wrapper.unmount()
   })
 
