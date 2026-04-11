@@ -12,9 +12,29 @@ const emit = defineEmits<{
 const trigger = ref<HTMLButtonElement | null>(null)
 const sidebar = ref<HTMLDivElement | null>(null)
 
+// Expanded-by-default behaviour:
+//
+// - If localStorage has an explicit value, honour it — the user's
+//   stated preference always wins.
+// - Otherwise fall back to a viewport check: wide displays (the
+//   Tailwind `lg` breakpoint, 1024px+) start expanded, narrower
+//   viewports start collapsed. The mobile hamburger state is a
+//   separate ref (`sidebarOpen`), so this only affects the
+//   desktop layout.
+//
+// Guarded for SSR / test environments where `window.matchMedia`
+// may be missing — fall back to `false` rather than crashing.
 const storedSidebarExpanded = localStorage.getItem('sidebar-expanded')
+
+function defaultSidebarExpanded(): boolean {
+  if (typeof window === 'undefined' || !window.matchMedia) return false
+  return window.matchMedia('(min-width: 1024px)').matches
+}
+
 const sidebarExpanded = ref<boolean>(
-  storedSidebarExpanded === null ? false : storedSidebarExpanded === 'true',
+  storedSidebarExpanded === null
+    ? defaultSidebarExpanded()
+    : storedSidebarExpanded === 'true',
 )
 
 // close on click outside
@@ -126,7 +146,7 @@ watch(sidebarExpanded, () => {
             >
           </h3>
           <ul class="mt-3">
-            <!-- Entries link -->
+            <!-- Dashboard link (home / `/`) -->
             <RouterLink
               v-slot="{ href, navigate, isExactActive }"
               to="/"
@@ -142,6 +162,7 @@ watch(sidebarExpanded, () => {
                 <a
                   :href="href"
                   class="block truncate transition"
+                  data-testid="sidebar-dashboard-link"
                   :class="
                     isExactActive
                       ? 'text-gray-900 dark:text-white'
@@ -154,6 +175,56 @@ watch(sidebarExpanded, () => {
                       class="shrink-0 fill-current"
                       :class="
                         isExactActive
+                          ? 'text-violet-500'
+                          : 'text-gray-400 dark:text-gray-500'
+                      "
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M0 3a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H1a1 1 0 0 1-1-1V3Zm9 0a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1V3Zm0 7a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-3Z"
+                      />
+                    </svg>
+                    <span
+                      class="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                      >Dashboard</span
+                    >
+                  </div>
+                </a>
+              </li>
+            </RouterLink>
+
+            <!-- Entries link -->
+            <RouterLink
+              v-slot="{ href, navigate, isActive }"
+              to="/entries"
+              custom
+            >
+              <li
+                class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
+                :class="
+                  isActive &&
+                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                "
+              >
+                <a
+                  :href="href"
+                  class="block truncate transition"
+                  data-testid="sidebar-entries-link"
+                  :class="
+                    isActive
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-800 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white'
+                  "
+                  @click="navigate"
+                >
+                  <div class="flex items-center">
+                    <svg
+                      class="shrink-0 fill-current"
+                      :class="
+                        isActive
                           ? 'text-violet-500'
                           : 'text-gray-400 dark:text-gray-500'
                       "

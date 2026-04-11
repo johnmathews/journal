@@ -1,10 +1,19 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
+// Option B routing — `/` is the Dashboard view. The entries list
+// lives at `/entries`, which is mounted explicitly so deep links
+// and the sidebar nav remain stable. `EntryDetailView` keeps its
+// `/entries/:id` path unchanged.
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/',
+      name: 'dashboard',
+      component: () => import('@/views/DashboardView.vue'),
+    },
+    {
+      path: '/entries',
       name: 'entries',
       component: () => import('@/views/EntryListView.vue'),
     },

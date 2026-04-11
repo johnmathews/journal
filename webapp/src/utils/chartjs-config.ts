@@ -1,7 +1,32 @@
-import { Chart, Tooltip, type ChartArea } from 'chart.js'
+import {
+  CategoryScale,
+  Chart,
+  Filler,
+  Legend,
+  LinearScale,
+  LineController,
+  LineElement,
+  PointElement,
+  Tooltip,
+  type ChartArea,
+} from 'chart.js'
 import { adjustColorOpacity, getCssVariable } from './mosaic'
 
-Chart.register(Tooltip)
+// Register every Chart.js piece the current charts need. Chart.js
+// 4 is fully tree-shakable — nothing is registered by default, so
+// missing any of these at render time produces a runtime error.
+// Add new registrations here (not inside individual views) so
+// every chart in the app shares the same set.
+Chart.register(
+  LineController,
+  LineElement,
+  PointElement,
+  CategoryScale,
+  LinearScale,
+  Filler,
+  Legend,
+  Tooltip,
+)
 
 Chart.defaults.font.family = '"Inter", sans-serif'
 Chart.defaults.font.weight = 500

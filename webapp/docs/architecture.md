@@ -29,7 +29,20 @@ Shell components (Sidebar, Header, ThemeToggle, DefaultLayout) are derived from 
 ### Views (`src/views/`)
 Page-level components, one per route. Each view composes layout, components, and store interactions.
 
-- **EntryListView** — Native HTML table with Tailwind styling, hand-rolled pagination controls (rows-per-page select, prev/next buttons), row click navigation
+- **DashboardView** (home route `/`) — Overview of writing
+  activity against the corpus. Filters: date range
+  (last month / 3 months / 6 months / 1 year / all, default 3
+  months) and bin width (week / month / quarter / year, default
+  week). Renders two Chart.js 4 line charts — writing frequency
+  (entries per bin) and word-count trend (words per bin) —
+  driven by a single combined `/api/dashboard/writing-stats`
+  request. Shows an explicit empty-state message (with current
+  entry count surfaced) when the active range has fewer than
+  5 entries, following the "explicit > implicit" rule. Chart
+  instances are destroyed and recreated on bin/range changes
+  so axis labels and tick formatting match the new granularity
+  without stale state.
+- **EntryListView** (now at `/entries`, was `/`) — Native HTML table with Tailwind styling, hand-rolled pagination controls (rows-per-page select, prev/next buttons), row click navigation. Demoted from the home route when `DashboardView` shipped (Option B routing).
 - **EntryDetailView** — Static 50/50 flex layout for OCR correction. The left panel renders the original OCR text as a read-only `<div>` with diff highlights; the right panel uses a mirror-div overlay (transparent textarea over a styled backdrop `<div>`) so the user can edit the corrected text and see live highlights in the same spot. A "Show diff" toggle turns highlighting on/off. Includes an inline save error banner, dirty tracking, and re-processing on save. Also exposes a Delete button (with a `window.confirm` guard) that removes the entry from both SQLite and ChromaDB and navigates back to the list on success. A three-radio **Overlay** segmented control (off / chunks / tokens) toggles visualisations of the embedding-model boundaries on top of the corrected panel — when either mode is active the textarea is hidden and the panel becomes read-only, so chunk and token offsets cannot drift from the text they describe. Accepts a `?chunk=N` query param for deep-link entry from SearchView: on mount the overlay flips to `chunks` mode and the matching chunk badge is scrolled into view.
 - **SearchView** — Full-text search across journal entries. Wraps the server's `GET /api/search` endpoint via `useSearchStore`. Supports two modes: **semantic** (vector similarity, returns per-chunk matches with char offsets) and **keyword** (SQLite FTS5, returns an FTS5 `snippet()` string with highlighted terms). Each result row renders the entry date, a relevance score badge, and a snippet — in keyword mode the snippet is passed through `renderSnippetHtml` from `src/utils/searchSnippet.ts` which converts the server's `\x02`/`\x03` marker characters into `<mark>` tags. Clicking a result navigates to `EntryDetailView` with `?chunk=N` set to the top matching chunk's index so the user lands on the matching passage. Form state (query, mode, dates) is kept in the Pinia store so back-navigation preserves the query.
 
@@ -46,6 +59,7 @@ Pinia stores for server state management.
 - **entries** — Entry list, current entry, pagination, loading/error states, CRUD actions
 - **entities** — Entity list, current entity, mentions and relationships (entity tracking)
 - **search** — Full-text search state: query, mode, date range, result items, `hasRun` flag so the view can distinguish "no results" from "not yet searched". Exposes a `runSearch(partial)` action that accepts per-call overrides (useful for pagination) and surfaces server error messages from `ApiRequestError` directly.
+- **dashboard** — Dashboard filter state (range + bin) and the most recently fetched writing-stats bins. Initial state is `last_3_months` + `week`. `loadWritingStats(partial)` merges filter overrides into state and refetches, surfacing `ApiRequestError.message` verbatim. A pure `rangeToDates(range, now)` helper (also exported for tests) converts a `DashboardRange` option into a concrete ISO `{from, to}` pair against an injectable clock.
 
 ### API Layer (`src/api/`)
 Typed fetch wrappers for the journal-server REST API.
@@ -55,6 +69,27 @@ Typed fetch wrappers for the journal-server REST API.
 
 ### Types (`src/types/`)
 Shared TypeScript interfaces matching the REST API response schemas.
+
+## Routing
+
+The home route (`/`) is the **Dashboard**. Entries list is
+reachable at `/entries`, entry detail at `/entries/:id`, search
+at `/search`, and entity tracking at `/entities`. The 2026-04-11
+"Option B" migration flipped `/` from the entries list to the
+dashboard — see the matching journal entry for the audit of
+every `RouterLink to="/"` and `router.push({ name: 'entries' })`
+call site.
+
+## Sidebar expanded-by-default
+
+`AppSidebar` defaults its `sidebarExpanded` state based on a
+`window.matchMedia('(min-width: 1024px)')` check when no explicit
+preference is stored in localStorage. Wide displays (lg+) start
+with the full nav labels visible; phones and small tablets start
+collapsed. Toggling the expand button persists the explicit
+preference to localStorage, which always wins over the viewport
+default on subsequent visits. The mobile hamburger state
+(`sidebarOpen` prop) is a separate concern and is unaffected.
 
 ## Data Flow
 
