@@ -106,17 +106,13 @@ watch(
       <div class="flex justify-between mb-10 pr-3 sm:px-2">
         <!-- Logo -->
         <RouterLink class="block" to="/" aria-label="Journal home">
-
-      <div>
-
-      <h1
-        class="text-2xl md:text-xl md:pl-2 text-gray-800 dark:text-gray-100 font-bold"
-      >
-        JOURNAL INSIGHTS TOOL
-        
-      </h1>
-
-      </div>
+          <div>
+            <h1
+              class="text-2xl md:text-xl md:pl-2 text-gray-800 dark:text-gray-100 font-bold"
+            >
+              JOURNAL INSIGHTS TOOL
+            </h1>
+          </div>
         </RouterLink>
       </div>
 
@@ -125,8 +121,7 @@ watch(
         <div>
           <h2
             class="text-m uppercase text-gray-400 dark:text-gray-500 font-semibold pl-3 lg:hidden lg:sidebar-expanded:block 2xl:block"
-          >
-          </h2>
+          ></h2>
           <ul class="mt-3" @click="$emit('close-sidebar')">
             <!-- Dashboard link (home / `/`) -->
             <RouterLink

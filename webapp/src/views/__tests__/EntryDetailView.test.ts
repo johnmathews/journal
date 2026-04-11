@@ -736,4 +736,151 @@ describe('EntryDetailView', () => {
       expect(radio.checked).toBe(true)
     })
   })
+
+  // --------------------------------------------------------------
+  // Blank-page regression suite.
+  //
+  // Context: users on Firefox and Safari reported that clicking an
+  // entry from /entries loaded /entries/:id as a completely blank
+  // page (no chrome, no error, nothing). Reproducing in Playwright
+  // against `vite preview` showed three independent ways for the
+  // <main> subtree to render as `<div><!----></div>`:
+  //
+  //   1. A field the template accesses directly (e.g.
+  //      `word_count.toLocaleString()`) is missing or null, throwing
+  //      during render and causing Vue to bail out of the whole
+  //      `v-else-if="store.currentEntry"` template branch.
+  //   2. A text field (`raw_text` / `final_text`) comes back as null,
+  //      which `diff-match-patch.diff_main` rejects with a "Null
+  //      input" error — same bail-out consequence.
+  //   3. The v-if/else-if chain has no `v-else`, so during the brief
+  //      window between `setup()` and the async `onMounted` running
+  //      `loadEntry`, none of the branches match and the main area
+  //      is genuinely blank.
+  //
+  // Each case below nails down one of those failure modes so a
+  // future refactor can't silently reintroduce it.
+  // --------------------------------------------------------------
+  describe('blank-page regressions', () => {
+    beforeEach(async () => {
+      // Reset the router to the detail route with no chunk query so
+      // each test starts from a known state.
+      await router.push({ name: 'entry-detail', params: { id: '1' } })
+      await router.isReady()
+    })
+
+    it('renders the detail chrome even when word_count is missing from the payload', async () => {
+      // Regression for the `.toLocaleString()` blank-page crash.
+      // Previously `{{ word_count.toLocaleString() }}` would throw
+      // TypeError: Cannot read properties of undefined (reading
+      // 'toLocaleString') and wipe out the entire template branch.
+      const { fetchEntry } = await import('@/api/entries')
+      vi.mocked(fetchEntry).mockResolvedValueOnce({
+        id: 1,
+        entry_date: '2026-03-22',
+        source_type: 'ocr',
+        raw_text: 'Hello.',
+        final_text: 'Hello.',
+        page_count: 1,
+        // word_count deliberately omitted — emulates a payload
+        // missing the field.
+        chunk_count: 0,
+        language: 'en',
+        created_at: '2026-03-23T10:30:00Z',
+        updated_at: '2026-03-23T10:30:00Z',
+      } as never)
+
+      const wrapper = mountComponent()
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      // The view must render — back button + OCR display are the
+      // canary elements proving we didn't bail out.
+      expect(wrapper.find('[data-testid="back-button"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="ocr-display"]').exists()).toBe(true)
+      expect(wrapper.text()).toContain('0 words')
+    })
+
+    it('renders the detail chrome even when raw_text and final_text are null', async () => {
+      // Regression for the diff_main "Null input" crash. Nullable
+      // text fields exist in the schema for historical reasons
+      // (migration 0002 left `final_text` nullable), and a payload
+      // where either is null used to blow up the whole template.
+      const { fetchEntry } = await import('@/api/entries')
+      vi.mocked(fetchEntry).mockResolvedValueOnce({
+        id: 1,
+        entry_date: '2026-03-22',
+        source_type: 'ocr',
+        raw_text: null,
+        final_text: null,
+        page_count: 1,
+        word_count: 0,
+        chunk_count: 0,
+        language: 'en',
+        created_at: '2026-03-23T10:30:00Z',
+        updated_at: '2026-03-23T10:30:00Z',
+      } as never)
+
+      const wrapper = mountComponent()
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      // The diff view should now render both panels empty, not
+      // crash. Check the canary elements.
+      expect(wrapper.find('[data-testid="back-button"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="ocr-display"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="corrected-textarea"]').exists()).toBe(
+        true,
+      )
+    })
+
+    it('shows a loading indicator instead of a blank main when the store is in its initial state', async () => {
+      // Regression for the missing `v-else` branch. Between setup()
+      // and the async loadEntry() firing, the store holds the
+      // default (loading=false, error=null, currentEntry=null) for
+      // a tick — there used to be no branch for that state and the
+      // main area was literally `<div><!----></div>`.
+      const { fetchEntry } = await import('@/api/entries')
+      // Stall the fetch so we can observe the in-between state
+      // without it immediately flipping to the loaded branch.
+      let resolveFetch: (
+        value: Parameters<typeof fetchEntry> extends []
+          ? never
+          : Awaited<ReturnType<typeof fetchEntry>>,
+      ) => void = () => {}
+      vi.mocked(fetchEntry).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFetch = resolve
+          }),
+      )
+
+      const wrapper = mountComponent()
+      // Don't await flushPromises — we want the mid-load state.
+      await wrapper.vm.$nextTick()
+
+      // The loading testid must be present (either from the
+      // explicit loading branch or the new v-else fallback).
+      expect(wrapper.find('[data-testid="loading-state"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="entry-detail-view"]').text()).not.toBe(
+        '',
+      )
+
+      // Let the promise resolve so the auto-unmount cleanup is tidy.
+      resolveFetch({
+        id: 1,
+        entry_date: '2026-03-22',
+        source_type: 'ocr',
+        raw_text: 'ok',
+        final_text: 'ok',
+        page_count: 1,
+        word_count: 1,
+        chunk_count: 0,
+        language: 'en',
+        created_at: '2026-03-23T10:30:00Z',
+        updated_at: '2026-03-23T10:30:00Z',
+      })
+      await flushPromises()
+    })
+  })
 })

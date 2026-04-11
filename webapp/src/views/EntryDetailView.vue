@@ -27,12 +27,15 @@ const { editedText, saving, saveError, isDirty, isModified, reset } =
 const deleting = ref(false)
 const deleteError = ref<string | null>(null)
 
-// Original text as a reactive ref the composable can watch.
+// Original text as a reactive ref the composable can watch. Coerce
+// null/undefined to '' so the diff composable always sees a string
+// — a null here used to propagate all the way into diff-match-patch
+// which throws "Null input" and blanked the view.
 const originalText = ref('')
 watch(
   () => store.currentEntry?.raw_text,
   (t) => {
-    if (t !== undefined) originalText.value = t
+    if (t !== undefined) originalText.value = t ?? ''
   },
   { immediate: true },
 )
@@ -339,6 +342,18 @@ onBeforeUnmount(() => {
       {{ store.error }}
     </div>
 
+    <!--
+      The v-if/else-if chain below used to leave a gap: between
+      setup() and the async onMounted -> loadEntry resolving, the
+      store has `loading: false, error: null, currentEntry: null` for
+      exactly one frame, and before this v-else was added none of the
+      branches matched, leaving `<main>` completely empty. Worse, any
+      throw inside the currentEntry subtree (e.g. `.toLocaleString()`
+      on an undefined field) drops the whole template and the user
+      sees the same blank page. Keeping an unconditional v-else here
+      means there is always *some* chrome on screen and the blank-
+      page failure mode is unreachable.
+    -->
     <template v-else-if="store.currentEntry">
       <!-- Header row: back + title + meta -->
       <div class="mb-6">
@@ -368,17 +383,32 @@ onBeforeUnmount(() => {
             </span>
           </div>
 
+          <!--
+            Meta chips use optional-chaining + `?? 0` fallbacks because
+            a single malformed field (missing word_count, etc.) used to
+            throw inside this subtree and wipe out the entire view — the
+            user ended up with a blank page because Vue's render bailed
+            out of the <template v-else-if="store.currentEntry"> branch.
+            The backend contract *should* always send these, but defensive
+            coercion here means the detail view stays usable even if it
+            doesn't.
+          -->
           <div
             class="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400"
           >
-            <span>{{ store.currentEntry.source_type.toUpperCase() }}</span>
+            <span>{{
+              (store.currentEntry.source_type ?? '').toUpperCase() || '—'
+            }}</span>
             <span
-              >{{ store.currentEntry.word_count.toLocaleString() }} words</span
+              >{{
+                (store.currentEntry.word_count ?? 0).toLocaleString()
+              }}
+              words</span
             >
-            <span>{{ store.currentEntry.chunk_count }} chunks</span>
+            <span>{{ store.currentEntry.chunk_count ?? 0 }} chunks</span>
             <span>
-              {{ store.currentEntry.page_count }} page{{
-                store.currentEntry.page_count !== 1 ? 's' : ''
+              {{ store.currentEntry.page_count ?? 0 }} page{{
+                (store.currentEntry.page_count ?? 0) !== 1 ? 's' : ''
               }}
             </span>
           </div>
@@ -645,6 +675,17 @@ onBeforeUnmount(() => {
         </section>
       </div>
     </template>
+
+    <!-- Fallback: nothing matched. Show a loading indicator rather
+         than a blank main area. See the comment above the
+         `template v-else-if="store.currentEntry"` branch. -->
+    <div
+      v-else
+      class="py-16 text-center text-gray-500 dark:text-gray-400"
+      data-testid="loading-state"
+    >
+      Loading entry…
+    </div>
   </div>
 </template>
 

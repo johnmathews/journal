@@ -72,8 +72,15 @@ export function diffToSegments(
   originalSegments: HighlightSegment[]
   correctedSegments: HighlightSegment[]
 } {
+  // diff-match-patch throws "Null input" for null/undefined, which
+  // takes down the whole <EntryDetailView> render and leaves the
+  // user staring at a blank page. Coerce defensively so an entry
+  // with a missing text field (shouldn't happen per the backend
+  // contract, but has) degrades to "no diff" instead of a crash.
+  const safeOriginal = original ?? ''
+  const safeCorrected = corrected ?? ''
   const dmp = new DiffMatchPatch()
-  const diffs: Diff[] = dmp.diff_main(original, corrected)
+  const diffs: Diff[] = dmp.diff_main(safeOriginal, safeCorrected)
   // Merge adjacent micro-edits into readable chunks — much nicer for prose.
   dmp.diff_cleanupSemantic(diffs)
 
@@ -107,13 +114,17 @@ export function useDiffHighlight(
   enabled: Ref<boolean>,
 ) {
   const segments = computed(() => {
+    // See `diffToSegments` — coerce null/undefined to empty string so
+    // a malformed entry payload doesn't crash the diff render.
+    const originalText = original.value ?? ''
+    const correctedText = corrected.value ?? ''
     if (!enabled.value) {
       return {
-        originalSegments: [{ kind: 'equal' as const, text: original.value }],
-        correctedSegments: [{ kind: 'equal' as const, text: corrected.value }],
+        originalSegments: [{ kind: 'equal' as const, text: originalText }],
+        correctedSegments: [{ kind: 'equal' as const, text: correctedText }],
       }
     }
-    return diffToSegments(original.value, corrected.value)
+    return diffToSegments(originalText, correctedText)
   })
 
   const originalHtml = computed(() =>

@@ -40,6 +40,35 @@ describe('diffToSegments', () => {
     )
   })
 
+  // Regression: diff-match-patch throws "Null input" for
+  // null/undefined. When a malformed entry payload leaked through
+  // (raw_text/final_text null) this used to take down the whole
+  // <EntryDetailView> render and leave the user on a blank page.
+  // Coercion here means we degrade to an empty diff instead.
+  it('treats null inputs as empty strings instead of throwing', () => {
+    expect(() =>
+      diffToSegments(null as unknown as string, null as unknown as string),
+    ).not.toThrow()
+    const { originalSegments, correctedSegments } = diffToSegments(
+      null as unknown as string,
+      null as unknown as string,
+    )
+    expect(originalSegments.map((s) => s.text).join('')).toBe('')
+    expect(correctedSegments.map((s) => s.text).join('')).toBe('')
+  })
+
+  it('treats undefined inputs as empty strings instead of throwing', () => {
+    expect(() =>
+      diffToSegments(undefined as unknown as string, 'hello'),
+    ).not.toThrow()
+    const { correctedSegments } = diffToSegments(
+      undefined as unknown as string,
+      'hello',
+    )
+    // "hello" all inserted because the original was "empty".
+    expect(correctedSegments.map((s) => s.text).join('')).toBe('hello')
+  })
+
   it('handles OCR-style typo corrections', () => {
     const { originalSegments, correctedSegments } = diffToSegments(
       'Absolutsntly hard',
@@ -142,6 +171,26 @@ describe('useDiffHighlight', () => {
     await nextTick()
     expect(correctedHtml.value).toContain('brown')
     expect(correctedHtml.value).toContain('bg-emerald-100')
+  })
+
+  // Regression: useDiffHighlight is wired directly to the store
+  // currentEntry's text fields, which can transiently be null while
+  // an entry reloads. Forcing the computed to throw used to cascade
+  // into a blank EntryDetailView.
+  it('returns escaped empty strings when the source refs are null', () => {
+    // Cast through unknown because the composable's public signature
+    // says Ref<string>, but the regression we're guarding against is
+    // exactly a runtime null leaking through from the store.
+    const original = ref(null as unknown as string)
+    const corrected = ref(null as unknown as string)
+    const enabled = ref(true)
+    const { originalHtml, correctedHtml } = useDiffHighlight(
+      original,
+      corrected,
+      enabled,
+    )
+    expect(originalHtml.value).toBe('')
+    expect(correctedHtml.value).toBe('')
   })
 
   it('reacts to toggling enabled on and off', async () => {

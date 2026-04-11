@@ -203,7 +203,9 @@ describe('AppSidebar', () => {
     // Click the Dashboard link while already on "/". This does not change
     // the route, so we rely on the nav-list click handler — not the route
     // watcher — to close the overlay.
-    await wrapper.find('[data-testid="sidebar-dashboard-link"]').trigger('click')
+    await wrapper
+      .find('[data-testid="sidebar-dashboard-link"]')
+      .trigger('click')
 
     expect(wrapper.emitted('close-sidebar')).toBeTruthy()
     wrapper.unmount()
