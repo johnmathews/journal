@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, nextTick, watch } from 'vue'
-import { useRouter, onBeforeRouteLeave } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useEntriesStore } from '@/stores/entries'
 import { useEntryEditor } from '@/composables/useEntryEditor'
 import { useDiffHighlight } from '@/composables/useDiffHighlight'
@@ -19,6 +19,7 @@ const props = defineProps<{
 }>()
 
 const router = useRouter()
+const route = useRoute()
 const store = useEntriesStore()
 const { editedText, saving, saveError, isDirty, isModified, reset } =
   useEntryEditor(() => store.currentEntry)
@@ -76,6 +77,61 @@ watch(
     overlayMode.value = 'off'
   },
 )
+
+// Deep-link scroll target. When the view is opened from SearchView
+// with `?chunk=N`, remember the index and enable chunks overlay mode
+// so the chunk badges render. After the chunks load, a second
+// watcher below finds the badge in the DOM and scrolls it into view.
+//
+// This watch is defined AFTER the reset watch above so Vue fires
+// the reset first on a fresh navigation (clearing any stale state)
+// and then this one, which re-sets overlayMode to `chunks` once we
+// have a loaded entry to operate on. Both the route query param
+// and the loaded entry id are reactive dependencies so changing
+// either (e.g., clicking a different search result into the same
+// entry detail view) re-arms the scroll target.
+//
+// Deliberately NOT using `immediate: true`: a fresh mount where
+// `store.currentEntry` still holds a stale entry from a previous
+// view would otherwise fire synchronously against the wrong
+// entry id and start fetching its chunks before `store.loadEntry`
+// resolves for the new entry. Waiting for `currentEntry.id` to
+// actually change gives the reset watcher a clean handoff.
+const pendingScrollChunk = ref<number | null>(null)
+
+watch(
+  [() => route.query.chunk, () => store.currentEntry?.id],
+  ([chunkParam, entryId]) => {
+    if (!entryId) return
+    if (typeof chunkParam !== 'string') return
+    const n = Number(chunkParam)
+    if (!Number.isFinite(n) || n < 0) return
+    pendingScrollChunk.value = n
+    overlayMode.value = 'chunks'
+  },
+)
+
+// Once chunks load (and the overlayHtml re-renders with chunk badges
+// in the DOM), scroll the target badge into view and clear the
+// pending target so save/reload cycles don't re-scroll. Guard on
+// `pendingScrollChunk` so this watch is a no-op when the user isn't
+// deep-linking from search.
+watch(chunks, async (c) => {
+  if (c === null) return
+  if (pendingScrollChunk.value === null) return
+  const target = pendingScrollChunk.value
+  pendingScrollChunk.value = null
+  // Two ticks: one for Vue to flush overlayHtml into the DOM, one
+  // extra to be safe in test environments where v-html sometimes
+  // lands on the following microtask.
+  await nextTick()
+  await nextTick()
+  if (typeof document === 'undefined') return
+  const el = document.querySelector(`[aria-label="chunk ${target} start"]`)
+  if (el instanceof HTMLElement) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+})
 
 // Lazy fetch: on first switch to a mode, fetch the data for it and cache
 // it on the view. Subsequent switches off→on re-use the cached data.

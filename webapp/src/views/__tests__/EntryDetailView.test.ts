@@ -650,4 +650,90 @@ describe('EntryDetailView', () => {
   // matched-route list. The 7 lines of coverage aren't worth the test
   // plumbing — the guard is exercised in manual testing and via the
   // Playwright check done during the Mosaic migration.
+
+  describe('deep-link scroll to chunk', () => {
+    it('with ?chunk=N in the URL, enables chunks overlay and scrolls the matching badge into view', async () => {
+      // happy-dom doesn't implement Element.prototype.scrollIntoView by
+      // default; patch it so we can assert it was called on the right
+      // element without ReferenceErrors.
+      const scrollSpy = vi.fn()
+      Element.prototype.scrollIntoView =
+        scrollSpy as unknown as (typeof Element.prototype)['scrollIntoView']
+
+      // Put the route into the ?chunk=1 state before mounting, so the
+      // initial `watch([route.query.chunk, currentEntry.id], ...,
+      // { immediate: true })` fires with the query param already set.
+      await router.push({
+        name: 'entry-detail',
+        params: { id: '1' },
+        query: { chunk: '1' },
+      })
+      await router.isReady()
+
+      // Attach to document.body so `document.querySelector` in the
+      // production code can find the chunk badge (detached mounts
+      // live in a disconnected subtree and aren't reachable from
+      // `document`).
+      const wrapper = mount(EntryDetailView, {
+        props: { id: '1' },
+        attachTo: document.body,
+        global: {
+          plugins: [createPinia(), router],
+        },
+      })
+      // Wait for the entry fetch → reset watch → scroll-setup watch →
+      // chunks fetch → scroll-into-view chain to drain. Two flushes
+      // with a nextTick between them covers the two `await nextTick()`
+      // calls inside the scroll watch.
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+      await flushPromises()
+
+      // Overlay flipped to chunks mode automatically.
+      const radio = wrapper.find('[data-testid="overlay-radio-chunks"]')
+        .element as HTMLInputElement
+      expect(radio.checked).toBe(true)
+
+      // Chunks were fetched.
+      const { fetchEntryChunks } = await import('@/api/entries')
+      expect(fetchEntryChunks).toHaveBeenCalledWith(1)
+
+      // scrollIntoView was called on the chunk-1 badge element.
+      expect(scrollSpy).toHaveBeenCalled()
+      wrapper.unmount()
+    })
+
+    it('with no ?chunk param, the overlay stays off by default', async () => {
+      await router.push({ name: 'entry-detail', params: { id: '1' } })
+      await router.isReady()
+
+      const wrapper = mountComponent()
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      const radio = wrapper.find('[data-testid="overlay-radio-off"]')
+        .element as HTMLInputElement
+      expect(radio.checked).toBe(true)
+    })
+
+    it('ignores a non-numeric ?chunk param without breaking the mount', async () => {
+      await router.push({
+        name: 'entry-detail',
+        params: { id: '1' },
+        query: { chunk: 'not-a-number' },
+      })
+      await router.isReady()
+
+      const wrapper = mountComponent()
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      // Fell through to the off overlay — no crash, no chunks mode.
+      const radio = wrapper.find('[data-testid="overlay-radio-off"]')
+        .element as HTMLInputElement
+      expect(radio.checked).toBe(true)
+    })
+  })
 })
