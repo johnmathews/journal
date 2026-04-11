@@ -5,11 +5,18 @@ import { createRouter, createWebHistory } from 'vue-router'
 import EntryDetailView from '../EntryDetailView.vue'
 
 // Entity fetches used by EntryDetailView for the chip strip — mocked
-// to return an empty list so the tests don't hit the network.
+// to return an empty list so the tests don't hit the network. The
+// shape mirrors the REAL server response: `{entry_id, items, total}`.
+// An earlier version of this mock invented `entities: []`, which
+// happened to match the then-wrong webapp type and hid a latent
+// blank-page crash in production (the real server returns `items`
+// and the template blew up on `entryEntities.length` because
+// `resp.entities` was always undefined).
 vi.mock('@/api/entities', () => ({
   fetchEntryEntities: vi.fn().mockResolvedValue({
     entry_id: 1,
-    entities: [],
+    items: [],
+    total: 0,
   }),
 }))
 
@@ -83,6 +90,17 @@ const router = createRouter({
       path: '/entries/:id',
       name: 'entry-detail',
       component: EntryDetailView,
+      props: true,
+    },
+    // Stub — used as the `to` target for the entity chip RouterLinks
+    // rendered inside this view. Vue Router's `useLink` resolves the
+    // target synchronously at component setup, so the route has to
+    // exist or the test throws "No match for ..." before any
+    // assertion runs.
+    {
+      path: '/entities/:id',
+      name: 'entity-detail',
+      component: { template: '<div />' },
       props: true,
     },
   ],
@@ -881,6 +899,97 @@ describe('EntryDetailView', () => {
         updated_at: '2026-03-23T10:30:00Z',
       })
       await flushPromises()
+    })
+
+    // The actual production blank-page failure mode: the server
+    // returns the entry-entities payload under `items`, matching
+    // every other list endpoint, while an earlier webapp read
+    // `resp.entities`. That assignment set `entryEntities.value`
+    // to `undefined`, and the template's `v-if="entryEntities.length"`
+    // crashed with "$.value is undefined" (Firefox) /
+    // "Cannot read properties of undefined (reading 'length')"
+    // (Chromium/Safari), bailing out of the whole currentEntry
+    // branch and leaving `<main>` empty.
+    //
+    // This test pins the real server shape so a future refactor
+    // can't silently regress the contract.
+    it('renders the detail chrome when /entities returns the real {items, total} shape', async () => {
+      const { fetchEntryEntities } = await import('@/api/entities')
+      vi.mocked(fetchEntryEntities).mockResolvedValueOnce({
+        entry_id: 1,
+        items: [],
+        total: 0,
+      })
+
+      const wrapper = mountComponent()
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="back-button"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="ocr-display"]').exists()).toBe(true)
+      // Empty list → chip strip stays hidden, but the rest of
+      // the view renders.
+      expect(wrapper.find('[data-testid="entry-entity-chips"]').exists()).toBe(
+        false,
+      )
+    })
+
+    // Defence-in-depth: even if a future server build drops back
+    // to the wrong shape (or ships a totally off-contract payload
+    // where `items` is missing), the view must not blank out.
+    it('tolerates an off-contract entities payload without crashing', async () => {
+      const { fetchEntryEntities } = await import('@/api/entities')
+      vi.mocked(fetchEntryEntities).mockResolvedValueOnce({
+        // No `items` field at all — the defensive `?? []` in
+        // loadEntryEntities should still keep entryEntities an
+        // array so the template doesn't crash on `.length`.
+        entry_id: 1,
+      } as never)
+
+      const wrapper = mountComponent()
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.find('[data-testid="back-button"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="ocr-display"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="entry-entity-chips"]').exists()).toBe(
+        false,
+      )
+    })
+
+    // Renders a populated chip strip using the entity's `id`
+    // (not `entity_id` — that was part of the same wrong
+    // bespoke type and produced broken routerlinks).
+    it('renders entity chips keyed off `id` matching the EntitySummary shape', async () => {
+      const { fetchEntryEntities } = await import('@/api/entities')
+      vi.mocked(fetchEntryEntities).mockResolvedValueOnce({
+        entry_id: 1,
+        items: [
+          {
+            id: 42,
+            canonical_name: 'Alice',
+            entity_type: 'person',
+            aliases: [],
+            mention_count: 3,
+            first_seen: '2026-01-01',
+          },
+        ],
+        total: 1,
+      })
+
+      const wrapper = mountComponent()
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      const strip = wrapper.find('[data-testid="entry-entity-chips"]')
+      expect(strip.exists()).toBe(true)
+      expect(strip.text()).toContain('Alice')
+      // The chip's testid is keyed off `id`, proving we used the
+      // correct field — `entity_id` would have rendered
+      // `entry-entity-chip-undefined`.
+      expect(
+        wrapper.find('[data-testid="entry-entity-chip-42"]').exists(),
+      ).toBe(true)
     })
   })
 })

@@ -93,19 +93,24 @@ export interface EntityRelationshipsResponse {
   incoming: EntityRelationship[]
 }
 
-// Entity chip shown on the entry detail view. The server's
-// GET /api/entries/{id}/entities returns one of these per distinct
-// entity mentioned in the entry.
-export interface EntryEntityRef {
-  entity_id: number
-  canonical_name: string
-  entity_type: EntityType
-  mention_count: number
-}
+// Entity chip shown on the entry detail view.
+//
+// Note on the response shape: the server's
+// GET /api/entries/{id}/entities returns a full EntitySummary per
+// row, under the key `items` (matching every other list endpoint
+// in this API — `/api/entries`, `/api/entities`, search, etc.).
+// For a while the webapp expected a bespoke EntryEntityRef shape
+// with `entity_id` under a key `entities`; both halves of that
+// were wrong, and at runtime `resp.entities` silently became
+// `undefined` and crashed the EntryDetailView template on
+// `entryEntities.length`. The type below mirrors the real server
+// contract. See journal/260411-entry-entities-contract.md.
+export type EntryEntityRef = EntitySummary
 
 export interface EntryEntitiesResponse {
   entry_id: number
-  entities: EntryEntityRef[]
+  items: EntitySummary[]
+  total: number
 }
 
 // --- Extraction trigger ---

@@ -198,12 +198,21 @@ watch(correctedHtml, () => {
 // loads even if the extraction job hasn't run yet for this entry.
 // Silently empty on failure (e.g. pre-extraction entries that return
 // 404 from /api/entries/{id}/entities).
+//
+// The server returns `{entry_id, items, total}` — matching every
+// other list endpoint. We used to read `resp.entities`, which at
+// runtime was always `undefined`, and the template's
+// `entryEntities.length` check then exploded and blanked out the
+// whole EntryDetailView. The coalescing `?? []` assignment below
+// is the belt to the type fix's braces: even if the server ships
+// an off-contract payload tomorrow, `entryEntities` stays an
+// array and the chip strip stays hidden rather than crashing.
 const entryEntities = ref<EntryEntityRef[]>([])
 
 async function loadEntryEntities(entryId: number) {
   try {
     const resp = await fetchEntryEntities(entryId)
-    entryEntities.value = resp.entities
+    entryEntities.value = resp.items ?? []
   } catch {
     // Swallow — the strip just stays hidden if there's nothing to show.
     entryEntities.value = []
@@ -416,22 +425,25 @@ onBeforeUnmount(() => {
 
         <!-- Entity chips: lazy-fetched tags for entities extracted
              from this entry. Hidden when nothing has been extracted
-             (e.g. before the user runs the batch extraction job). -->
+             (e.g. before the user runs the batch extraction job).
+             `entryEntities?.length` — not just `.length` — because
+             a transiently-non-array value (the old contract-drift
+             failure mode) must not throw during render. -->
         <div
-          v-if="entryEntities.length"
+          v-if="entryEntities?.length"
           class="flex flex-wrap gap-2 mt-3"
           data-testid="entry-entity-chips"
         >
           <RouterLink
             v-for="chip in entryEntities"
-            :key="chip.entity_id"
+            :key="chip.id"
             :to="{
               name: 'entity-detail',
-              params: { id: chip.entity_id },
+              params: { id: chip.id },
             }"
             class="inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-0.5 capitalize hover:opacity-80 transition-opacity"
             :class="entityChipClass(chip.entity_type)"
-            :data-testid="`entry-entity-chip-${chip.entity_id}`"
+            :data-testid="`entry-entity-chip-${chip.id}`"
           >
             {{ chip.canonical_name }}
           </RouterLink>
