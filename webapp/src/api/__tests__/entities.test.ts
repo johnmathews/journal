@@ -94,17 +94,19 @@ describe('entities API client', () => {
     expect(fetchSpy.mock.calls[0][0]).toBe('/api/entries/7/entities')
   })
 
-  it('triggerEntityExtraction POSTs with a JSON body', async () => {
+  it('triggerEntityExtraction POSTs with a JSON body and returns a job submission', async () => {
+    const payload = { job_id: 'job-abc', status: 'queued' }
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ results: [] }),
+      json: () => Promise.resolve(payload),
     } as Response)
 
-    await triggerEntityExtraction({ entry_id: 3 })
+    const resp = await triggerEntityExtraction({ entry_id: 3 })
 
     const [url, init] = fetchSpy.mock.calls[0]
     expect(url).toBe('/api/entities/extract')
     expect((init as RequestInit).method).toBe('POST')
     expect((init as RequestInit).body).toBe(JSON.stringify({ entry_id: 3 }))
+    expect(resp).toEqual(payload)
   })
 })

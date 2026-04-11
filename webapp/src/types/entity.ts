@@ -113,18 +113,8 @@ export interface EntryEntitiesResponse {
   total: number
 }
 
-// --- Extraction trigger ---
-
-export interface ExtractionResult {
-  entry_id: number
-  extraction_run_id: string
-  entities_created: number
-  entities_matched: number
-  mentions_created: number
-  relationships_created: number
-  warnings: string[]
-}
-
-export interface ExtractionTriggerResponse {
-  results: ExtractionResult[]
-}
+// Extraction is triggered asynchronously: POST /api/entities/extract
+// returns a JobSubmissionResponse from src/types/job.ts, and the final
+// per-entry results land under Job.result once the background job
+// reaches a terminal status. There is no synchronous response shape
+// to model here anymore.

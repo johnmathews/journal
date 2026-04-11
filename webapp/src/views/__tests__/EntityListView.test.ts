@@ -31,6 +31,12 @@ vi.mock('@/api/entities', () => ({
   fetchEntity: vi.fn(),
   fetchEntityMentions: vi.fn(),
   fetchEntityRelationships: vi.fn(),
+  triggerEntityExtraction: vi.fn(),
+}))
+
+vi.mock('@/api/jobs', () => ({
+  triggerMoodBackfill: vi.fn(),
+  getJob: vi.fn(),
 }))
 
 const router = createRouter({
@@ -282,6 +288,49 @@ describe('EntityListView', () => {
     // Both buttons should be disabled: one page of results, no prev, no next.
     expect(nextBtn.attributes('disabled')).toBeDefined()
     expect(prevBtn.attributes('disabled')).toBeDefined()
+  })
+
+  it('renders the Run extraction button', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="run-extraction-button"]').exists()).toBe(
+      true,
+    )
+  })
+
+  it('clicking Run extraction opens the BatchJobModal', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('[data-testid="run-extraction-button"]').trigger('click')
+    await flushPromises()
+
+    // The modal is teleported to document.body, so assert on the
+    // body rather than the wrapper's own tree.
+    expect(
+      document.body.querySelector('[data-testid="batch-modal-configure"]'),
+    ).not.toBeNull()
+    document.body.innerHTML = ''
+  })
+
+  it('job-succeeded from the modal triggers a loadEntities refresh', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const { fetchEntities } = await import('@/api/entities')
+    const spy = vi.mocked(fetchEntities)
+    spy.mockClear()
+
+    // Find the mounted BatchJobModal and emit directly — this is
+    // exactly the contract the view wires to `onJobSucceeded`.
+    const modal = wrapper.findComponent({ name: 'BatchJobModal' })
+    expect(modal.exists()).toBe(true)
+    modal.vm.$emit('job-succeeded')
+    await flushPromises()
+
+    expect(spy).toHaveBeenCalled()
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0]
+    expect(lastCall?.offset).toBe(0)
   })
 
   it('typing in the search box debounces and fires loadEntities with the trimmed term', async () => {

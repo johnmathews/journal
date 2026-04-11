@@ -10,6 +10,7 @@ import {
 } from '@/types/dashboard'
 import { getChartColors } from '@/utils/chartjs-config'
 import { adjustColorOpacity } from '@/utils/mosaic'
+import BatchJobModal from '@/components/BatchJobModal.vue'
 
 // The side-effect import in chartjs-config.ts registers the line
 // chart components with Chart.js. Referencing the named export
@@ -385,6 +386,17 @@ function toggleDimension(name: string): void {
   store.toggleMoodDimension(name)
   // renderMoodChart fires via the watcher on hiddenMoodDimensions.
 }
+
+// Mood backfill modal. Fires a background job that re-scores
+// journal entries so the mood chart picks up dimensions added
+// to the config after older entries were ingested. On success
+// we reload the mood trends so the new rows appear in the chart.
+const showMoodBackfillModal = ref(false)
+
+async function onMoodJobSucceeded(): Promise<void> {
+  await store.loadMoodTrends()
+  renderMoodChart()
+}
 </script>
 
 <template>
@@ -561,6 +573,14 @@ function toggleDimension(name: string): void {
               of the positive pole).
             </p>
           </div>
+          <button
+            type="button"
+            class="btn-sm bg-violet-500 hover:bg-violet-600 text-white"
+            data-testid="run-mood-backfill-button"
+            @click="showMoodBackfillModal = true"
+          >
+            Run mood backfill
+          </button>
         </header>
 
         <!-- Dimension toggles -->
@@ -640,5 +660,12 @@ function toggleDimension(name: string): void {
         </div>
       </section>
     </div>
+
+    <BatchJobModal
+      v-model="showMoodBackfillModal"
+      title="Run mood backfill"
+      job-kind="mood_backfill"
+      @job-succeeded="onMoodJobSucceeded"
+    />
   </div>
 </template>

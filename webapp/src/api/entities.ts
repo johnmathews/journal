@@ -5,8 +5,8 @@ import type {
   EntityMentionsResponse,
   EntityRelationshipsResponse,
   EntryEntitiesResponse,
-  ExtractionTriggerResponse,
 } from '@/types/entity'
+import type { JobSubmissionResponse } from '@/types/job'
 import { apiFetch } from './client'
 
 function buildQuery(
@@ -61,7 +61,9 @@ export function fetchEntryEntities(
 
 // Trigger the batch extraction job. Pass entry_id for a single entry
 // or leave it undefined and optionally scope with date filters. The
-// server returns one ExtractionResult per entry processed.
+// server responds 202 with a JobSubmissionResponse immediately; the
+// caller should poll /api/jobs/{id} via the jobs store to follow
+// progress and collect the final result.
 export function triggerEntityExtraction(
   params: {
     entry_id?: number
@@ -69,8 +71,8 @@ export function triggerEntityExtraction(
     end_date?: string
     stale_only?: boolean
   } = {},
-): Promise<ExtractionTriggerResponse> {
-  return apiFetch<ExtractionTriggerResponse>('/api/entities/extract', {
+): Promise<JobSubmissionResponse> {
+  return apiFetch<JobSubmissionResponse>('/api/entities/extract', {
     method: 'POST',
     body: JSON.stringify(params),
   })

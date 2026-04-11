@@ -15,6 +15,17 @@ vi.mock('@/api/dashboard', () => ({
   }),
 }))
 
+// The mood-backfill modal reaches through the jobs store into
+// these clients; stub them so no real fetches are attempted.
+vi.mock('@/api/entities', () => ({
+  triggerEntityExtraction: vi.fn(),
+}))
+
+vi.mock('@/api/jobs', () => ({
+  triggerMoodBackfill: vi.fn(),
+  getJob: vi.fn(),
+}))
+
 // Stub chartjs-config so the view doesn't try to read real CSS
 // variables in the happy-dom environment (they're empty strings,
 // which makes adjustColorOpacity throw). The view only uses
@@ -571,5 +582,37 @@ describe('DashboardView — mood chart', () => {
     expect(fetchMoodTrends).toHaveBeenCalledTimes(1)
     const moodCall = vi.mocked(fetchMoodTrends).mock.calls[0][0]
     expect(moodCall?.bin).toBe('month')
+  })
+
+  it('renders the Run mood backfill button when mood scoring is enabled', async () => {
+    const wrapper = await setupWithMoodData()
+    expect(
+      wrapper.find('[data-testid="run-mood-backfill-button"]').exists(),
+    ).toBe(true)
+  })
+
+  it('clicking Run mood backfill opens the modal', async () => {
+    const wrapper = await setupWithMoodData()
+    await wrapper
+      .find('[data-testid="run-mood-backfill-button"]')
+      .trigger('click')
+    await flushPromises()
+    expect(
+      document.body.querySelector('[data-testid="batch-modal-configure"]'),
+    ).not.toBeNull()
+    document.body.innerHTML = ''
+  })
+
+  it('job-succeeded from the modal triggers a mood trends reload', async () => {
+    const wrapper = await setupWithMoodData()
+    const { fetchMoodTrends } = await import('@/api/dashboard')
+    vi.mocked(fetchMoodTrends).mockClear()
+
+    const modal = wrapper.findComponent({ name: 'BatchJobModal' })
+    expect(modal.exists()).toBe(true)
+    modal.vm.$emit('job-succeeded')
+    await flushPromises()
+
+    expect(fetchMoodTrends).toHaveBeenCalled()
   })
 })

@@ -2,8 +2,19 @@
 import { onMounted, ref, computed, watch } from 'vue'
 import { useEntitiesStore } from '@/stores/entities'
 import { ENTITY_TYPES, type EntityType } from '@/types/entity'
+import BatchJobModal from '@/components/BatchJobModal.vue'
 
 const store = useEntitiesStore()
+
+// Local state for the batch-extraction modal. `showBatchModal`
+// flips on when the user clicks "Run extraction"; the modal
+// handles its own configure → running → done lifecycle and
+// emits `job-succeeded` when we should refresh the entity list.
+const showBatchModal = ref(false)
+
+function onJobSucceeded(): void {
+  store.loadEntities({ offset: 0 })
+}
 
 // Local filter state. Kept out of the store so switching tabs doesn't
 // leak across views.
@@ -93,6 +104,14 @@ const canNext = computed(() => {
           data-testid="entity-search"
           class="form-input w-64 text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
         />
+        <button
+          type="button"
+          class="btn bg-violet-500 hover:bg-violet-600 text-white"
+          data-testid="run-extraction-button"
+          @click="showBatchModal = true"
+        >
+          Run extraction
+        </button>
       </div>
     </div>
 
@@ -153,7 +172,7 @@ const canNext = computed(() => {
       class="py-16 text-center text-gray-500 dark:text-gray-400"
       data-testid="empty-state"
     >
-      No entities yet. Run the extraction batch job to populate them.
+      No entities yet. Click 'Run extraction' above to populate them.
     </div>
 
     <!-- Entity table -->
@@ -246,5 +265,12 @@ const canNext = computed(() => {
         </button>
       </div>
     </div>
+
+    <BatchJobModal
+      v-model="showBatchModal"
+      title="Run entity extraction"
+      job-kind="entity_extraction"
+      @job-succeeded="onJobSucceeded"
+    />
   </div>
 </template>
