@@ -589,31 +589,19 @@ onBeforeUnmount(() => {
           </label>
           <!--
             Review toggle: overlays OCR uncertainty highlights on the
-            Original OCR panel. Disabled (and greyed) for entries with
-            no recorded uncertain spans — old entries ingested before
-            migration 0005 and entries where the model was fully
-            confident. The disabled state has a tooltip so users know
-            why it won't light up.
+            Original OCR panel. Always clickable — when no uncertain
+            spans exist, toggling it on shows an info banner instead
+            of silently doing nothing.
           -->
           <label
-            class="flex items-center gap-2 text-sm select-none"
-            :class="
-              hasUncertainSpans
-                ? 'text-gray-600 dark:text-gray-300 cursor-pointer'
-                : 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
-            "
-            :title="
-              hasUncertainSpans
-                ? 'Highlight words the OCR model flagged as uncertain'
-                : 'No uncertain spans recorded for this entry'
-            "
+            class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 cursor-pointer select-none"
+            title="Highlight words the OCR model flagged as uncertain"
             data-testid="review-toggle-label"
           >
             <input
               v-model="showReview"
               type="checkbox"
-              :disabled="!hasUncertainSpans"
-              class="form-checkbox rounded text-yellow-500 focus:ring-yellow-500 disabled:opacity-50"
+              class="form-checkbox rounded text-yellow-500 focus:ring-yellow-500"
               data-testid="review-toggle"
             />
             Review
@@ -724,6 +712,16 @@ onBeforeUnmount(() => {
             {{ saving ? 'Saving…' : 'Save' }}
           </button>
         </div>
+      </div>
+
+      <!-- Review info banner — shown when Review is toggled on but no uncertain spans exist -->
+      <div
+        v-if="showReview && !hasUncertainSpans"
+        class="mb-4 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40 rounded-lg px-4 py-3 text-sm"
+        data-testid="review-no-spans-banner"
+      >
+        No uncertain words or phrases were detected in this entry. The OCR
+        model was confident about every word on this page.
       </div>
 
       <!-- Side-by-side editor panels (static 50/50) -->

@@ -1036,27 +1036,32 @@ describe('EntryDetailView', () => {
       ).toContain('Review')
     })
 
-    it('disables the toggle when the entry has no uncertain spans', async () => {
+    it('is always clickable even when no uncertain spans exist', async () => {
       const wrapper = await mountWithSpans([])
       const input = wrapper.find<HTMLInputElement>(
         '[data-testid="review-toggle"]',
       )
-      expect(input.element.disabled).toBe(true)
+      expect(input.element.disabled).toBe(false)
       expect(input.element.checked).toBe(false)
-      // The tooltip on the label explains why it's inert.
-      const label = wrapper.find('[data-testid="review-toggle-label"]')
-      expect(label.attributes('title')).toMatch(/no uncertain spans/i)
     })
 
-    it('enables the toggle when the entry has uncertain spans', async () => {
+    it('shows info banner when toggled on with no uncertain spans', async () => {
+      const wrapper = await mountWithSpans([])
+      const input = wrapper.find<HTMLInputElement>(
+        '[data-testid="review-toggle"]',
+      )
+      await input.setValue(true)
+      const banner = wrapper.find('[data-testid="review-no-spans-banner"]')
+      expect(banner.exists()).toBe(true)
+      expect(banner.text()).toMatch(/no uncertain/i)
+    })
+
+    it('does not show info banner when uncertain spans exist', async () => {
       const wrapper = await mountWithSpans([{ char_start: 6, char_end: 12 }])
       const input = wrapper.find<HTMLInputElement>(
         '[data-testid="review-toggle"]',
       )
       expect(input.element.disabled).toBe(false)
-      const label = wrapper.find('[data-testid="review-toggle-label"]')
-      expect(label.attributes('title')).toMatch(/uncertain/i)
-      expect(label.attributes('title')).not.toMatch(/no uncertain spans/i)
     })
 
     it('applies uncertainty highlighting to the Original OCR panel when toggled on', async () => {
