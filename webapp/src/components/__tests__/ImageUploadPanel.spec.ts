@@ -177,13 +177,13 @@ describe('ImageUploadPanel', () => {
     expect(wrapper.emitted('submitted')).toEqual([['job-456']])
   })
 
-  it('shows "Add more images" after initial selection', async () => {
+  it('shows "Add image" after initial selection', async () => {
     const wrapper = mountPanel()
     const file = new File(['img'], 'page.jpg', { type: 'image/jpeg' })
 
     await selectFiles(wrapper, [file])
 
-    expect(wrapper.text()).toContain('Add more images')
+    expect(wrapper.text()).toContain('Add image')
   })
 
   it('has move up and move down buttons for reordering', async () => {

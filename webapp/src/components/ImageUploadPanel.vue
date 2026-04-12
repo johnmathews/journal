@@ -263,7 +263,7 @@ function objectUrl(file: File): string {
           @dragleave="dragOver = false"
           @drop.prevent="handleDrop"
         >
-          + Add more images
+          + Add image
           <input
             type="file"
             multiple
