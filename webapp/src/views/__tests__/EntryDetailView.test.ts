@@ -992,6 +992,49 @@ describe('EntryDetailView', () => {
         wrapper.find('[data-testid="entry-entity-chip-42"]').exists(),
       ).toBe(true)
     })
+
+    it('clicking an entity chip highlights the entity name in the text', async () => {
+      const { fetchEntry } = await import('@/api/entries')
+      vi.mocked(fetchEntry).mockResolvedValueOnce({
+        id: 1,
+        entry_date: '2026-03-22',
+        source_type: 'ocr',
+        raw_text: 'Walked with Alice in the park.',
+        final_text: 'Walked with Alice in the park.',
+        word_count: 7,
+        chunk_count: 1,
+        page_count: 1,
+        language: 'en',
+        created_at: '2026-03-22T10:00:00Z',
+        updated_at: '2026-03-22T10:00:00Z',
+        uncertain_spans: [],
+      })
+
+      const { fetchEntryEntities } = await import('@/api/entities')
+      vi.mocked(fetchEntryEntities).mockResolvedValueOnce({
+        entry_id: 1,
+        items: [
+          { id: 42, entity_type: 'person', canonical_name: 'Alice', aliases: [], mention_count: 3, first_seen: '2026-01-01', last_seen: '2026-03-22' },
+        ],
+        total: 1,
+      })
+
+      const wrapper = mount(EntryDetailView, {
+        props: { id: '1' },
+        global: { plugins: [createPinia(), router] },
+      })
+      await flushPromises()
+
+      const chip = wrapper.find('[data-testid="entry-entity-chip-42"]')
+      await chip.trigger('click')
+
+      // The chip should have a ring class indicating it's active
+      expect(chip.classes().join(' ')).toContain('ring-2')
+
+      // The OCR panel should contain highlighted text
+      const ocr = wrapper.find('[data-testid="ocr-display"]')
+      expect(ocr.html()).toContain('Alice')
+    })
   })
 
   describe('Review toggle', () => {

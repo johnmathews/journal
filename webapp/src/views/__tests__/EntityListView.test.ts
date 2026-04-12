@@ -234,6 +234,7 @@ describe('EntityListView', () => {
           aliases: [],
           mention_count: 12,
           first_seen: '2026-01-02',
+          last_seen: '2026-03-22',
         },
       ],
       total: 120, // far beyond one page
@@ -256,6 +257,7 @@ describe('EntityListView', () => {
           aliases: [],
           mention_count: 1,
           first_seen: '2026-01-02',
+          last_seen: '2026-01-02',
         },
       ],
       total: 120,
@@ -283,6 +285,7 @@ describe('EntityListView', () => {
           aliases: [],
           mention_count: 1,
           first_seen: '2026-01-01',
+          last_seen: '2026-01-01',
         },
       ],
       total: 1, // one entity, one page
@@ -372,5 +375,44 @@ describe('EntityListView', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('sorts by mentions descending when Mentions header is clicked', async () => {
+    const { fetchEntities } = await import('@/api/entities')
+    vi.mocked(fetchEntities).mockResolvedValueOnce({
+      items: [
+        { id: 2, entity_type: 'place', canonical_name: 'Blue Bottle', aliases: [], mention_count: 4, first_seen: '2026-02-15', last_seen: '2026-03-01' },
+        { id: 1, entity_type: 'person', canonical_name: 'Ritsya', aliases: [], mention_count: 12, first_seen: '2026-01-02', last_seen: '2026-03-22' },
+      ],
+      total: 2, limit: 50, offset: 0,
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('[data-testid="sort-mentions"]').trigger('click')
+    const rows = wrapper.findAll('[data-testid="entity-row"]')
+    // Descending by mentions: 12 before 4
+    expect(rows[0].text()).toContain('Ritsya')
+    expect(rows[1].text()).toContain('Blue Bottle')
+  })
+
+  it('toggles sort direction on repeated header click', async () => {
+    const { fetchEntities } = await import('@/api/entities')
+    vi.mocked(fetchEntities).mockResolvedValueOnce({
+      items: [
+        { id: 2, entity_type: 'place', canonical_name: 'Blue Bottle', aliases: [], mention_count: 4, first_seen: '2026-02-15', last_seen: '2026-03-01' },
+        { id: 1, entity_type: 'person', canonical_name: 'Ritsya', aliases: [], mention_count: 12, first_seen: '2026-01-02', last_seen: '2026-03-22' },
+      ],
+      total: 2, limit: 50, offset: 0,
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Default is name ascending: Blue Bottle, Ritsya
+    // Click name header toggles to descending: Ritsya, Blue Bottle
+    await wrapper.find('[data-testid="sort-name"]').trigger('click')
+    const rows = wrapper.findAll('[data-testid="entity-row"]')
+    expect(rows[0].text()).toContain('Ritsya')
+    expect(rows[1].text()).toContain('Blue Bottle')
   })
 })
