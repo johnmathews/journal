@@ -59,21 +59,21 @@ describe('CreateEntryView', () => {
     expect(wrapper.find('h1').text()).toBe('New Journal Entry')
   })
 
-  it('renders with "Write Entry" tab active by default', () => {
+  it('renders with "Upload Images" tab active by default', () => {
     const wrapper = mountView()
     const buttons = wrapper.findAll('button')
-    const writeTab = buttons.find((b) => b.text() === 'Write Entry')
-    expect(writeTab).toBeDefined()
+    const uploadTab = buttons.find((b) => b.text() === 'Upload Images')
+    expect(uploadTab).toBeDefined()
     // Active tab has shadow-sm class
-    expect(writeTab!.classes()).toContain('shadow-sm')
+    expect(uploadTab!.classes()).toContain('shadow-sm')
 
-    // TextEntryPanel should be rendered
-    expect(wrapper.find('[data-testid="text-entry-panel"]').exists()).toBe(true)
-    // Others should not
-    expect(wrapper.find('[data-testid="file-import-panel"]').exists()).toBe(
-      false,
-    )
+    // ImageUploadPanel should be rendered
     expect(wrapper.find('[data-testid="image-upload-panel"]').exists()).toBe(
+      true,
+    )
+    // Others should not
+    expect(wrapper.find('[data-testid="text-entry-panel"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="file-import-panel"]').exists()).toBe(
       false,
     )
   })
@@ -152,8 +152,8 @@ describe('CreateEntryView', () => {
     const wrapper = mountView()
     const pushSpy = vi.spyOn(router, 'push')
 
-    // TextEntryPanel stub is rendered by default — find it by testid
-    const panel = wrapper.find('[data-testid="text-entry-panel"]')
+    // ImageUploadPanel stub is rendered by default — find it by testid
+    const panel = wrapper.find('[data-testid="image-upload-panel"]')
     expect(panel.exists()).toBe(true)
 
     // Call the handleCreated function via the component instance.
@@ -168,13 +168,13 @@ describe('CreateEntryView', () => {
     })
   })
 
-  it('renders the text entry panel by default', () => {
+  it('renders the image upload panel by default', () => {
     const wrapper = mountView()
-    expect(wrapper.find('[data-testid="text-entry-panel"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="file-import-panel"]').exists()).toBe(
-      false,
-    )
     expect(wrapper.find('[data-testid="image-upload-panel"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('[data-testid="text-entry-panel"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="file-import-panel"]').exists()).toBe(
       false,
     )
   })
