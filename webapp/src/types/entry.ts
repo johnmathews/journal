@@ -1,7 +1,7 @@
 export interface EntrySummary {
   id: number
   entry_date: string
-  source_type: 'ocr' | 'voice'
+  source_type: 'ocr' | 'voice' | 'manual' | 'import'
   page_count: number
   word_count: number
   chunk_count: number
@@ -25,7 +25,7 @@ export interface UncertainSpan {
 export interface EntryDetail {
   id: number
   entry_date: string
-  source_type: 'ocr' | 'voice'
+  source_type: 'ocr' | 'voice' | 'manual' | 'import'
   raw_text: string
   final_text: string
   page_count: number

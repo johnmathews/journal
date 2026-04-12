@@ -18,6 +18,11 @@ const router = createRouter({
       component: () => import('@/views/EntryListView.vue'),
     },
     {
+      path: '/entries/new',
+      name: 'create-entry',
+      component: () => import('@/views/CreateEntryView.vue'),
+    },
+    {
       path: '/entries/:id',
       name: 'entry-detail',
       component: () => import('@/views/EntryDetailView.vue'),

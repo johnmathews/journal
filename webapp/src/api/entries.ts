@@ -6,6 +6,11 @@ import type {
   EntryTokensResponse,
   Statistics,
 } from '@/types/entry'
+import type {
+  IngestTextRequest,
+  IngestTextResponse,
+  IngestImagesResponse,
+} from '@/types/ingest'
 import { apiFetch } from './client'
 
 function buildQuery(
@@ -76,4 +81,47 @@ export function fetchEntryChunks(id: number): Promise<EntryChunksResponse> {
  */
 export function fetchEntryTokens(id: number): Promise<EntryTokensResponse> {
   return apiFetch<EntryTokensResponse>(`/api/entries/${id}/tokens`)
+}
+
+export async function ingestText(
+  request: IngestTextRequest,
+): Promise<IngestTextResponse> {
+  return apiFetch<IngestTextResponse>('/api/entries/ingest/text', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  })
+}
+
+export async function ingestFile(
+  file: File,
+  entryDate?: string,
+): Promise<IngestTextResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+  if (entryDate) {
+    formData.append('entry_date', entryDate)
+  }
+  return apiFetch<IngestTextResponse>('/api/entries/ingest/file', {
+    method: 'POST',
+    body: formData,
+    headers: {},
+  })
+}
+
+export async function ingestImages(
+  files: File[],
+  entryDate?: string,
+): Promise<IngestImagesResponse> {
+  const formData = new FormData()
+  for (const file of files) {
+    formData.append('images', file)
+  }
+  if (entryDate) {
+    formData.append('entry_date', entryDate)
+  }
+  return apiFetch<IngestImagesResponse>('/api/entries/ingest/images', {
+    method: 'POST',
+    body: formData,
+    headers: {},
+  })
 }

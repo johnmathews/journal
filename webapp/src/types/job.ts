@@ -11,7 +11,11 @@
 
 export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed'
 
-export type JobType = 'entity_extraction' | 'mood_backfill'
+export type JobType =
+  | 'entity_extraction'
+  | 'mood_backfill'
+  | 'ingest_images'
+  | 'mood_score_entry'
 
 /**
  * Response from the job-submission endpoints (POST /api/entities/extract,

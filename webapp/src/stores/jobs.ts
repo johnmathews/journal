@@ -221,12 +221,25 @@ export const useJobsStore = defineStore('jobs', () => {
     return job_id
   }
 
+  /**
+   * Fetch the current state of a job from the server, update the local
+   * store, and return the job. Unlike pollJob this is a one-shot fetch
+   * that does not start a polling loop — callers who need continuous
+   * updates should call pollJob separately.
+   */
+  async function fetchJob(jobId: string): Promise<Job> {
+    const fresh = await getJob(jobId)
+    upsertJob(fresh)
+    return fresh
+  }
+
   return {
     jobs,
     getJobById,
     activeJobs,
     startEntityExtraction,
     startMoodBackfill,
+    fetchJob,
     pollJob,
     stopPolling,
     clearJob,

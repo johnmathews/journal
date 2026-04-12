@@ -71,12 +71,21 @@ function formatDateTime(dateStr: string): string {
           Journal Entries
         </h1>
       </div>
-      <div
-        v-if="store.total > 0"
-        class="text-sm text-gray-500 dark:text-gray-400"
-        data-testid="entry-count"
-      >
-        {{ store.total }} entries
+      <div class="flex items-center gap-4">
+        <div
+          v-if="store.total > 0"
+          class="text-sm text-gray-500 dark:text-gray-400"
+          data-testid="entry-count"
+        >
+          {{ store.total }} entries
+        </div>
+        <RouterLink
+          to="/entries/new"
+          class="btn bg-violet-500 hover:bg-violet-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
+          data-testid="new-entry-button"
+        >
+          New Entry
+        </RouterLink>
       </div>
     </div>
 

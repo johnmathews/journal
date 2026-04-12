@@ -6,7 +6,11 @@ import {
   fetchEntry,
   updateEntryText,
   deleteEntry as deleteEntryApi,
+  ingestText,
+  ingestFile,
+  ingestImages,
 } from '@/api/entries'
+import type { IngestTextResponse, IngestImagesResponse } from '@/types/ingest'
 
 export const useEntriesStore = defineStore('entries', () => {
   // State
@@ -15,6 +19,8 @@ export const useEntriesStore = defineStore('entries', () => {
   const total = ref(0)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const creating = ref(false)
+  const createError = ref<string | null>(null)
   const currentParams = ref<EntryListParams>({
     limit: 20,
     offset: 0,
@@ -92,12 +98,68 @@ export const useEntriesStore = defineStore('entries', () => {
     }
   }
 
+  async function createTextEntry(
+    text: string,
+    entryDate?: string,
+  ): Promise<IngestTextResponse> {
+    creating.value = true
+    createError.value = null
+    try {
+      const result = await ingestText({ text, entry_date: entryDate })
+      return result
+    } catch (err: unknown) {
+      createError.value =
+        err instanceof Error ? err.message : 'Failed to create entry'
+      throw err
+    } finally {
+      creating.value = false
+    }
+  }
+
+  async function importFile(
+    file: File,
+    entryDate?: string,
+  ): Promise<IngestTextResponse> {
+    creating.value = true
+    createError.value = null
+    try {
+      const result = await ingestFile(file, entryDate)
+      return result
+    } catch (err: unknown) {
+      createError.value =
+        err instanceof Error ? err.message : 'Failed to import file'
+      throw err
+    } finally {
+      creating.value = false
+    }
+  }
+
+  async function uploadImages(
+    files: File[],
+    entryDate?: string,
+  ): Promise<IngestImagesResponse> {
+    creating.value = true
+    createError.value = null
+    try {
+      const result = await ingestImages(files, entryDate)
+      return result
+    } catch (err: unknown) {
+      createError.value =
+        err instanceof Error ? err.message : 'Failed to upload images'
+      throw err
+    } finally {
+      creating.value = false
+    }
+  }
+
   return {
     entries,
     currentEntry,
     total,
     loading,
     error,
+    creating,
+    createError,
     currentParams,
     totalPages,
     currentPage,
@@ -106,5 +168,8 @@ export const useEntriesStore = defineStore('entries', () => {
     loadEntry,
     saveEntryText,
     deleteEntry,
+    createTextEntry,
+    importFile,
+    uploadImages,
   }
 })
