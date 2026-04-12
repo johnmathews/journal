@@ -189,6 +189,65 @@ describe('EntryListView', () => {
     )
   })
 
+  it('sorts by date descending by default', async () => {
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValueOnce({
+      items: [
+        { id: 1, entry_date: '2026-03-22', source_type: 'ocr', page_count: 2, word_count: 347, chunk_count: 5, created_at: '2026-03-23T10:30:00Z' },
+        { id: 2, entry_date: '2026-03-21', source_type: 'voice', page_count: 0, word_count: 120, chunk_count: 2, created_at: '2026-03-21T15:00:00Z' },
+      ],
+      total: 2, limit: 20, offset: 0,
+    })
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    const rows = wrapper.findAll('[data-testid="entry-row"]')
+    // descending: 2026-03-22 (Mar) first, 2026-03-21 second
+    expect(rows[0].text()).toContain('22 Mar')
+    expect(rows[1].text()).toContain('21 Mar')
+  })
+
+  it('toggles sort direction on column header click', async () => {
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValueOnce({
+      items: [
+        { id: 1, entry_date: '2026-03-22', source_type: 'ocr', page_count: 2, word_count: 347, chunk_count: 5, created_at: '2026-03-23T10:30:00Z' },
+        { id: 2, entry_date: '2026-03-21', source_type: 'voice', page_count: 0, word_count: 120, chunk_count: 2, created_at: '2026-03-21T15:00:00Z' },
+      ],
+      total: 2, limit: 20, offset: 0,
+    })
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[data-testid="sort-date"]').trigger('click')
+    const rows = wrapper.findAll('[data-testid="entry-row"]')
+    // toggled to ascending: 2026-03-21 first
+    expect(rows[0].text()).toContain('21 Mar')
+    expect(rows[1].text()).toContain('22 Mar')
+  })
+
+  it('sorts by a different column when its header is clicked', async () => {
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValueOnce({
+      items: [
+        { id: 1, entry_date: '2026-03-22', source_type: 'ocr', page_count: 2, word_count: 347, chunk_count: 5, created_at: '2026-03-23T10:30:00Z' },
+        { id: 2, entry_date: '2026-03-21', source_type: 'voice', page_count: 0, word_count: 120, chunk_count: 2, created_at: '2026-03-21T15:00:00Z' },
+      ],
+      total: 2, limit: 20, offset: 0,
+    })
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[data-testid="sort-words"]').trigger('click')
+    const rows = wrapper.findAll('[data-testid="entry-row"]')
+    // ascending by words: 120 first, 347 second
+    expect(rows[0].text()).toContain('120')
+    expect(rows[1].text()).toContain('347')
+  })
+
   it('changes rows-per-page and refetches from offset 0', async () => {
     const { fetchEntries } = await import('@/api/entries')
     const mock = vi.mocked(fetchEntries)

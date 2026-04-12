@@ -2,12 +2,46 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEntriesStore } from '@/stores/entries'
+import type { EntrySummary } from '@/types/entry'
 
 const router = useRouter()
 const store = useEntriesStore()
 
 const rows = ref(20)
 const first = ref(0)
+
+// Sorting state — default: date descending
+type SortKey = 'entry_date' | 'page_count' | 'word_count' | 'chunk_count' | 'created_at'
+const sortKey = ref<SortKey>('entry_date')
+const sortAsc = ref(false)
+
+function toggleSort(key: SortKey) {
+  if (sortKey.value === key) {
+    sortAsc.value = !sortAsc.value
+  } else {
+    sortKey.value = key
+    sortAsc.value = key === 'entry_date' ? false : true
+  }
+}
+
+function sortIndicator(key: SortKey): string {
+  if (sortKey.value !== key) return ''
+  return sortAsc.value ? ' \u25B2' : ' \u25BC'
+}
+
+const sortedEntries = computed(() => {
+  const entries = [...store.entries]
+  const key = sortKey.value
+  const dir = sortAsc.value ? 1 : -1
+  return entries.sort((a: EntrySummary, b: EntrySummary) => {
+    const av = a[key]
+    const bv = b[key]
+    if (typeof av === 'string' && typeof bv === 'string') {
+      return av.localeCompare(bv) * dir
+    }
+    return ((av as number) - (bv as number)) * dir
+  })
+})
 
 onMounted(() => {
   store.loadEntries({ limit: rows.value, offset: 0 })
@@ -147,18 +181,48 @@ function formatDateTime(dateStr: string): string {
             class="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700/60"
           >
             <tr>
-              <th class="px-4 py-3 whitespace-nowrap text-left">Date</th>
-              <th class="px-4 py-3 whitespace-nowrap text-center">Pages</th>
-              <th class="px-4 py-3 whitespace-nowrap text-right">Words</th>
-              <th class="px-4 py-3 whitespace-nowrap text-right">Chunks</th>
-              <th class="px-4 py-3 whitespace-nowrap text-left">Ingested</th>
+              <th
+                class="px-4 py-3 whitespace-nowrap text-left cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+                data-testid="sort-date"
+                @click="toggleSort('entry_date')"
+              >
+                Date{{ sortIndicator('entry_date') }}
+              </th>
+              <th
+                class="px-4 py-3 whitespace-nowrap text-center cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+                data-testid="sort-pages"
+                @click="toggleSort('page_count')"
+              >
+                Pages{{ sortIndicator('page_count') }}
+              </th>
+              <th
+                class="px-4 py-3 whitespace-nowrap text-right cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+                data-testid="sort-words"
+                @click="toggleSort('word_count')"
+              >
+                Words{{ sortIndicator('word_count') }}
+              </th>
+              <th
+                class="px-4 py-3 whitespace-nowrap text-right cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+                data-testid="sort-chunks"
+                @click="toggleSort('chunk_count')"
+              >
+                Chunks{{ sortIndicator('chunk_count') }}
+              </th>
+              <th
+                class="px-4 py-3 whitespace-nowrap text-left cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+                data-testid="sort-ingested"
+                @click="toggleSort('created_at')"
+              >
+                Ingested{{ sortIndicator('created_at') }}
+              </th>
             </tr>
           </thead>
           <tbody
             class="text-sm divide-y divide-gray-200 dark:divide-gray-700/60"
           >
             <tr
-              v-for="entry in store.entries"
+              v-for="entry in sortedEntries"
               :key="entry.id"
               class="cursor-pointer hover:bg-violet-50 dark:hover:bg-violet-500/[0.08] transition-colors"
               data-testid="entry-row"
