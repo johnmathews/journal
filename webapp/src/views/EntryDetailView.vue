@@ -663,9 +663,9 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- Side-by-side editor panels (static 50/50) -->
-      <div class="flex flex-col lg:flex-row gap-4 min-h-[500px]">
+      <div class="flex flex-col lg:flex-row gap-4 min-h-[500px] max-h-[80vh] lg:max-h-none">
         <section
-          class="flex-1 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
+          class="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
         >
           <h2
             class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3"
@@ -688,7 +688,7 @@ onBeforeUnmount(() => {
         </section>
 
         <section
-          class="flex-1 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
+          class="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
         >
           <h2
             class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3"
