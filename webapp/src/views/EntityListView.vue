@@ -1,10 +1,43 @@
 <script setup lang="ts">
 import { onMounted, ref, computed, watch } from 'vue'
 import { useEntitiesStore } from '@/stores/entities'
-import { ENTITY_TYPES, type EntityType } from '@/types/entity'
+import { ENTITY_TYPES, type EntityType, type EntitySummary } from '@/types/entity'
 import BatchJobModal from '@/components/BatchJobModal.vue'
 
 const store = useEntitiesStore()
+
+// Sorting state — default: name ascending
+type SortKey = 'canonical_name' | 'entity_type' | 'mention_count' | 'first_seen'
+const sortKey = ref<SortKey>('canonical_name')
+const sortAsc = ref(true)
+
+function toggleSort(key: SortKey) {
+  if (sortKey.value === key) {
+    sortAsc.value = !sortAsc.value
+  } else {
+    sortKey.value = key
+    sortAsc.value = key === 'mention_count' ? false : true
+  }
+}
+
+function sortIndicator(key: SortKey): string {
+  if (sortKey.value !== key) return ''
+  return sortAsc.value ? ' \u25B2' : ' \u25BC'
+}
+
+const sortedEntities = computed(() => {
+  const items = [...store.entities]
+  const key = sortKey.value
+  const dir = sortAsc.value ? 1 : -1
+  return items.sort((a: EntitySummary, b: EntitySummary) => {
+    const av = a[key]
+    const bv = b[key]
+    if (typeof av === 'string' && typeof bv === 'string') {
+      return av.localeCompare(bv) * dir
+    }
+    return ((av as number) - (bv as number)) * dir
+  })
+})
 
 // Local state for the batch-extraction modal. `showBatchModal`
 // flips on when the user clicks "Run extraction"; the modal
@@ -186,15 +219,42 @@ const canNext = computed(() => {
           class="text-xs uppercase text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-900/40"
         >
           <tr>
-            <th class="px-4 py-3 text-left font-semibold">Name</th>
-            <th class="px-4 py-3 text-left font-semibold">Type</th>
-            <th class="px-4 py-3 text-right font-semibold">Mentions</th>
-            <th class="px-4 py-3 text-left font-semibold">First seen</th>
+            <th
+              class="px-4 py-3 text-left font-semibold cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+              data-testid="sort-name"
+              @click="toggleSort('canonical_name')"
+            >
+              Name{{ sortIndicator('canonical_name') }}
+            </th>
+            <th
+              class="px-4 py-3 text-left font-semibold cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+              data-testid="sort-type"
+              @click="toggleSort('entity_type')"
+            >
+              Type{{ sortIndicator('entity_type') }}
+            </th>
+            <th
+              class="px-4 py-3 text-right font-semibold cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+              data-testid="sort-mentions"
+              @click="toggleSort('mention_count')"
+            >
+              Mentions{{ sortIndicator('mention_count') }}
+            </th>
+            <th
+              class="px-4 py-3 text-left font-semibold cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+              data-testid="sort-first-seen"
+              @click="toggleSort('first_seen')"
+            >
+              First seen{{ sortIndicator('first_seen') }}
+            </th>
+            <th class="px-4 py-3 text-left font-semibold">
+              Last seen
+            </th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100 dark:divide-gray-700/60">
           <tr
-            v-for="entity in store.entities"
+            v-for="entity in sortedEntities"
             :key="entity.id"
             class="hover:bg-gray-50 dark:hover:bg-gray-700/30"
             data-testid="entity-row"
@@ -231,6 +291,9 @@ const canNext = computed(() => {
             </td>
             <td class="px-4 py-3 text-gray-500 dark:text-gray-400">
               {{ entity.first_seen || '—' }}
+            </td>
+            <td class="px-4 py-3 text-gray-500 dark:text-gray-400">
+              {{ entity.last_seen || '—' }}
             </td>
           </tr>
         </tbody>

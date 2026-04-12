@@ -37,6 +37,7 @@ export interface EntitySummary {
   aliases: string[]
   mention_count: number
   first_seen: string
+  last_seen: string
 }
 
 export interface EntityMention {

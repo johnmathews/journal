@@ -106,10 +106,15 @@ const { originalHtml: rawOriginalHtml, correctedHtml: rawCorrectedHtml } =
     uncertainSpans,
   })
 
-// Entity highlight from ?highlight= query param (linked from entity detail)
+// Entity highlight — from ?highlight= query param or from clicking a chip
+const chipHighlight = ref('')
 const highlightTerm = computed(
-  () => (route.query.highlight as string | undefined) ?? '',
+  () => chipHighlight.value || (route.query.highlight as string | undefined) || '',
 )
+
+function toggleEntityHighlight(name: string) {
+  chipHighlight.value = chipHighlight.value === name ? '' : name
+}
 
 function applyEntityHighlight(html: string, term: string): string {
   if (!term) return html
@@ -551,19 +556,22 @@ onBeforeUnmount(() => {
           class="flex flex-wrap gap-2 mt-3"
           data-testid="entry-entity-chips"
         >
-          <RouterLink
+          <button
             v-for="chip in entryEntities"
             :key="chip.id"
-            :to="{
-              name: 'entity-detail',
-              params: { id: chip.id },
-            }"
-            class="inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-0.5 capitalize hover:opacity-80 transition-opacity"
-            :class="entityChipClass(chip.entity_type)"
+            class="inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-0.5 capitalize transition-all cursor-pointer"
+            :class="[
+              entityChipClass(chip.entity_type),
+              chipHighlight === chip.canonical_name
+                ? 'ring-2 ring-violet-500 ring-offset-1 dark:ring-offset-gray-800'
+                : 'hover:opacity-80',
+            ]"
+            :title="`Highlight '${chip.canonical_name}' in the text`"
             :data-testid="`entry-entity-chip-${chip.id}`"
+            @click="toggleEntityHighlight(chip.canonical_name)"
           >
             {{ chip.canonical_name }}
-          </RouterLink>
+          </button>
         </div>
       </div>
 

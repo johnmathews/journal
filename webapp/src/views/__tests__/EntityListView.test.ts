@@ -8,20 +8,22 @@ vi.mock('@/api/entities', () => ({
   fetchEntities: vi.fn().mockResolvedValue({
     items: [
       {
-        id: 1,
-        entity_type: 'person',
-        canonical_name: 'Ritsya',
-        aliases: ['Ritzya'],
-        mention_count: 12,
-        first_seen: '2026-01-02',
-      },
-      {
         id: 2,
         entity_type: 'place',
         canonical_name: 'Blue Bottle',
         aliases: [],
         mention_count: 4,
         first_seen: '2026-02-15',
+        last_seen: '2026-03-01',
+      },
+      {
+        id: 1,
+        entity_type: 'person',
+        canonical_name: 'Ritsya',
+        aliases: ['Ritzya'],
+        mention_count: 12,
+        first_seen: '2026-01-02',
+        last_seen: '2026-03-22',
       },
     ],
     total: 2,
@@ -80,10 +82,11 @@ describe('EntityListView', () => {
 
     const rows = wrapper.findAll('[data-testid="entity-row"]')
     expect(rows).toHaveLength(2)
-    expect(rows[0].text()).toContain('Ritsya')
-    expect(rows[0].text()).toContain('Ritzya') // alias shown
-    expect(rows[0].text()).toContain('12')
-    expect(rows[1].text()).toContain('Blue Bottle')
+    // Sorted by canonical_name ascending: Blue Bottle before Ritsya
+    expect(rows[0].text()).toContain('Blue Bottle')
+    expect(rows[1].text()).toContain('Ritsya')
+    expect(rows[1].text()).toContain('Ritzya') // alias shown
+    expect(rows[1].text()).toContain('12')
   })
 
   it('filters by type when a type tab is clicked', async () => {
@@ -144,28 +147,13 @@ describe('EntityListView', () => {
     vi.mocked(fetchEntities).mockResolvedValueOnce({
       items: [
         {
-          id: 1,
-          entity_type: 'person',
-          canonical_name: 'P',
-          aliases: [],
-          mention_count: 1,
-          first_seen: '2026-01-01',
-        },
-        {
-          id: 2,
-          entity_type: 'place',
-          canonical_name: 'Pl',
-          aliases: [],
-          mention_count: 1,
-          first_seen: '2026-01-01',
-        },
-        {
           id: 3,
           entity_type: 'activity',
           canonical_name: 'A',
           aliases: [],
           mention_count: 1,
           first_seen: '2026-01-01',
+          last_seen: '',
         },
         {
           id: 4,
@@ -174,6 +162,25 @@ describe('EntityListView', () => {
           aliases: [],
           mention_count: 1,
           first_seen: '2026-01-01',
+          last_seen: '',
+        },
+        {
+          id: 1,
+          entity_type: 'person',
+          canonical_name: 'P',
+          aliases: [],
+          mention_count: 1,
+          first_seen: '2026-01-01',
+          last_seen: '',
+        },
+        {
+          id: 2,
+          entity_type: 'place',
+          canonical_name: 'Pl',
+          aliases: [],
+          mention_count: 1,
+          first_seen: '2026-01-01',
+          last_seen: '',
         },
         {
           id: 5,
@@ -182,6 +189,7 @@ describe('EntityListView', () => {
           aliases: [],
           mention_count: 1,
           first_seen: '2026-01-01',
+          last_seen: '',
         },
         {
           id: 6,
@@ -190,6 +198,7 @@ describe('EntityListView', () => {
           aliases: [],
           mention_count: 1,
           first_seen: '2026-01-01',
+          last_seen: '',
         },
       ],
       total: 6,
@@ -205,10 +214,11 @@ describe('EntityListView', () => {
     // Spot-check a few distinct hues. The exact class names aren't the
     // point — the point is the switch ran each case without the default
     // fallback swallowing everything.
-    expect(rows[2].html()).toContain('emerald') // activity
-    expect(rows[3].html()).toContain('yellow') // organization
-    expect(rows[4].html()).toContain('rose') // topic
-    expect(rows[5].html()).toContain('gray') // other (default case)
+    // Sorted by canonical_name ascending: A, O, P, Pl, T, X
+    expect(rows[0].html()).toContain('emerald') // activity (A)
+    expect(rows[1].html()).toContain('yellow') // organization (O)
+    expect(rows[4].html()).toContain('rose') // topic (T)
+    expect(rows[5].html()).toContain('gray') // other (X, default case)
   })
 
   it('pagination buttons call loadEntities with the right offset', async () => {
