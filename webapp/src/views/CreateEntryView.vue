@@ -22,9 +22,9 @@ function handleJobSubmitted(_jobId: string) {
 }
 
 const tabs = [
-  { key: 'write' as const, label: 'Write Entry' },
-  { key: 'import' as const, label: 'Import File' },
   { key: 'upload' as const, label: 'Upload Images' },
+  { key: 'import' as const, label: 'Import File' },
+  { key: 'write' as const, label: 'Write Entry' },
 ]
 
 function switchTab(key: typeof activeTab.value) {
