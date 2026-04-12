@@ -82,11 +82,11 @@ describe('EntityListView', () => {
 
     const rows = wrapper.findAll('[data-testid="entity-row"]')
     expect(rows).toHaveLength(2)
-    // Sorted by canonical_name ascending: Blue Bottle before Ritsya
-    expect(rows[0].text()).toContain('Blue Bottle')
-    expect(rows[1].text()).toContain('Ritsya')
-    expect(rows[1].text()).toContain('Ritzya') // alias shown
-    expect(rows[1].text()).toContain('12')
+    // Default sort: last_seen descending — Ritsya (2026-03-22) before Blue Bottle (2026-03-01)
+    expect(rows[0].text()).toContain('Ritsya')
+    expect(rows[0].text()).toContain('Ritzya') // alias shown
+    expect(rows[0].text()).toContain('12')
+    expect(rows[1].text()).toContain('Blue Bottle')
   })
 
   it('filters by type when a type tab is clicked', async () => {
@@ -444,11 +444,11 @@ describe('EntityListView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    // Default is name ascending: Blue Bottle, Ritsya
-    // Click name header toggles to descending: Ritsya, Blue Bottle
-    await wrapper.find('[data-testid="sort-name"]').trigger('click')
+    // Default is last_seen descending: Ritsya (2026-03-22), Blue Bottle (2026-03-01)
+    // Click last_seen header toggles to ascending: Blue Bottle, Ritsya
+    await wrapper.find('[data-testid="sort-last-seen"]').trigger('click')
     const rows = wrapper.findAll('[data-testid="entity-row"]')
-    expect(rows[0].text()).toContain('Ritsya')
-    expect(rows[1].text()).toContain('Blue Bottle')
+    expect(rows[0].text()).toContain('Blue Bottle')
+    expect(rows[1].text()).toContain('Ritsya')
   })
 })
