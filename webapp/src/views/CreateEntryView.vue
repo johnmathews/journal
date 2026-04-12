@@ -66,7 +66,7 @@ const tabs = [
               ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm'
               : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200',
           ]"
-          @click="activeTab = tab.key"
+          @click="activeTab = tab.key; entriesStore.createError = null"
         >
           {{ tab.label }}
         </button>
@@ -76,9 +76,15 @@ const tabs = [
     <!-- Error display -->
     <div
       v-if="entriesStore.createError"
-      class="mb-4 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300"
+      class="mb-4 flex items-start gap-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300"
     >
-      {{ entriesStore.createError }}
+      <p class="flex-1">{{ entriesStore.createError }}</p>
+      <button
+        class="shrink-0 text-red-400 hover:text-red-600 dark:hover:text-red-200"
+        @click="entriesStore.createError = null"
+      >
+        &times;
+      </button>
     </div>
 
     <!-- Tab panels -->

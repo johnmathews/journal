@@ -65,7 +65,7 @@ export async function apiFetch<T>(
     try {
       const body = await response.json()
       errorCode = body.error || errorCode
-      message = body.message || message
+      message = body.message || body.error || message
     } catch {
       // ignore parse errors
     }
