@@ -11,7 +11,12 @@ import BatchJobModal from '@/components/BatchJobModal.vue'
 const store = useEntitiesStore()
 
 // Sorting state — default: last_seen descending (most recent at top)
-type SortKey = 'canonical_name' | 'entity_type' | 'mention_count' | 'first_seen' | 'last_seen'
+type SortKey =
+  | 'canonical_name'
+  | 'entity_type'
+  | 'mention_count'
+  | 'first_seen'
+  | 'last_seen'
 const sortKey = ref<SortKey>('last_seen')
 const sortAsc = ref(false)
 
@@ -20,7 +25,10 @@ function toggleSort(key: SortKey) {
     sortAsc.value = !sortAsc.value
   } else {
     sortKey.value = key
-    sortAsc.value = key === 'mention_count' || key === 'last_seen' || key === 'first_seen' ? false : true
+    sortAsc.value =
+      key === 'mention_count' || key === 'last_seen' || key === 'first_seen'
+        ? false
+        : true
   }
 }
 

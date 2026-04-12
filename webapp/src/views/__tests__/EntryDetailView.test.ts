@@ -27,7 +27,7 @@ vi.mock('@/api/entries', () => ({
     entry_date: '2026-03-22',
     source_type: 'ocr',
     raw_text: 'Original OCR text here.',
-    final_text: 'Corrected text here.',
+    final_text: 'Original OCR text here.',
     page_count: 2,
     word_count: 4,
     chunk_count: 1,
@@ -175,13 +175,31 @@ describe('EntryDetailView', () => {
   })
 
   it('highlights diff spans in both panels when original and corrected differ', async () => {
+    // Override fetchEntry so raw_text and final_text differ (triggers diff).
+    // This entry defaults to read mode; switch to edit to see the panels.
+    const { fetchEntry } = await import('@/api/entries')
+    ;(fetchEntry as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      id: 1,
+      entry_date: '2026-03-22',
+      source_type: 'ocr',
+      raw_text: 'Original OCR text here.',
+      final_text: 'Corrected text here.',
+      page_count: 2,
+      word_count: 4,
+      chunk_count: 1,
+      language: 'en',
+      created_at: '2026-03-23T10:30:00Z',
+      updated_at: '2026-03-23T10:30:00Z',
+    })
     const wrapper = mountComponent()
     await flushPromises()
     await wrapper.vm.$nextTick()
 
-    // Mock data: raw_text="Original OCR text here.", final_text="Corrected text here."
-    // The diff should produce at least one delete span in the original
-    // panel and one insert span on the corrected backdrop.
+    // Switch from read mode to edit mode
+    const editRadio = wrapper.find('[data-testid="view-mode-radio-edit"]')
+    await editRadio.setValue(true)
+    await wrapper.vm.$nextTick()
+
     const originalHtml = wrapper.find('[data-testid="ocr-display"]').html()
     expect(originalHtml).toContain('<mark')
     expect(originalHtml).toContain('bg-red-100')
@@ -191,8 +209,27 @@ describe('EntryDetailView', () => {
   })
 
   it('hides the legend and strips highlight marks when the diff toggle is turned off', async () => {
+    const { fetchEntry } = await import('@/api/entries')
+    ;(fetchEntry as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      id: 1,
+      entry_date: '2026-03-22',
+      source_type: 'ocr',
+      raw_text: 'Original OCR text here.',
+      final_text: 'Corrected text here.',
+      page_count: 2,
+      word_count: 4,
+      chunk_count: 1,
+      language: 'en',
+      created_at: '2026-03-23T10:30:00Z',
+      updated_at: '2026-03-23T10:30:00Z',
+    })
     const wrapper = mountComponent()
     await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    // Switch from read mode to edit mode
+    const editRadio = wrapper.find('[data-testid="view-mode-radio-edit"]')
+    await editRadio.setValue(true)
     await wrapper.vm.$nextTick()
 
     // With diff on, the original panel contains mark tags.
@@ -488,7 +525,7 @@ describe('EntryDetailView', () => {
     await wrapper.vm.$nextTick()
 
     expect((textarea.element as HTMLTextAreaElement).value).toBe(
-      'Corrected text here.',
+      'Original OCR text here.',
     )
     expect(wrapper.find('[data-testid="unsaved-indicator"]').exists()).toBe(
       false,
@@ -496,8 +533,20 @@ describe('EntryDetailView', () => {
   })
 
   it('renders the Modified badge when raw_text differs from final_text', async () => {
-    // Default mock has raw_text="Original OCR text here."
-    // and final_text="Corrected text here." — they differ, so the badge is shown.
+    const { fetchEntry } = await import('@/api/entries')
+    ;(fetchEntry as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      id: 1,
+      entry_date: '2026-03-22',
+      source_type: 'ocr',
+      raw_text: 'Original OCR text here.',
+      final_text: 'Corrected text here.',
+      page_count: 2,
+      word_count: 4,
+      chunk_count: 1,
+      language: 'en',
+      created_at: '2026-03-23T10:30:00Z',
+      updated_at: '2026-03-23T10:30:00Z',
+    })
     const wrapper = mountComponent()
     await flushPromises()
     await wrapper.vm.$nextTick()

@@ -27,6 +27,27 @@ const { editedText, saving, saveError, isDirty, isModified, reset } =
 const deleting = ref(false)
 const deleteError = ref<string | null>(null)
 
+// View mode: 'read' for pleasant single-pane reading, 'edit' for two-pane editor.
+// Default depends on whether the entry has been corrected before.
+type ViewMode = 'read' | 'edit'
+const viewMode = ref<ViewMode>('edit')
+const viewModeDefaultSet = ref(false)
+
+// Set default view mode once per entry load. We watch the entry's id
+// (not isModified) so this fires exactly once per navigation. A
+// follow-up tick via nextTick ensures the entry's text fields have
+// settled before reading isModified.
+watch(
+  () => store.currentEntry?.id,
+  async (id) => {
+    if (id == null) return
+    viewModeDefaultSet.value = false
+    await nextTick()
+    viewMode.value = isModified.value ? 'read' : 'edit'
+    viewModeDefaultSet.value = true
+  },
+)
+
 // Date editing
 const editingDate = ref(false)
 const editedDate = ref('')
@@ -106,25 +127,46 @@ const { originalHtml: rawOriginalHtml, correctedHtml: rawCorrectedHtml } =
     uncertainSpans,
   })
 
-// Entity highlight — from ?highlight= query param or from clicking a chip
-const chipHighlight = ref('')
-const highlightTerm = computed(
-  () =>
-    chipHighlight.value || (route.query.highlight as string | undefined) || '',
-)
+// Entity highlight — from ?highlight= query param or from clicking a chip.
+// We track the selected entity by ID so we can use its quotes + aliases for
+// matching, not just the canonical_name.
+const selectedEntityId = ref<number | null>(null)
 
-function toggleEntityHighlight(name: string) {
-  chipHighlight.value = chipHighlight.value === name ? '' : name
+const highlightTerms = computed<string[]>(() => {
+  // Query-param highlight is a simple single-term fallback
+  const qp = (route.query.highlight as string | undefined) || ''
+  if (qp) return [qp]
+
+  if (selectedEntityId.value === null) return []
+  const chip = entryEntities.value.find((e) => e.id === selectedEntityId.value)
+  if (!chip) return []
+
+  // Combine canonical_name, aliases, and quotes — deduplicated
+  const terms = new Set<string>()
+  terms.add(chip.canonical_name)
+  for (const a of chip.aliases ?? []) terms.add(a)
+  for (const q of chip.quotes ?? []) terms.add(q)
+  // Filter empties, sort longest-first so longer quotes match before substrings
+  return [...terms]
+    .filter((t) => t.length > 0)
+    .sort((a, b) => b.length - a.length)
+})
+
+function toggleEntityHighlight(chip: EntryEntityRef) {
+  selectedEntityId.value = selectedEntityId.value === chip.id ? null : chip.id
 }
 
-function applyEntityHighlight(html: string, term: string): string {
-  if (!term) return html
-  // Escape for regex and for HTML (the text in the HTML is already escaped)
-  const escaped = term
+function escapeForHighlight(term: string): string {
+  return term
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-  const pattern = escaped.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function applyEntityHighlight(html: string, terms: string[]): string {
+  if (!terms.length) return html
+  const pattern = terms.map(escapeForHighlight).join('|')
   const regex = new RegExp(`(${pattern})`, 'gi')
   // Only replace within text nodes (outside HTML tags)
   return html.replace(/([^<>]+)/g, (textNode) =>
@@ -136,11 +178,35 @@ function applyEntityHighlight(html: string, term: string): string {
 }
 
 const originalHtml = computed(() =>
-  applyEntityHighlight(rawOriginalHtml.value, highlightTerm.value),
+  applyEntityHighlight(rawOriginalHtml.value, highlightTerms.value),
 )
 const correctedHtml = computed(() =>
-  applyEntityHighlight(rawCorrectedHtml.value, highlightTerm.value),
+  applyEntityHighlight(rawCorrectedHtml.value, highlightTerms.value),
 )
+
+// Reading mode: render editedText (which includes unsaved edits) with entity
+// highlighting. Plain text → escaped HTML → entity marks.
+function textToHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+const readingHtml = computed(() =>
+  applyEntityHighlight(textToHtml(editedText.value), highlightTerms.value),
+)
+
+// Scroll to the first <mark> after entity highlight changes
+const textPanelsRef = ref<HTMLElement | null>(null)
+watch(selectedEntityId, async (id) => {
+  if (id === null) return
+  await nextTick()
+  // Wait one more frame for v-html to finish rendering
+  await nextTick()
+  const container =
+    textPanelsRef.value ?? document.querySelector('.entry-detail')
+  const mark = container?.querySelector('mark')
+  if (mark) {
+    mark.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+})
 
 // -- Overlay feature (chunks / tokens) -----------------------------------
 // The overlay renders against the persisted final_text — NOT editedText —
@@ -563,239 +629,290 @@ onBeforeUnmount(() => {
             class="inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-0.5 capitalize transition-all cursor-pointer"
             :class="[
               entityChipClass(chip.entity_type),
-              chipHighlight === chip.canonical_name
+              selectedEntityId === chip.id
                 ? 'ring-2 ring-violet-500 ring-offset-1 dark:ring-offset-gray-800'
                 : 'hover:opacity-80',
             ]"
             :title="`Highlight '${chip.canonical_name}' in the text`"
             :data-testid="`entry-entity-chip-${chip.id}`"
-            @click="toggleEntityHighlight(chip.canonical_name)"
+            @click="toggleEntityHighlight(chip)"
           >
             {{ chip.canonical_name }}
           </button>
         </div>
-      </div>
 
-      <!-- Save error banner -->
-      <div
-        v-if="saveError"
-        class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
-        data-testid="save-error-banner"
-      >
-        {{ saveError }}
-      </div>
-
-      <!-- Delete error banner -->
-      <div
-        v-if="deleteError"
-        class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
-        data-testid="delete-error-banner"
-      >
-        {{ deleteError }}
-      </div>
-
-      <!-- Overlay error banner (e.g. chunks_not_backfilled) -->
-      <div
-        v-if="overlayError"
-        class="mb-4 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800/40 rounded-lg px-4 py-3 text-sm"
-        data-testid="overlay-error-banner"
-      >
-        {{ overlayError }}
-      </div>
-
-      <!-- Editor toolbar -->
-      <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div class="min-h-[2rem] flex items-center gap-4">
-          <span
-            v-if="isDirty"
-            class="text-sm font-medium text-yellow-600 dark:text-yellow-400"
-            data-testid="unsaved-indicator"
-          >
-            Unsaved changes
-          </span>
+        <!-- View mode toggle: Read / Edit -->
+        <div
+          class="flex items-center gap-1 mt-3 text-sm select-none"
+          data-testid="view-mode-group"
+          role="radiogroup"
+          aria-label="View mode"
+        >
           <label
-            class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 cursor-pointer select-none"
-            data-testid="diff-toggle-label"
+            v-for="m in ['read', 'edit'] as const"
+            :key="m"
+            class="cursor-pointer"
           >
             <input
-              v-model="showDiff"
-              type="checkbox"
-              class="form-checkbox rounded text-violet-500 focus:ring-violet-500"
-              data-testid="diff-toggle"
+              v-model="viewMode"
+              type="radio"
+              :value="m"
+              name="view-mode"
+              class="sr-only peer"
+              :data-testid="`view-mode-radio-${m}`"
             />
-            Show diff
+            <span
+              class="inline-block px-3 py-1 rounded text-sm font-medium border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 capitalize peer-checked:bg-violet-500 peer-checked:text-white peer-checked:border-violet-500 peer-focus-visible:ring-2 peer-focus-visible:ring-violet-400"
+            >
+              {{ m }}
+            </span>
           </label>
-          <!--
+        </div>
+      </div>
+
+      <!-- ============ READING MODE ============ -->
+      <template v-if="viewMode === 'read'">
+        <div class="flex justify-center">
+          <div
+            ref="textPanelsRef"
+            class="w-full max-w-prose bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-6 md:p-10"
+          >
+            <!-- eslint-disable vue/no-v-html -->
+            <div
+              class="reading-surface text-gray-800 dark:text-gray-200"
+              data-testid="reading-display"
+              v-html="readingHtml"
+            />
+            <!-- eslint-enable vue/no-v-html -->
+          </div>
+        </div>
+      </template>
+
+      <!-- ============ EDIT MODE ============ -->
+      <template v-else>
+        <!-- Save error banner -->
+        <div
+          v-if="saveError"
+          class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+          data-testid="save-error-banner"
+        >
+          {{ saveError }}
+        </div>
+
+        <!-- Delete error banner -->
+        <div
+          v-if="deleteError"
+          class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+          data-testid="delete-error-banner"
+        >
+          {{ deleteError }}
+        </div>
+
+        <!-- Overlay error banner (e.g. chunks_not_backfilled) -->
+        <div
+          v-if="overlayError"
+          class="mb-4 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800/40 rounded-lg px-4 py-3 text-sm"
+          data-testid="overlay-error-banner"
+        >
+          {{ overlayError }}
+        </div>
+
+        <!-- Editor toolbar -->
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div class="min-h-[2rem] flex items-center gap-4">
+            <span
+              v-if="isDirty"
+              class="text-sm font-medium text-yellow-600 dark:text-yellow-400"
+              data-testid="unsaved-indicator"
+            >
+              Unsaved changes
+            </span>
+            <label
+              class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 cursor-pointer select-none"
+              data-testid="diff-toggle-label"
+            >
+              <input
+                v-model="showDiff"
+                type="checkbox"
+                class="form-checkbox rounded text-violet-500 focus:ring-violet-500"
+                data-testid="diff-toggle"
+              />
+              Show diff
+            </label>
+            <!--
             Review toggle: overlays OCR uncertainty highlights on the
             Original OCR panel. Always clickable — when no uncertain
             spans exist, toggling it on shows an info banner instead
             of silently doing nothing.
           -->
-          <label
-            class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 cursor-pointer select-none"
-            title="Highlight words the OCR model flagged as uncertain"
-            data-testid="review-toggle-label"
-          >
-            <input
-              v-model="showReview"
-              type="checkbox"
-              class="form-checkbox rounded text-yellow-500 focus:ring-yellow-500"
-              data-testid="review-toggle"
-            />
-            Review
-          </label>
-          <!--
+            <label
+              class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 cursor-pointer select-none"
+              title="Highlight words the OCR model flagged as uncertain"
+              data-testid="review-toggle-label"
+            >
+              <input
+                v-model="showReview"
+                type="checkbox"
+                class="form-checkbox rounded text-yellow-500 focus:ring-yellow-500"
+                data-testid="review-toggle"
+              />
+              Review
+            </label>
+            <!--
             Overlay mode: segmented radio group. Renders chunk or token
             boundaries on top of the corrected panel. While active the
             textarea becomes read-only so edits can't drift away from the
             offsets the server returned.
           -->
-          <div
-            class="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-300 select-none"
-            data-testid="overlay-mode-group"
-            role="radiogroup"
-            aria-label="Overlay mode"
-          >
-            <span
-              class="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mr-1"
+            <div
+              class="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-300 select-none"
+              data-testid="overlay-mode-group"
+              role="radiogroup"
+              aria-label="Overlay mode"
             >
-              Overlay
-            </span>
-            <label
-              v-for="m in ['off', 'chunks', 'tokens'] as const"
-              :key="m"
-              class="cursor-pointer"
-            >
-              <input
-                v-model="overlayMode"
-                type="radio"
-                :value="m"
-                name="overlay-mode"
-                class="sr-only peer"
-                :data-testid="`overlay-radio-${m}`"
-              />
               <span
-                class="inline-block px-2 py-0.5 rounded text-xs border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 peer-checked:bg-violet-500 peer-checked:text-white peer-checked:border-violet-500 peer-focus-visible:ring-2 peer-focus-visible:ring-violet-400"
+                class="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mr-1"
               >
-                {{ m }}
+                Overlay
               </span>
-            </label>
-          </div>
-          <!-- Legend (visible when diff or review is on) -->
-          <div
-            v-if="showDiff || showReview"
-            class="hidden sm:flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400"
-            data-testid="diff-legend"
-          >
-            <span v-if="showDiff" class="flex items-center gap-1">
-              <span
-                class="inline-block w-3 h-3 rounded bg-red-100 dark:bg-red-900/40 border border-red-200 dark:border-red-800/40"
-              />
-              removed
-            </span>
-            <span v-if="showDiff" class="flex items-center gap-1">
-              <span
-                class="inline-block w-3 h-3 rounded bg-emerald-100 dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800/40"
-              />
-              added
-            </span>
-            <span
-              v-if="showReview"
-              class="flex items-center gap-1"
-              data-testid="review-legend"
+              <label
+                v-for="m in ['off', 'chunks', 'tokens'] as const"
+                :key="m"
+                class="cursor-pointer"
+              >
+                <input
+                  v-model="overlayMode"
+                  type="radio"
+                  :value="m"
+                  name="overlay-mode"
+                  class="sr-only peer"
+                  :data-testid="`overlay-radio-${m}`"
+                />
+                <span
+                  class="inline-block px-2 py-0.5 rounded text-xs border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 peer-checked:bg-violet-500 peer-checked:text-white peer-checked:border-violet-500 peer-focus-visible:ring-2 peer-focus-visible:ring-violet-400"
+                >
+                  {{ m }}
+                </span>
+              </label>
+            </div>
+            <!-- Legend (visible when diff or review is on) -->
+            <div
+              v-if="showDiff || showReview"
+              class="hidden sm:flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400"
+              data-testid="diff-legend"
             >
+              <span v-if="showDiff" class="flex items-center gap-1">
+                <span
+                  class="inline-block w-3 h-3 rounded bg-red-100 dark:bg-red-900/40 border border-red-200 dark:border-red-800/40"
+                />
+                removed
+              </span>
+              <span v-if="showDiff" class="flex items-center gap-1">
+                <span
+                  class="inline-block w-3 h-3 rounded bg-emerald-100 dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800/40"
+                />
+                added
+              </span>
               <span
-                class="inline-block w-3 h-3 rounded bg-yellow-200 dark:bg-yellow-400/40 border border-yellow-300 dark:border-yellow-500/40"
-              />
-              uncertain
-            </span>
+                v-if="showReview"
+                class="flex items-center gap-1"
+                data-testid="review-legend"
+              >
+                <span
+                  class="inline-block w-3 h-3 rounded bg-yellow-200 dark:bg-yellow-400/40 border border-yellow-300 dark:border-yellow-500/40"
+                />
+                uncertain
+              </span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              class="btn bg-white dark:bg-gray-800 border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="saving || deleting"
+              data-testid="delete-button"
+              @click="confirmDelete"
+            >
+              <svg class="w-4 h-4 fill-current mr-1" viewBox="0 0 16 16">
+                <path
+                  d="M5 3V2a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1h3a1 1 0 1 1 0 2h-.117l-.72 9.36A2 2 0 0 1 11.17 16H4.83a2 2 0 0 1-1.993-1.64L2.117 5H2a1 1 0 0 1 0-2h3Zm2 0h2V3H7Zm-2.88 2 .71 9.25a.01.01 0 0 0 .01.01h6.32a.01.01 0 0 0 .01-.01L11.88 5H4.12Z"
+                />
+              </svg>
+              {{ deleting ? 'Deleting…' : 'Delete' }}
+            </button>
+            <button
+              class="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="!isDirty || saving"
+              data-testid="reset-button"
+              @click="reset"
+            >
+              <svg class="w-4 h-4 fill-current mr-1" viewBox="0 0 16 16">
+                <path
+                  d="M8 2a6 6 0 1 0 5.197 3H15a8 8 0 1 1-1-4.928V1a1 1 0 1 1 2 0v3a1 1 0 0 1-1 1h-3a1 1 0 1 1 0-2h.228A6 6 0 0 0 8 2Z"
+                />
+              </svg>
+              Reset
+            </button>
+            <button
+              class="btn bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="!isDirty || saving"
+              data-testid="save-button"
+              @click="save"
+            >
+              <svg class="w-4 h-4 fill-current mr-1" viewBox="0 0 16 16">
+                <path d="M13.7 4.3 6 12l-3.7-3.7 1.4-1.4L6 9.2l6.3-6.3z" />
+              </svg>
+              {{ saving ? 'Saving…' : 'Save' }}
+            </button>
           </div>
         </div>
-        <div class="flex items-center gap-2">
-          <button
-            class="btn bg-white dark:bg-gray-800 border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
-            :disabled="saving || deleting"
-            data-testid="delete-button"
-            @click="confirmDelete"
-          >
-            <svg class="w-4 h-4 fill-current mr-1" viewBox="0 0 16 16">
-              <path
-                d="M5 3V2a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1h3a1 1 0 1 1 0 2h-.117l-.72 9.36A2 2 0 0 1 11.17 16H4.83a2 2 0 0 1-1.993-1.64L2.117 5H2a1 1 0 0 1 0-2h3Zm2 0h2V3H7Zm-2.88 2 .71 9.25a.01.01 0 0 0 .01.01h6.32a.01.01 0 0 0 .01-.01L11.88 5H4.12Z"
-              />
-            </svg>
-            {{ deleting ? 'Deleting…' : 'Delete' }}
-          </button>
-          <button
-            class="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-            :disabled="!isDirty || saving"
-            data-testid="reset-button"
-            @click="reset"
-          >
-            <svg class="w-4 h-4 fill-current mr-1" viewBox="0 0 16 16">
-              <path
-                d="M8 2a6 6 0 1 0 5.197 3H15a8 8 0 1 1-1-4.928V1a1 1 0 1 1 2 0v3a1 1 0 0 1-1 1h-3a1 1 0 1 1 0-2h.228A6 6 0 0 0 8 2Z"
-              />
-            </svg>
-            Reset
-          </button>
-          <button
-            class="btn bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-            :disabled="!isDirty || saving"
-            data-testid="save-button"
-            @click="save"
-          >
-            <svg class="w-4 h-4 fill-current mr-1" viewBox="0 0 16 16">
-              <path d="M13.7 4.3 6 12l-3.7-3.7 1.4-1.4L6 9.2l6.3-6.3z" />
-            </svg>
-            {{ saving ? 'Saving…' : 'Save' }}
-          </button>
-        </div>
-      </div>
 
-      <!-- Review info banner — shown when Review is toggled on but no uncertain spans exist -->
-      <div
-        v-if="showReview && !hasUncertainSpans"
-        class="mb-4 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40 rounded-lg px-4 py-3 text-sm"
-        data-testid="review-no-spans-banner"
-      >
-        No uncertain words or phrases were detected in this entry. The OCR model
-        was confident about every word on this page.
-      </div>
-
-      <!-- Side-by-side editor panels (static 50/50) -->
-      <div class="flex flex-col lg:flex-row gap-4 lg:min-h-[500px]">
-        <section
-          class="flex-1 min-h-[300px] lg:min-h-0 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
+        <!-- Review info banner — shown when Review is toggled on but no uncertain spans exist -->
+        <div
+          v-if="showReview && !hasUncertainSpans"
+          class="mb-4 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40 rounded-lg px-4 py-3 text-sm"
+          data-testid="review-no-spans-banner"
         >
-          <h2
-            class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3"
+          No uncertain words or phrases were detected in this entry. The OCR
+          model was confident about every word on this page.
+        </div>
+
+        <!-- Side-by-side editor panels (static 50/50) -->
+        <div
+          ref="textPanelsRef"
+          class="flex flex-col lg:flex-row gap-4 lg:min-h-[500px]"
+        >
+          <section
+            class="flex-1 min-h-[300px] lg:min-h-0 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
           >
-            Original OCR
-          </h2>
-          <!--
+            <h2
+              class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3"
+            >
+              Original OCR
+            </h2>
+            <!--
             Original text: read-only, renders highlighted HTML from the diff.
             The HTML is produced by useDiffHighlight, which escapes every
             chunk of user text via escapeHtml() before wrapping it in
             <mark> spans. Safe to v-html.
           -->
-          <!-- eslint-disable vue/no-v-html -->
-          <div
-            class="diff-surface flex-1 w-full overflow-auto bg-gray-50 dark:bg-gray-900/40 text-gray-600 dark:text-gray-400 rounded-md border border-gray-200 dark:border-gray-700/60 px-3 py-2"
-            data-testid="ocr-display"
-            v-html="originalHtml"
-          />
-          <!-- eslint-enable vue/no-v-html -->
-        </section>
+            <!-- eslint-disable vue/no-v-html -->
+            <div
+              class="diff-surface flex-1 w-full overflow-auto bg-gray-50 dark:bg-gray-900/40 text-gray-600 dark:text-gray-400 rounded-md border border-gray-200 dark:border-gray-700/60 px-3 py-2"
+              data-testid="ocr-display"
+              v-html="originalHtml"
+            />
+            <!-- eslint-enable vue/no-v-html -->
+          </section>
 
-        <section
-          class="flex-1 min-h-[300px] lg:min-h-0 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
-        >
-          <h2
-            class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3"
+          <section
+            class="flex-1 min-h-[300px] lg:min-h-0 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
           >
-            Corrected Text
-          </h2>
-          <!--
+            <h2
+              class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3"
+            >
+              Corrected Text
+            </h2>
+            <!--
             Two presentation modes:
 
             1. Overlay OFF — mirror-div editor: a styled backdrop
@@ -810,47 +927,49 @@ onBeforeUnmount(() => {
                cannot edit while the overlay is active, so chunk/token
                offsets cannot drift from the rendered text.
           -->
-          <div
-            class="corrected-wrapper relative flex-1 rounded-md border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-900/40 overflow-hidden"
-          >
-            <template v-if="overlayMode === 'off'">
-              <!-- eslint-disable vue/no-v-html -->
-              <div
-                ref="correctedBackdrop"
-                class="diff-surface absolute inset-0 overflow-auto px-3 py-2 pointer-events-none text-gray-900 dark:text-gray-100"
-                aria-hidden="true"
-                v-html="correctedHtml"
-              />
-              <!-- eslint-enable vue/no-v-html -->
-              <textarea
-                ref="correctedTextarea"
-                v-model="editedText"
-                spellcheck="false"
-                class="diff-surface absolute inset-0 w-full h-full bg-transparent text-transparent caret-gray-900 dark:caret-white resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/40 rounded-md px-3 py-2"
-                data-testid="corrected-textarea"
-                @scroll="syncCorrectedScroll"
-                @input="syncCorrectedScroll"
-              />
-            </template>
-            <template v-else>
-              <!-- eslint-disable vue/no-v-html -->
-              <div
-                class="diff-surface absolute inset-0 overflow-auto px-3 py-2 text-gray-900 dark:text-gray-100"
-                data-testid="overlay-display"
-                v-html="overlayHtml"
-              />
-              <!-- eslint-enable vue/no-v-html -->
-              <div
-                v-if="overlayLoading"
-                class="absolute top-2 right-2 text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300"
-                data-testid="overlay-loading"
-              >
-                Loading…
-              </div>
-            </template>
-          </div>
-        </section>
-      </div>
+            <div
+              class="corrected-wrapper relative flex-1 rounded-md border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-900/40 overflow-hidden"
+            >
+              <template v-if="overlayMode === 'off'">
+                <!-- eslint-disable vue/no-v-html -->
+                <div
+                  ref="correctedBackdrop"
+                  class="diff-surface absolute inset-0 overflow-auto px-3 py-2 pointer-events-none text-gray-900 dark:text-gray-100"
+                  aria-hidden="true"
+                  v-html="correctedHtml"
+                />
+                <!-- eslint-enable vue/no-v-html -->
+                <textarea
+                  ref="correctedTextarea"
+                  v-model="editedText"
+                  spellcheck="false"
+                  class="diff-surface absolute inset-0 w-full h-full bg-transparent text-transparent caret-gray-900 dark:caret-white resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/40 rounded-md px-3 py-2"
+                  data-testid="corrected-textarea"
+                  @scroll="syncCorrectedScroll"
+                  @input="syncCorrectedScroll"
+                />
+              </template>
+              <template v-else>
+                <!-- eslint-disable vue/no-v-html -->
+                <div
+                  class="diff-surface absolute inset-0 overflow-auto px-3 py-2 text-gray-900 dark:text-gray-100"
+                  data-testid="overlay-display"
+                  v-html="overlayHtml"
+                />
+                <!-- eslint-enable vue/no-v-html -->
+                <div
+                  v-if="overlayLoading"
+                  class="absolute top-2 right-2 text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300"
+                  data-testid="overlay-loading"
+                >
+                  Loading…
+                </div>
+              </template>
+            </div>
+          </section>
+        </div>
+      </template>
+      <!-- end edit mode -->
     </template>
 
     <!-- Fallback: nothing matched. Show a loading indicator rather
@@ -891,5 +1010,20 @@ onBeforeUnmount(() => {
 .diff-surface::selection {
   background: rgba(139, 92, 246, 0.25); /* violet-500 @ 25% */
   color: transparent;
+}
+
+/*
+  Reading mode: comfortable serif typography for pleasant reading.
+  Uses the same font family as diff-surface but with slightly larger
+  size and generous line-height.
+*/
+.reading-surface {
+  font-family: ui-serif, Georgia, Cambria, 'Times New Roman', serif;
+  font-size: 1.0625rem;
+  line-height: 1.8;
+  letter-spacing: normal;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 </style>

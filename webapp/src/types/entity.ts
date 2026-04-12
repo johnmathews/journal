@@ -38,6 +38,7 @@ export interface EntitySummary {
   mention_count: number
   first_seen: string
   last_seen: string
+  quotes?: string[]
 }
 
 export interface EntityMention {

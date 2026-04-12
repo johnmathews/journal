@@ -9,7 +9,7 @@ import ImageUploadPanel from '@/components/ImageUploadPanel.vue'
 const router = useRouter()
 const entriesStore = useEntriesStore()
 
-const activeTab = ref<'write' | 'import' | 'upload'>('write')
+const activeTab = ref<'write' | 'import' | 'upload'>('upload')
 const entryDate = ref(new Date().toISOString().slice(0, 10))
 
 function handleCreated(entryId: number) {
