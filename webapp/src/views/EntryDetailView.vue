@@ -40,7 +40,10 @@ function startEditDate() {
 }
 
 async function saveDate() {
-  if (!store.currentEntry || editedDate.value === store.currentEntry.entry_date) {
+  if (
+    !store.currentEntry ||
+    editedDate.value === store.currentEntry.entry_date
+  ) {
     editingDate.value = false
     return
   }
