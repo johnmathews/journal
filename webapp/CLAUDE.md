@@ -41,6 +41,17 @@ src/
 - Vitest + Vue Test Utils + happy-dom — testing
 - Chart.js 4 — charts via `src/utils/chartjs-config.ts` (direct, no wrapper)
 
+## Coverage Thresholds
+
+CI enforces minimum test coverage (configured in `vitest.config.ts`). The build fails if any metric drops below:
+
+- **Statements**: 90%
+- **Branches**: 85%
+- **Functions**: 90%
+- **Lines**: 90%
+
+When adding new components or store actions, add corresponding tests to stay above these thresholds.
+
 ## Backend
 
 The webapp connects to journal-server's REST API at /api/*. During development, Vite proxies these requests to localhost:8400 where the journal-server runs.

@@ -9,6 +9,11 @@ vi.mock('@/api/entities', () => ({
   fetchEntityRelationships: vi.fn(),
   fetchEntryEntities: vi.fn(),
   triggerEntityExtraction: vi.fn(),
+  updateEntity: vi.fn(),
+  deleteEntity: vi.fn(),
+  mergeEntities: vi.fn(),
+  fetchMergeCandidates: vi.fn(),
+  resolveMergeCandidate: vi.fn(),
 }))
 
 describe('entities store', () => {
@@ -187,5 +192,483 @@ describe('entities store', () => {
     expect(store.mentions).toEqual([])
     expect(store.outgoing).toEqual([])
     expect(store.incoming).toEqual([])
+  })
+
+  describe('updateCurrentEntity', () => {
+    it('updates currentEntity and syncs the list cache on success', async () => {
+      const { updateEntity } = await import('@/api/entities')
+      const updatedEntity = {
+        id: 5,
+        entity_type: 'place' as const,
+        canonical_name: 'Updated Name',
+        description: 'new desc',
+        aliases: ['alias1'],
+        first_seen: '2026-01-01',
+        created_at: '2026-01-01',
+        updated_at: '2026-04-12',
+      }
+      vi.mocked(updateEntity).mockResolvedValue(updatedEntity)
+
+      const store = useEntitiesStore()
+      store.currentEntity = {
+        id: 5,
+        entity_type: 'person',
+        canonical_name: 'Old Name',
+        description: '',
+        aliases: [],
+        first_seen: '2026-01-01',
+        created_at: '2026-01-01',
+        updated_at: '2026-01-01',
+      }
+      store.entities = [
+        {
+          id: 5,
+          entity_type: 'person',
+          canonical_name: 'Old Name',
+          aliases: [],
+          mention_count: 3,
+          first_seen: '2026-01-01',
+          last_seen: '2026-03-01',
+        },
+      ]
+
+      const result = await store.updateCurrentEntity({ canonical_name: 'Updated Name' })
+
+      expect(result).toEqual(updatedEntity)
+      expect(store.currentEntity).toEqual(updatedEntity)
+      expect(store.entities[0].canonical_name).toBe('Updated Name')
+      expect(store.entities[0].entity_type).toBe('place')
+      expect(store.entities[0].aliases).toEqual(['alias1'])
+      // mention_count should be preserved from the original summary
+      expect(store.entities[0].mention_count).toBe(3)
+      expect(updateEntity).toHaveBeenCalledWith(5, { canonical_name: 'Updated Name' })
+    })
+
+    it('throws when no entity is selected', async () => {
+      const store = useEntitiesStore()
+      store.currentEntity = null
+
+      await expect(store.updateCurrentEntity({ canonical_name: 'X' })).rejects.toThrow(
+        'No entity selected',
+      )
+      expect(store.error).toBe('No entity selected')
+    })
+
+    it('sets error and re-throws on API failure', async () => {
+      const { updateEntity } = await import('@/api/entities')
+      vi.mocked(updateEntity).mockRejectedValue(new Error('server error'))
+
+      const store = useEntitiesStore()
+      store.currentEntity = {
+        id: 1,
+        entity_type: 'person',
+        canonical_name: 'A',
+        description: '',
+        aliases: [],
+        first_seen: '',
+        created_at: '',
+        updated_at: '',
+      }
+
+      await expect(store.updateCurrentEntity({ canonical_name: 'B' })).rejects.toThrow(
+        'server error',
+      )
+      expect(store.error).toBe('server error')
+    })
+
+    it('falls back to generic message for non-Error rejection', async () => {
+      const { updateEntity } = await import('@/api/entities')
+      vi.mocked(updateEntity).mockRejectedValue('string rejection')
+
+      const store = useEntitiesStore()
+      store.currentEntity = {
+        id: 1,
+        entity_type: 'person',
+        canonical_name: 'A',
+        description: '',
+        aliases: [],
+        first_seen: '',
+        created_at: '',
+        updated_at: '',
+      }
+
+      await expect(store.updateCurrentEntity({ canonical_name: 'B' })).rejects.toBe(
+        'string rejection',
+      )
+      expect(store.error).toBe('Failed to update entity')
+    })
+  })
+
+  describe('removeEntity', () => {
+    it('removes entity from list, decrements total, and clears currentEntity when it matches', async () => {
+      const { deleteEntity } = await import('@/api/entities')
+      vi.mocked(deleteEntity).mockResolvedValue({ deleted: true, id: 7 })
+
+      const store = useEntitiesStore()
+      store.entities = [
+        {
+          id: 7,
+          entity_type: 'person',
+          canonical_name: 'ToDelete',
+          aliases: [],
+          mention_count: 1,
+          first_seen: '2026-01-01',
+          last_seen: '2026-01-01',
+        },
+        {
+          id: 8,
+          entity_type: 'place',
+          canonical_name: 'Keep',
+          aliases: [],
+          mention_count: 2,
+          first_seen: '2026-01-01',
+          last_seen: '2026-01-01',
+        },
+      ]
+      store.total = 2
+      store.currentEntity = {
+        id: 7,
+        entity_type: 'person',
+        canonical_name: 'ToDelete',
+        description: '',
+        aliases: [],
+        first_seen: '',
+        created_at: '',
+        updated_at: '',
+      }
+
+      await store.removeEntity(7)
+
+      expect(deleteEntity).toHaveBeenCalledWith(7)
+      expect(store.entities).toHaveLength(1)
+      expect(store.entities[0].id).toBe(8)
+      expect(store.total).toBe(1)
+      expect(store.currentEntity).toBeNull()
+    })
+
+    it('does not clear currentEntity when a different entity is removed', async () => {
+      const { deleteEntity } = await import('@/api/entities')
+      vi.mocked(deleteEntity).mockResolvedValue({ deleted: true, id: 9 })
+
+      const store = useEntitiesStore()
+      store.entities = [
+        {
+          id: 9,
+          entity_type: 'person',
+          canonical_name: 'Gone',
+          aliases: [],
+          mention_count: 1,
+          first_seen: '',
+          last_seen: '',
+        },
+      ]
+      store.total = 1
+      store.currentEntity = {
+        id: 99,
+        entity_type: 'place',
+        canonical_name: 'Different',
+        description: '',
+        aliases: [],
+        first_seen: '',
+        created_at: '',
+        updated_at: '',
+      }
+
+      await store.removeEntity(9)
+
+      expect(store.currentEntity?.id).toBe(99)
+    })
+
+    it('sets error and re-throws on failure', async () => {
+      const { deleteEntity } = await import('@/api/entities')
+      vi.mocked(deleteEntity).mockRejectedValue(new Error('forbidden'))
+
+      const store = useEntitiesStore()
+
+      await expect(store.removeEntity(1)).rejects.toThrow('forbidden')
+      expect(store.error).toBe('forbidden')
+    })
+  })
+
+  describe('mergeEntities', () => {
+    it('removes absorbed entities, decrements total, and updates survivor in list', async () => {
+      const { mergeEntities: mergeEntitiesApi } = await import('@/api/entities')
+      const mergeResponse = {
+        survivor: {
+          id: 1,
+          entity_type: 'person' as const,
+          canonical_name: 'Merged Name',
+          description: '',
+          aliases: ['old-alias'],
+          first_seen: '2026-01-01',
+          created_at: '',
+          updated_at: '',
+        },
+        absorbed_ids: [2, 3],
+        mentions_reassigned: 5,
+        relationships_reassigned: 2,
+        aliases_added: 1,
+      }
+      vi.mocked(mergeEntitiesApi).mockResolvedValue(mergeResponse)
+
+      const store = useEntitiesStore()
+      store.entities = [
+        {
+          id: 1,
+          entity_type: 'person',
+          canonical_name: 'Original',
+          aliases: [],
+          mention_count: 3,
+          first_seen: '2026-01-01',
+          last_seen: '2026-03-01',
+        },
+        {
+          id: 2,
+          entity_type: 'person',
+          canonical_name: 'Absorbed1',
+          aliases: [],
+          mention_count: 1,
+          first_seen: '2026-02-01',
+          last_seen: '2026-02-01',
+        },
+        {
+          id: 3,
+          entity_type: 'person',
+          canonical_name: 'Absorbed2',
+          aliases: [],
+          mention_count: 2,
+          first_seen: '2026-03-01',
+          last_seen: '2026-03-01',
+        },
+      ]
+      store.total = 3
+
+      const result = await store.mergeEntities(1, [2, 3])
+
+      expect(result).toEqual(mergeResponse)
+      expect(mergeEntitiesApi).toHaveBeenCalledWith({ survivor_id: 1, absorbed_ids: [2, 3] })
+      expect(store.entities).toHaveLength(1)
+      expect(store.entities[0].id).toBe(1)
+      expect(store.entities[0].canonical_name).toBe('Merged Name')
+      expect(store.entities[0].aliases).toEqual(['old-alias'])
+      expect(store.total).toBe(1)
+    })
+
+    it('works when survivor is not in the list (idx === -1)', async () => {
+      const { mergeEntities: mergeEntitiesApi } = await import('@/api/entities')
+      vi.mocked(mergeEntitiesApi).mockResolvedValue({
+        survivor: {
+          id: 100,
+          entity_type: 'person',
+          canonical_name: 'Survivor',
+          description: '',
+          aliases: [],
+          first_seen: '',
+          created_at: '',
+          updated_at: '',
+        },
+        absorbed_ids: [2],
+        mentions_reassigned: 0,
+        relationships_reassigned: 0,
+        aliases_added: 0,
+      })
+
+      const store = useEntitiesStore()
+      store.entities = [
+        {
+          id: 2,
+          entity_type: 'person',
+          canonical_name: 'Absorbed',
+          aliases: [],
+          mention_count: 1,
+          first_seen: '',
+          last_seen: '',
+        },
+      ]
+      store.total = 1
+
+      await store.mergeEntities(100, [2])
+
+      // Absorbed entity removed, survivor not in list so no update
+      expect(store.entities).toHaveLength(0)
+      expect(store.total).toBe(0)
+    })
+
+    it('sets error and re-throws on failure', async () => {
+      const { mergeEntities: mergeEntitiesApi } = await import('@/api/entities')
+      vi.mocked(mergeEntitiesApi).mockRejectedValue(new Error('merge failed'))
+
+      const store = useEntitiesStore()
+
+      await expect(store.mergeEntities(1, [2])).rejects.toThrow('merge failed')
+      expect(store.error).toBe('merge failed')
+    })
+  })
+
+  describe('loadMergeCandidates', () => {
+    it('populates mergeCandidates and mergeCandidatesTotal on success', async () => {
+      const { fetchMergeCandidates } = await import('@/api/entities')
+      const candidate = {
+        id: 10,
+        entity_a: {
+          id: 1,
+          entity_type: 'person' as const,
+          canonical_name: 'A',
+          aliases: [],
+          mention_count: 2,
+          first_seen: '2026-01-01',
+          last_seen: '2026-02-01',
+        },
+        entity_b: {
+          id: 2,
+          entity_type: 'person' as const,
+          canonical_name: 'B',
+          aliases: [],
+          mention_count: 3,
+          first_seen: '2026-01-01',
+          last_seen: '2026-03-01',
+        },
+        similarity: 0.92,
+        status: 'pending' as const,
+        extraction_run_id: 'run-1',
+        created_at: '2026-04-01',
+      }
+      vi.mocked(fetchMergeCandidates).mockResolvedValue({
+        items: [candidate],
+        total: 1,
+      })
+
+      const store = useEntitiesStore()
+      await store.loadMergeCandidates()
+
+      expect(fetchMergeCandidates).toHaveBeenCalledWith('pending')
+      expect(store.mergeCandidates).toHaveLength(1)
+      expect(store.mergeCandidates[0].id).toBe(10)
+      expect(store.mergeCandidatesTotal).toBe(1)
+      expect(store.mergeCandidatesLoading).toBe(false)
+    })
+
+    it('sets error message on failure', async () => {
+      const { fetchMergeCandidates } = await import('@/api/entities')
+      vi.mocked(fetchMergeCandidates).mockRejectedValue(new Error('timeout'))
+
+      const store = useEntitiesStore()
+      await store.loadMergeCandidates()
+
+      expect(store.error).toBe('timeout')
+      expect(store.mergeCandidatesLoading).toBe(false)
+    })
+  })
+
+  describe('dismissMergeCandidate', () => {
+    it('calls resolveMergeCandidate with dismissed, filters candidate out, decrements total', async () => {
+      const { resolveMergeCandidate } = await import('@/api/entities')
+      vi.mocked(resolveMergeCandidate).mockResolvedValue({ id: 5, status: 'dismissed' })
+
+      const store = useEntitiesStore()
+      store.mergeCandidates = [
+        {
+          id: 5,
+          entity_a: {
+            id: 1,
+            entity_type: 'person',
+            canonical_name: 'A',
+            aliases: [],
+            mention_count: 1,
+            first_seen: '',
+            last_seen: '',
+          },
+          entity_b: {
+            id: 2,
+            entity_type: 'person',
+            canonical_name: 'B',
+            aliases: [],
+            mention_count: 1,
+            first_seen: '',
+            last_seen: '',
+          },
+          similarity: 0.9,
+          status: 'pending',
+          extraction_run_id: 'run-1',
+          created_at: '',
+        },
+      ]
+      store.mergeCandidatesTotal = 1
+
+      await store.dismissMergeCandidate(5)
+
+      expect(resolveMergeCandidate).toHaveBeenCalledWith(5, 'dismissed')
+      expect(store.mergeCandidates).toHaveLength(0)
+      expect(store.mergeCandidatesTotal).toBe(0)
+    })
+  })
+
+  describe('acceptMergeCandidate', () => {
+    it('calls resolveMergeCandidate with accepted, filters candidate out, decrements total', async () => {
+      const { resolveMergeCandidate } = await import('@/api/entities')
+      vi.mocked(resolveMergeCandidate).mockResolvedValue({ id: 6, status: 'accepted' })
+
+      const store = useEntitiesStore()
+      store.mergeCandidates = [
+        {
+          id: 6,
+          entity_a: {
+            id: 10,
+            entity_type: 'place',
+            canonical_name: 'X',
+            aliases: [],
+            mention_count: 1,
+            first_seen: '',
+            last_seen: '',
+          },
+          entity_b: {
+            id: 11,
+            entity_type: 'place',
+            canonical_name: 'Y',
+            aliases: [],
+            mention_count: 1,
+            first_seen: '',
+            last_seen: '',
+          },
+          similarity: 0.85,
+          status: 'pending',
+          extraction_run_id: 'run-2',
+          created_at: '',
+        },
+        {
+          id: 7,
+          entity_a: {
+            id: 12,
+            entity_type: 'person',
+            canonical_name: 'Z',
+            aliases: [],
+            mention_count: 1,
+            first_seen: '',
+            last_seen: '',
+          },
+          entity_b: {
+            id: 13,
+            entity_type: 'person',
+            canonical_name: 'W',
+            aliases: [],
+            mention_count: 1,
+            first_seen: '',
+            last_seen: '',
+          },
+          similarity: 0.88,
+          status: 'pending',
+          extraction_run_id: 'run-2',
+          created_at: '',
+        },
+      ]
+      store.mergeCandidatesTotal = 2
+
+      await store.acceptMergeCandidate(6)
+
+      expect(resolveMergeCandidate).toHaveBeenCalledWith(6, 'accepted')
+      expect(store.mergeCandidates).toHaveLength(1)
+      expect(store.mergeCandidates[0].id).toBe(7)
+      expect(store.mergeCandidatesTotal).toBe(1)
+    })
   })
 })

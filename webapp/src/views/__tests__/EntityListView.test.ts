@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
@@ -583,6 +583,408 @@ describe('EntityListView', () => {
 
     // Clear
     await wrapper.find('[data-testid="clear-selection"]').trigger('click')
+    expect(wrapper.find('[data-testid="selection-toolbar"]').exists()).toBe(
+      false,
+    )
+  })
+
+  // ---- Merge modal flow ----
+
+  const twoEntities = {
+    items: [
+      {
+        id: 2,
+        entity_type: 'place' as const,
+        canonical_name: 'Blue Bottle',
+        aliases: [],
+        mention_count: 4,
+        first_seen: '2026-02-15',
+        last_seen: '2026-03-01',
+      },
+      {
+        id: 1,
+        entity_type: 'person' as const,
+        canonical_name: 'Ritsya',
+        aliases: ['Ritzya'],
+        mention_count: 12,
+        first_seen: '2026-01-02',
+        last_seen: '2026-03-22',
+      },
+    ],
+    total: 2,
+    limit: 50,
+    offset: 0,
+  }
+
+  const mergeSuccessResponse = {
+    survivor: {
+      id: 1,
+      entity_type: 'person' as const,
+      canonical_name: 'Ritsya',
+      description: '',
+      aliases: ['Ritzya'],
+      first_seen: '2026-01-02',
+      created_at: '',
+      updated_at: '',
+    },
+    absorbed_ids: [2],
+    mentions_reassigned: 4,
+    relationships_reassigned: 0,
+    aliases_added: 1,
+  }
+
+  const candidateFixture = {
+    items: [
+      {
+        id: 100,
+        entity_a: {
+          id: 1,
+          entity_type: 'person' as const,
+          canonical_name: 'Ritsya',
+          aliases: [],
+          mention_count: 12,
+          first_seen: '2026-01-02',
+          last_seen: '2026-03-22',
+        },
+        entity_b: {
+          id: 3,
+          entity_type: 'person' as const,
+          canonical_name: 'Ritzya',
+          aliases: [],
+          mention_count: 2,
+          first_seen: '2026-02-01',
+          last_seen: '2026-03-01',
+        },
+        similarity: 0.92,
+        status: 'pending' as const,
+        extraction_run_id: 'run-1',
+        created_at: '2026-04-01T00:00:00Z',
+      },
+    ],
+    total: 1,
+  }
+
+  describe('merge modal flow', () => {
+    afterEach(() => {
+      document.body.innerHTML = ''
+    })
+
+    it('opens merge modal with survivor options when 2 entities selected', async () => {
+      const { fetchEntities } = await import('@/api/entities')
+      vi.mocked(fetchEntities).mockResolvedValueOnce(twoEntities)
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      // Select both entities
+      const checkboxes = wrapper.findAll('[data-testid="entity-checkbox"]')
+      await checkboxes[0].trigger('change')
+      await checkboxes[1].trigger('change')
+
+      // Click merge button
+      await wrapper.find('[data-testid="merge-button"]').trigger('click')
+      await flushPromises()
+
+      // Modal content is teleported to body
+      const modal = document.body.querySelector('[data-testid="modal-panel"]')
+      expect(modal).not.toBeNull()
+      expect(modal!.textContent).toContain('Merge entities')
+
+      // Both survivor options should be present
+      expect(
+        document.body.querySelector('[data-testid="survivor-option-1"]'),
+      ).not.toBeNull()
+      expect(
+        document.body.querySelector('[data-testid="survivor-option-2"]'),
+      ).not.toBeNull()
+    })
+
+    it('executes merge: calls store, closes modal, clears selection, reloads', async () => {
+      const { fetchEntities, mergeEntities } = await import('@/api/entities')
+      vi.mocked(fetchEntities).mockResolvedValueOnce(twoEntities)
+      vi.mocked(mergeEntities).mockResolvedValueOnce(mergeSuccessResponse)
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      // Select both and open merge modal
+      const checkboxes = wrapper.findAll('[data-testid="entity-checkbox"]')
+      await checkboxes[0].trigger('change')
+      await checkboxes[1].trigger('change')
+      await wrapper.find('[data-testid="merge-button"]').trigger('click')
+      await flushPromises()
+
+      // Confirm merge
+      const confirmBtn = document.body.querySelector(
+        '[data-testid="confirm-merge-button"]',
+      ) as HTMLButtonElement
+      expect(confirmBtn).not.toBeNull()
+
+      const fetchSpy = vi.mocked(fetchEntities)
+      fetchSpy.mockClear()
+
+      confirmBtn.click()
+      await flushPromises()
+
+      // mergeEntities API was called
+      expect(mergeEntities).toHaveBeenCalledWith({
+        survivor_id: 1,
+        absorbed_ids: [2],
+      })
+
+      // Modal closed
+      expect(
+        document.body.querySelector('[data-testid="modal-panel"]'),
+      ).toBeNull()
+
+      // Selection cleared — no toolbar
+      expect(wrapper.find('[data-testid="selection-toolbar"]').exists()).toBe(
+        false,
+      )
+
+      // Entity list was reloaded
+      expect(fetchSpy).toHaveBeenCalled()
+    })
+
+    it('shows merge error when mergeEntities throws', async () => {
+      const { fetchEntities, mergeEntities } = await import('@/api/entities')
+      vi.mocked(fetchEntities).mockResolvedValueOnce(twoEntities)
+      vi.mocked(mergeEntities).mockRejectedValueOnce(
+        new Error('Conflict detected'),
+      )
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      // Select both and open merge modal
+      const checkboxes = wrapper.findAll('[data-testid="entity-checkbox"]')
+      await checkboxes[0].trigger('change')
+      await checkboxes[1].trigger('change')
+      await wrapper.find('[data-testid="merge-button"]').trigger('click')
+      await flushPromises()
+
+      // Confirm merge — will fail
+      const confirmBtn = document.body.querySelector(
+        '[data-testid="confirm-merge-button"]',
+      ) as HTMLButtonElement
+      confirmBtn.click()
+      await flushPromises()
+
+      // Modal stays open with error
+      const errorEl = document.body.querySelector(
+        '[data-testid="merge-error"]',
+      )
+      expect(errorEl).not.toBeNull()
+      expect(errorEl!.textContent).toContain('Conflict detected')
+
+      // Modal is still visible
+      expect(
+        document.body.querySelector('[data-testid="modal-panel"]'),
+      ).not.toBeNull()
+    })
+
+    it('cancel closes the merge modal without merging', async () => {
+      const { fetchEntities, mergeEntities } = await import('@/api/entities')
+      vi.mocked(fetchEntities).mockResolvedValueOnce(twoEntities)
+      vi.mocked(mergeEntities).mockClear()
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      // Select both and open merge modal
+      const checkboxes = wrapper.findAll('[data-testid="entity-checkbox"]')
+      await checkboxes[0].trigger('change')
+      await checkboxes[1].trigger('change')
+      await wrapper.find('[data-testid="merge-button"]').trigger('click')
+      await flushPromises()
+
+      expect(
+        document.body.querySelector('[data-testid="modal-panel"]'),
+      ).not.toBeNull()
+
+      // Find and click Cancel (the non-confirm button in the footer)
+      const footerBtns = document.body.querySelectorAll(
+        '[data-testid="modal-footer"] button',
+      )
+      // Cancel is the first button in the footer, confirm is the second
+      const cancelBtn = footerBtns[0] as HTMLButtonElement
+      cancelBtn.click()
+      await flushPromises()
+
+      // Modal closed
+      expect(
+        document.body.querySelector('[data-testid="modal-panel"]'),
+      ).toBeNull()
+
+      // mergeEntities was NOT called during this test
+      expect(mergeEntities).not.toHaveBeenCalled()
+    })
+  })
+
+  // ---- Merge candidate review ----
+
+  describe('merge candidate review', () => {
+    afterEach(() => {
+      document.body.innerHTML = ''
+    })
+
+    it('shows merge review banner when candidates exist', async () => {
+      const { fetchEntities, fetchMergeCandidates } =
+        await import('@/api/entities')
+      vi.mocked(fetchEntities).mockResolvedValueOnce(twoEntities)
+      vi.mocked(fetchMergeCandidates).mockResolvedValueOnce(candidateFixture)
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      const banner = wrapper.find('[data-testid="merge-review-section"]')
+      expect(banner.exists()).toBe(true)
+      // Badge shows the count
+      expect(banner.text()).toContain('1')
+      expect(banner.text()).toContain('Possible duplicates to review')
+    })
+
+    it('toggles candidate list on banner click', async () => {
+      const { fetchEntities, fetchMergeCandidates } =
+        await import('@/api/entities')
+      vi.mocked(fetchEntities).mockResolvedValueOnce(twoEntities)
+      vi.mocked(fetchMergeCandidates).mockResolvedValueOnce(candidateFixture)
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      // Initially collapsed
+      expect(
+        wrapper.find('[data-testid="merge-candidates-list"]').exists(),
+      ).toBe(false)
+
+      // Click to expand
+      await wrapper
+        .find('[data-testid="toggle-merge-review"]')
+        .trigger('click')
+      expect(
+        wrapper.find('[data-testid="merge-candidates-list"]').exists(),
+      ).toBe(true)
+      expect(
+        wrapper.find('[data-testid="merge-candidate-100"]').exists(),
+      ).toBe(true)
+
+      // Click to collapse
+      await wrapper
+        .find('[data-testid="toggle-merge-review"]')
+        .trigger('click')
+      expect(
+        wrapper.find('[data-testid="merge-candidates-list"]').exists(),
+      ).toBe(false)
+    })
+
+    it('accept candidate calls resolveMergeCandidate, mergeEntities, and reloads', async () => {
+      const {
+        fetchEntities,
+        fetchMergeCandidates,
+        resolveMergeCandidate,
+        mergeEntities,
+      } = await import('@/api/entities')
+      vi.mocked(fetchEntities).mockResolvedValueOnce(twoEntities)
+      vi.mocked(fetchMergeCandidates).mockResolvedValueOnce(candidateFixture)
+      vi.mocked(resolveMergeCandidate).mockResolvedValueOnce({
+        id: 100,
+        status: 'accepted',
+      })
+      vi.mocked(mergeEntities).mockResolvedValueOnce({
+        survivor: {
+          id: 1,
+          entity_type: 'person',
+          canonical_name: 'Ritsya',
+          description: '',
+          aliases: ['Ritzya'],
+          first_seen: '2026-01-02',
+          created_at: '',
+          updated_at: '',
+        },
+        absorbed_ids: [3],
+        mentions_reassigned: 2,
+        relationships_reassigned: 0,
+        aliases_added: 0,
+      })
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      // Expand candidate list
+      await wrapper
+        .find('[data-testid="toggle-merge-review"]')
+        .trigger('click')
+
+      const fetchSpy = vi.mocked(fetchEntities)
+      fetchSpy.mockClear()
+
+      // Click accept/merge on the candidate
+      await wrapper.find('[data-testid="accept-candidate"]').trigger('click')
+      await flushPromises()
+
+      // resolveMergeCandidate was called with "accepted"
+      expect(resolveMergeCandidate).toHaveBeenCalledWith(100, 'accepted')
+
+      // mergeEntities was called — entity_a (Ritsya, 12 mentions) is survivor,
+      // entity_b (Ritzya, 2 mentions) is absorbed
+      expect(mergeEntities).toHaveBeenCalledWith({
+        survivor_id: 1,
+        absorbed_ids: [3],
+      })
+
+      // List was reloaded
+      expect(fetchSpy).toHaveBeenCalled()
+    })
+
+    it('dismiss candidate calls resolveMergeCandidate with dismissed', async () => {
+      const { fetchEntities, fetchMergeCandidates, resolveMergeCandidate } =
+        await import('@/api/entities')
+      vi.mocked(fetchEntities).mockResolvedValueOnce(twoEntities)
+      vi.mocked(fetchMergeCandidates).mockResolvedValueOnce(candidateFixture)
+      vi.mocked(resolveMergeCandidate).mockResolvedValueOnce({
+        id: 100,
+        status: 'dismissed',
+      })
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      // Expand candidate list
+      await wrapper
+        .find('[data-testid="toggle-merge-review"]')
+        .trigger('click')
+
+      // Click dismiss
+      await wrapper.find('[data-testid="dismiss-candidate"]').trigger('click')
+      await flushPromises()
+
+      expect(resolveMergeCandidate).toHaveBeenCalledWith(100, 'dismissed')
+    })
+  })
+
+  // ---- Deselect checkbox ----
+
+  it('deselecting a checkbox removes entity from selection', async () => {
+    const { fetchEntities } = await import('@/api/entities')
+    vi.mocked(fetchEntities).mockResolvedValueOnce(twoEntities)
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const checkboxes = wrapper.findAll('[data-testid="entity-checkbox"]')
+
+    // Select the first entity
+    await checkboxes[0].trigger('change')
+    expect(wrapper.find('[data-testid="selection-toolbar"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('[data-testid="selection-toolbar"]').text()).toContain(
+      '1 selected',
+    )
+
+    // Deselect the same entity
+    await checkboxes[0].trigger('change')
     expect(wrapper.find('[data-testid="selection-toolbar"]').exists()).toBe(
       false,
     )
