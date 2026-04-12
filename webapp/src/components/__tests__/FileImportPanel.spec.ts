@@ -175,4 +175,115 @@ describe('FileImportPanel', () => {
 
     expect(wrapper.text()).toContain('my-journal.txt')
   })
+
+  it('fileType returns "Markdown" for .md files', async () => {
+    const wrapper = mount(FileImportPanel, {
+      props: { entryDate: '2026-04-12' },
+    })
+
+    const file = new File(['# Hello'], 'entry.md', { type: 'text/markdown' })
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {
+      value: [file],
+      writable: false,
+      configurable: true,
+    })
+    await input.trigger('change')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Markdown')
+  })
+
+  it('fileType returns "Plain Text" for .txt files', async () => {
+    const wrapper = mount(FileImportPanel, {
+      props: { entryDate: '2026-04-12' },
+    })
+
+    const file = new File(['Just text'], 'notes.txt', { type: 'text/plain' })
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {
+      value: [file],
+      writable: false,
+      configurable: true,
+    })
+    await input.trigger('change')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Plain Text')
+  })
+
+  it('fileSize returns correct format for small file', async () => {
+    const wrapper = mount(FileImportPanel, {
+      props: { entryDate: '2026-04-12' },
+    })
+
+    const file = new File(['ab'], 'tiny.txt', { type: 'text/plain' })
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {
+      value: [file],
+      writable: false,
+      configurable: true,
+    })
+    await input.trigger('change')
+    await flushPromises()
+
+    // 2 bytes -> "2 B"
+    expect(wrapper.text()).toContain('2 B')
+  })
+
+  it('fileSize returns KB format for larger file', async () => {
+    const wrapper = mount(FileImportPanel, {
+      props: { entryDate: '2026-04-12' },
+    })
+
+    // Create a ~2 KB file
+    const content = 'x'.repeat(2048)
+    const file = new File([content], 'medium.txt', { type: 'text/plain' })
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {
+      value: [file],
+      writable: false,
+      configurable: true,
+    })
+    await input.trigger('change')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('2.0 KB')
+  })
+
+  it('clearFile resets state when "Change file" is clicked', async () => {
+    const wrapper = mount(FileImportPanel, {
+      props: { entryDate: '2026-04-12' },
+    })
+
+    const file = new File(['content'], 'reset-test.txt', {
+      type: 'text/plain',
+    })
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {
+      value: [file],
+      writable: false,
+      configurable: true,
+    })
+    await input.trigger('change')
+    await flushPromises()
+
+    // Verify the file is shown
+    expect(wrapper.text()).toContain('reset-test.txt')
+
+    // Click "Change file"
+    const changeBtn = wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('Change file'))
+    expect(changeBtn).toBeDefined()
+    await changeBtn!.trigger('click')
+    await flushPromises()
+
+    // Should be back to initial drop zone state
+    expect(wrapper.text()).not.toContain('reset-test.txt')
+    expect(wrapper.text()).not.toContain('Import File')
+    expect(wrapper.text()).not.toContain('Change file')
+    // Drop zone should be visible again
+    expect(wrapper.find('label.cursor-pointer').exists()).toBe(true)
+  })
 })

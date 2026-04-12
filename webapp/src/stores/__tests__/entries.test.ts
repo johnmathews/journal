@@ -7,6 +7,9 @@ vi.mock('@/api/entries', () => ({
   fetchEntry: vi.fn(),
   updateEntryText: vi.fn(),
   deleteEntry: vi.fn(),
+  ingestText: vi.fn(),
+  ingestFile: vi.fn(),
+  ingestImages: vi.fn(),
 }))
 
 import {
@@ -14,11 +17,17 @@ import {
   fetchEntry,
   updateEntryText,
   deleteEntry,
+  ingestText,
+  ingestFile,
+  ingestImages,
 } from '@/api/entries'
 const mockFetchEntries = vi.mocked(fetchEntries)
 const mockFetchEntry = vi.mocked(fetchEntry)
 const mockUpdateEntryText = vi.mocked(updateEntryText)
 const mockDeleteEntry = vi.mocked(deleteEntry)
+const mockIngestText = vi.mocked(ingestText)
+const mockIngestFile = vi.mocked(ingestFile)
+const mockIngestImages = vi.mocked(ingestImages)
 
 describe('useEntriesStore', () => {
   beforeEach(() => {
@@ -310,5 +319,176 @@ describe('useEntriesStore', () => {
       expect.objectContaining({ limit: 50, offset: 0 }),
     )
     expect(store.currentParams.limit).toBe(50)
+  })
+
+  // --- createTextEntry ---
+
+  it('createTextEntry sets creating=true during call and false after', async () => {
+    const entry = {
+      id: 10,
+      entry_date: '2026-04-12',
+      source_type: 'manual' as const,
+      raw_text: 'hello',
+      final_text: 'hello',
+      page_count: 1,
+      word_count: 1,
+      chunk_count: 1,
+      language: 'en',
+      created_at: '',
+      updated_at: '',
+      uncertain_spans: [],
+    }
+    let creatingDuringCall = false
+    mockIngestText.mockImplementation(() => {
+      // Capture creating state mid-call via the store
+      const s = useEntriesStore()
+      creatingDuringCall = s.creating
+      return Promise.resolve({ entry, mood_job_id: null })
+    })
+
+    const store = useEntriesStore()
+    expect(store.creating).toBe(false)
+
+    await store.createTextEntry('hello', '2026-04-12')
+
+    expect(creatingDuringCall).toBe(true)
+    expect(store.creating).toBe(false)
+    expect(store.createError).toBeNull()
+  })
+
+  it('createTextEntry returns the result from ingestText', async () => {
+    const response = {
+      entry: {
+        id: 11,
+        entry_date: '2026-04-12',
+        source_type: 'manual' as const,
+        raw_text: 'text',
+        final_text: 'text',
+        page_count: 1,
+        word_count: 1,
+        chunk_count: 1,
+        language: 'en',
+        created_at: '',
+        updated_at: '',
+        uncertain_spans: [],
+      },
+      mood_job_id: 'mood-1',
+    }
+    mockIngestText.mockResolvedValue(response)
+
+    const store = useEntriesStore()
+    const result = await store.createTextEntry('text', '2026-04-12')
+
+    expect(result).toEqual(response)
+    expect(mockIngestText).toHaveBeenCalledWith({
+      text: 'text',
+      entry_date: '2026-04-12',
+    })
+  })
+
+  it('createTextEntry sets createError on failure', async () => {
+    mockIngestText.mockRejectedValue(new Error('Server error'))
+
+    const store = useEntriesStore()
+    await expect(store.createTextEntry('text')).rejects.toThrow('Server error')
+    expect(store.createError).toBe('Server error')
+    expect(store.creating).toBe(false)
+  })
+
+  it('createTextEntry falls back to generic message for non-Error', async () => {
+    mockIngestText.mockRejectedValue('unexpected')
+
+    const store = useEntriesStore()
+    await expect(store.createTextEntry('text')).rejects.toBe('unexpected')
+    expect(store.createError).toBe('Failed to create entry')
+  })
+
+  // --- importFile ---
+
+  it('importFile calls the right API function', async () => {
+    const response = {
+      entry: {
+        id: 12,
+        entry_date: '2026-04-12',
+        source_type: 'import' as const,
+        raw_text: 'imported',
+        final_text: 'imported',
+        page_count: 1,
+        word_count: 1,
+        chunk_count: 1,
+        language: 'en',
+        created_at: '',
+        updated_at: '',
+        uncertain_spans: [],
+      },
+      mood_job_id: null,
+    }
+    mockIngestFile.mockResolvedValue(response)
+
+    const store = useEntriesStore()
+    const file = new File(['content'], 'test.md', { type: 'text/markdown' })
+    const result = await store.importFile(file, '2026-04-12')
+
+    expect(result).toEqual(response)
+    expect(mockIngestFile).toHaveBeenCalledWith(file, '2026-04-12')
+    expect(store.creating).toBe(false)
+    expect(store.createError).toBeNull()
+  })
+
+  it('importFile sets createError on failure', async () => {
+    mockIngestFile.mockRejectedValue(new Error('Bad file'))
+
+    const store = useEntriesStore()
+    const file = new File(['x'], 'bad.txt', { type: 'text/plain' })
+    await expect(store.importFile(file)).rejects.toThrow('Bad file')
+    expect(store.createError).toBe('Bad file')
+    expect(store.creating).toBe(false)
+  })
+
+  it('importFile falls back to generic message for non-Error', async () => {
+    mockIngestFile.mockRejectedValue(42)
+
+    const store = useEntriesStore()
+    const file = new File(['x'], 'file.txt', { type: 'text/plain' })
+    await expect(store.importFile(file)).rejects.toBe(42)
+    expect(store.createError).toBe('Failed to import file')
+  })
+
+  // --- uploadImages ---
+
+  it('uploadImages returns job_id', async () => {
+    mockIngestImages.mockResolvedValue({
+      job_id: 'job-abc',
+      status: 'queued',
+    })
+
+    const store = useEntriesStore()
+    const files = [new File(['img'], 'page.jpg', { type: 'image/jpeg' })]
+    const result = await store.uploadImages(files, '2026-04-12')
+
+    expect(result.job_id).toBe('job-abc')
+    expect(result.status).toBe('queued')
+    expect(mockIngestImages).toHaveBeenCalledWith(files, '2026-04-12')
+    expect(store.creating).toBe(false)
+    expect(store.createError).toBeNull()
+  })
+
+  it('uploadImages sets createError on failure', async () => {
+    mockIngestImages.mockRejectedValue(new Error('Upload failed'))
+
+    const store = useEntriesStore()
+    const files = [new File(['img'], 'page.jpg', { type: 'image/jpeg' })]
+    await expect(store.uploadImages(files)).rejects.toThrow('Upload failed')
+    expect(store.createError).toBe('Upload failed')
+    expect(store.creating).toBe(false)
+  })
+
+  it('uploadImages falls back to generic message for non-Error', async () => {
+    mockIngestImages.mockRejectedValue({ code: 500 })
+
+    const store = useEntriesStore()
+    const files = [new File(['img'], 'page.jpg', { type: 'image/jpeg' })]
+    await expect(store.uploadImages(files)).rejects.toEqual({ code: 500 })
+    expect(store.createError).toBe('Failed to upload images')
   })
 })

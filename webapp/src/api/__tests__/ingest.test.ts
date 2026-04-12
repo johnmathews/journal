@@ -88,7 +88,9 @@ describe('ingest API', () => {
 
     it('appends the file under the "file" key', async () => {
       mockApiFetch.mockResolvedValue({ entry: {}, mood_job_id: null })
-      const file = new File(['content'], 'journal.md', { type: 'text/markdown' })
+      const file = new File(['content'], 'journal.md', {
+        type: 'text/markdown',
+      })
 
       await ingestFile(file)
 

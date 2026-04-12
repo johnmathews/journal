@@ -13,7 +13,9 @@ if (typeof URL.createObjectURL === 'undefined') {
   URL.createObjectURL = vi.fn(() => 'blob:mock-url')
 }
 
-function mountPanel(props: { entryDate: string } = { entryDate: '2026-04-12' }) {
+function mountPanel(
+  props: { entryDate: string } = { entryDate: '2026-04-12' },
+) {
   return mount(ImageUploadPanel, { props })
 }
 
@@ -211,5 +213,62 @@ describe('ImageUploadPanel', () => {
     expect(upButtons[0].attributes('disabled')).toBeDefined()
     // Last file's "Move down" should be disabled
     expect(downButtons[1].attributes('disabled')).toBeDefined()
+  })
+
+  it('formatSize shows MB for files larger than 1 MB', async () => {
+    const wrapper = mountPanel()
+    // Create a file > 1 MB (1.5 MB)
+    const bigContent = new Uint8Array(1.5 * 1024 * 1024)
+    const file = new File([bigContent], 'large.jpg', { type: 'image/jpeg' })
+
+    await selectFiles(wrapper, [file])
+
+    expect(wrapper.text()).toContain('1.5 MB')
+  })
+
+  it('moveFile reorders files when move-down is clicked on first item', async () => {
+    const wrapper = mountPanel()
+    const file1 = new File(['img1'], 'alpha.jpg', { type: 'image/jpeg' })
+    const file2 = new File(['img2'], 'beta.jpg', { type: 'image/jpeg' })
+
+    await selectFiles(wrapper, [file1, file2])
+
+    // Verify initial order: alpha is first
+    const fileNames = wrapper
+      .findAll('.text-sm.font-medium')
+      .map((el) => el.text())
+    expect(fileNames[0]).toBe('alpha.jpg')
+    expect(fileNames[1]).toBe('beta.jpg')
+
+    // Click move-down on the first item
+    const downButtons = wrapper.findAll('button[title="Move down"]')
+    await downButtons[0].trigger('click')
+    await flushPromises()
+
+    // After reorder: beta should be first, alpha second
+    const reordered = wrapper
+      .findAll('.text-sm.font-medium')
+      .map((el) => el.text())
+    expect(reordered[0]).toBe('beta.jpg')
+    expect(reordered[1]).toBe('alpha.jpg')
+  })
+
+  it('filters out non-image files in addFiles', async () => {
+    const wrapper = mountPanel()
+    const imageFile = new File(['img'], 'photo.jpg', { type: 'image/jpeg' })
+    const textFile = new File(['hello'], 'notes.txt', { type: 'text/plain' })
+    const pdfFile = new File(['%PDF'], 'doc.pdf', {
+      type: 'application/pdf',
+    })
+    const pngFile = new File(['img'], 'chart.png', { type: 'image/png' })
+
+    await selectFiles(wrapper, [imageFile, textFile, pdfFile, pngFile])
+
+    // Only the two image files should be added
+    expect(wrapper.text()).toContain('photo.jpg')
+    expect(wrapper.text()).toContain('chart.png')
+    expect(wrapper.text()).not.toContain('notes.txt')
+    expect(wrapper.text()).not.toContain('doc.pdf')
+    expect(wrapper.text()).toContain('2 pages')
   })
 })
