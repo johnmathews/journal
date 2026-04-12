@@ -162,14 +162,6 @@ function objectUrl(file: File): string {
 
     <!-- Upload state -->
     <div v-else>
-      <!-- Upload error (e.g. 413 body too large) -->
-      <div
-        v-if="entriesStore.createError"
-        class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400"
-      >
-        {{ entriesStore.createError }}
-      </div>
-
       <!-- Drop zone -->
       <label
         v-if="files.length === 0"

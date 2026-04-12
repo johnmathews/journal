@@ -50,7 +50,7 @@ export async function apiFetch<T>(
   // defaults, which lets individual callers change Content-Type for
   // multipart uploads or replace Authorization if ever needed.
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...((options.headers as Record<string, string>) ?? {}),
   }
