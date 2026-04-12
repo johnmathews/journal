@@ -5,6 +5,7 @@ import {
   fetchEntries,
   fetchEntry,
   updateEntryText,
+  updateEntryDate as updateEntryDateApi,
   deleteEntry as deleteEntryApi,
   ingestText,
   ingestFile,
@@ -74,6 +75,19 @@ export const useEntriesStore = defineStore('entries', () => {
       currentEntry.value = await updateEntryText(id, finalText)
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to save entry'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function updateDate(id: number, entryDate: string) {
+    loading.value = true
+    error.value = null
+    try {
+      currentEntry.value = await updateEntryDateApi(id, entryDate)
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to update date'
       throw e
     } finally {
       loading.value = false
@@ -167,6 +181,7 @@ export const useEntriesStore = defineStore('entries', () => {
     loadEntries,
     loadEntry,
     saveEntryText,
+    updateDate,
     deleteEntry,
     createTextEntry,
     importFile,

@@ -27,6 +27,38 @@ const { editedText, saving, saveError, isDirty, isModified, reset } =
 const deleting = ref(false)
 const deleteError = ref<string | null>(null)
 
+// Date editing
+const editingDate = ref(false)
+const editedDate = ref('')
+const savingDate = ref(false)
+
+function startEditDate() {
+  if (store.currentEntry) {
+    editedDate.value = store.currentEntry.entry_date
+    editingDate.value = true
+  }
+}
+
+async function saveDate() {
+  if (!store.currentEntry || editedDate.value === store.currentEntry.entry_date) {
+    editingDate.value = false
+    return
+  }
+  savingDate.value = true
+  try {
+    await store.updateDate(store.currentEntry.id, editedDate.value)
+    editingDate.value = false
+  } catch {
+    // error shown via store.error
+  } finally {
+    savingDate.value = false
+  }
+}
+
+function cancelEditDate() {
+  editingDate.value = false
+}
+
 // Original text as a reactive ref the composable can watch. Coerce
 // null/undefined to '' so the diff composable always sees a string
 // — a null here used to propagate all the way into diff-match-patch
@@ -402,8 +434,37 @@ onBeforeUnmount(() => {
               </svg>
               Back
             </button>
+            <template v-if="editingDate">
+              <input
+                v-model="editedDate"
+                type="date"
+                class="form-input text-lg font-bold dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                data-testid="date-input"
+                @keydown.enter="saveDate"
+                @keydown.escape="cancelEditDate"
+              />
+              <button
+                class="btn bg-violet-500 hover:bg-violet-600 text-white text-sm px-3 py-1"
+                :disabled="savingDate"
+                data-testid="date-save-button"
+                @click="saveDate"
+              >
+                {{ savingDate ? 'Saving...' : 'Save' }}
+              </button>
+              <button
+                class="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 text-sm px-3 py-1"
+                :disabled="savingDate"
+                @click="cancelEditDate"
+              >
+                Cancel
+              </button>
+            </template>
             <h1
-              class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold"
+              v-else
+              class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold cursor-pointer hover:text-violet-600 dark:hover:text-violet-400 transition-colors"
+              title="Click to edit date"
+              data-testid="entry-date-heading"
+              @click="startEditDate"
             >
               {{ formatDate(store.currentEntry.entry_date) }}
             </h1>
@@ -663,9 +724,9 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- Side-by-side editor panels (static 50/50) -->
-      <div class="flex flex-col lg:flex-row gap-4 min-h-[500px] max-h-[80vh] lg:max-h-none">
+      <div class="flex flex-col lg:flex-row gap-4 lg:min-h-[500px]">
         <section
-          class="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
+          class="flex-1 min-h-[300px] lg:min-h-0 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
         >
           <h2
             class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3"
@@ -688,7 +749,7 @@ onBeforeUnmount(() => {
         </section>
 
         <section
-          class="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
+          class="flex-1 min-h-[300px] lg:min-h-0 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
         >
           <h2
             class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3"

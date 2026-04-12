@@ -47,6 +47,16 @@ export function updateEntryText(
   })
 }
 
+export function updateEntryDate(
+  id: number,
+  entryDate: string,
+): Promise<EntryDetail> {
+  return apiFetch<EntryDetail>(`/api/entries/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ entry_date: entryDate }),
+  })
+}
+
 export function deleteEntry(
   id: number,
 ): Promise<{ deleted: boolean; id: number }> {
