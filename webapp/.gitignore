@@ -33,9 +33,6 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Engineering team working files
-.engineering-team/
-
 # Claude Code local overrides
 .claude/settings.local.json
 
