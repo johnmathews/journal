@@ -95,8 +95,12 @@ describe('CreateEntryView', () => {
     await importTab!.trigger('click')
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="file-import-panel"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="text-entry-panel"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="file-import-panel"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('[data-testid="text-entry-panel"]').exists()).toBe(
+      false,
+    )
     expect(wrapper.find('[data-testid="image-upload-panel"]').exists()).toBe(
       false,
     )
@@ -114,7 +118,9 @@ describe('CreateEntryView', () => {
     expect(wrapper.find('[data-testid="image-upload-panel"]').exists()).toBe(
       true,
     )
-    expect(wrapper.find('[data-testid="text-entry-panel"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="text-entry-panel"]').exists()).toBe(
+      false,
+    )
     expect(wrapper.find('[data-testid="file-import-panel"]').exists()).toBe(
       false,
     )
@@ -150,7 +156,8 @@ describe('CreateEntryView', () => {
     const panel = wrapper.find('[data-testid="text-entry-panel"]')
     expect(panel.exists()).toBe(true)
 
-    // Call the handleCreated function directly via the parent's exposed method
+    // Call the handleCreated function via the component instance.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const vm = wrapper.vm as any
     vm.handleCreated(42)
     await flushPromises()
@@ -164,8 +171,12 @@ describe('CreateEntryView', () => {
   it('renders the text entry panel by default', () => {
     const wrapper = mountView()
     expect(wrapper.find('[data-testid="text-entry-panel"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="file-import-panel"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="image-upload-panel"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="file-import-panel"]').exists()).toBe(
+      false,
+    )
+    expect(wrapper.find('[data-testid="image-upload-panel"]').exists()).toBe(
+      false,
+    )
   })
 
   it('renders all three tab buttons', () => {
