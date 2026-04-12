@@ -193,10 +193,28 @@ describe('EntryListView', () => {
     const { fetchEntries } = await import('@/api/entries')
     vi.mocked(fetchEntries).mockResolvedValueOnce({
       items: [
-        { id: 1, entry_date: '2026-03-22', source_type: 'ocr', page_count: 2, word_count: 347, chunk_count: 5, created_at: '2026-03-23T10:30:00Z' },
-        { id: 2, entry_date: '2026-03-21', source_type: 'voice', page_count: 0, word_count: 120, chunk_count: 2, created_at: '2026-03-21T15:00:00Z' },
+        {
+          id: 1,
+          entry_date: '2026-03-22',
+          source_type: 'ocr',
+          page_count: 2,
+          word_count: 347,
+          chunk_count: 5,
+          created_at: '2026-03-23T10:30:00Z',
+        },
+        {
+          id: 2,
+          entry_date: '2026-03-21',
+          source_type: 'voice',
+          page_count: 0,
+          word_count: 120,
+          chunk_count: 2,
+          created_at: '2026-03-21T15:00:00Z',
+        },
       ],
-      total: 2, limit: 20, offset: 0,
+      total: 2,
+      limit: 20,
+      offset: 0,
     })
     const wrapper = mountComponent()
     await new Promise((r) => setTimeout(r, 50))
@@ -212,10 +230,28 @@ describe('EntryListView', () => {
     const { fetchEntries } = await import('@/api/entries')
     vi.mocked(fetchEntries).mockResolvedValueOnce({
       items: [
-        { id: 1, entry_date: '2026-03-22', source_type: 'ocr', page_count: 2, word_count: 347, chunk_count: 5, created_at: '2026-03-23T10:30:00Z' },
-        { id: 2, entry_date: '2026-03-21', source_type: 'voice', page_count: 0, word_count: 120, chunk_count: 2, created_at: '2026-03-21T15:00:00Z' },
+        {
+          id: 1,
+          entry_date: '2026-03-22',
+          source_type: 'ocr',
+          page_count: 2,
+          word_count: 347,
+          chunk_count: 5,
+          created_at: '2026-03-23T10:30:00Z',
+        },
+        {
+          id: 2,
+          entry_date: '2026-03-21',
+          source_type: 'voice',
+          page_count: 0,
+          word_count: 120,
+          chunk_count: 2,
+          created_at: '2026-03-21T15:00:00Z',
+        },
       ],
-      total: 2, limit: 20, offset: 0,
+      total: 2,
+      limit: 20,
+      offset: 0,
     })
     const wrapper = mountComponent()
     await new Promise((r) => setTimeout(r, 50))
@@ -232,10 +268,28 @@ describe('EntryListView', () => {
     const { fetchEntries } = await import('@/api/entries')
     vi.mocked(fetchEntries).mockResolvedValueOnce({
       items: [
-        { id: 1, entry_date: '2026-03-22', source_type: 'ocr', page_count: 2, word_count: 347, chunk_count: 5, created_at: '2026-03-23T10:30:00Z' },
-        { id: 2, entry_date: '2026-03-21', source_type: 'voice', page_count: 0, word_count: 120, chunk_count: 2, created_at: '2026-03-21T15:00:00Z' },
+        {
+          id: 1,
+          entry_date: '2026-03-22',
+          source_type: 'ocr',
+          page_count: 2,
+          word_count: 347,
+          chunk_count: 5,
+          created_at: '2026-03-23T10:30:00Z',
+        },
+        {
+          id: 2,
+          entry_date: '2026-03-21',
+          source_type: 'voice',
+          page_count: 0,
+          word_count: 120,
+          chunk_count: 2,
+          created_at: '2026-03-21T15:00:00Z',
+        },
       ],
-      total: 2, limit: 20, offset: 0,
+      total: 2,
+      limit: 20,
+      offset: 0,
     })
     const wrapper = mountComponent()
     await new Promise((r) => setTimeout(r, 50))

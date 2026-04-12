@@ -46,8 +46,51 @@ Added clickable date heading in EntryDetailView that reveals an inline date
 picker. Wired to new `updateEntryDate` API function hitting the server's
 extended PATCH endpoint.
 
+### 8. Review toggle UX
+
+Review checkbox was greyed out when no uncertain spans existed, which was
+unintuitive. Now always clickable — shows a blue info banner when no
+uncertain words were detected.
+
+### 9. Duplicate upload error messages
+
+Changed cryptic hash-based messages ("Image already ingested (hash:
+a8c785720939...)") to user-friendly text explaining the issue and how
+to fix it.
+
+### 10. "Add more images" → "Add image"
+
+Simpler label since the mobile file picker typically only allows selecting
+one image at a time.
+
+### 11. Entity detail — grouped by entry
+
+EntityDetailView mentions now grouped by journal entry instead of a flat
+list. Each entry shows date, mention count, and quotes. Click-through
+passes `?highlight=entityName` to highlight the entity in entry text.
+
+### 12. Entity highlighting in entry detail
+
+EntryDetailView reads `?highlight=` query param and wraps matching text
+in violet highlights in both Original OCR and Corrected Text panels.
+Entity chips on the entry detail header now toggle in-page highlighting
+instead of navigating to entity detail.
+
+### 13. Sortable tables
+
+Both `/entries` and `/entities` tables have sortable columns with click
+toggle and direction indicators. Entries default to date descending,
+entities default to name ascending.
+
+### 14. Entity last_seen column
+
+Server API extended: entity summary now includes `last_seen` (MAX
+entry_date from mentions, computed via LEFT JOIN). New column in the
+entity list table.
+
 ## Tests
 
-- All 441 tests pass
-- CI fix: extracted inline semicolon `@click` handler to named method
-  (`switchTab`) to avoid Vue template parser failure after Prettier reformatting
+- Server: 682 passed
+- Webapp: 447 passed (coverage: functions 90.74%, above 90% threshold)
+- CI fixes: missing `last_seen` in EntitySummary mock data, inline
+  `@click` handler extracted to method

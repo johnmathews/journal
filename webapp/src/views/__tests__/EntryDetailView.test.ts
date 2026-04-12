@@ -1015,7 +1015,15 @@ describe('EntryDetailView', () => {
       vi.mocked(fetchEntryEntities).mockResolvedValueOnce({
         entry_id: 1,
         items: [
-          { id: 42, entity_type: 'person', canonical_name: 'Alice', aliases: [], mention_count: 3, first_seen: '2026-01-01', last_seen: '2026-03-22' },
+          {
+            id: 42,
+            entity_type: 'person',
+            canonical_name: 'Alice',
+            aliases: [],
+            mention_count: 3,
+            first_seen: '2026-01-01',
+            last_seen: '2026-03-22',
+          },
         ],
         total: 1,
       })

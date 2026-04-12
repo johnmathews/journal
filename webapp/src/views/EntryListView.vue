@@ -11,7 +11,12 @@ const rows = ref(20)
 const first = ref(0)
 
 // Sorting state — default: date descending
-type SortKey = 'entry_date' | 'page_count' | 'word_count' | 'chunk_count' | 'created_at'
+type SortKey =
+  | 'entry_date'
+  | 'page_count'
+  | 'word_count'
+  | 'chunk_count'
+  | 'created_at'
 const sortKey = ref<SortKey>('entry_date')
 const sortAsc = ref(false)
 

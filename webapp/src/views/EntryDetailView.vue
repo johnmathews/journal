@@ -109,7 +109,8 @@ const { originalHtml: rawOriginalHtml, correctedHtml: rawCorrectedHtml } =
 // Entity highlight — from ?highlight= query param or from clicking a chip
 const chipHighlight = ref('')
 const highlightTerm = computed(
-  () => chipHighlight.value || (route.query.highlight as string | undefined) || '',
+  () =>
+    chipHighlight.value || (route.query.highlight as string | undefined) || '',
 )
 
 function toggleEntityHighlight(name: string) {
@@ -757,8 +758,8 @@ onBeforeUnmount(() => {
         class="mb-4 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40 rounded-lg px-4 py-3 text-sm"
         data-testid="review-no-spans-banner"
       >
-        No uncertain words or phrases were detected in this entry. The OCR
-        model was confident about every word on this page.
+        No uncertain words or phrases were detected in this entry. The OCR model
+        was confident about every word on this page.
       </div>
 
       <!-- Side-by-side editor panels (static 50/50) -->

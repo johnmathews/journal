@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref, computed, watch } from 'vue'
 import { useEntitiesStore } from '@/stores/entities'
-import { ENTITY_TYPES, type EntityType, type EntitySummary } from '@/types/entity'
+import {
+  ENTITY_TYPES,
+  type EntityType,
+  type EntitySummary,
+} from '@/types/entity'
 import BatchJobModal from '@/components/BatchJobModal.vue'
 
 const store = useEntitiesStore()
@@ -247,9 +251,7 @@ const canNext = computed(() => {
             >
               First seen{{ sortIndicator('first_seen') }}
             </th>
-            <th class="px-4 py-3 text-left font-semibold">
-              Last seen
-            </th>
+            <th class="px-4 py-3 text-left font-semibold">Last seen</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100 dark:divide-gray-700/60">

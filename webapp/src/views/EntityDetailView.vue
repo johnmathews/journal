@@ -254,9 +254,7 @@ function formatDate(dateStr: string): string {
                 >
                   {{ formatDate(group.entry_date) }}
                 </span>
-                <span
-                  class="text-[10px] text-gray-400 dark:text-gray-500"
-                >
+                <span class="text-[10px] text-gray-400 dark:text-gray-500">
                   {{ group.mentions.length }}
                   {{ group.mentions.length === 1 ? 'mention' : 'mentions' }}
                 </span>
