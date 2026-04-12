@@ -973,6 +973,7 @@ describe('EntryDetailView', () => {
             aliases: [],
             mention_count: 3,
             first_seen: '2026-01-01',
+            last_seen: '2026-03-22',
           },
         ],
         total: 1,
