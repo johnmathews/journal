@@ -107,13 +107,13 @@ describe('EntityDetailView', () => {
     )
   })
 
-  it('renders mentions in the timeline with quotes', async () => {
+  it('renders mentions grouped by entry with quotes', async () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const mentions = wrapper.findAll('[data-testid="mention-row"]')
-    expect(mentions).toHaveLength(1)
-    expect(mentions[0].find('[data-testid="mention-quote"]').text()).toContain(
+    const groups = wrapper.findAll('[data-testid="mention-entry-group"]')
+    expect(groups).toHaveLength(1)
+    expect(groups[0].find('[data-testid="mention-quote"]').text()).toContain(
       'walked with Ritsya in the park',
     )
   })

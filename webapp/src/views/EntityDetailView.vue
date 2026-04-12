@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { onMounted, watch } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEntitiesStore } from '@/stores/entities'
-import type { EntityType } from '@/types/entity'
+import type { EntityType, EntityMention } from '@/types/entity'
 
 const props = defineProps<{
   id: string
@@ -10,6 +10,30 @@ const props = defineProps<{
 
 const router = useRouter()
 const store = useEntitiesStore()
+
+// Group mentions by entry for a cleaner presentation
+interface EntryGroup {
+  entry_id: number
+  entry_date: string
+  mentions: EntityMention[]
+}
+
+const entriesByMention = computed<EntryGroup[]>(() => {
+  const grouped = new Map<number, EntryGroup>()
+  for (const m of store.mentions) {
+    if (!grouped.has(m.entry_id)) {
+      grouped.set(m.entry_id, {
+        entry_id: m.entry_id,
+        entry_date: m.entry_date,
+        mentions: [],
+      })
+    }
+    grouped.get(m.entry_id)!.mentions.push(m)
+  }
+  return [...grouped.values()].sort((a, b) =>
+    b.entry_date.localeCompare(a.entry_date),
+  )
+})
 
 onMounted(() => {
   store.loadEntity(Number(props.id))
@@ -194,7 +218,7 @@ function formatDate(dateStr: string): string {
           </ul>
         </section>
 
-        <!-- Mentions timeline -->
+        <!-- Journal entries containing this entity -->
         <section
           class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
           data-testid="mentions-timeline"
@@ -202,7 +226,7 @@ function formatDate(dateStr: string): string {
           <h2
             class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3"
           >
-            Mentions
+            Journal entries ({{ entriesByMention.length }})
           </h2>
           <div
             v-if="!store.mentions.length"
@@ -210,35 +234,43 @@ function formatDate(dateStr: string): string {
           >
             No mentions recorded yet.
           </div>
-          <ul v-else class="space-y-3 text-sm">
+          <ul v-else class="space-y-4 text-sm">
             <li
-              v-for="mention in store.mentions"
-              :key="mention.id"
-              class="pb-3 border-b border-gray-100 dark:border-gray-700/60 last:border-b-0 last:pb-0"
-              data-testid="mention-row"
+              v-for="group in entriesByMention"
+              :key="group.entry_id"
+              class="pb-4 border-b border-gray-100 dark:border-gray-700/60 last:border-b-0 last:pb-0"
+              data-testid="mention-entry-group"
             >
-              <div class="flex items-center justify-between mb-1">
-                <RouterLink
-                  :to="{
-                    name: 'entry-detail',
-                    params: { id: mention.entry_id },
-                  }"
-                  class="text-xs text-violet-600 dark:text-violet-400 hover:underline font-medium"
-                >
-                  {{ formatDate(mention.entry_date) }}
-                </RouterLink>
-                <span
-                  class="text-[10px] font-mono text-gray-400 dark:text-gray-500"
-                >
-                  {{ Math.round(mention.confidence * 100) }}%
-                </span>
-              </div>
-              <div
-                class="text-gray-600 dark:text-gray-300 italic"
-                data-testid="mention-quote"
+              <RouterLink
+                :to="{
+                  name: 'entry-detail',
+                  params: { id: group.entry_id },
+                  query: { highlight: store.currentEntity?.canonical_name },
+                }"
+                class="flex items-center justify-between mb-2 group"
               >
-                "{{ mention.quote }}"
-              </div>
+                <span
+                  class="text-violet-600 dark:text-violet-400 group-hover:underline font-medium"
+                >
+                  {{ formatDate(group.entry_date) }}
+                </span>
+                <span
+                  class="text-[10px] text-gray-400 dark:text-gray-500"
+                >
+                  {{ group.mentions.length }}
+                  {{ group.mentions.length === 1 ? 'mention' : 'mentions' }}
+                </span>
+              </RouterLink>
+              <ul class="space-y-1 ml-3">
+                <li
+                  v-for="mention in group.mentions"
+                  :key="mention.id"
+                  class="text-gray-600 dark:text-gray-300 italic text-xs"
+                  data-testid="mention-quote"
+                >
+                  "{{ mention.quote }}"
+                </li>
+              </ul>
             </li>
           </ul>
         </section>

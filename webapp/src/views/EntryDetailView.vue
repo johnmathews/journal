@@ -100,11 +100,40 @@ watch(
   },
 )
 
-const { originalHtml, correctedHtml } = useDiffHighlight(
-  originalText,
-  editedText,
-  showDiff,
-  { showReview, uncertainSpans },
+const { originalHtml: rawOriginalHtml, correctedHtml: rawCorrectedHtml } =
+  useDiffHighlight(originalText, editedText, showDiff, {
+    showReview,
+    uncertainSpans,
+  })
+
+// Entity highlight from ?highlight= query param (linked from entity detail)
+const highlightTerm = computed(
+  () => (route.query.highlight as string | undefined) ?? '',
+)
+
+function applyEntityHighlight(html: string, term: string): string {
+  if (!term) return html
+  // Escape for regex and for HTML (the text in the HTML is already escaped)
+  const escaped = term
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  const pattern = escaped.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = new RegExp(`(${pattern})`, 'gi')
+  // Only replace within text nodes (outside HTML tags)
+  return html.replace(/([^<>]+)/g, (textNode) =>
+    textNode.replace(
+      regex,
+      '<mark class="bg-violet-200 dark:bg-violet-500/30 rounded-sm">$1</mark>',
+    ),
+  )
+}
+
+const originalHtml = computed(() =>
+  applyEntityHighlight(rawOriginalHtml.value, highlightTerm.value),
+)
+const correctedHtml = computed(() =>
+  applyEntityHighlight(rawCorrectedHtml.value, highlightTerm.value),
 )
 
 // -- Overlay feature (chunks / tokens) -----------------------------------
