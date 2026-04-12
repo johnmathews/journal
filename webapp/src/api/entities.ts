@@ -1,10 +1,16 @@
 import type {
   Entity,
+  EntityDeleteResponse,
   EntityListParams,
   EntityListResponse,
   EntityMentionsResponse,
+  EntityMergeRequest,
+  EntityMergeResponse,
   EntityRelationshipsResponse,
+  EntityUpdateRequest,
   EntryEntitiesResponse,
+  MergeCandidatesResponse,
+  MergeHistoryResponse,
 } from '@/types/entity'
 import type { JobSubmissionResponse } from '@/types/job'
 import { apiFetch } from './client'
@@ -57,6 +63,63 @@ export function fetchEntryEntities(
   entryId: number,
 ): Promise<EntryEntitiesResponse> {
   return apiFetch<EntryEntitiesResponse>(`/api/entries/${entryId}/entities`)
+}
+
+// --- Entity management ---
+
+export function updateEntity(
+  id: number,
+  patch: EntityUpdateRequest,
+): Promise<Entity> {
+  return apiFetch<Entity>(`/api/entities/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+}
+
+export function deleteEntity(id: number): Promise<EntityDeleteResponse> {
+  return apiFetch<EntityDeleteResponse>(`/api/entities/${id}`, {
+    method: 'DELETE',
+  })
+}
+
+export function mergeEntities(
+  request: EntityMergeRequest,
+): Promise<EntityMergeResponse> {
+  return apiFetch<EntityMergeResponse>('/api/entities/merge', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  })
+}
+
+// --- Merge candidates ---
+
+export function fetchMergeCandidates(
+  status: string = 'pending',
+  limit: number = 50,
+): Promise<MergeCandidatesResponse> {
+  const query = buildQuery({ status, limit })
+  return apiFetch<MergeCandidatesResponse>(
+    `/api/entities/merge-candidates${query}`,
+  )
+}
+
+export function resolveMergeCandidate(
+  candidateId: number,
+  status: 'accepted' | 'dismissed',
+): Promise<{ id: number; status: string }> {
+  return apiFetch(`/api/entities/merge-candidates/${candidateId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  })
+}
+
+export function fetchMergeHistory(
+  entityId: number,
+): Promise<MergeHistoryResponse> {
+  return apiFetch<MergeHistoryResponse>(
+    `/api/entities/${entityId}/merge-history`,
+  )
 }
 
 // Trigger the batch extraction job. Pass entry_id for a single entry

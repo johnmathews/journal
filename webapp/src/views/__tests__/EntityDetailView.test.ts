@@ -5,6 +5,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import EntityDetailView from '../EntityDetailView.vue'
 
 vi.mock('@/api/entities', () => ({
+  fetchEntities: vi.fn().mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 }),
   fetchEntity: vi.fn().mockResolvedValue({
     id: 42,
     entity_type: 'person',
@@ -51,6 +52,13 @@ vi.mock('@/api/entities', () => ({
     ],
     incoming: [],
   }),
+  triggerEntityExtraction: vi.fn(),
+  updateEntity: vi.fn(),
+  deleteEntity: vi.fn().mockResolvedValue({ deleted: true, id: 42 }),
+  mergeEntities: vi.fn(),
+  fetchMergeCandidates: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+  resolveMergeCandidate: vi.fn(),
+  fetchMergeHistory: vi.fn(),
 }))
 
 const router = createRouter({
@@ -271,6 +279,92 @@ describe('EntityDetailView', () => {
 
     expect(wrapper.text()).toContain('No relationships recorded yet')
     expect(wrapper.text()).toContain('No mentions recorded yet')
+  })
+
+  it('shows edit and delete buttons', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="edit-button"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="delete-button"]').exists()).toBe(true)
+  })
+
+  it('opens edit form when edit button is clicked', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="edit-form"]').exists()).toBe(false)
+    await wrapper.find('[data-testid="edit-button"]').trigger('click')
+    expect(wrapper.find('[data-testid="edit-form"]').exists()).toBe(true)
+    expect(
+      (wrapper.find('[data-testid="edit-name-input"]').element as HTMLInputElement).value,
+    ).toBe('Ritsya')
+  })
+
+  it('closes edit form when cancel is clicked', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('[data-testid="edit-button"]').trigger('click')
+    expect(wrapper.find('[data-testid="edit-form"]').exists()).toBe(true)
+    await wrapper.find('[data-testid="cancel-edit-button"]').trigger('click')
+    expect(wrapper.find('[data-testid="edit-form"]').exists()).toBe(false)
+  })
+
+  it('saves edit and updates entity name', async () => {
+    const { updateEntity } = await import('@/api/entities')
+    vi.mocked(updateEntity).mockResolvedValueOnce({
+      id: 42,
+      entity_type: 'person',
+      canonical_name: 'Ritsya Mathews',
+      description: 'my daughter',
+      aliases: ['Ritzya'],
+      first_seen: '2026-01-02',
+      created_at: '2026-01-02T00:00:00Z',
+      updated_at: '2026-04-12T00:00:00Z',
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('[data-testid="edit-button"]').trigger('click')
+    const nameInput = wrapper.find('[data-testid="edit-name-input"]')
+    await nameInput.setValue('Ritsya Mathews')
+    await wrapper.find('[data-testid="save-edit-button"]').trigger('click')
+    await flushPromises()
+
+    expect(updateEntity).toHaveBeenCalledWith(42, {
+      canonical_name: 'Ritsya Mathews',
+    })
+    expect(wrapper.find('[data-testid="edit-form"]').exists()).toBe(false)
+  })
+
+  it('confirms and deletes entity, navigating back to list', async () => {
+    const { deleteEntity } = await import('@/api/entities')
+    window.confirm = vi.fn(() => true)
+    const pushSpy = vi.spyOn(router, 'push')
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('[data-testid="delete-button"]').trigger('click')
+    await flushPromises()
+
+    expect(window.confirm).toHaveBeenCalled()
+    expect(deleteEntity).toHaveBeenCalledWith(42)
+    expect(pushSpy).toHaveBeenCalledWith({ name: 'entities' })
+  })
+
+  it('does not delete when confirm is cancelled', async () => {
+    const { deleteEntity } = await import('@/api/entities')
+    vi.mocked(deleteEntity).mockClear()
+    window.confirm = vi.fn(() => false)
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('[data-testid="delete-button"]').trigger('click')
+    expect(deleteEntity).not.toHaveBeenCalled()
   })
 
   it('re-fetches when the :id route param changes (without remounting)', async () => {

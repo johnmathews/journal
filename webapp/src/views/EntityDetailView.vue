@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEntitiesStore } from '@/stores/entities'
-import type { EntityType, EntityMention } from '@/types/entity'
+import { ENTITY_TYPES, type EntityType, type EntityMention } from '@/types/entity'
 
 const props = defineProps<{
   id: string
@@ -43,7 +43,10 @@ onMounted(() => {
 watch(
   () => props.id,
   (newId) => {
-    if (newId) store.loadEntity(Number(newId))
+    if (newId) {
+      editing.value = false
+      store.loadEntity(Number(newId))
+    }
   },
 )
 
@@ -76,6 +79,66 @@ function formatDate(dateStr: string): string {
     month: 'short',
     year: 'numeric',
   })
+}
+
+// --- Editing ---
+const editing = ref(false)
+const editName = ref('')
+const editType = ref<EntityType>('other')
+const editDescription = ref('')
+const saving = ref(false)
+
+function startEditing() {
+  if (!store.currentEntity) return
+  editName.value = store.currentEntity.canonical_name
+  editType.value = store.currentEntity.entity_type
+  editDescription.value = store.currentEntity.description
+  editing.value = true
+}
+
+function cancelEditing() {
+  editing.value = false
+}
+
+async function saveEdit() {
+  if (!store.currentEntity) return
+  saving.value = true
+  try {
+    const patch: Record<string, string> = {}
+    if (editName.value.trim() !== store.currentEntity.canonical_name) {
+      patch.canonical_name = editName.value.trim()
+    }
+    if (editType.value !== store.currentEntity.entity_type) {
+      patch.entity_type = editType.value
+    }
+    if (editDescription.value !== store.currentEntity.description) {
+      patch.description = editDescription.value
+    }
+    if (Object.keys(patch).length > 0) {
+      await store.updateCurrentEntity(patch)
+    }
+    editing.value = false
+  } finally {
+    saving.value = false
+  }
+}
+
+// --- Deleting ---
+const deleting = ref(false)
+
+async function confirmDelete() {
+  if (!store.currentEntity) return
+  const confirmed = window.confirm(
+    `Delete entity "${store.currentEntity.canonical_name}"? This will remove all its mentions and relationships.`,
+  )
+  if (!confirmed) return
+  deleting.value = true
+  try {
+    await store.removeEntity(store.currentEntity.id)
+    router.push({ name: 'entities' })
+  } finally {
+    deleting.value = false
+  }
 }
 </script>
 
@@ -111,38 +174,131 @@ function formatDate(dateStr: string): string {
             </svg>
             Back
           </button>
-          <h1
-            class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold"
-          >
-            {{ store.currentEntity.canonical_name }}
-          </h1>
-          <span
-            class="inline-flex text-xs font-medium rounded-full px-2.5 py-0.5 capitalize"
-            :class="typeBadgeClass(store.currentEntity.entity_type)"
-            data-testid="entity-type-badge"
-          >
-            {{ store.currentEntity.entity_type }}
-          </span>
-        </div>
-        <div
-          v-if="store.currentEntity.aliases.length"
-          class="text-sm text-gray-500 dark:text-gray-400"
-          data-testid="entity-aliases"
-        >
-          Aliases: {{ store.currentEntity.aliases.join(', ') }}
-        </div>
-        <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          {{ store.mentions.length }} mentions
-          <template v-if="store.currentEntity.first_seen">
-            · first seen {{ formatDate(store.currentEntity.first_seen) }}
+
+          <template v-if="!editing">
+            <h1
+              class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold"
+            >
+              {{ store.currentEntity.canonical_name }}
+            </h1>
+            <span
+              class="inline-flex text-xs font-medium rounded-full px-2.5 py-0.5 capitalize"
+              :class="typeBadgeClass(store.currentEntity.entity_type)"
+              data-testid="entity-type-badge"
+            >
+              {{ store.currentEntity.entity_type }}
+            </span>
+
+            <div class="ml-auto flex items-center gap-2">
+              <button
+                class="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
+                data-testid="edit-button"
+                @click="startEditing"
+              >
+                <svg class="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.414-9.414a2 2 0 1 1 2.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Edit
+              </button>
+              <button
+                class="btn border-red-300 dark:border-red-700/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                data-testid="delete-button"
+                :disabled="deleting"
+                @click="confirmDelete"
+              >
+                <svg class="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path d="M19 7l-.867 12.142A2 2 0 0 1 16.138 21H7.862a2 2 0 0 1-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v3M4 7h16" />
+                </svg>
+                {{ deleting ? 'Deleting…' : 'Delete' }}
+              </button>
+            </div>
           </template>
         </div>
+
+        <!-- Inline edit form -->
         <div
-          v-if="store.currentEntity.description"
-          class="mt-2 text-sm text-gray-600 dark:text-gray-300 italic"
+          v-if="editing"
+          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4 mb-4"
+          data-testid="edit-form"
         >
-          {{ store.currentEntity.description }}
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Name
+              </label>
+              <input
+                v-model="editName"
+                type="text"
+                class="form-input w-full text-sm dark:bg-gray-900 dark:border-gray-700"
+                data-testid="edit-name-input"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Type
+              </label>
+              <select
+                v-model="editType"
+                class="form-select w-full text-sm dark:bg-gray-900 dark:border-gray-700"
+                data-testid="edit-type-select"
+              >
+                <option v-for="t in ENTITY_TYPES" :key="t" :value="t" class="capitalize">
+                  {{ t }}
+                </option>
+              </select>
+            </div>
+          </div>
+          <div class="mb-4">
+            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+              Description
+            </label>
+            <textarea
+              v-model="editDescription"
+              rows="2"
+              class="form-textarea w-full text-sm dark:bg-gray-900 dark:border-gray-700"
+              data-testid="edit-description-input"
+            />
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              class="btn bg-violet-500 hover:bg-violet-600 text-white"
+              data-testid="save-edit-button"
+              :disabled="saving || !editName.trim()"
+              @click="saveEdit"
+            >
+              {{ saving ? 'Saving…' : 'Save' }}
+            </button>
+            <button
+              class="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300"
+              data-testid="cancel-edit-button"
+              @click="cancelEditing"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
+
+        <template v-if="!editing">
+          <div
+            v-if="store.currentEntity.aliases.length"
+            class="text-sm text-gray-500 dark:text-gray-400"
+            data-testid="entity-aliases"
+          >
+            Aliases: {{ store.currentEntity.aliases.join(', ') }}
+          </div>
+          <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {{ store.mentions.length }} mentions
+            <template v-if="store.currentEntity.first_seen">
+              · first seen {{ formatDate(store.currentEntity.first_seen) }}
+            </template>
+          </div>
+          <div
+            v-if="store.currentEntity.description"
+            class="mt-2 text-sm text-gray-600 dark:text-gray-300 italic"
+          >
+            {{ store.currentEntity.description }}
+          </div>
+        </template>
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -115,6 +115,66 @@ export interface EntryEntitiesResponse {
   total: number
 }
 
+// --- Management (update / delete / merge) ---
+
+export interface EntityUpdateRequest {
+  canonical_name?: string
+  entity_type?: EntityType
+  description?: string
+}
+
+export interface EntityDeleteResponse {
+  deleted: boolean
+  id: number
+}
+
+export interface EntityMergeRequest {
+  survivor_id: number
+  absorbed_ids: number[]
+}
+
+export interface EntityMergeResponse {
+  survivor: Entity
+  absorbed_ids: number[]
+  mentions_reassigned: number
+  relationships_reassigned: number
+  aliases_added: number
+}
+
+// --- Merge candidates ---
+
+export interface MergeCandidate {
+  id: number
+  entity_a: EntitySummary
+  entity_b: EntitySummary
+  similarity: number
+  status: 'pending' | 'accepted' | 'dismissed'
+  extraction_run_id: string
+  created_at: string
+}
+
+export interface MergeCandidatesResponse {
+  items: MergeCandidate[]
+  total: number
+}
+
+export interface MergeHistoryEntry {
+  id: number
+  survivor_id: number
+  absorbed_id: number
+  absorbed_name: string
+  absorbed_type: EntityType
+  absorbed_desc: string
+  absorbed_aliases: string[]
+  merged_at: string
+  merged_by: string
+}
+
+export interface MergeHistoryResponse {
+  entity_id: number
+  history: MergeHistoryEntry[]
+}
+
 // Extraction is triggered asynchronously: POST /api/entities/extract
 // returns a JobSubmissionResponse from src/types/job.ts, and the final
 // per-entry results land under Job.result once the background job

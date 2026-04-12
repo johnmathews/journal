@@ -7,6 +7,7 @@ import {
   type EntitySummary,
 } from '@/types/entity'
 import BatchJobModal from '@/components/BatchJobModal.vue'
+import BaseModal from '@/components/BaseModal.vue'
 
 const store = useEntitiesStore()
 
@@ -89,12 +90,10 @@ function applyFilters() {
 
 onMounted(() => {
   store.loadEntities({ offset: 0 })
+  store.loadMergeCandidates()
 })
 
 function typeBadgeClass(type: EntityType): string {
-  // Distinct tailwind hues per entity type. Background + text pairs
-  // tuned to be readable in both light and dark mode without needing
-  // per-theme overrides.
   switch (type) {
     case 'person':
       return 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300'
@@ -131,6 +130,86 @@ const canNext = computed(() => {
   const offset = store.currentParams.offset || 0
   return offset + limit < store.total
 })
+
+// --- Multi-select for merge ---
+const selected = ref<Set<number>>(new Set())
+
+function toggleSelect(id: number) {
+  const next = new Set(selected.value)
+  if (next.has(id)) {
+    next.delete(id)
+  } else {
+    next.add(id)
+  }
+  selected.value = next
+}
+
+function isSelected(id: number): boolean {
+  return selected.value.has(id)
+}
+
+const selectedCount = computed(() => selected.value.size)
+const canMerge = computed(() => selected.value.size >= 2)
+
+function clearSelection() {
+  selected.value = new Set()
+}
+
+// --- Merge modal ---
+const showMergeModal = ref(false)
+const survivorId = ref<number | null>(null)
+const merging = ref(false)
+const mergeError = ref<string | null>(null)
+
+const selectedEntities = computed(() =>
+  store.entities.filter((e) => selected.value.has(e.id)),
+)
+
+function openMergeModal() {
+  if (!canMerge.value) return
+  // Default survivor is the entity with most mentions
+  const best = selectedEntities.value.reduce((a, b) =>
+    a.mention_count >= b.mention_count ? a : b,
+  )
+  survivorId.value = best.id
+  mergeError.value = null
+  showMergeModal.value = true
+}
+
+// --- Merge review ---
+const showMergeReview = ref(false)
+
+async function acceptCandidate(candidateId: number, entityA: EntitySummary, entityB: EntitySummary) {
+  // Accept means user wants to merge them. Pick the one with more mentions as survivor.
+  const survivor = entityA.mention_count >= entityB.mention_count ? entityA : entityB
+  const absorbed = survivor.id === entityA.id ? entityB : entityA
+  await store.acceptMergeCandidate(candidateId)
+  await store.mergeEntities(survivor.id, [absorbed.id])
+  store.loadEntities({ offset: 0 })
+}
+
+async function dismissCandidate(candidateId: number) {
+  await store.dismissMergeCandidate(candidateId)
+}
+
+async function executeMerge() {
+  if (survivorId.value === null) return
+  const absorbedIds = [...selected.value].filter((id) => id !== survivorId.value)
+  if (absorbedIds.length === 0) return
+
+  merging.value = true
+  mergeError.value = null
+  try {
+    await store.mergeEntities(survivorId.value, absorbedIds)
+    showMergeModal.value = false
+    clearSelection()
+    store.loadEntities({ offset: 0 })
+  } catch (e) {
+    mergeError.value = e instanceof Error ? e.message : 'Merge failed'
+  } finally {
+    merging.value = false
+  }
+}
 </script>
 
 <template>
@@ -158,6 +237,114 @@ const canNext = computed(() => {
           Run extraction
         </button>
       </div>
+    </div>
+
+    <!-- Merge review banner -->
+    <div
+      v-if="store.mergeCandidatesTotal > 0"
+      class="mb-4"
+      data-testid="merge-review-section"
+    >
+      <button
+        class="flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-400 hover:underline"
+        data-testid="toggle-merge-review"
+        @click="showMergeReview = !showMergeReview"
+      >
+        <span
+          class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-amber-500 text-white text-xs font-bold"
+        >
+          {{ store.mergeCandidatesTotal }}
+        </span>
+        Possible duplicates to review
+        <svg
+          class="w-4 h-4 transition-transform"
+          :class="{ 'rotate-180': showMergeReview }"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      <div
+        v-if="showMergeReview"
+        class="mt-3 space-y-3"
+        data-testid="merge-candidates-list"
+      >
+        <div
+          v-for="candidate in store.mergeCandidates"
+          :key="candidate.id"
+          class="flex items-center gap-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-700/40 rounded-lg px-4 py-3 text-sm"
+          :data-testid="`merge-candidate-${candidate.id}`"
+        >
+          <div class="flex-1">
+            <span class="font-medium text-gray-800 dark:text-gray-100">
+              {{ candidate.entity_a.canonical_name }}
+            </span>
+            <span
+              class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize mx-1"
+              :class="typeBadgeClass(candidate.entity_a.entity_type)"
+            >
+              {{ candidate.entity_a.entity_type }}
+            </span>
+            <span class="text-gray-400 dark:text-gray-500 mx-1">~</span>
+            <span class="font-medium text-gray-800 dark:text-gray-100">
+              {{ candidate.entity_b.canonical_name }}
+            </span>
+            <span
+              class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize mx-1"
+              :class="typeBadgeClass(candidate.entity_b.entity_type)"
+            >
+              {{ candidate.entity_b.entity_type }}
+            </span>
+            <span class="text-xs text-gray-400 dark:text-gray-500 ml-2">
+              {{ (candidate.similarity * 100).toFixed(0) }}% similar
+            </span>
+          </div>
+          <button
+            class="btn text-xs py-1 bg-violet-500 hover:bg-violet-600 text-white"
+            data-testid="accept-candidate"
+            @click="acceptCandidate(candidate.id, candidate.entity_a, candidate.entity_b)"
+          >
+            Merge
+          </button>
+          <button
+            class="btn text-xs py-1 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300"
+            data-testid="dismiss-candidate"
+            @click="dismissCandidate(candidate.id)"
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Selection toolbar -->
+    <div
+      v-if="selectedCount > 0"
+      class="mb-4 flex items-center gap-3 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700/40 rounded-lg px-4 py-2 text-sm"
+      data-testid="selection-toolbar"
+    >
+      <span class="text-violet-700 dark:text-violet-300 font-medium">
+        {{ selectedCount }} selected
+      </span>
+      <button
+        class="btn bg-violet-500 hover:bg-violet-600 text-white text-xs py-1"
+        :disabled="!canMerge"
+        data-testid="merge-button"
+        @click="openMergeModal"
+      >
+        Merge selected
+      </button>
+      <button
+        class="text-violet-600 dark:text-violet-400 hover:underline text-xs"
+        data-testid="clear-selection"
+        @click="clearSelection"
+      >
+        Clear
+      </button>
     </div>
 
     <!-- Type filter tabs -->
@@ -231,6 +418,7 @@ const canNext = computed(() => {
           class="text-xs uppercase text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-900/40"
         >
           <tr>
+            <th class="px-2 py-3 w-8"></th>
             <th
               class="px-4 py-3 text-left font-semibold cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
               data-testid="sort-name"
@@ -273,8 +461,18 @@ const canNext = computed(() => {
             v-for="entity in sortedEntities"
             :key="entity.id"
             class="hover:bg-gray-50 dark:hover:bg-gray-700/30"
+            :class="{ 'bg-violet-50/50 dark:bg-violet-500/5': isSelected(entity.id) }"
             data-testid="entity-row"
           >
+            <td class="px-2 py-3 text-center">
+              <input
+                type="checkbox"
+                :checked="isSelected(entity.id)"
+                class="form-checkbox h-4 w-4 text-violet-500 rounded border-gray-300 dark:border-gray-600"
+                data-testid="entity-checkbox"
+                @change="toggleSelect(entity.id)"
+              />
+            </td>
             <td class="px-4 py-3">
               <RouterLink
                 :to="{
@@ -344,6 +542,89 @@ const canNext = computed(() => {
         </button>
       </div>
     </div>
+
+    <!-- Merge modal -->
+    <BaseModal v-model="showMergeModal" title="Merge entities" size="md">
+      <div class="space-y-4">
+        <p class="text-sm text-gray-600 dark:text-gray-300">
+          Select which entity to keep. The others will be merged into it — their
+          mentions, relationships, and aliases will be reassigned.
+        </p>
+
+        <div
+          v-if="mergeError"
+          class="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
+          data-testid="merge-error"
+        >
+          {{ mergeError }}
+        </div>
+
+        <div class="space-y-2">
+          <label
+            v-for="entity in selectedEntities"
+            :key="entity.id"
+            class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
+            :class="
+              survivorId === entity.id
+                ? 'border-violet-400 dark:border-violet-500/60 bg-violet-50 dark:bg-violet-500/10'
+                : 'border-gray-200 dark:border-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-700/30'
+            "
+            :data-testid="`survivor-option-${entity.id}`"
+          >
+            <input
+              v-model="survivorId"
+              type="radio"
+              :value="entity.id"
+              class="form-radio text-violet-500"
+              name="survivor"
+            />
+            <div class="flex-1">
+              <span class="font-medium text-gray-800 dark:text-gray-100">
+                {{ entity.canonical_name }}
+              </span>
+              <span
+                class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize ml-2"
+                :class="typeBadgeClass(entity.entity_type)"
+              >
+                {{ entity.entity_type }}
+              </span>
+              <span class="text-xs text-gray-400 dark:text-gray-500 ml-2">
+                {{ entity.mention_count }} mentions
+              </span>
+            </div>
+            <span
+              v-if="survivorId === entity.id"
+              class="text-xs text-violet-600 dark:text-violet-400 font-medium"
+            >
+              Keep
+            </span>
+            <span
+              v-else
+              class="text-xs text-gray-400 dark:text-gray-500"
+            >
+              Merge into survivor
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <template #footer>
+        <button
+          class="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300"
+          @click="showMergeModal = false"
+        >
+          Cancel
+        </button>
+        <button
+          class="btn bg-violet-500 hover:bg-violet-600 text-white"
+          :disabled="merging || survivorId === null"
+          data-testid="confirm-merge-button"
+          @click="executeMerge"
+        >
+          {{ merging ? 'Merging…' : `Merge ${selectedCount - 1} into survivor` }}
+        </button>
+      </template>
+    </BaseModal>
 
     <BatchJobModal
       v-model="showBatchModal"
