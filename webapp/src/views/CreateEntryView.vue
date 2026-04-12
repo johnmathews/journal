@@ -26,6 +26,11 @@ const tabs = [
   { key: 'import' as const, label: 'Import File' },
   { key: 'upload' as const, label: 'Upload Images' },
 ]
+
+function switchTab(key: typeof activeTab.value) {
+  activeTab.value = key
+  entriesStore.createError = null
+}
 </script>
 
 <template>
@@ -66,7 +71,7 @@ const tabs = [
               ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm'
               : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200',
           ]"
-          @click="activeTab = tab.key; entriesStore.createError = null"
+          @click="switchTab(tab.key)"
         >
           {{ tab.label }}
         </button>
