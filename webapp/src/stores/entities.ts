@@ -96,7 +96,9 @@ export const useEntitiesStore = defineStore('entities', () => {
 
   // --- Entity management ---
 
-  async function updateCurrentEntity(patch: EntityUpdateRequest): Promise<Entity> {
+  async function updateCurrentEntity(
+    patch: EntityUpdateRequest,
+  ): Promise<Entity> {
     error.value = null
     try {
       if (!currentEntity.value) throw new Error('No entity selected')

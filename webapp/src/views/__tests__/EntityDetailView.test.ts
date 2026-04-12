@@ -5,7 +5,9 @@ import { createRouter, createWebHistory } from 'vue-router'
 import EntityDetailView from '../EntityDetailView.vue'
 
 vi.mock('@/api/entities', () => ({
-  fetchEntities: vi.fn().mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 }),
+  fetchEntities: vi
+    .fn()
+    .mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 }),
   fetchEntity: vi.fn().mockResolvedValue({
     id: 42,
     entity_type: 'person',
@@ -297,7 +299,10 @@ describe('EntityDetailView', () => {
     await wrapper.find('[data-testid="edit-button"]').trigger('click')
     expect(wrapper.find('[data-testid="edit-form"]').exists()).toBe(true)
     expect(
-      (wrapper.find('[data-testid="edit-name-input"]').element as HTMLInputElement).value,
+      (
+        wrapper.find('[data-testid="edit-name-input"]')
+          .element as HTMLInputElement
+      ).value,
     ).toBe('Ritsya')
   })
 

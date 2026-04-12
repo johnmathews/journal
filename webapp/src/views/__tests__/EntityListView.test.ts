@@ -462,10 +462,28 @@ describe('EntityListView', () => {
     const { fetchEntities } = await import('@/api/entities')
     vi.mocked(fetchEntities).mockResolvedValueOnce({
       items: [
-        { id: 2, entity_type: 'place', canonical_name: 'Blue Bottle', aliases: [], mention_count: 4, first_seen: '2026-02-15', last_seen: '2026-03-01' },
-        { id: 1, entity_type: 'person', canonical_name: 'Ritsya', aliases: [], mention_count: 12, first_seen: '2026-01-02', last_seen: '2026-03-22' },
+        {
+          id: 2,
+          entity_type: 'place',
+          canonical_name: 'Blue Bottle',
+          aliases: [],
+          mention_count: 4,
+          first_seen: '2026-02-15',
+          last_seen: '2026-03-01',
+        },
+        {
+          id: 1,
+          entity_type: 'person',
+          canonical_name: 'Ritsya',
+          aliases: [],
+          mention_count: 12,
+          first_seen: '2026-01-02',
+          last_seen: '2026-03-22',
+        },
       ],
-      total: 2, limit: 50, offset: 0,
+      total: 2,
+      limit: 50,
+      offset: 0,
     })
     const wrapper = mountView()
     await flushPromises()
@@ -478,20 +496,42 @@ describe('EntityListView', () => {
     const { fetchEntities } = await import('@/api/entities')
     vi.mocked(fetchEntities).mockResolvedValueOnce({
       items: [
-        { id: 2, entity_type: 'place', canonical_name: 'Blue Bottle', aliases: [], mention_count: 4, first_seen: '2026-02-15', last_seen: '2026-03-01' },
-        { id: 1, entity_type: 'person', canonical_name: 'Ritsya', aliases: [], mention_count: 12, first_seen: '2026-01-02', last_seen: '2026-03-22' },
+        {
+          id: 2,
+          entity_type: 'place',
+          canonical_name: 'Blue Bottle',
+          aliases: [],
+          mention_count: 4,
+          first_seen: '2026-02-15',
+          last_seen: '2026-03-01',
+        },
+        {
+          id: 1,
+          entity_type: 'person',
+          canonical_name: 'Ritsya',
+          aliases: [],
+          mention_count: 12,
+          first_seen: '2026-01-02',
+          last_seen: '2026-03-22',
+        },
       ],
-      total: 2, limit: 50, offset: 0,
+      total: 2,
+      limit: 50,
+      offset: 0,
     })
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="selection-toolbar"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="selection-toolbar"]').exists()).toBe(
+      false,
+    )
 
     const firstCheckbox = wrapper.findAll('[data-testid="entity-checkbox"]')[0]
     await firstCheckbox.trigger('change')
 
-    expect(wrapper.find('[data-testid="selection-toolbar"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="selection-toolbar"]').exists()).toBe(
+      true,
+    )
     expect(wrapper.find('[data-testid="selection-toolbar"]').text()).toContain(
       '1 selected',
     )
@@ -501,10 +541,28 @@ describe('EntityListView', () => {
     const { fetchEntities } = await import('@/api/entities')
     vi.mocked(fetchEntities).mockResolvedValueOnce({
       items: [
-        { id: 2, entity_type: 'place', canonical_name: 'Blue Bottle', aliases: [], mention_count: 4, first_seen: '2026-02-15', last_seen: '2026-03-01' },
-        { id: 1, entity_type: 'person', canonical_name: 'Ritsya', aliases: [], mention_count: 12, first_seen: '2026-01-02', last_seen: '2026-03-22' },
+        {
+          id: 2,
+          entity_type: 'place',
+          canonical_name: 'Blue Bottle',
+          aliases: [],
+          mention_count: 4,
+          first_seen: '2026-02-15',
+          last_seen: '2026-03-01',
+        },
+        {
+          id: 1,
+          entity_type: 'person',
+          canonical_name: 'Ritsya',
+          aliases: [],
+          mention_count: 12,
+          first_seen: '2026-01-02',
+          last_seen: '2026-03-22',
+        },
       ],
-      total: 2, limit: 50, offset: 0,
+      total: 2,
+      limit: 50,
+      offset: 0,
     })
     const wrapper = mountView()
     await flushPromises()
@@ -513,14 +571,20 @@ describe('EntityListView', () => {
 
     // Select 1 — merge should be disabled
     await checkboxes[0].trigger('change')
-    expect(wrapper.find('[data-testid="merge-button"]').attributes('disabled')).toBeDefined()
+    expect(
+      wrapper.find('[data-testid="merge-button"]').attributes('disabled'),
+    ).toBeDefined()
 
     // Select 2 — merge should be enabled
     await checkboxes[1].trigger('change')
-    expect(wrapper.find('[data-testid="merge-button"]').attributes('disabled')).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="merge-button"]').attributes('disabled'),
+    ).toBeUndefined()
 
     // Clear
     await wrapper.find('[data-testid="clear-selection"]').trigger('click')
-    expect(wrapper.find('[data-testid="selection-toolbar"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="selection-toolbar"]').exists()).toBe(
+      false,
+    )
   })
 })

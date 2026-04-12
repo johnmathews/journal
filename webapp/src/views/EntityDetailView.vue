@@ -2,7 +2,11 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEntitiesStore } from '@/stores/entities'
-import { ENTITY_TYPES, type EntityType, type EntityMention } from '@/types/entity'
+import {
+  ENTITY_TYPES,
+  type EntityType,
+  type EntityMention,
+} from '@/types/entity'
 
 const props = defineProps<{
   id: string
@@ -195,8 +199,16 @@ async function confirmDelete() {
                 data-testid="edit-button"
                 @click="startEditing"
               >
-                <svg class="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.414-9.414a2 2 0 1 1 2.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                <svg
+                  class="w-4 h-4 mr-1"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.414-9.414a2 2 0 1 1 2.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                  />
                 </svg>
                 Edit
               </button>
@@ -206,8 +218,16 @@ async function confirmDelete() {
                 :disabled="deleting"
                 @click="confirmDelete"
               >
-                <svg class="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path d="M19 7l-.867 12.142A2 2 0 0 1 16.138 21H7.862a2 2 0 0 1-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v3M4 7h16" />
+                <svg
+                  class="w-4 h-4 mr-1"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M19 7l-.867 12.142A2 2 0 0 1 16.138 21H7.862a2 2 0 0 1-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v3M4 7h16"
+                  />
                 </svg>
                 {{ deleting ? 'Deleting…' : 'Delete' }}
               </button>
@@ -223,7 +243,9 @@ async function confirmDelete() {
         >
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
-              <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+              <label
+                class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+              >
                 Name
               </label>
               <input
@@ -234,7 +256,9 @@ async function confirmDelete() {
               />
             </div>
             <div>
-              <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+              <label
+                class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+              >
                 Type
               </label>
               <select
@@ -242,14 +266,21 @@ async function confirmDelete() {
                 class="form-select w-full text-sm dark:bg-gray-900 dark:border-gray-700"
                 data-testid="edit-type-select"
               >
-                <option v-for="t in ENTITY_TYPES" :key="t" :value="t" class="capitalize">
+                <option
+                  v-for="t in ENTITY_TYPES"
+                  :key="t"
+                  :value="t"
+                  class="capitalize"
+                >
                   {{ t }}
                 </option>
               </select>
             </div>
           </div>
           <div class="mb-4">
-            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+            <label
+              class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+            >
               Description
             </label>
             <textarea

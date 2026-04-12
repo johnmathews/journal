@@ -72,7 +72,9 @@ describe('CreateEntryView', () => {
       true,
     )
     // Others should not
-    expect(wrapper.find('[data-testid="text-entry-panel"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="text-entry-panel"]').exists()).toBe(
+      false,
+    )
     expect(wrapper.find('[data-testid="file-import-panel"]').exists()).toBe(
       false,
     )
@@ -173,7 +175,9 @@ describe('CreateEntryView', () => {
     expect(wrapper.find('[data-testid="image-upload-panel"]').exists()).toBe(
       true,
     )
-    expect(wrapper.find('[data-testid="text-entry-panel"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="text-entry-panel"]').exists()).toBe(
+      false,
+    )
     expect(wrapper.find('[data-testid="file-import-panel"]').exists()).toBe(
       false,
     )

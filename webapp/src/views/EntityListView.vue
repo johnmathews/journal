@@ -179,9 +179,14 @@ function openMergeModal() {
 // --- Merge review ---
 const showMergeReview = ref(false)
 
-async function acceptCandidate(candidateId: number, entityA: EntitySummary, entityB: EntitySummary) {
+async function acceptCandidate(
+  candidateId: number,
+  entityA: EntitySummary,
+  entityB: EntitySummary,
+) {
   // Accept means user wants to merge them. Pick the one with more mentions as survivor.
-  const survivor = entityA.mention_count >= entityB.mention_count ? entityA : entityB
+  const survivor =
+    entityA.mention_count >= entityB.mention_count ? entityA : entityB
   const absorbed = survivor.id === entityA.id ? entityB : entityA
   await store.acceptMergeCandidate(candidateId)
   await store.mergeEntities(survivor.id, [absorbed.id])
@@ -194,7 +199,9 @@ async function dismissCandidate(candidateId: number) {
 
 async function executeMerge() {
   if (survivorId.value === null) return
-  const absorbedIds = [...selected.value].filter((id) => id !== survivorId.value)
+  const absorbedIds = [...selected.value].filter(
+    (id) => id !== survivorId.value,
+  )
   if (absorbedIds.length === 0) return
 
   merging.value = true
@@ -306,7 +313,13 @@ async function executeMerge() {
           <button
             class="btn text-xs py-1 bg-violet-500 hover:bg-violet-600 text-white"
             data-testid="accept-candidate"
-            @click="acceptCandidate(candidate.id, candidate.entity_a, candidate.entity_b)"
+            @click="
+              acceptCandidate(
+                candidate.id,
+                candidate.entity_a,
+                candidate.entity_b,
+              )
+            "
           >
             Merge
           </button>
@@ -461,7 +474,9 @@ async function executeMerge() {
             v-for="entity in sortedEntities"
             :key="entity.id"
             class="hover:bg-gray-50 dark:hover:bg-gray-700/30"
-            :class="{ 'bg-violet-50/50 dark:bg-violet-500/5': isSelected(entity.id) }"
+            :class="{
+              'bg-violet-50/50 dark:bg-violet-500/5': isSelected(entity.id),
+            }"
             data-testid="entity-row"
           >
             <td class="px-2 py-3 text-center">
@@ -598,10 +613,7 @@ async function executeMerge() {
             >
               Keep
             </span>
-            <span
-              v-else
-              class="text-xs text-gray-400 dark:text-gray-500"
-            >
+            <span v-else class="text-xs text-gray-400 dark:text-gray-500">
               Merge into survivor
             </span>
           </label>
@@ -621,7 +633,9 @@ async function executeMerge() {
           data-testid="confirm-merge-button"
           @click="executeMerge"
         >
-          {{ merging ? 'Merging…' : `Merge ${selectedCount - 1} into survivor` }}
+          {{
+            merging ? 'Merging…' : `Merge ${selectedCount - 1} into survivor`
+          }}
         </button>
       </template>
     </BaseModal>
