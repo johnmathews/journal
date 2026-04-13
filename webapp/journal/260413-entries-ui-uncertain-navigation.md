@@ -23,9 +23,13 @@
   won't match and the highlight disappears (correct behavior). Short spans
   (< 3 chars) include surrounding context in the regex to avoid false positives.
 - **Floating navigation bar**: a sticky bar appears when Review mode is active
-  and uncertain spans exist. Shows "X / Y doubts" with Prev/Next/Jump buttons.
-  Clicking scrolls to the target uncertain mark in both panels with a violet
-  ring highlight on the current region.
+  and uncertain spans exist. Shows "X / Y doubts" with Prev/Next buttons.
+  Navigation targets only the Corrected Text panel (where edits happen), not the
+  read-only Original OCR panel. A violet ring highlights the current region.
+  Initially navigation traversed marks in both panels, doubling the count and
+  causing the counter to show nonsensical values like "3/2 doubts" — fixed by
+  scoping DOM queries to a `correctedPanelRef`. Removed the redundant "Jump"
+  button (it just re-scrolled to the already-current mark).
 
 ### Implementation details
 

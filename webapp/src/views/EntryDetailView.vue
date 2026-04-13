@@ -121,8 +121,8 @@ const hasUncertainSpans = computed(() => uncertainSpans.value.length > 0)
 const currentUncertainIdx = ref(0)
 
 function scrollToUncertain(idx: number) {
-  if (!textPanelsRef.value) return
-  const marks = textPanelsRef.value.querySelectorAll('[data-uncertain]')
+  if (!correctedPanelRef.value) return
+  const marks = correctedPanelRef.value.querySelectorAll('[data-uncertain]')
   if (marks.length === 0) return
   const clamped = Math.max(0, Math.min(idx, marks.length - 1))
   currentUncertainIdx.value = clamped
@@ -134,13 +134,13 @@ function scrollToUncertain(idx: number) {
 }
 
 function nextUncertain() {
-  const marks = textPanelsRef.value?.querySelectorAll('[data-uncertain]')
+  const marks = correctedPanelRef.value?.querySelectorAll('[data-uncertain]')
   if (!marks || marks.length === 0) return
   scrollToUncertain((currentUncertainIdx.value + 1) % marks.length)
 }
 
 function prevUncertain() {
-  const marks = textPanelsRef.value?.querySelectorAll('[data-uncertain]')
+  const marks = correctedPanelRef.value?.querySelectorAll('[data-uncertain]')
   if (!marks || marks.length === 0) return
   const next = currentUncertainIdx.value - 1
   scrollToUncertain(next < 0 ? marks.length - 1 : next)
@@ -261,6 +261,7 @@ const readingHtml = computed(() =>
 
 // Scroll to the first <mark> after entity highlight changes
 const textPanelsRef = ref<HTMLElement | null>(null)
+const correctedPanelRef = ref<HTMLElement | null>(null)
 watch(selectedEntityId, async (id) => {
   if (id === null) return
   await nextTick()
@@ -966,13 +967,6 @@ onBeforeUnmount(() => {
             >
               Next
             </button>
-            <button
-              class="px-2 py-1 rounded bg-yellow-200 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100 hover:bg-yellow-300 dark:hover:bg-yellow-700 text-xs font-medium"
-              data-testid="uncertain-jump"
-              @click="scrollToUncertain(currentUncertainIdx)"
-            >
-              Jump
-            </button>
             <span
               class="mx-1 h-4 w-px bg-yellow-300 dark:bg-yellow-700"
               aria-hidden="true"
@@ -1014,6 +1008,7 @@ onBeforeUnmount(() => {
           </section>
 
           <section
+            ref="correctedPanelRef"
             class="lg:flex-1 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
           >
             <h2

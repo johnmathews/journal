@@ -1391,10 +1391,9 @@ describe('EntryDetailView', () => {
       expect(wrapper.find('[data-testid="uncertain-prev"]').exists()).toBe(true)
       expect(wrapper.find('[data-testid="uncertain-next"]').exists()).toBe(true)
 
-      // Clicking prev/next/jump doesn't throw even in happy-dom
+      // Clicking prev/next doesn't throw even in happy-dom
       await wrapper.find('[data-testid="uncertain-next"]').trigger('click')
       await wrapper.find('[data-testid="uncertain-prev"]').trigger('click')
-      await wrapper.find('[data-testid="uncertain-jump"]').trigger('click')
     })
 
     it('does not show floating nav bar when no spans exist', async () => {
