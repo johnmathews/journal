@@ -476,7 +476,7 @@ describe('DashboardView — mood chart', () => {
     expect(agencyText).toContain('0..1')
   })
 
-  it('clicking a toggle hides that dimension and re-renders', async () => {
+  it('clicking a toggle isolates that dimension and re-renders', async () => {
     const wrapper = await setupWithMoodData()
     // Chart.js called twice: once for writing + word (2 charts),
     // once for the mood chart.
@@ -491,13 +491,21 @@ describe('DashboardView — mood chart', () => {
     expect(chartConstructorSpy.mock.calls.length).toBeGreaterThan(
       callsBeforeToggle,
     )
-    // Toggle now shows line-through class.
+    // Grafana-style isolate: clicked dimension stays visible,
+    // the OTHER dimension is dimmed (opacity-40).
+    expect(
+      wrapper
+        .find('[data-testid="dashboard-mood-toggle-agency"]')
+        .classes()
+        .some((c) => c.includes('opacity-40')),
+    ).toBe(true)
+    // The clicked dimension should NOT have the dimmed class.
     expect(
       wrapper
         .find('[data-testid="dashboard-mood-toggle-joy_sadness"]')
         .classes()
-        .some((c) => c.includes('line-through')),
-    ).toBe(true)
+        .some((c) => c.includes('opacity-40')),
+    ).toBe(false)
   })
 
   it('shows the empty state when mood_trends returns no bins', async () => {

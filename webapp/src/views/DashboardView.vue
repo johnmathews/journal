@@ -598,7 +598,7 @@ async function onMoodJobSucceeded(): Promise<void> {
             class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
             :class="
               store.hiddenMoodDimensions.has(d.name)
-                ? 'bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700/60 line-through decoration-2'
+                ? 'bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700/60 opacity-40'
                 : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700/60'
             "
             :data-testid="`dashboard-mood-toggle-${d.name}`"

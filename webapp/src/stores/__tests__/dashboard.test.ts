@@ -263,23 +263,46 @@ describe('useDashboardStore — mood surface', () => {
     expect(store.moodError).toBe('Failed to load mood data')
   })
 
-  it('toggleMoodDimension flips visibility on and off', () => {
+  it('toggleMoodDimension isolates clicked dimension (Grafana-style)', async () => {
+    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
     const store = useDashboardStore()
+    await store.loadMoodDimensions()
+
+    // All visible → click joy_sadness → isolate it (agency hidden)
     store.toggleMoodDimension('joy_sadness')
-    expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(true)
-    store.toggleMoodDimension('joy_sadness')
+    expect(store.hiddenMoodDimensions.has('agency')).toBe(true)
     expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(false)
+
+    // joy_sadness isolated → click joy_sadness again → restore all
+    store.toggleMoodDimension('joy_sadness')
+    expect(store.hiddenMoodDimensions.size).toBe(0)
   })
 
-  it('toggleMoodDimension creates a new Set so Vue reactivity fires', () => {
+  it('toggleMoodDimension switches isolation when clicking a different dimension', async () => {
+    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
     const store = useDashboardStore()
+    await store.loadMoodDimensions()
+
+    // Isolate joy_sadness
+    store.toggleMoodDimension('joy_sadness')
+    expect(store.hiddenMoodDimensions.has('agency')).toBe(true)
+
+    // Click agency while joy_sadness is isolated → switch to agency
+    store.toggleMoodDimension('agency')
+    expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(true)
+    expect(store.hiddenMoodDimensions.has('agency')).toBe(false)
+  })
+
+  it('toggleMoodDimension creates a new Set so Vue reactivity fires', async () => {
+    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    const store = useDashboardStore()
+    await store.loadMoodDimensions()
     const before = store.hiddenMoodDimensions
     store.toggleMoodDimension('joy_sadness')
     const after = store.hiddenMoodDimensions
     // Must be a different Set instance — mutating in place would
     // not trigger watchers in the DashboardView.
     expect(after).not.toBe(before)
-    expect(after.has('joy_sadness')).toBe(true)
   })
 
   it('reset wipes mood state back to defaults', async () => {

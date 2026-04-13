@@ -184,17 +184,24 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
   }
 
+  /**
+   * Grafana-style isolate: click a dimension to show ONLY that
+   * dimension; click it again (when isolated) to restore all.
+   * Clicking a different dimension while one is isolated switches
+   * to the new one.
+   */
   function toggleMoodDimension(name: string): void {
-    // Build a new Set on every toggle so Vue's reactivity sees
-    // the change — mutating the existing Set wouldn't trigger
-    // dependents.
-    const next = new Set(hiddenMoodDimensions.value)
-    if (next.has(name)) {
-      next.delete(name)
-    } else {
-      next.add(name)
+    const allNames = moodDimensions.value.map((d) => d.name)
+    const hidden = hiddenMoodDimensions.value
+
+    // Currently isolated on this exact dimension → restore all
+    if (hidden.size === allNames.length - 1 && !hidden.has(name)) {
+      hiddenMoodDimensions.value = new Set()
+      return
     }
-    hiddenMoodDimensions.value = next
+
+    // Otherwise (all visible, or a different dimension is isolated) → isolate clicked
+    hiddenMoodDimensions.value = new Set(allNames.filter((n) => n !== name))
   }
 
   function reset(): void {
