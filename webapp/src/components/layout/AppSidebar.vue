@@ -104,11 +104,11 @@ watch(
     >
       <!-- Sidebar header -->
       <div class="flex justify-between mb-10 pr-3 sm:px-2">
-        <!-- Logo -->
+        <!-- Logo / title — hidden when sidebar is collapsed on desktop -->
         <RouterLink class="block" to="/" aria-label="Journal home">
           <div>
             <h1
-              class="text-2xl md:text-xl md:pl-2 text-gray-800 dark:text-gray-100 font-bold"
+              class="text-2xl md:text-xl md:pl-2 text-gray-800 dark:text-gray-100 font-bold lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200 whitespace-nowrap overflow-hidden"
             >
               JOURNAL INSIGHTS TOOL
             </h1>
