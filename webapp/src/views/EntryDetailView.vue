@@ -3,6 +3,7 @@ import { computed, onMounted, onBeforeUnmount, ref, nextTick, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useEntriesStore } from '@/stores/entries'
 import { useJobsStore } from '@/stores/jobs'
+import { useToast } from '@/composables/useToast'
 import { isTerminal } from '@/types/job'
 import { useEntryEditor } from '@/composables/useEntryEditor'
 import { useDiffHighlight } from '@/composables/useDiffHighlight'
@@ -25,6 +26,7 @@ const router = useRouter()
 const route = useRoute()
 const store = useEntriesStore()
 const jobsStore = useJobsStore()
+const toast = useToast()
 const { editedText, saving, saveError, isDirty, isModified, reset } =
   useEntryEditor(() => store.currentEntry)
 
@@ -349,25 +351,6 @@ watch(overlayMode, async (mode) => {
   }
 })
 
-// Mirror-div overlay scroll sync: keep the backdrop scrolled to the
-// same Y as the editable textarea so highlight positions line up with
-// the characters the user sees.
-const correctedBackdrop = ref<HTMLDivElement | null>(null)
-const correctedTextarea = ref<HTMLTextAreaElement | null>(null)
-
-function syncCorrectedScroll() {
-  if (correctedBackdrop.value && correctedTextarea.value) {
-    correctedBackdrop.value.scrollTop = correctedTextarea.value.scrollTop
-    correctedBackdrop.value.scrollLeft = correctedTextarea.value.scrollLeft
-  }
-}
-
-// Re-sync scroll after content changes (the backdrop's height can shift
-// as the user types, so wait for the DOM to settle first).
-watch(correctedHtml, () => {
-  nextTick(syncCorrectedScroll)
-})
-
 // Entity chips shown in the header. Fetched lazily so the editor
 // loads even if the extraction job hasn't run yet for this entry.
 // Silently empty on failure (e.g. pre-extraction entries that return
@@ -427,15 +410,7 @@ async function save() {
     // Invalidate cached chunks/tokens — the server re-chunks and
     // re-embeds on save, so the previously-fetched offsets and token
     // spans no longer describe the persisted final_text. The next
-    // overlay-mode flip will refetch fresh data. We do NOT touch
-    // overlayMode itself: if the user was looking at chunks before
-    // the save, the watch(overlayMode) effect won't refire, so we
-    // leave the mode but null the cache so the panel will show the
-    // overlay-display (backed by overlayHtml over persistedText)
-    // with the stale-until-next-toggle gap that already existed and
-    // was flagged as a minor UX issue, not a bug. The important bit
-    // is that switching off→on now picks up fresh data rather than
-    // showing the pre-save chunks.
+    // overlay-mode flip will refetch fresh data.
     chunks.value = null
     tokens.value = null
     overlayError.value = null
@@ -448,6 +423,7 @@ async function save() {
       jobsStore.trackJob(extractionJobId, 'entity_extraction', {
         entry_id: entryId,
       })
+      toast.success('Text saved. Entity extraction running in background.')
       const unwatch = watch(
         () => jobsStore.getJobById(extractionJobId),
         (job) => {
@@ -457,6 +433,8 @@ async function save() {
           }
         },
       )
+    } else {
+      toast.success('Text saved.')
     }
   } catch (e) {
     saveError.value = e instanceof Error ? e.message : 'Failed to save'
@@ -911,12 +889,9 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- Side-by-side editor panels (static 50/50) -->
-        <div
-          ref="textPanelsRef"
-          class="flex flex-col lg:flex-row gap-4 lg:min-h-[500px]"
-        >
+        <div ref="textPanelsRef" class="flex flex-col lg:flex-row gap-4">
           <section
-            class="flex-1 min-h-[300px] lg:min-h-0 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
+            class="lg:flex-1 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
           >
             <h2
               class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3"
@@ -931,7 +906,7 @@ onBeforeUnmount(() => {
           -->
             <!-- eslint-disable vue/no-v-html -->
             <div
-              class="diff-surface flex-1 w-full overflow-auto bg-gray-50 dark:bg-gray-900/40 text-gray-600 dark:text-gray-400 rounded-md border border-gray-200 dark:border-gray-700/60 px-3 py-2"
+              class="diff-surface w-full bg-gray-50 dark:bg-gray-900/40 text-gray-600 dark:text-gray-400 rounded-md border border-gray-200 dark:border-gray-700/60 px-3 py-2"
               data-testid="ocr-display"
               v-html="originalHtml"
             />
@@ -939,7 +914,7 @@ onBeforeUnmount(() => {
           </section>
 
           <section
-            class="flex-1 min-h-[300px] lg:min-h-0 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
+            class="lg:flex-1 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
           >
             <h2
               class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3"
@@ -947,13 +922,13 @@ onBeforeUnmount(() => {
               Corrected Text
             </h2>
             <!--
-            Two presentation modes:
+            Two presentation modes using CSS Grid overlay:
 
-            1. Overlay OFF — mirror-div editor: a styled backdrop
-               renders the diff-highlighted HTML underneath a
-               transparent textarea. The textarea catches all
-               keyboard/mouse input; the backdrop is kept scrolled in
-               lockstep so highlights line up with glyphs.
+            1. Overlay OFF — mirror-div editor: an invisible sizer div
+               sets the natural height, a styled backdrop renders
+               diff-highlighted HTML, and a transparent textarea handles
+               keyboard/mouse input. All three share the same grid cell
+               so the panel auto-sizes to content (no internal scrolling).
 
             2. Overlay ON — read-only chunk/token overlay: the backdrop
                renders `overlayHtml` against `persistedText` (the
@@ -962,31 +937,33 @@ onBeforeUnmount(() => {
                offsets cannot drift from the rendered text.
           -->
             <div
-              class="corrected-wrapper relative flex-1 rounded-md border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-900/40 overflow-hidden"
+              class="corrected-wrapper relative grid rounded-md border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-900/40"
             >
               <template v-if="overlayMode === 'off'">
+                <!-- Invisible sizer: determines the natural height of the grid cell -->
+                <div
+                  class="diff-surface [grid-area:1/1] invisible px-3 py-2"
+                  aria-hidden="true"
+                  v-text="editedText + '\n'"
+                />
                 <!-- eslint-disable vue/no-v-html -->
                 <div
-                  ref="correctedBackdrop"
-                  class="diff-surface absolute inset-0 overflow-auto px-3 py-2 pointer-events-none text-gray-900 dark:text-gray-100"
+                  class="diff-surface [grid-area:1/1] overflow-hidden px-3 py-2 pointer-events-none text-gray-900 dark:text-gray-100"
                   aria-hidden="true"
                   v-html="correctedHtml"
                 />
                 <!-- eslint-enable vue/no-v-html -->
                 <textarea
-                  ref="correctedTextarea"
                   v-model="editedText"
                   spellcheck="false"
-                  class="diff-surface absolute inset-0 w-full h-full border-0 bg-transparent text-transparent caret-gray-900 dark:caret-white resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/40 rounded-md px-3 py-2"
+                  class="diff-surface [grid-area:1/1] w-full border-0 bg-transparent text-transparent caret-gray-900 dark:caret-white resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/40 rounded-md px-3 py-2"
                   data-testid="corrected-textarea"
-                  @scroll="syncCorrectedScroll"
-                  @input="syncCorrectedScroll"
                 />
               </template>
               <template v-else>
                 <!-- eslint-disable vue/no-v-html -->
                 <div
-                  class="diff-surface absolute inset-0 overflow-auto px-3 py-2 text-gray-900 dark:text-gray-100"
+                  class="diff-surface [grid-area:1/1] px-3 py-2 text-gray-900 dark:text-gray-100"
                   data-testid="overlay-display"
                   v-html="overlayHtml"
                 />
@@ -996,7 +973,7 @@ onBeforeUnmount(() => {
                   class="absolute top-2 right-2 text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300"
                   data-testid="overlay-loading"
                 >
-                  Loading…
+                  Loading...
                 </div>
               </template>
             </div>
