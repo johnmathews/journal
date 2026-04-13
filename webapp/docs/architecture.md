@@ -80,6 +80,14 @@ Typed fetch wrappers for the journal-server REST API.
 - **client.ts** — Generic `apiFetch<T>` with error handling and `ApiRequestError` class (carries `errorCode` so callers can disambiguate e.g. `chunks_not_backfilled` from a generic 404)
 - **entries.ts** — Endpoint functions: `fetchEntries`, `fetchEntry`, `updateEntryText`, `deleteEntry`, `fetchStats`, `fetchEntryChunks`, `fetchEntryTokens`
 
+### Utilities (`src/utils/`)
+Pure helper functions with no Vue or store dependencies.
+
+- **entityName.ts** — Display-only normalisation for entity names. `displayName(name)` title-cases words, preserves known acronyms (SQL, API, etc.) and special brand spellings (iPhone, GitHub, macOS, etc.), and replaces hyphens/underscores with spaces. `displayAliases(aliases)` applies `displayName` to each alias and joins with commas. Used in EntityListView, EntityDetailView, and EntryDetailView templates. Does not modify stored data — edit forms and text-matching logic use the raw `canonical_name`.
+- **chartjs-config.ts** — Chart.js global defaults and helper functions for dashboard charts
+- **mosaic.ts** — CSS/colour helpers ported from the Mosaic admin template
+- **searchSnippet.ts** — Converts FTS5 snippet marker characters (`\x02`/`\x03`) into `<mark>` HTML tags for rendering search result highlights
+
 ### Types (`src/types/`)
 Shared TypeScript interfaces matching the REST API response schemas.
 
