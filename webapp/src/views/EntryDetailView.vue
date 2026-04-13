@@ -448,7 +448,7 @@ async function save() {
         entry_id: entryId,
       })
       const unwatch = watch(
-        () => jobsStore.getJobById.value(extractionJobId),
+        () => jobsStore.getJobById(extractionJobId),
         (job) => {
           if (job && isTerminal(job.status)) {
             unwatch()
