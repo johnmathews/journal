@@ -44,6 +44,11 @@ const router = createRouter({
       component: () => import('@/views/EntityDetailView.vue'),
       props: true,
     },
+    {
+      path: '/jobs',
+      name: 'job-history',
+      component: () => import('@/views/JobHistoryView.vue'),
+    },
   ],
 })
 

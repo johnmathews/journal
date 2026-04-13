@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { triggerMoodBackfill, getJob } from '../jobs'
+import { triggerMoodBackfill, getJob, listJobs } from '../jobs'
 import { ApiRequestError } from '../client'
 
 describe('jobs API client', () => {
@@ -89,6 +89,54 @@ describe('jobs API client', () => {
     expect(fetchSpy.mock.calls[0][0]).toBe(
       '/api/jobs/weird%20id%2Fwith%20slashes',
     )
+  })
+
+  it('listJobs GETs /api/jobs with query params', async () => {
+    const response = { items: [], total: 0, limit: 25, offset: 0 }
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(response),
+    } as Response)
+
+    const resp = await listJobs({
+      status: 'failed',
+      type: 'mood_backfill',
+      limit: 10,
+    })
+
+    const url = fetchSpy.mock.calls[0][0] as string
+    expect(url).toContain('/api/jobs?')
+    expect(url).toContain('status=failed')
+    expect(url).toContain('type=mood_backfill')
+    expect(url).toContain('limit=10')
+    expect(resp).toEqual(response)
+  })
+
+  it('listJobs with no params GETs /api/jobs without query string', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({ items: [], total: 0, limit: 50, offset: 0 }),
+    } as Response)
+
+    await listJobs()
+
+    expect(fetchSpy.mock.calls[0][0]).toBe('/api/jobs')
+  })
+
+  it('listJobs omits undefined params from the query', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({ items: [], total: 0, limit: 50, offset: 0 }),
+    } as Response)
+
+    await listJobs({ status: 'succeeded' })
+
+    const url = fetchSpy.mock.calls[0][0] as string
+    expect(url).toBe('/api/jobs?status=succeeded')
+    expect(url).not.toContain('type=')
+    expect(url).not.toContain('limit=')
   })
 
   it('getJob throws ApiRequestError on 404', async () => {

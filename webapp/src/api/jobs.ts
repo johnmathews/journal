@@ -30,3 +30,28 @@ export function triggerMoodBackfill(
 export function getJob(jobId: string): Promise<Job> {
   return apiFetch<Job>(`/api/jobs/${encodeURIComponent(jobId)}`)
 }
+
+export interface JobListParams {
+  status?: string
+  type?: string
+  limit?: number
+  offset?: number
+}
+
+export interface JobListResponse {
+  items: Job[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export function listJobs(params: JobListParams = {}): Promise<JobListResponse> {
+  const entries = Object.entries(params).filter(
+    ([, v]) => v !== undefined && v !== null,
+  )
+  const query = entries.length
+    ? '?' +
+      new URLSearchParams(entries.map(([k, v]) => [k, String(v)])).toString()
+    : ''
+  return apiFetch<JobListResponse>(`/api/jobs${query}`)
+}

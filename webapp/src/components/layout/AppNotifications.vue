@@ -157,7 +157,7 @@ function closeDropdown() {
           <p
             class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
           >
-            Background jobs
+            Running jobs
           </p>
         </div>
 

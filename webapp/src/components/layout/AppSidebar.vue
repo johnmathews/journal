@@ -375,6 +375,52 @@ watch(
                 </a>
               </li>
             </RouterLink>
+
+            <!-- Job History link -->
+            <RouterLink v-slot="{ href, navigate, isActive }" to="/jobs" custom>
+              <li
+                class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
+                :class="
+                  isActive &&
+                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                "
+              >
+                <a
+                  :href="href"
+                  class="block truncate transition"
+                  data-testid="sidebar-jobs-link"
+                  :class="
+                    isActive
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-800 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white'
+                  "
+                  @click="navigate"
+                >
+                  <div class="flex items-center">
+                    <svg
+                      class="shrink-0 fill-current"
+                      :class="
+                        isActive
+                          ? 'text-violet-500'
+                          : 'text-gray-400 dark:text-gray-500'
+                      "
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0Zm0 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2Zm.5 2v4.25l2.85 1.65-.75 1.3L7.5 9V4h1Z"
+                      />
+                    </svg>
+                    <span
+                      class="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                      >Job History</span
+                    >
+                  </div>
+                </a>
+              </li>
+            </RouterLink>
           </ul>
         </div>
       </div>
