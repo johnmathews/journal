@@ -1,23 +1,20 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
 import { useEntriesStore } from '@/stores/entries'
 import { useJobsStore } from '@/stores/jobs'
 
 const props = defineProps<{ entryDate: string }>()
 const emit = defineEmits<{
-  created: [entryId: number]
   submitted: [jobId: string]
 }>()
 
-const router = useRouter()
 const entriesStore = useEntriesStore()
 const jobsStore = useJobsStore()
 
 const files = ref<File[]>([])
 const dragOver = ref(false)
 const jobId = ref<string | null>(null)
-const jobError = ref<string | null>(null)
+const submitError = ref<string | null>(null)
 
 function addFiles(newFiles: FileList | File[]) {
   const imageFiles = Array.from(newFiles).filter((f) =>
@@ -57,14 +54,9 @@ const totalSize = computed(() =>
   files.value.reduce((sum, f) => sum + f.size, 0),
 )
 
-// Job polling
+// Job progress (visible while the user hasn't dismissed the confirmation)
 const currentJob = computed(() =>
   jobId.value ? jobsStore.jobs[jobId.value] : null,
-)
-const isProcessing = computed(
-  () =>
-    currentJob.value?.status === 'running' ||
-    currentJob.value?.status === 'queued',
 )
 const progressPercent = computed(() => {
   const job = currentJob.value
@@ -74,49 +66,31 @@ const progressPercent = computed(() => {
 
 async function submit() {
   if (files.value.length === 0) return
+  submitError.value = null
   try {
     const result = await entriesStore.uploadImages(files.value, props.entryDate)
     jobId.value = result.job_id
     emit('submitted', result.job_id)
-    pollJob(result.job_id)
+    // Register with the jobs store — it handles polling and notifications
+    jobsStore.trackJob(result.job_id, 'ingest_images', {
+      entry_date: props.entryDate,
+      page_count: files.value.length,
+    })
   } catch {
-    // Error is handled by store
+    submitError.value = entriesStore.createError || 'Failed to upload images'
   }
 }
 
-async function pollJob(id: string) {
-  const poll = async () => {
-    try {
-      const job = await jobsStore.fetchJob(id)
-      if (job.status === 'succeeded' && job.result?.entry_id) {
-        emit('created', job.result.entry_id as number)
-        router.push({
-          name: 'entry-detail',
-          params: { id: String(job.result.entry_id) },
-        })
-        return
-      }
-      if (job.status === 'failed') {
-        jobError.value = job.error_message || 'Job failed'
-        return
-      }
-      // Still running -- poll again
-      setTimeout(poll, 1500)
-    } catch {
-      jobError.value = 'Failed to check job status'
-    }
-  }
-  poll()
+/** Dismiss the processing screen and reset the form for a new entry. */
+function acknowledge() {
+  jobId.value = null
+  submitError.value = null
+  files.value = []
 }
 
 function retry() {
-  jobId.value = null
-  jobError.value = null
+  submitError.value = null
 }
-
-// Suppress unused variable warning -- isProcessing is available for
-// future template use when the processing state needs finer control.
-void isProcessing.value
 
 function objectUrl(file: File): string {
   return URL.createObjectURL(file)
@@ -127,8 +101,8 @@ function objectUrl(file: File): string {
   <div
     class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6"
   >
-    <!-- Processing state -->
-    <div v-if="jobId && !jobError" class="text-center py-12">
+    <!-- Processing state — non-blocking: user can dismiss and start a new entry -->
+    <div v-if="jobId" class="text-center py-12">
       <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
         Processing your journal entry...
       </h3>
@@ -140,18 +114,29 @@ function objectUrl(file: File): string {
           :style="{ width: `${progressPercent}%` }"
         />
       </div>
-      <p class="text-sm text-gray-500 dark:text-gray-400">
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
         <template v-if="currentJob?.progress_total">
           Running OCR on page {{ currentJob.progress_current }} of
           {{ currentJob.progress_total - 1 }}...
         </template>
         <template v-else>Queued...</template>
       </p>
+      <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">
+        This job will continue in the background. Track progress via the
+        notifications bell.
+      </p>
+      <button
+        class="btn bg-violet-500 hover:bg-violet-600 text-white px-6 py-2 rounded-lg text-sm font-medium"
+        data-testid="acknowledge-button"
+        @click="acknowledge"
+      >
+        OK
+      </button>
     </div>
 
-    <!-- Error state -->
-    <div v-else-if="jobError" class="text-center py-12">
-      <p class="text-red-600 dark:text-red-400 mb-4">{{ jobError }}</p>
+    <!-- Submit error state -->
+    <div v-else-if="submitError" class="text-center py-12">
+      <p class="text-red-600 dark:text-red-400 mb-4">{{ submitError }}</p>
       <button
         class="btn bg-violet-500 hover:bg-violet-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
         @click="retry"

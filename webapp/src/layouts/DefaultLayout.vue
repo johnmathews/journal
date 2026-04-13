@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
+import AppToast from '@/components/AppToast.vue'
 
 const sidebarOpen = ref(false)
 </script>
@@ -28,4 +29,6 @@ const sidebarOpen = ref(false)
       </main>
     </div>
   </div>
+
+  <AppToast />
 </template>

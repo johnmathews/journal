@@ -39,7 +39,7 @@ function mountView() {
         ImageUploadPanel: {
           template: '<div data-testid="image-upload-panel" />',
           props: ['entryDate'],
-          emits: ['created', 'submitted'],
+          emits: ['submitted'],
         },
       },
     },

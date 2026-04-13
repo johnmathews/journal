@@ -3,9 +3,15 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import ImageUploadPanel from '../ImageUploadPanel.vue'
 import { useEntriesStore } from '@/stores/entries'
+import { useJobsStore } from '@/stores/jobs'
 
-vi.mock('vue-router', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+vi.mock('@/api/entities', () => ({
+  triggerEntityExtraction: vi.fn(),
+}))
+
+vi.mock('@/api/jobs', () => ({
+  triggerMoodBackfill: vi.fn(),
+  getJob: vi.fn(),
 }))
 
 // Stub URL.createObjectURL to avoid happy-dom errors
@@ -270,5 +276,102 @@ describe('ImageUploadPanel', () => {
     expect(wrapper.text()).not.toContain('notes.txt')
     expect(wrapper.text()).not.toContain('doc.pdf')
     expect(wrapper.text()).toContain('2 pages')
+  })
+
+  // --- Non-blocking upload flow ---
+
+  it('shows processing screen with OK button after upload', async () => {
+    const wrapper = mountPanel()
+    const store = useEntriesStore()
+    vi.spyOn(store, 'uploadImages').mockResolvedValue({
+      job_id: 'job-789',
+      status: 'queued',
+    })
+
+    const file = new File(['img'], 'page.jpg', { type: 'image/jpeg' })
+    await selectFiles(wrapper, [file])
+
+    const uploadBtn = wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('Upload & Process'))
+    await uploadBtn!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Processing your journal entry')
+    expect(wrapper.find('[data-testid="acknowledge-button"]').exists()).toBe(
+      true,
+    )
+  })
+
+  it('registers job with jobs store via trackJob after upload', async () => {
+    const wrapper = mountPanel()
+    const entriesStore = useEntriesStore()
+    const jobsStore = useJobsStore()
+    vi.spyOn(entriesStore, 'uploadImages').mockResolvedValue({
+      job_id: 'job-track',
+      status: 'queued',
+    })
+    const trackSpy = vi.spyOn(jobsStore, 'trackJob')
+
+    const file = new File(['img'], 'page.jpg', { type: 'image/jpeg' })
+    await selectFiles(wrapper, [file])
+
+    const uploadBtn = wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('Upload & Process'))
+    await uploadBtn!.trigger('click')
+    await flushPromises()
+
+    expect(trackSpy).toHaveBeenCalledWith('job-track', 'ingest_images', {
+      entry_date: '2026-04-12',
+      page_count: 1,
+    })
+  })
+
+  it('resets form when OK button is clicked', async () => {
+    const wrapper = mountPanel()
+    const store = useEntriesStore()
+    vi.spyOn(store, 'uploadImages').mockResolvedValue({
+      job_id: 'job-ack',
+      status: 'queued',
+    })
+
+    const file = new File(['img'], 'page.jpg', { type: 'image/jpeg' })
+    await selectFiles(wrapper, [file])
+
+    const uploadBtn = wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('Upload & Process'))
+    await uploadBtn!.trigger('click')
+    await flushPromises()
+
+    // Click OK to dismiss
+    await wrapper.find('[data-testid="acknowledge-button"]').trigger('click')
+    await flushPromises()
+
+    // Should be back to the upload form (drop zone)
+    expect(wrapper.text()).toContain('Drag journal page images')
+    expect(wrapper.text()).not.toContain('Processing your journal entry')
+  })
+
+  it('does not navigate to entry-detail after upload', async () => {
+    const wrapper = mountPanel()
+    const store = useEntriesStore()
+    vi.spyOn(store, 'uploadImages').mockResolvedValue({
+      job_id: 'job-no-nav',
+      status: 'queued',
+    })
+
+    const file = new File(['img'], 'page.jpg', { type: 'image/jpeg' })
+    await selectFiles(wrapper, [file])
+
+    const uploadBtn = wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('Upload & Process'))
+    await uploadBtn!.trigger('click')
+    await flushPromises()
+
+    // No 'created' event should be emitted
+    expect(wrapper.emitted('created')).toBeUndefined()
   })
 })

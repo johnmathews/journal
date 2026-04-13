@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount } from 'vue'
 import { useJobsStore } from '@/stores/jobs'
+import { useToast } from '@/composables/useToast'
 import { isTerminal } from '@/types/job'
 import type { Job, JobType } from '@/types/job'
 
 const jobsStore = useJobsStore()
+const toast = useToast()
 const open = ref(false)
 
 // Recently completed jobs linger for a few seconds so the user
@@ -14,6 +16,16 @@ const recentlyCompleted = ref<Map<string, ReturnType<typeof setTimeout>>>(
 )
 
 function onJobComplete(jobId: string) {
+  const job = jobsStore.jobs[jobId]
+  if (job) {
+    const label = jobLabel(job.type)
+    if (job.status === 'succeeded') {
+      toast.success(`${label} completed successfully`)
+    } else if (job.status === 'failed') {
+      toast.error(`${label} failed: ${job.error_message || 'unknown error'}`)
+    }
+  }
+
   const timer = setTimeout(() => {
     recentlyCompleted.value.delete(jobId)
     jobsStore.clearJob(jobId)

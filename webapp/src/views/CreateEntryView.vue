@@ -106,7 +106,6 @@ function switchTab(key: typeof activeTab.value) {
     <ImageUploadPanel
       v-if="activeTab === 'upload'"
       :entry-date="entryDate"
-      @created="handleCreated"
       @submitted="handleJobSubmitted"
     />
   </div>
