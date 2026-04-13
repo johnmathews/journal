@@ -7,6 +7,7 @@ import {
   type EntityType,
   type EntityMention,
 } from '@/types/entity'
+import { displayName, displayAliases } from '@/utils/entityName'
 
 const props = defineProps<{
   id: string
@@ -133,7 +134,7 @@ const deleting = ref(false)
 async function confirmDelete() {
   if (!store.currentEntity) return
   const confirmed = window.confirm(
-    `Delete entity "${store.currentEntity.canonical_name}"? This will remove all its mentions and relationships.`,
+    `Delete entity "${displayName(store.currentEntity.canonical_name)}"? This will remove all its mentions and relationships.`,
   )
   if (!confirmed) return
   deleting.value = true
@@ -183,7 +184,7 @@ async function confirmDelete() {
             <h1
               class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold"
             >
-              {{ store.currentEntity.canonical_name }}
+              {{ displayName(store.currentEntity.canonical_name) }}
             </h1>
             <span
               class="inline-flex text-xs font-medium rounded-full px-2.5 py-0.5 capitalize"
@@ -315,7 +316,7 @@ async function confirmDelete() {
             class="text-sm text-gray-500 dark:text-gray-400"
             data-testid="entity-aliases"
           >
-            Aliases: {{ store.currentEntity.aliases.join(', ') }}
+            Aliases: {{ displayAliases(store.currentEntity.aliases) }}
           </div>
           <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {{ store.mentions.length }} mentions
@@ -367,7 +368,7 @@ async function confirmDelete() {
                 }"
                 class="text-violet-600 dark:text-violet-400 hover:underline"
               >
-                {{ rel.object_name }}
+                {{ displayName(rel.object_name) }}
               </RouterLink>
               <span
                 class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize"
@@ -390,7 +391,7 @@ async function confirmDelete() {
                 }"
                 class="text-violet-600 dark:text-violet-400 hover:underline"
               >
-                {{ rel.subject_name }}
+                {{ displayName(rel.subject_name) }}
               </RouterLink>
               <span
                 class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize"

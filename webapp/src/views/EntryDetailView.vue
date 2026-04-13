@@ -15,6 +15,7 @@ import { fetchEntryEntities } from '@/api/entities'
 import { ApiRequestError } from '@/api/client'
 import type { Chunk, TokenSpan, UncertainSpan } from '@/types/entry'
 import type { EntryEntityRef, EntityType } from '@/types/entity'
+import { displayName } from '@/utils/entityName'
 
 const props = defineProps<{
   id: string
@@ -666,11 +667,11 @@ onBeforeUnmount(() => {
                 ? 'ring-2 ring-violet-500 ring-offset-1 dark:ring-offset-gray-800'
                 : 'hover:opacity-80',
             ]"
-            :title="`Highlight '${chip.canonical_name}' in the text`"
+            :title="`Highlight '${displayName(chip.canonical_name)}' in the text`"
             :data-testid="`entry-entity-chip-${chip.id}`"
             @click="toggleEntityHighlight(chip)"
           >
-            {{ chip.canonical_name }}
+            {{ displayName(chip.canonical_name) }}
           </button>
         </div>
 

@@ -8,6 +8,7 @@ import {
 } from '@/types/entity'
 import BatchJobModal from '@/components/BatchJobModal.vue'
 import BaseModal from '@/components/BaseModal.vue'
+import { displayName, displayAliases } from '@/utils/entityName'
 
 const store = useEntitiesStore()
 
@@ -288,7 +289,7 @@ async function executeMerge() {
         >
           <div class="flex-1">
             <span class="font-medium text-gray-800 dark:text-gray-100">
-              {{ candidate.entity_a.canonical_name }}
+              {{ displayName(candidate.entity_a.canonical_name) }}
             </span>
             <span
               class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize mx-1"
@@ -298,7 +299,7 @@ async function executeMerge() {
             </span>
             <span class="text-gray-400 dark:text-gray-500 mx-1">~</span>
             <span class="font-medium text-gray-800 dark:text-gray-100">
-              {{ candidate.entity_b.canonical_name }}
+              {{ displayName(candidate.entity_b.canonical_name) }}
             </span>
             <span
               class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize mx-1"
@@ -496,13 +497,13 @@ async function executeMerge() {
                 }"
                 class="text-violet-600 dark:text-violet-400 hover:underline font-medium"
               >
-                {{ entity.canonical_name }}
+                {{ displayName(entity.canonical_name) }}
               </RouterLink>
               <span
                 v-if="entity.aliases.length"
                 class="text-xs text-gray-400 dark:text-gray-500 ml-2"
               >
-                ({{ entity.aliases.join(', ') }})
+                ({{ displayAliases(entity.aliases) }})
               </span>
             </td>
             <td class="px-4 py-3">
@@ -595,7 +596,7 @@ async function executeMerge() {
             />
             <div class="flex-1">
               <span class="font-medium text-gray-800 dark:text-gray-100">
-                {{ entity.canonical_name }}
+                {{ displayName(entity.canonical_name) }}
               </span>
               <span
                 class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize ml-2"
