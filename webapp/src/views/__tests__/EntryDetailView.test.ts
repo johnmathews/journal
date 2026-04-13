@@ -1093,6 +1093,133 @@ describe('EntryDetailView', () => {
       const ocr = wrapper.find('[data-testid="ocr-display"]')
       expect(ocr.html()).toContain('Alice')
     })
+
+    it('entity highlight does not corrupt HTML tags when term matches a CSS class substring', async () => {
+      // Regression: the old regex [^<>]+ matched tag attributes, so an
+      // entity named "text" would inject <mark> inside class="text-emerald-900"
+      const { fetchEntry } = await import('@/api/entries')
+      vi.mocked(fetchEntry).mockResolvedValueOnce({
+        id: 1,
+        entry_date: '2026-03-22',
+        source_type: 'ocr',
+        raw_text: 'The text was clear.',
+        final_text: 'The text was clear and readable.',
+        word_count: 6,
+        chunk_count: 1,
+        page_count: 1,
+        language: 'en',
+        created_at: '2026-03-22T10:00:00Z',
+        updated_at: '2026-03-22T10:00:00Z',
+        uncertain_spans: [],
+      })
+
+      const { fetchEntryEntities } = await import('@/api/entities')
+      vi.mocked(fetchEntryEntities).mockResolvedValueOnce({
+        entry_id: 1,
+        items: [
+          {
+            id: 99,
+            entity_type: 'activity',
+            canonical_name: 'text',
+            aliases: [],
+            mention_count: 1,
+            first_seen: '2026-01-01',
+            last_seen: '2026-03-22',
+          },
+        ],
+        total: 1,
+      })
+
+      const wrapper = mount(EntryDetailView, {
+        props: { id: '1' },
+        global: { plugins: [createPinia(), router] },
+      })
+      await flushPromises()
+
+      // Switch to edit mode (default is 'read' since raw_text !== final_text)
+      const editRadio = wrapper.find('[data-testid="view-mode-radio-edit"]')
+      await editRadio.setValue(true)
+
+      // Click entity chip to activate highlighting
+      const chip = wrapper.find('[data-testid="entry-entity-chip-99"]')
+      await chip.trigger('click')
+
+      // The corrected-side backdrop should highlight "text" in a violet
+      // mark but must NOT inject marks inside diff-highlight class attrs.
+      const textarea = wrapper.find('[data-testid="corrected-textarea"]')
+      expect(textarea.exists()).toBe(true)
+      const backdrop = textarea.element.previousElementSibling as HTMLElement
+      const html = backdrop?.innerHTML ?? ''
+
+      // The diff creates a green mark around "and readable." — verify
+      // its class attribute is intact (no <mark> injected mid-class).
+      expect(html).not.toMatch(/class="[^"]*<mark/)
+    })
+
+    it('corrected-text textarea has border-0 to align with backdrop', async () => {
+      const wrapper = mountComponent()
+      await flushPromises()
+
+      const textarea = wrapper.find('[data-testid="corrected-textarea"]')
+      expect(textarea.exists()).toBe(true)
+      expect(textarea.classes()).toContain('border-0')
+    })
+
+    it('highlights entity terms that contain apostrophes', async () => {
+      const { fetchEntry } = await import('@/api/entries')
+      vi.mocked(fetchEntry).mockResolvedValueOnce({
+        id: 1,
+        entry_date: '2026-03-22',
+        source_type: 'ocr',
+        raw_text: "Met O'Brien at the cafe.",
+        final_text: "Met O'Brien at the cafe.",
+        word_count: 6,
+        chunk_count: 1,
+        page_count: 1,
+        language: 'en',
+        created_at: '2026-03-22T10:00:00Z',
+        updated_at: '2026-03-22T10:00:00Z',
+        uncertain_spans: [],
+      })
+
+      const { fetchEntryEntities } = await import('@/api/entities')
+      vi.mocked(fetchEntryEntities).mockResolvedValueOnce({
+        entry_id: 1,
+        items: [
+          {
+            id: 77,
+            entity_type: 'person',
+            canonical_name: "O'Brien",
+            aliases: [],
+            mention_count: 1,
+            first_seen: '2026-01-01',
+            last_seen: '2026-03-22',
+          },
+        ],
+        total: 1,
+      })
+
+      const wrapper = mount(EntryDetailView, {
+        props: { id: '1' },
+        global: { plugins: [createPinia(), router] },
+      })
+      await flushPromises()
+
+      const chip = wrapper.find('[data-testid="entry-entity-chip-77"]')
+      await chip.trigger('click')
+
+      // In reading mode, the readingHtml computed uses textToHtml which
+      // escapes ' to plain text (no &#39;). But in edit mode the diff
+      // pipeline escapes ' → &#39;. The entity highlight must match
+      // the escaped form.
+      //
+      // Since raw_text === final_text, the default view mode is 'edit'.
+      // Check the corrected backdrop for the violet mark.
+      const backdrop = wrapper.find('[data-testid="corrected-textarea"]')
+        .element.previousElementSibling as HTMLElement
+      const html = backdrop?.innerHTML ?? ''
+      expect(html).toContain('bg-violet-200')
+    })
   })
 
   describe('Review toggle', () => {

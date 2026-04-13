@@ -157,10 +157,14 @@ function toggleEntityHighlight(chip: EntryEntityRef) {
 }
 
 function escapeForHighlight(term: string): string {
+  // HTML-escape must match segmentsToHtml's escapeHtml() so the regex
+  // finds the entity term in the already-escaped HTML text nodes.
   return term
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
     .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
@@ -168,12 +172,18 @@ function applyEntityHighlight(html: string, terms: string[]): string {
   if (!terms.length) return html
   const pattern = terms.map(escapeForHighlight).join('|')
   const regex = new RegExp(`(${pattern})`, 'gi')
-  // Only replace within text nodes (outside HTML tags)
-  return html.replace(/([^<>]+)/g, (textNode) =>
-    textNode.replace(
-      regex,
-      '<mark class="bg-violet-200 dark:bg-violet-500/30 rounded-sm">$1</mark>',
-    ),
+  // Replace only within text nodes — skip HTML tags entirely. The
+  // alternation matches either a full tag (<...>) or a text run; the
+  // callback only transforms text runs.
+  return html.replace(
+    /(<[^>]*>)|([^<]+)/g,
+    (_match, tag: string | undefined, text: string | undefined) => {
+      if (tag) return tag
+      return (text ?? '').replace(
+        regex,
+        '<mark class="bg-violet-200 dark:bg-violet-500/30 rounded-sm">$1</mark>',
+      )
+    },
   )
 }
 
@@ -408,7 +418,8 @@ async function save() {
   saving.value = true
   saveError.value = null
   try {
-    await store.saveEntryText(store.currentEntry.id, editedText.value)
+    const entryId = store.currentEntry.id
+    await store.saveEntryText(entryId, editedText.value)
     // Invalidate cached chunks/tokens — the server re-chunks and
     // re-embeds on save, so the previously-fetched offsets and token
     // spans no longer describe the persisted final_text. The next
@@ -424,6 +435,13 @@ async function save() {
     chunks.value = null
     tokens.value = null
     overlayError.value = null
+
+    // The server fires async entity re-extraction on text save.
+    // Clear the active highlight (the old terms may no longer match
+    // the edited text) and reload entities after a short delay to
+    // give the background job time to finish.
+    selectedEntityId.value = null
+    setTimeout(() => loadEntryEntities(entryId), 5000)
   } catch (e) {
     saveError.value = e instanceof Error ? e.message : 'Failed to save'
   } finally {
@@ -943,7 +961,7 @@ onBeforeUnmount(() => {
                   ref="correctedTextarea"
                   v-model="editedText"
                   spellcheck="false"
-                  class="diff-surface absolute inset-0 w-full h-full bg-transparent text-transparent caret-gray-900 dark:caret-white resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/40 rounded-md px-3 py-2"
+                  class="diff-surface absolute inset-0 w-full h-full border-0 bg-transparent text-transparent caret-gray-900 dark:caret-white resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/40 rounded-md px-3 py-2"
                   data-testid="corrected-textarea"
                   @scroll="syncCorrectedScroll"
                   @input="syncCorrectedScroll"

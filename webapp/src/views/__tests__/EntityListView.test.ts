@@ -771,9 +771,7 @@ describe('EntityListView', () => {
       await flushPromises()
 
       // Modal stays open with error
-      const errorEl = document.body.querySelector(
-        '[data-testid="merge-error"]',
-      )
+      const errorEl = document.body.querySelector('[data-testid="merge-error"]')
       expect(errorEl).not.toBeNull()
       expect(errorEl!.textContent).toContain('Conflict detected')
 
@@ -859,20 +857,16 @@ describe('EntityListView', () => {
       ).toBe(false)
 
       // Click to expand
-      await wrapper
-        .find('[data-testid="toggle-merge-review"]')
-        .trigger('click')
+      await wrapper.find('[data-testid="toggle-merge-review"]').trigger('click')
       expect(
         wrapper.find('[data-testid="merge-candidates-list"]').exists(),
       ).toBe(true)
-      expect(
-        wrapper.find('[data-testid="merge-candidate-100"]').exists(),
-      ).toBe(true)
+      expect(wrapper.find('[data-testid="merge-candidate-100"]').exists()).toBe(
+        true,
+      )
 
       // Click to collapse
-      await wrapper
-        .find('[data-testid="toggle-merge-review"]')
-        .trigger('click')
+      await wrapper.find('[data-testid="toggle-merge-review"]').trigger('click')
       expect(
         wrapper.find('[data-testid="merge-candidates-list"]').exists(),
       ).toBe(false)
@@ -912,9 +906,7 @@ describe('EntityListView', () => {
       await flushPromises()
 
       // Expand candidate list
-      await wrapper
-        .find('[data-testid="toggle-merge-review"]')
-        .trigger('click')
+      await wrapper.find('[data-testid="toggle-merge-review"]').trigger('click')
 
       const fetchSpy = vi.mocked(fetchEntities)
       fetchSpy.mockClear()
@@ -951,9 +943,7 @@ describe('EntityListView', () => {
       await flushPromises()
 
       // Expand candidate list
-      await wrapper
-        .find('[data-testid="toggle-merge-review"]')
-        .trigger('click')
+      await wrapper.find('[data-testid="toggle-merge-review"]').trigger('click')
 
       // Click dismiss
       await wrapper.find('[data-testid="dismiss-candidate"]').trigger('click')

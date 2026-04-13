@@ -232,7 +232,9 @@ describe('entities store', () => {
         },
       ]
 
-      const result = await store.updateCurrentEntity({ canonical_name: 'Updated Name' })
+      const result = await store.updateCurrentEntity({
+        canonical_name: 'Updated Name',
+      })
 
       expect(result).toEqual(updatedEntity)
       expect(store.currentEntity).toEqual(updatedEntity)
@@ -241,16 +243,18 @@ describe('entities store', () => {
       expect(store.entities[0].aliases).toEqual(['alias1'])
       // mention_count should be preserved from the original summary
       expect(store.entities[0].mention_count).toBe(3)
-      expect(updateEntity).toHaveBeenCalledWith(5, { canonical_name: 'Updated Name' })
+      expect(updateEntity).toHaveBeenCalledWith(5, {
+        canonical_name: 'Updated Name',
+      })
     })
 
     it('throws when no entity is selected', async () => {
       const store = useEntitiesStore()
       store.currentEntity = null
 
-      await expect(store.updateCurrentEntity({ canonical_name: 'X' })).rejects.toThrow(
-        'No entity selected',
-      )
+      await expect(
+        store.updateCurrentEntity({ canonical_name: 'X' }),
+      ).rejects.toThrow('No entity selected')
       expect(store.error).toBe('No entity selected')
     })
 
@@ -270,9 +274,9 @@ describe('entities store', () => {
         updated_at: '',
       }
 
-      await expect(store.updateCurrentEntity({ canonical_name: 'B' })).rejects.toThrow(
-        'server error',
-      )
+      await expect(
+        store.updateCurrentEntity({ canonical_name: 'B' }),
+      ).rejects.toThrow('server error')
       expect(store.error).toBe('server error')
     })
 
@@ -292,9 +296,9 @@ describe('entities store', () => {
         updated_at: '',
       }
 
-      await expect(store.updateCurrentEntity({ canonical_name: 'B' })).rejects.toBe(
-        'string rejection',
-      )
+      await expect(
+        store.updateCurrentEntity({ canonical_name: 'B' }),
+      ).rejects.toBe('string rejection')
       expect(store.error).toBe('Failed to update entity')
     })
   })
@@ -446,7 +450,10 @@ describe('entities store', () => {
       const result = await store.mergeEntities(1, [2, 3])
 
       expect(result).toEqual(mergeResponse)
-      expect(mergeEntitiesApi).toHaveBeenCalledWith({ survivor_id: 1, absorbed_ids: [2, 3] })
+      expect(mergeEntitiesApi).toHaveBeenCalledWith({
+        survivor_id: 1,
+        absorbed_ids: [2, 3],
+      })
       expect(store.entities).toHaveLength(1)
       expect(store.entities[0].id).toBe(1)
       expect(store.entities[0].canonical_name).toBe('Merged Name')
@@ -563,7 +570,10 @@ describe('entities store', () => {
   describe('dismissMergeCandidate', () => {
     it('calls resolveMergeCandidate with dismissed, filters candidate out, decrements total', async () => {
       const { resolveMergeCandidate } = await import('@/api/entities')
-      vi.mocked(resolveMergeCandidate).mockResolvedValue({ id: 5, status: 'dismissed' })
+      vi.mocked(resolveMergeCandidate).mockResolvedValue({
+        id: 5,
+        status: 'dismissed',
+      })
 
       const store = useEntitiesStore()
       store.mergeCandidates = [
@@ -606,7 +616,10 @@ describe('entities store', () => {
   describe('acceptMergeCandidate', () => {
     it('calls resolveMergeCandidate with accepted, filters candidate out, decrements total', async () => {
       const { resolveMergeCandidate } = await import('@/api/entities')
-      vi.mocked(resolveMergeCandidate).mockResolvedValue({ id: 6, status: 'accepted' })
+      vi.mocked(resolveMergeCandidate).mockResolvedValue({
+        id: 6,
+        status: 'accepted',
+      })
 
       const store = useEntitiesStore()
       store.mergeCandidates = [
