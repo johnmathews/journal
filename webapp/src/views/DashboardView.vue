@@ -34,6 +34,7 @@ const moodChartCanvas = ref<HTMLCanvasElement | null>(null)
 let writingChart: Chart | null = null
 let wordChart: Chart | null = null
 let moodChart: Chart | null = null
+let moodChartRenderedOnce = false
 
 // Fixed palette for mood lines — cycled by dimension index so
 // reordering facets in the TOML file produces a stable colour
@@ -296,6 +297,7 @@ function renderMoodChart(): void {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: moodChartRenderedOnce ? false : undefined,
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -322,6 +324,7 @@ function renderMoodChart(): void {
       },
     },
   })
+  moodChartRenderedOnce = true
 }
 
 watch(

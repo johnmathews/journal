@@ -655,4 +655,31 @@ describe('DashboardView — mood chart', () => {
     expect(lastConfig.options.scales.y.min).toBe(-1)
     expect(lastConfig.options.scales.y.max).toBe(1)
   })
+
+  it('mood chart animates on first render but not after toggling', async () => {
+    const wrapper = await setupWithMoodData()
+
+    // First render: animation should be undefined (Chart.js default = animate)
+    const firstCalls = chartConstructorSpy.mock.calls
+    const firstConfig = firstCalls[firstCalls.length - 1][1] as {
+      options: { animation?: false }
+    }
+    expect(firstConfig.options.animation).toBeUndefined()
+
+    chartConstructorSpy.mockClear()
+
+    // Toggle a dimension to trigger a re-render
+    await wrapper
+      .find('[data-testid="dashboard-mood-toggle-joy_sadness"]')
+      .trigger('click')
+    await flushPromises()
+
+    // Subsequent render: animation should be disabled
+    const secondCalls = chartConstructorSpy.mock.calls
+    expect(secondCalls.length).toBeGreaterThan(0)
+    const secondConfig = secondCalls[secondCalls.length - 1][1] as {
+      options: { animation?: false }
+    }
+    expect(secondConfig.options.animation).toBe(false)
+  })
 })
