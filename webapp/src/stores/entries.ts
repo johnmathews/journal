@@ -7,6 +7,7 @@ import {
   updateEntryText,
   updateEntryDate as updateEntryDateApi,
   deleteEntry as deleteEntryApi,
+  verifyDoubts as verifyDoubtsApi,
   ingestText,
   ingestFile,
   ingestImages,
@@ -123,6 +124,19 @@ export const useEntriesStore = defineStore('entries', () => {
     }
   }
 
+  async function verifyDoubts(id: number) {
+    loading.value = true
+    error.value = null
+    try {
+      currentEntry.value = await verifyDoubtsApi(id)
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to verify doubts'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function createTextEntry(
     text: string,
     entryDate?: string,
@@ -194,6 +208,7 @@ export const useEntriesStore = defineStore('entries', () => {
     saveEntryText,
     updateDate,
     deleteEntry,
+    verifyDoubts,
     createTextEntry,
     importFile,
     uploadImages,

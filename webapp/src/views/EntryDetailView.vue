@@ -146,6 +146,26 @@ function prevUncertain() {
   scrollToUncertain(next < 0 ? marks.length - 1 : next)
 }
 
+// Verify-all-doubts action
+const verifyingDoubts = ref(false)
+
+async function confirmVerifyDoubts() {
+  if (!store.currentEntry || verifyingDoubts.value) return
+  const ok = window.confirm(
+    'Mark all remaining doubts as verified and correct? This cannot be easily undone (re-ingest to restore).',
+  )
+  if (!ok) return
+  verifyingDoubts.value = true
+  try {
+    await store.verifyDoubts(store.currentEntry.id)
+    showReview.value = false
+  } catch {
+    // error shown via store.error
+  } finally {
+    verifyingDoubts.value = false
+  }
+}
+
 // Reset the toggle and navigation when switching entries — the new
 // entry may not have any spans, and carrying old state would be
 // confusing.
@@ -952,6 +972,18 @@ onBeforeUnmount(() => {
               @click="scrollToUncertain(currentUncertainIdx)"
             >
               Jump
+            </button>
+            <span
+              class="mx-1 h-4 w-px bg-yellow-300 dark:bg-yellow-700"
+              aria-hidden="true"
+            />
+            <button
+              class="px-2 py-1 rounded bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
+              data-testid="verify-all-doubts"
+              :disabled="verifyingDoubts"
+              @click="confirmVerifyDoubts"
+            >
+              {{ verifyingDoubts ? 'Verifying...' : 'All Verified' }}
             </button>
           </div>
         </div>

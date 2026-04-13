@@ -16,6 +16,7 @@ vi.mock('@/api/entries', () => ({
         chunk_count: 5,
         created_at: '2026-03-23T10:30:00Z',
         uncertain_span_count: 0,
+        doubts_verified: false,
       },
       {
         id: 2,
@@ -26,6 +27,7 @@ vi.mock('@/api/entries', () => ({
         chunk_count: 2,
         created_at: '2026-03-21T15:00:00Z',
         uncertain_span_count: 0,
+        doubts_verified: false,
       },
     ],
     total: 2,
@@ -368,6 +370,7 @@ describe('OCR Doubts column', () => {
           chunk_count: 1,
           created_at: '2026-04-02T10:00:00Z',
           uncertain_span_count: 2,
+          doubts_verified: false,
         },
         {
           id: 12,
@@ -378,6 +381,7 @@ describe('OCR Doubts column', () => {
           chunk_count: 1,
           created_at: '2026-04-03T10:00:00Z',
           uncertain_span_count: 5,
+          doubts_verified: false,
         },
       ],
       total: 3,

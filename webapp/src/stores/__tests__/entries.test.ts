@@ -7,6 +7,7 @@ vi.mock('@/api/entries', () => ({
   fetchEntry: vi.fn(),
   updateEntryText: vi.fn(),
   deleteEntry: vi.fn(),
+  verifyDoubts: vi.fn(),
   ingestText: vi.fn(),
   ingestFile: vi.fn(),
   ingestImages: vi.fn(),
@@ -17,6 +18,7 @@ import {
   fetchEntry,
   updateEntryText,
   deleteEntry,
+  verifyDoubts,
   ingestText,
   ingestFile,
   ingestImages,
@@ -25,6 +27,7 @@ const mockFetchEntries = vi.mocked(fetchEntries)
 const mockFetchEntry = vi.mocked(fetchEntry)
 const mockUpdateEntryText = vi.mocked(updateEntryText)
 const mockDeleteEntry = vi.mocked(deleteEntry)
+const mockVerifyDoubts = vi.mocked(verifyDoubts)
 const mockIngestText = vi.mocked(ingestText)
 const mockIngestFile = vi.mocked(ingestFile)
 const mockIngestImages = vi.mocked(ingestImages)
@@ -47,6 +50,7 @@ describe('useEntriesStore', () => {
           chunk_count: 3,
           created_at: '',
           uncertain_span_count: 0,
+          doubts_verified: false,
         },
       ],
       total: 1,
@@ -88,6 +92,7 @@ describe('useEntriesStore', () => {
       created_at: '',
       uncertain_span_count: 0,
       updated_at: '',
+      doubts_verified: false,
       uncertain_spans: [],
     }
     mockFetchEntry.mockResolvedValue(entry)
@@ -112,6 +117,7 @@ describe('useEntriesStore', () => {
       created_at: '',
       uncertain_span_count: 0,
       updated_at: '',
+      doubts_verified: false,
       uncertain_spans: [],
     }
     mockUpdateEntryText.mockResolvedValue(updated)
@@ -216,6 +222,7 @@ describe('useEntriesStore', () => {
           chunk_count: 1,
           created_at: '',
           uncertain_span_count: 0,
+          doubts_verified: false,
         },
       ],
       total: 1,
@@ -239,6 +246,7 @@ describe('useEntriesStore', () => {
           chunk_count: 1,
           created_at: '',
           uncertain_span_count: 0,
+          doubts_verified: false,
         },
         {
           id: 2,
@@ -249,6 +257,7 @@ describe('useEntriesStore', () => {
           chunk_count: 2,
           created_at: '',
           uncertain_span_count: 0,
+          doubts_verified: false,
         },
       ],
       total: 2,
@@ -281,6 +290,7 @@ describe('useEntriesStore', () => {
       created_at: '',
       uncertain_span_count: 0,
       updated_at: '',
+      doubts_verified: false,
       uncertain_spans: [],
     }
     mockFetchEntry.mockResolvedValue(entry)
@@ -309,6 +319,53 @@ describe('useEntriesStore', () => {
     const store = useEntriesStore()
     await expect(store.deleteEntry(1)).rejects.toBe('boom')
     expect(store.error).toBe('Failed to delete entry')
+  })
+
+  // --- verifyDoubts ---
+
+  it('verifyDoubts updates currentEntry with verified state', async () => {
+    const verified = {
+      id: 1,
+      entry_date: '2026-01-01',
+      source_type: 'ocr' as const,
+      raw_text: 'Hello Ritsya.',
+      final_text: 'Hello Ritsya.',
+      page_count: 1,
+      word_count: 2,
+      chunk_count: 1,
+      language: 'en',
+      created_at: '',
+      updated_at: '',
+      doubts_verified: true,
+      uncertain_spans: [],
+    }
+    mockVerifyDoubts.mockResolvedValue(verified)
+
+    const store = useEntriesStore()
+    await store.verifyDoubts(1)
+
+    expect(mockVerifyDoubts).toHaveBeenCalledWith(1)
+    expect(store.currentEntry?.doubts_verified).toBe(true)
+    expect(store.currentEntry?.uncertain_spans).toEqual([])
+    expect(store.loading).toBe(false)
+    expect(store.error).toBeNull()
+  })
+
+  it('verifyDoubts sets error and rethrows on failure', async () => {
+    mockVerifyDoubts.mockRejectedValue(new Error('Not found'))
+
+    const store = useEntriesStore()
+    await expect(store.verifyDoubts(999)).rejects.toThrow('Not found')
+    expect(store.error).toBe('Not found')
+    expect(store.loading).toBe(false)
+  })
+
+  it('verifyDoubts falls back to generic message for non-Error', async () => {
+    mockVerifyDoubts.mockRejectedValue('boom')
+
+    const store = useEntriesStore()
+    await expect(store.verifyDoubts(1)).rejects.toBe('boom')
+    expect(store.error).toBe('Failed to verify doubts')
   })
 
   it('loadEntries merges new params over currentParams', async () => {
@@ -344,6 +401,7 @@ describe('useEntriesStore', () => {
       created_at: '',
       uncertain_span_count: 0,
       updated_at: '',
+      doubts_verified: false,
       uncertain_spans: [],
     }
     let creatingDuringCall = false

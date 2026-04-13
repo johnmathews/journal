@@ -70,6 +70,12 @@ export function deleteEntry(
   })
 }
 
+export function verifyDoubts(id: number): Promise<EntryDetail> {
+  return apiFetch<EntryDetail>(`/api/entries/${id}/verify-doubts`, {
+    method: 'POST',
+  })
+}
+
 export function fetchStats(
   params: { start_date?: string; end_date?: string } = {},
 ): Promise<Statistics> {

@@ -946,6 +946,7 @@ describe('EntryDetailView', () => {
         language: 'en',
         created_at: '2026-03-23T10:30:00Z',
         updated_at: '2026-03-23T10:30:00Z',
+        doubts_verified: false,
         uncertain_spans: [],
       })
       await flushPromises()
@@ -1057,6 +1058,7 @@ describe('EntryDetailView', () => {
         language: 'en',
         created_at: '2026-03-22T10:00:00Z',
         updated_at: '2026-03-22T10:00:00Z',
+        doubts_verified: false,
         uncertain_spans: [],
       })
 
@@ -1110,6 +1112,7 @@ describe('EntryDetailView', () => {
         language: 'en',
         created_at: '2026-03-22T10:00:00Z',
         updated_at: '2026-03-22T10:00:00Z',
+        doubts_verified: false,
         uncertain_spans: [],
       })
 
@@ -1179,6 +1182,7 @@ describe('EntryDetailView', () => {
         language: 'en',
         created_at: '2026-03-22T10:00:00Z',
         updated_at: '2026-03-22T10:00:00Z',
+        doubts_verified: false,
         uncertain_spans: [],
       })
 
@@ -1248,6 +1252,7 @@ describe('EntryDetailView', () => {
         language: 'en',
         created_at: '2026-03-23T10:30:00Z',
         updated_at: '2026-03-23T10:30:00Z',
+        doubts_verified: false,
         uncertain_spans,
       } as never)
       const wrapper = mountComponent()

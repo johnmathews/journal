@@ -6,6 +6,7 @@ export interface EntrySummary {
   word_count: number
   chunk_count: number
   uncertain_span_count: number
+  doubts_verified: boolean
   created_at: string
 }
 
@@ -35,10 +36,13 @@ export interface EntryDetail {
   language: string
   created_at: string
   updated_at: string
+  /** Whether the user has verified all OCR doubts on this entry.
+   * When true, `uncertain_spans` is empty (the API suppresses them). */
+  doubts_verified: boolean
   /** Character ranges in `raw_text` flagged as uncertain by the OCR
    * model. Always present in API responses; empty for entries
-   * ingested before migration 0005 and for entries where the model
-   * was fully confident. */
+   * ingested before migration 0005, for entries where the model
+   * was fully confident, and for verified entries. */
   uncertain_spans: UncertainSpan[]
 }
 

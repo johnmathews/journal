@@ -16,6 +16,7 @@ function makeEntry(overrides: Partial<EntryDetail> = {}): EntryDetail {
     language: 'en',
     created_at: '',
     updated_at: '',
+    doubts_verified: false,
     uncertain_spans: [],
     ...overrides,
   }
