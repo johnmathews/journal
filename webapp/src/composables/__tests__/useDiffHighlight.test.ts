@@ -3,6 +3,7 @@ import { ref, nextTick } from 'vue'
 import {
   applyUncertainOverlay,
   diffToSegments,
+  mapUncertainToCorrected,
   segmentsToHtml,
   useDiffHighlight,
   type HighlightSegment,
@@ -368,7 +369,7 @@ describe('applyUncertainOverlay', () => {
 })
 
 describe('diffToSegments with uncertain spans', () => {
-  it('applies uncertainty overlay to the original panel only', () => {
+  it('applies uncertainty overlay to both panels', () => {
     const { originalSegments, correctedSegments } = diffToSegments(
       'hello world',
       'hello world',
@@ -378,8 +379,11 @@ describe('diffToSegments with uncertain spans', () => {
       { kind: 'equal', text: 'hello ' },
       { kind: 'uncertain', text: 'world' },
     ])
-    // Corrected side is never affected by uncertainty.
-    expect(correctedSegments).toEqual([{ kind: 'equal', text: 'hello world' }])
+    // Corrected side also shows uncertainty via regex matching.
+    expect(correctedSegments).toEqual([
+      { kind: 'equal', text: 'hello ' },
+      { kind: 'uncertain', text: 'world' },
+    ])
   })
 
   it('overlay survives a diff with inserts on the corrected side', () => {
@@ -394,8 +398,9 @@ describe('diffToSegments with uncertain spans', () => {
     expect(originalSegments.some((s) => s.kind === 'uncertain')).toBe(true)
     expect(originalSegments.map((s) => s.text).join('')).toBe('hello world')
     expect(correctedSegments.some((s) => s.kind === 'diff-insert')).toBe(true)
-    // No uncertainty mark bled into the corrected panel.
-    expect(correctedSegments.some((s) => s.kind === 'uncertain')).toBe(false)
+    // Uncertainty also appears on corrected side via regex matching
+    // (the word "world" still exists in corrected text).
+    expect(correctedSegments.some((s) => s.kind === 'uncertain')).toBe(true)
   })
 })
 
@@ -432,8 +437,9 @@ describe('useDiffHighlight with Review toggle', () => {
     // Original side shows the highlight.
     expect(originalHtml.value).toContain('bg-yellow-200')
     expect(originalHtml.value).toContain('>world</mark>')
-    // Corrected side does not.
-    expect(correctedHtml.value).not.toContain('bg-yellow')
+    // Corrected side also shows uncertainty via regex matching.
+    expect(correctedHtml.value).toContain('bg-yellow-200')
+    expect(correctedHtml.value).toContain('>world</mark>')
   })
 
   it('reacts to toggling showReview on and off', async () => {
@@ -495,5 +501,51 @@ describe('useDiffHighlight with Review toggle', () => {
     // delete background and the yellow ring.
     expect(originalHtml.value).toContain('bg-red-100')
     expect(originalHtml.value).toContain('ring-yellow-500')
+  })
+})
+
+describe('mapUncertainToCorrected', () => {
+  it('maps uncertain spans by regex matching', () => {
+    const spans = mapUncertainToCorrected(
+      'hello Ritsya goodbye',
+      'hello Ritsya goodbye',
+      [{ char_start: 6, char_end: 12 }],
+    )
+    expect(spans).toEqual([{ char_start: 6, char_end: 12 }])
+  })
+
+  it('returns empty when corrected text differs', () => {
+    const spans = mapUncertainToCorrected(
+      'hello Ritsya goodbye',
+      'hello Ritsa goodbye',
+      [{ char_start: 6, char_end: 12 }],
+    )
+    // "Ritsya" doesn't appear in corrected text — it's been fixed
+    expect(spans).toEqual([])
+  })
+
+  it('handles short spans with context', () => {
+    const spans = mapUncertainToCorrected(
+      'the cat sat on a mat',
+      'the cat sat on a mat',
+      [{ char_start: 4, char_end: 7 }], // "cat"
+    )
+    expect(spans).toEqual([{ char_start: 4, char_end: 7 }])
+  })
+
+  it('returns empty for empty inputs', () => {
+    expect(mapUncertainToCorrected('', 'hello', [])).toEqual([])
+    expect(
+      mapUncertainToCorrected('hello', '', [{ char_start: 0, char_end: 5 }]),
+    ).toEqual([])
+  })
+
+  it('finds multiple occurrences', () => {
+    const spans = mapUncertainToCorrected(
+      'the word appears once',
+      'the word word appears word',
+      [{ char_start: 4, char_end: 8 }], // "word"
+    )
+    expect(spans.length).toBe(3)
   })
 })

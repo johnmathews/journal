@@ -5,6 +5,7 @@ export interface EntrySummary {
   page_count: number
   word_count: number
   chunk_count: number
+  uncertain_span_count: number
   created_at: string
 }
 

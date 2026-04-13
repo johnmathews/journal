@@ -117,13 +117,43 @@ const uncertainSpans = computed<UncertainSpan[]>(
 )
 const hasUncertainSpans = computed(() => uncertainSpans.value.length > 0)
 
-// Reset the toggle when switching entries — the new entry may not
-// have any spans, and carrying the old toggle state into it would be
+// Uncertain region navigation (floating bar).
+const currentUncertainIdx = ref(0)
+
+function scrollToUncertain(idx: number) {
+  if (!textPanelsRef.value) return
+  const marks = textPanelsRef.value.querySelectorAll('[data-uncertain]')
+  if (marks.length === 0) return
+  const clamped = Math.max(0, Math.min(idx, marks.length - 1))
+  currentUncertainIdx.value = clamped
+
+  // Remove previous "current" highlight, add to target
+  marks.forEach((m) => m.classList.remove('ring-2', 'ring-violet-500'))
+  marks[clamped].classList.add('ring-2', 'ring-violet-500')
+  marks[clamped].scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
+
+function nextUncertain() {
+  const marks = textPanelsRef.value?.querySelectorAll('[data-uncertain]')
+  if (!marks || marks.length === 0) return
+  scrollToUncertain((currentUncertainIdx.value + 1) % marks.length)
+}
+
+function prevUncertain() {
+  const marks = textPanelsRef.value?.querySelectorAll('[data-uncertain]')
+  if (!marks || marks.length === 0) return
+  const next = currentUncertainIdx.value - 1
+  scrollToUncertain(next < 0 ? marks.length - 1 : next)
+}
+
+// Reset the toggle and navigation when switching entries — the new
+// entry may not have any spans, and carrying old state would be
 // confusing.
 watch(
   () => store.currentEntry?.id,
   () => {
     showReview.value = false
+    currentUncertainIdx.value = 0
   },
 )
 
@@ -772,7 +802,7 @@ onBeforeUnmount(() => {
                 class="form-checkbox rounded text-yellow-500 focus:ring-yellow-500"
                 data-testid="review-toggle"
               />
-              Review
+              Review{{ hasUncertainSpans ? ` (${uncertainSpans.length})` : '' }}
             </label>
             <!--
             Overlay mode: segmented radio group. Renders chunk or token
@@ -890,6 +920,40 @@ onBeforeUnmount(() => {
         >
           No uncertain words or phrases were detected in this entry. The OCR
           model was confident about every word on this page.
+        </div>
+
+        <!-- Floating uncertain region navigation bar -->
+        <div
+          v-if="showReview && hasUncertainSpans"
+          class="sticky top-0 z-30 flex items-center justify-between gap-3 mb-4 px-4 py-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700/60 rounded-lg shadow-sm text-sm"
+          data-testid="uncertain-nav-bar"
+        >
+          <span class="text-yellow-800 dark:text-yellow-200 font-medium">
+            {{ currentUncertainIdx + 1 }} / {{ uncertainSpans.length }} doubts
+          </span>
+          <div class="flex items-center gap-2">
+            <button
+              class="px-2 py-1 rounded bg-yellow-200 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100 hover:bg-yellow-300 dark:hover:bg-yellow-700 text-xs font-medium"
+              data-testid="uncertain-prev"
+              @click="prevUncertain"
+            >
+              Prev
+            </button>
+            <button
+              class="px-2 py-1 rounded bg-yellow-200 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100 hover:bg-yellow-300 dark:hover:bg-yellow-700 text-xs font-medium"
+              data-testid="uncertain-next"
+              @click="nextUncertain"
+            >
+              Next
+            </button>
+            <button
+              class="px-2 py-1 rounded bg-yellow-200 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100 hover:bg-yellow-300 dark:hover:bg-yellow-700 text-xs font-medium"
+              data-testid="uncertain-jump"
+              @click="scrollToUncertain(currentUncertainIdx)"
+            >
+              Jump
+            </button>
+          </div>
         </div>
 
         <!-- Side-by-side editor panels (static 50/50) -->

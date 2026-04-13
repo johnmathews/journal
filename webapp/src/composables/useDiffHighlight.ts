@@ -65,12 +65,16 @@ const CLASS_FOR_KIND: Record<HighlightKind, string> = {
  */
 export function segmentsToHtml(segments: HighlightSegment[]): string {
   const parts: string[] = []
+  let uncertainIdx = 0
   for (const seg of segments) {
     if (seg.text.length === 0) continue
     const safe = escapeHtml(seg.text)
     const cls = CLASS_FOR_KIND[seg.kind]
     if (cls) {
-      parts.push(`<mark class="${cls}">${safe}</mark>`)
+      const isUncertain =
+        seg.kind === 'uncertain' || seg.kind === 'diff-delete-uncertain'
+      const attr = isUncertain ? ` data-uncertain="${uncertainIdx++}"` : ''
+      parts.push(`<mark class="${cls}"${attr}>${safe}</mark>`)
     } else {
       parts.push(safe)
     }
@@ -181,6 +185,74 @@ export function applyUncertainOverlay(
 }
 
 /**
+ * Map uncertain spans from raw_text coordinates to corrected text positions
+ * using regex matching. For each uncertain span, extract the literal text
+ * from rawText and search for it in correctedText. If the user has already
+ * corrected that region, the regex won't match — which is correct (it's
+ * been fixed). For short spans (< 3 chars), surrounding context is included
+ * in the pattern to avoid false positives.
+ */
+export function mapUncertainToCorrected(
+  rawText: string,
+  correctedText: string,
+  spans: UncertainSpan[],
+): UncertainSpan[] {
+  if (!rawText || !correctedText || spans.length === 0) return []
+
+  const result: UncertainSpan[] = []
+  for (const span of spans) {
+    const text = rawText.slice(span.char_start, span.char_end)
+    if (!text) continue
+
+    if (text.length < 3) {
+      // Short spans need surrounding context to disambiguate
+      const ctxBefore = rawText.slice(
+        Math.max(0, span.char_start - 15),
+        span.char_start,
+      )
+      const ctxAfter = rawText.slice(
+        span.char_end,
+        Math.min(rawText.length, span.char_end + 15),
+      )
+      const pattern =
+        escapeRegex(ctxBefore) +
+        '(' +
+        escapeRegex(text) +
+        ')' +
+        escapeRegex(ctxAfter)
+      try {
+        const match = new RegExp(pattern).exec(correctedText)
+        if (match) {
+          const start = match.index + ctxBefore.length
+          result.push({ char_start: start, char_end: start + text.length })
+        }
+      } catch {
+        // Invalid regex from exotic characters — skip this span
+      }
+    } else {
+      const escaped = escapeRegex(text)
+      try {
+        const regex = new RegExp(escaped, 'g')
+        let match: RegExpExecArray | null
+        while ((match = regex.exec(correctedText)) !== null) {
+          result.push({
+            char_start: match.index,
+            char_end: match.index + match[0].length,
+          })
+        }
+      } catch {
+        // Invalid regex — skip
+      }
+    }
+  }
+  return result
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
  * Sort `spans` by `char_start`, drop empty/invalid entries, and merge
  * any overlapping pairs into the minimum set of disjoint spans that
  * cover the same characters. Returns a fresh array — does not mutate
@@ -255,9 +327,17 @@ export function diffToSegments(
     }
   }
 
+  // Map uncertain spans to corrected text positions via regex matching.
+  // Spans that the user already corrected won't match — expected.
+  const correctedSpans = mapUncertainToCorrected(
+    safeOriginal,
+    safeCorrected,
+    uncertainSpans,
+  )
+
   return {
     originalSegments: applyUncertainOverlay(originalSegments, uncertainSpans),
-    correctedSegments,
+    correctedSegments: applyUncertainOverlay(correctedSegments, correctedSpans),
   }
 }
 
@@ -283,10 +363,12 @@ export interface DiffHighlightOptions {
  * - When `enabled` is false, the output is the raw text (escaped) with
  *   no highlight markup — matching a plain textarea.
  * - When `options.showReview` is true and `options.uncertainSpans` is
- *   non-empty, the Original OCR side also renders uncertainty
- *   highlights. The Corrected Text side is never affected by
- *   uncertainty — uncertainty is a property of the raw reading, not
- *   the user's correction.
+ *   non-empty, both the Original OCR side and the Corrected Text side
+ *   render uncertainty highlights. Corrected-side spans are found via
+ *   regex matching: the literal text of each uncertain region is
+ *   searched for in the corrected text. If the user has already fixed
+ *   an uncertain region, the regex won't match and the highlight
+ *   naturally disappears from the corrected side.
  */
 export function useDiffHighlight(
   original: Ref<string>,
@@ -306,15 +388,21 @@ export function useDiffHighlight(
     if (!enabled.value) {
       // Diff overlay off. Build a single "equal" segment and apply
       // the uncertainty overlay by hand so the Review toggle still
-      // works on its own.
+      // works on its own — both original and corrected sides.
       const originalSegments = applyUncertainOverlay(
         [{ kind: 'equal' as const, text: originalText }],
         spans,
       )
-      return {
-        originalSegments,
-        correctedSegments: [{ kind: 'equal' as const, text: correctedText }],
-      }
+      const correctedSpans = mapUncertainToCorrected(
+        originalText,
+        correctedText,
+        spans,
+      )
+      const correctedSegments = applyUncertainOverlay(
+        [{ kind: 'equal' as const, text: correctedText }],
+        correctedSpans,
+      )
+      return { originalSegments, correctedSegments }
     }
     return diffToSegments(originalText, correctedText, spans)
   })

@@ -1357,5 +1357,51 @@ describe('EntryDetailView', () => {
         'uncertain',
       )
     })
+
+    it('shows Review (N) label when uncertain spans exist', async () => {
+      const wrapper = await mountWithSpans([
+        { char_start: 0, char_end: 5 },
+        { char_start: 6, char_end: 12 },
+      ])
+      const label = wrapper.find('[data-testid="review-toggle-label"]')
+      expect(label.text()).toContain('Review (2)')
+    })
+
+    it('shows floating nav bar when review is on and spans exist', async () => {
+      const wrapper = await mountWithSpans([{ char_start: 6, char_end: 12 }])
+      // Nav bar hidden before toggling review on
+      expect(wrapper.find('[data-testid="uncertain-nav-bar"]').exists()).toBe(
+        false,
+      )
+
+      const input = wrapper.find<HTMLInputElement>(
+        '[data-testid="review-toggle"]',
+      )
+      await input.setValue(true)
+      await wrapper.vm.$nextTick()
+
+      const navBar = wrapper.find('[data-testid="uncertain-nav-bar"]')
+      expect(navBar.exists()).toBe(true)
+      expect(navBar.text()).toContain('1 / 1 doubts')
+      expect(wrapper.find('[data-testid="uncertain-prev"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="uncertain-next"]').exists()).toBe(true)
+
+      // Clicking prev/next/jump doesn't throw even in happy-dom
+      await wrapper.find('[data-testid="uncertain-next"]').trigger('click')
+      await wrapper.find('[data-testid="uncertain-prev"]').trigger('click')
+      await wrapper.find('[data-testid="uncertain-jump"]').trigger('click')
+    })
+
+    it('does not show floating nav bar when no spans exist', async () => {
+      const wrapper = await mountWithSpans([])
+      const input = wrapper.find<HTMLInputElement>(
+        '[data-testid="review-toggle"]',
+      )
+      await input.setValue(true)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.find('[data-testid="uncertain-nav-bar"]').exists()).toBe(
+        false,
+      )
+    })
   })
 })

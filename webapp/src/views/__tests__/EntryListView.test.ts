@@ -15,6 +15,7 @@ vi.mock('@/api/entries', () => ({
         word_count: 347,
         chunk_count: 5,
         created_at: '2026-03-23T10:30:00Z',
+        uncertain_span_count: 0,
       },
       {
         id: 2,
@@ -24,6 +25,7 @@ vi.mock('@/api/entries', () => ({
         word_count: 120,
         chunk_count: 2,
         created_at: '2026-03-21T15:00:00Z',
+        uncertain_span_count: 0,
       },
     ],
     total: 2,
@@ -170,6 +172,7 @@ describe('EntryListView', () => {
         word_count: 1,
         chunk_count: 1,
         created_at: '',
+        uncertain_span_count: 0,
       })),
       total: 45,
       limit: 20,
@@ -201,6 +204,7 @@ describe('EntryListView', () => {
           word_count: 347,
           chunk_count: 5,
           created_at: '2026-03-23T10:30:00Z',
+          uncertain_span_count: 0,
         },
         {
           id: 2,
@@ -210,6 +214,7 @@ describe('EntryListView', () => {
           word_count: 120,
           chunk_count: 2,
           created_at: '2026-03-21T15:00:00Z',
+          uncertain_span_count: 0,
         },
       ],
       total: 2,
@@ -238,6 +243,7 @@ describe('EntryListView', () => {
           word_count: 347,
           chunk_count: 5,
           created_at: '2026-03-23T10:30:00Z',
+          uncertain_span_count: 0,
         },
         {
           id: 2,
@@ -247,6 +253,7 @@ describe('EntryListView', () => {
           word_count: 120,
           chunk_count: 2,
           created_at: '2026-03-21T15:00:00Z',
+          uncertain_span_count: 0,
         },
       ],
       total: 2,
@@ -276,6 +283,7 @@ describe('EntryListView', () => {
           word_count: 347,
           chunk_count: 5,
           created_at: '2026-03-23T10:30:00Z',
+          uncertain_span_count: 0,
         },
         {
           id: 2,
@@ -285,6 +293,7 @@ describe('EntryListView', () => {
           word_count: 120,
           chunk_count: 2,
           created_at: '2026-03-21T15:00:00Z',
+          uncertain_span_count: 0,
         },
       ],
       total: 2,
@@ -314,6 +323,7 @@ describe('EntryListView', () => {
         word_count: 1,
         chunk_count: 1,
         created_at: '',
+        uncertain_span_count: 0,
       })),
       total: 100,
       limit: 20,
@@ -331,5 +341,68 @@ describe('EntryListView', () => {
     expect(mock).toHaveBeenCalledWith(
       expect.objectContaining({ limit: 50, offset: 0 }),
     )
+  })
+})
+
+describe('OCR Doubts column', () => {
+  it('renders uncertain_span_count with color coding', async () => {
+    const { fetchEntries } = await import('@/api/entries')
+    ;(fetchEntries as ReturnType<typeof vi.fn>).mockResolvedValue({
+      items: [
+        {
+          id: 10,
+          entry_date: '2026-04-01',
+          source_type: 'ocr',
+          page_count: 1,
+          word_count: 50,
+          chunk_count: 1,
+          created_at: '2026-04-01T10:00:00Z',
+          uncertain_span_count: 0,
+        },
+        {
+          id: 11,
+          entry_date: '2026-04-02',
+          source_type: 'ocr',
+          page_count: 1,
+          word_count: 50,
+          chunk_count: 1,
+          created_at: '2026-04-02T10:00:00Z',
+          uncertain_span_count: 2,
+        },
+        {
+          id: 12,
+          entry_date: '2026-04-03',
+          source_type: 'ocr',
+          page_count: 1,
+          word_count: 50,
+          chunk_count: 1,
+          created_at: '2026-04-03T10:00:00Z',
+          uncertain_span_count: 5,
+        },
+      ],
+      total: 3,
+      limit: 20,
+      offset: 0,
+    })
+
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    const cells = wrapper.findAll('[data-testid="doubts-cell"]')
+    expect(cells.length).toBe(3)
+
+    // Default sort is date descending, so order is: id=12, id=11, id=10
+    // 5 = red (2026-04-03)
+    expect(cells[0].text()).toBe('5')
+    expect(cells[0].classes().join(' ')).toContain('red')
+
+    // 2 = amber (2026-04-02)
+    expect(cells[1].text()).toBe('2')
+    expect(cells[1].classes().join(' ')).toContain('amber')
+
+    // 0 = green (2026-04-01)
+    expect(cells[2].text()).toBe('0')
+    expect(cells[2].classes().join(' ')).toContain('emerald')
   })
 })

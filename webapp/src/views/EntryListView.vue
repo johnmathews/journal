@@ -16,6 +16,7 @@ type SortKey =
   | 'page_count'
   | 'word_count'
   | 'chunk_count'
+  | 'uncertain_span_count'
   | 'created_at'
 const sortKey = ref<SortKey>('entry_date')
 const sortAsc = ref(false)
@@ -96,6 +97,12 @@ function formatDateTime(dateStr: string): string {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+function doubtsColor(count: number): string {
+  if (count === 0) return 'text-emerald-600 dark:text-emerald-400'
+  if (count <= 2) return 'text-amber-600 dark:text-amber-400'
+  return 'text-red-600 dark:text-red-400'
 }
 </script>
 
@@ -179,7 +186,8 @@ function formatDateTime(dateStr: string): string {
         No journal entries found.
       </div>
 
-      <!-- Table -->
+      <!-- Table: columns ordered by importance for small screens -->
+      <!-- Date | Ingested | OCR Doubts | Words | Pages (hidden <sm) | Chunks (hidden <sm) -->
       <div v-else class="overflow-x-auto">
         <table class="table-auto w-full dark:text-gray-300">
           <thead
@@ -194,11 +202,18 @@ function formatDateTime(dateStr: string): string {
                 Date{{ sortIndicator('entry_date') }}
               </th>
               <th
-                class="px-4 py-3 whitespace-nowrap text-center cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
-                data-testid="sort-pages"
-                @click="toggleSort('page_count')"
+                class="px-4 py-3 whitespace-nowrap text-left cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+                data-testid="sort-ingested"
+                @click="toggleSort('created_at')"
               >
-                Pages{{ sortIndicator('page_count') }}
+                Ingested{{ sortIndicator('created_at') }}
+              </th>
+              <th
+                class="px-4 py-3 whitespace-nowrap text-center cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+                data-testid="sort-doubts"
+                @click="toggleSort('uncertain_span_count')"
+              >
+                OCR Doubts{{ sortIndicator('uncertain_span_count') }}
               </th>
               <th
                 class="px-4 py-3 whitespace-nowrap text-right cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
@@ -208,18 +223,18 @@ function formatDateTime(dateStr: string): string {
                 Words{{ sortIndicator('word_count') }}
               </th>
               <th
-                class="px-4 py-3 whitespace-nowrap text-right cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+                class="hidden sm:table-cell px-4 py-3 whitespace-nowrap text-center cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+                data-testid="sort-pages"
+                @click="toggleSort('page_count')"
+              >
+                Pages{{ sortIndicator('page_count') }}
+              </th>
+              <th
+                class="hidden sm:table-cell px-4 py-3 whitespace-nowrap text-right cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
                 data-testid="sort-chunks"
                 @click="toggleSort('chunk_count')"
               >
                 Chunks{{ sortIndicator('chunk_count') }}
-              </th>
-              <th
-                class="px-4 py-3 whitespace-nowrap text-left cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
-                data-testid="sort-ingested"
-                @click="toggleSort('created_at')"
-              >
-                Ingested{{ sortIndicator('created_at') }}
               </th>
             </tr>
           </thead>
@@ -238,19 +253,30 @@ function formatDateTime(dateStr: string): string {
               >
                 {{ formatDate(entry.entry_date) }}
               </td>
-              <td class="px-4 py-3 whitespace-nowrap text-center">
-                {{ entry.page_count }}
-              </td>
-              <td class="px-4 py-3 whitespace-nowrap text-right">
-                {{ entry.word_count.toLocaleString() }}
-              </td>
-              <td class="px-4 py-3 whitespace-nowrap text-right">
-                {{ entry.chunk_count }}
-              </td>
               <td
                 class="px-4 py-3 whitespace-nowrap text-gray-500 dark:text-gray-400"
               >
                 {{ formatDateTime(entry.created_at) }}
+              </td>
+              <td
+                class="px-4 py-3 whitespace-nowrap text-center font-medium"
+                :class="doubtsColor(entry.uncertain_span_count)"
+                data-testid="doubts-cell"
+              >
+                {{ entry.uncertain_span_count }}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-right">
+                {{ entry.word_count.toLocaleString() }}
+              </td>
+              <td
+                class="hidden sm:table-cell px-4 py-3 whitespace-nowrap text-center"
+              >
+                {{ entry.page_count }}
+              </td>
+              <td
+                class="hidden sm:table-cell px-4 py-3 whitespace-nowrap text-right"
+              >
+                {{ entry.chunk_count }}
               </td>
             </tr>
           </tbody>
