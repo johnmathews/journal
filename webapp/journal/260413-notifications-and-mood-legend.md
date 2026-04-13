@@ -41,9 +41,41 @@ Changed the mood dimension toggle buttons from "toggle off/on" to Grafana-style
 Implementation is in `toggleMoodDimension()` in the dashboard store. The visual
 change is replacing `line-through` with `opacity-40` for hidden dimensions.
 
+## Mood chart: stable colors and no re-animation
+
+- Series colors are now assigned by the dimension's index in the full
+  `moodDimensions` list, not the filtered dataset index. Isolating "joy"
+  no longer shifts it to index 0 / a different color.
+- Y-axis fixed at [-1, +1] — already was in the code, added regression tests.
+- Animation only runs on the first render (`moodChartRenderedOnce` flag).
+  Toggling series, changing range/bin renders instantly with `animation: false`.
+
+## Job History page
+
+- New `/jobs` route with `JobHistoryView.vue` — paginated table of all
+  historical jobs (type, status badge, params, created time, duration, details).
+- Filters by status and type, refresh button, pagination.
+- Backend: `GET /api/jobs` endpoint with `list_jobs()` on `SQLiteJobRepository`.
+- Sidebar: "Job History" nav item with clock icon added as last item.
+- Notification dropdown renamed from "Background jobs" to "Running jobs".
+
+## Sidebar title collapse fix
+
+- Title text now fades out when sidebar is collapsed on desktop using the
+  same `lg:opacity-0 / lg:sidebar-expanded:opacity-100` pattern as nav labels.
+- `lg:whitespace-nowrap` only when collapsed; `lg:sidebar-expanded:whitespace-normal`
+  restores wrapping when expanded. Initial fix used bare `whitespace-nowrap` which
+  prevented wrapping in expanded state — caught and fixed with regression tests.
+
 ## Test changes
 
 - AppHeader, DefaultLayout, and App tests now provide Pinia (needed for AppNotifications)
 - Dashboard store toggle tests rewritten for Grafana-style behavior
 - DashboardView test updated from `line-through` to `opacity-40` assertion
-- New AppNotifications component tests (bell, badge, dropdown, job entries)
+- New AppNotifications component tests (bell, badge, dropdown, job entries, auto-dismiss)
+- JobHistoryView tests (table, filters, pagination, error, status badges, all job labels)
+- Jobs API client tests for `listJobs()` with params/no-params/filter
+- Jobs store test for `trackJob` action
+- Sidebar regression tests (title overflow-hidden, responsive nowrap, opacity fade, Job History link)
+- Mood chart y-axis fixed at [-1, +1] tests (initial + after isolation)
+- Mood chart animation test (first render animates, subsequent do not)
