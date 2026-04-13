@@ -233,12 +233,28 @@ export const useJobsStore = defineStore('jobs', () => {
     return fresh
   }
 
+  /**
+   * Register an externally-created job (e.g. one the server kicked off
+   * as a side-effect of a PATCH) and start polling it. The store
+   * creates a placeholder row so the notification UI can render
+   * immediately, then replaces it with real data on the first poll.
+   */
+  function trackJob(
+    jobId: string,
+    type: JobType,
+    params: Record<string, unknown> = {},
+  ): void {
+    upsertJob(makePlaceholder(jobId, type, params))
+    void pollJob(jobId)
+  }
+
   return {
     jobs,
     getJobById,
     activeJobs,
     startEntityExtraction,
     startMoodBackfill,
+    trackJob,
     fetchJob,
     pollJob,
     stopPolling,

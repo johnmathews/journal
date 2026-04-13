@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ThemeToggle from './ThemeToggle.vue'
+import AppNotifications from './AppNotifications.vue'
 
 defineProps<{
   sidebarOpen: boolean
@@ -39,8 +40,9 @@ defineEmits<{
           </button>
         </div>
 
-        <!-- Right: theme toggle -->
+        <!-- Right: notifications + theme toggle -->
         <div class="flex items-center space-x-3">
+          <AppNotifications />
           <ThemeToggle />
         </div>
       </div>

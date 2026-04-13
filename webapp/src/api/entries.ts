@@ -37,11 +37,15 @@ export function fetchEntry(id: number): Promise<EntryDetail> {
   return apiFetch<EntryDetail>(`/api/entries/${id}`)
 }
 
+export interface UpdateEntryTextResponse extends EntryDetail {
+  entity_extraction_job_id?: string
+}
+
 export function updateEntryText(
   id: number,
   finalText: string,
-): Promise<EntryDetail> {
-  return apiFetch<EntryDetail>(`/api/entries/${id}`, {
+): Promise<UpdateEntryTextResponse> {
+  return apiFetch<UpdateEntryTextResponse>(`/api/entries/${id}`, {
     method: 'PATCH',
     body: JSON.stringify({ final_text: finalText }),
   })

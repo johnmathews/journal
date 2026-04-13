@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { createPinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import DefaultLayout from '../DefaultLayout.vue'
 
@@ -22,7 +23,7 @@ describe('DefaultLayout', () => {
       slots: {
         default: '<p data-testid="child">child content</p>',
       },
-      global: { plugins: [router] },
+      global: { plugins: [createPinia(), router] },
     })
 
     // Sidebar renders the Entries nav link
@@ -43,7 +44,7 @@ describe('DefaultLayout', () => {
     await router.isReady()
 
     const wrapper = mount(DefaultLayout, {
-      global: { plugins: [router] },
+      global: { plugins: [createPinia(), router] },
     })
 
     // Both Sidebar (close button) and Header (hamburger) have
@@ -65,7 +66,7 @@ describe('DefaultLayout', () => {
 
     const wrapper = mount(DefaultLayout, {
       attachTo: document.body,
-      global: { plugins: [router] },
+      global: { plugins: [createPinia(), router] },
     })
 
     // Open the sidebar via the hamburger in the header

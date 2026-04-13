@@ -2,6 +2,8 @@
 import { computed, onMounted, onBeforeUnmount, ref, nextTick, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useEntriesStore } from '@/stores/entries'
+import { useJobsStore } from '@/stores/jobs'
+import { isTerminal } from '@/types/job'
 import { useEntryEditor } from '@/composables/useEntryEditor'
 import { useDiffHighlight } from '@/composables/useDiffHighlight'
 import {
@@ -21,6 +23,7 @@ const props = defineProps<{
 const router = useRouter()
 const route = useRoute()
 const store = useEntriesStore()
+const jobsStore = useJobsStore()
 const { editedText, saving, saveError, isDirty, isModified, reset } =
   useEntryEditor(() => store.currentEntry)
 
@@ -419,7 +422,7 @@ async function save() {
   saveError.value = null
   try {
     const entryId = store.currentEntry.id
-    await store.saveEntryText(entryId, editedText.value)
+    const extractionJobId = await store.saveEntryText(entryId, editedText.value)
     // Invalidate cached chunks/tokens — the server re-chunks and
     // re-embeds on save, so the previously-fetched offsets and token
     // spans no longer describe the persisted final_text. The next
@@ -436,12 +439,24 @@ async function save() {
     tokens.value = null
     overlayError.value = null
 
-    // The server fires async entity re-extraction on text save.
-    // Clear the active highlight (the old terms may no longer match
-    // the edited text) and reload entities after a short delay to
-    // give the background job time to finish.
+    // Clear stale entity highlight and track the extraction job.
+    // The notification UI shows progress; when the job finishes
+    // we reload entity chips automatically.
     selectedEntityId.value = null
-    setTimeout(() => loadEntryEntities(entryId), 5000)
+    if (extractionJobId) {
+      jobsStore.trackJob(extractionJobId, 'entity_extraction', {
+        entry_id: entryId,
+      })
+      const unwatch = watch(
+        () => jobsStore.getJobById.value(extractionJobId),
+        (job) => {
+          if (job && isTerminal(job.status)) {
+            unwatch()
+            loadEntryEntities(entryId)
+          }
+        },
+      )
+    }
   } catch (e) {
     saveError.value = e instanceof Error ? e.message : 'Failed to save'
   } finally {
