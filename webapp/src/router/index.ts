@@ -49,6 +49,11 @@ const router = createRouter({
       name: 'job-history',
       component: () => import('@/views/JobHistoryView.vue'),
     },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('@/views/SettingsView.vue'),
+    },
   ],
 })
 

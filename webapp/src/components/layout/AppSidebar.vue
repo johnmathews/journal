@@ -421,6 +421,56 @@ watch(
                 </a>
               </li>
             </RouterLink>
+
+            <!-- Settings link -->
+            <RouterLink
+              v-slot="{ href, navigate, isActive }"
+              to="/settings"
+              custom
+            >
+              <li
+                class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
+                :class="
+                  isActive &&
+                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                "
+              >
+                <a
+                  :href="href"
+                  class="block truncate transition"
+                  data-testid="sidebar-settings-link"
+                  :class="
+                    isActive
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-800 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white'
+                  "
+                  @click="navigate"
+                >
+                  <div class="flex items-center">
+                    <svg
+                      class="shrink-0 fill-current"
+                      :class="
+                        isActive
+                          ? 'text-violet-500'
+                          : 'text-gray-400 dark:text-gray-500'
+                      "
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M6.7.3a1 1 0 0 1 2.6 0l.2 1.5a5.5 5.5 0 0 1 1.5.9l1.4-.6a1 1 0 0 1 1.3.5l1.3 2.2a1 1 0 0 1-.3 1.3l-1.2.9a5.5 5.5 0 0 1 0 1.8l1.2.9a1 1 0 0 1 .3 1.3l-1.3 2.2a1 1 0 0 1-1.3.5l-1.4-.6a5.5 5.5 0 0 1-1.5.9l-.2 1.5a1 1 0 0 1-2.6 0l-.2-1.5a5.5 5.5 0 0 1-1.5-.9l-1.4.6a1 1 0 0 1-1.3-.5L1 11.4a1 1 0 0 1 .3-1.3l1.2-.9a5.5 5.5 0 0 1 0-1.8l-1.2-.9A1 1 0 0 1 1 5.2l1.3-2.2a1 1 0 0 1 1.3-.5l1.4.6a5.5 5.5 0 0 1 1.5-.9L6.7.3ZM8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"
+                      />
+                    </svg>
+                    <span
+                      class="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                      >Settings</span
+                    >
+                  </div>
+                </a>
+              </li>
+            </RouterLink>
           </ul>
         </div>
       </div>
