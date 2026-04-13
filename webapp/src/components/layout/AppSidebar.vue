@@ -108,7 +108,7 @@ watch(
         <RouterLink class="block" to="/" aria-label="Journal home">
           <div>
             <h1
-              class="text-2xl md:text-xl md:pl-2 text-gray-800 dark:text-gray-100 font-bold lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200 whitespace-nowrap overflow-hidden"
+              class="text-2xl md:text-xl md:pl-2 text-gray-800 dark:text-gray-100 font-bold lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200 lg:whitespace-nowrap lg:sidebar-expanded:whitespace-normal 2xl:whitespace-normal overflow-hidden"
             >
               JOURNAL INSIGHTS TOOL
             </h1>

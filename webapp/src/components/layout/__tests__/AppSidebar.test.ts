@@ -54,6 +54,11 @@ function makeRouter() {
         name: 'entities',
         component: { template: '<div />' },
       },
+      {
+        path: '/jobs',
+        name: 'job-history',
+        component: { template: '<div />' },
+      },
     ],
   })
 }
@@ -260,5 +265,45 @@ describe('AppSidebar', () => {
     // This is a smoke test for the onUnmounted cleanup path — no assertion needed
     // beyond not throwing.
     document.dispatchEvent(new KeyboardEvent('keydown', { keyCode: 27 }))
+  })
+
+  // -- Sidebar title regression tests --
+
+  it('title text has overflow-hidden so it does not clip mid-character when collapsed', async () => {
+    const wrapper = await mountSidebar()
+    const title = wrapper.find('h1')
+    expect(title.text()).toContain('JOURNAL INSIGHTS TOOL')
+    expect(title.classes()).toContain('overflow-hidden')
+    wrapper.unmount()
+  })
+
+  it('title text allows wrapping when sidebar is expanded (no permanent whitespace-nowrap)', async () => {
+    // Regression: whitespace-nowrap was applied unconditionally, preventing
+    // the title from wrapping in the expanded sidebar. The fix uses
+    // lg:whitespace-nowrap (collapsed only) + lg:sidebar-expanded:whitespace-normal.
+    const wrapper = await mountSidebar()
+    const title = wrapper.find('h1')
+    const classes = title.classes().join(' ')
+    // Must NOT have bare "whitespace-nowrap" — only the responsive variants
+    expect(classes).not.toMatch(/(?<!\S)whitespace-nowrap(?!\S)/)
+    expect(classes).toContain('lg:whitespace-nowrap')
+    expect(classes).toContain('lg:sidebar-expanded:whitespace-normal')
+    wrapper.unmount()
+  })
+
+  it('title text fades out when sidebar is collapsed (lg:opacity-0)', async () => {
+    const wrapper = await mountSidebar()
+    const title = wrapper.find('h1')
+    expect(title.classes()).toContain('lg:opacity-0')
+    expect(title.classes()).toContain('lg:sidebar-expanded:opacity-100')
+    wrapper.unmount()
+  })
+
+  it('renders the Job History sidebar link', async () => {
+    const wrapper = await mountSidebar()
+    const link = wrapper.find('[data-testid="sidebar-jobs-link"]')
+    expect(link.exists()).toBe(true)
+    expect(link.attributes('href')).toBe('/jobs')
+    wrapper.unmount()
   })
 })
