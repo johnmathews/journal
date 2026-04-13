@@ -415,4 +415,84 @@ describe('ImageUploadPanel', () => {
     expect(wrapper.text()).toContain('page 2 of 3')
     expect(wrapper.text()).not.toContain('page 2 of 2')
   })
+
+  it('shows "Uploading images..." for progress step 0', async () => {
+    const wrapper = mountPanel()
+    const entriesStore = useEntriesStore()
+    const jobsStore = useJobsStore()
+    vi.spyOn(entriesStore, 'uploadImages').mockResolvedValue({
+      job_id: 'job-step0',
+      status: 'queued',
+    })
+
+    const file = new File(['img'], 'page.jpg', { type: 'image/jpeg' })
+    await selectFiles(wrapper, [file])
+
+    const uploadBtn = wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('Upload & Process'))
+    await uploadBtn!.trigger('click')
+    await flushPromises()
+
+    // Simulate step 0: progress_current=0, progress_total=3
+    jobsStore.jobs['job-step0'] = {
+      id: 'job-step0',
+      type: 'ingest_images',
+      status: 'running',
+      params: {},
+      progress_current: 0,
+      progress_total: 3,
+      result: null,
+      error_message: null,
+      created_at: new Date().toISOString(),
+      started_at: new Date().toISOString(),
+      finished_at: null,
+    }
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Uploading images')
+    expect(wrapper.text()).not.toContain('Running OCR on page 0')
+  })
+
+  it('auto-dismisses when job completes while user is watching', async () => {
+    const wrapper = mountPanel()
+    const entriesStore = useEntriesStore()
+    const jobsStore = useJobsStore()
+    vi.spyOn(entriesStore, 'uploadImages').mockResolvedValue({
+      job_id: 'job-auto',
+      status: 'queued',
+    })
+
+    const file = new File(['img'], 'page.jpg', { type: 'image/jpeg' })
+    await selectFiles(wrapper, [file])
+
+    const uploadBtn = wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('Upload & Process'))
+    await uploadBtn!.trigger('click')
+    await flushPromises()
+
+    // Processing screen is visible
+    expect(wrapper.text()).toContain('Processing your journal entry')
+
+    // Job completes
+    jobsStore.jobs['job-auto'] = {
+      id: 'job-auto',
+      type: 'ingest_images',
+      status: 'succeeded',
+      params: {},
+      progress_current: 1,
+      progress_total: 1,
+      result: { entry_id: 99 },
+      error_message: null,
+      created_at: new Date().toISOString(),
+      started_at: new Date().toISOString(),
+      finished_at: new Date().toISOString(),
+    }
+    await flushPromises()
+
+    // Should auto-dismiss back to the upload form
+    expect(wrapper.text()).toContain('Drag journal page images')
+    expect(wrapper.text()).not.toContain('Processing your journal entry')
+  })
 })

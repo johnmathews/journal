@@ -16,6 +16,7 @@ export type JobType =
   | 'mood_backfill'
   | 'ingest_images'
   | 'mood_score_entry'
+  | 'reprocess_embeddings'
 
 /**
  * Response from the job-submission endpoints (POST /api/entities/extract,

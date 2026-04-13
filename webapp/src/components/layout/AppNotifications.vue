@@ -74,6 +74,8 @@ function jobLabel(type: JobType): string {
       return 'Image ingestion'
     case 'mood_score_entry':
       return 'Mood scoring'
+    case 'reprocess_embeddings':
+      return 'Re-embedding'
     default:
       return type
   }

@@ -71,13 +71,19 @@ export const useEntriesStore = defineStore('entries', () => {
   async function saveEntryText(
     id: number,
     finalText: string,
-  ): Promise<string | undefined> {
+  ): Promise<{
+    extractionJobId?: string
+    reprocessJobId?: string
+  }> {
     loading.value = true
     error.value = null
     try {
       const resp = await updateEntryText(id, finalText)
       currentEntry.value = resp
-      return resp.entity_extraction_job_id
+      return {
+        extractionJobId: resp.entity_extraction_job_id,
+        reprocessJobId: resp.reprocess_job_id,
+      }
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to save entry'
       throw e

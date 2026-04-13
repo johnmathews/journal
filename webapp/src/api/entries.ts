@@ -39,6 +39,7 @@ export function fetchEntry(id: number): Promise<EntryDetail> {
 
 export interface UpdateEntryTextResponse extends EntryDetail {
   entity_extraction_job_id?: string
+  reprocess_job_id?: string
 }
 
 export function updateEntryText(

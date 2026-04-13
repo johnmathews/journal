@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useEntriesStore } from '@/stores/entries'
 import { useJobsStore } from '@/stores/jobs'
+import { isTerminal } from '@/types/job'
 
 const props = defineProps<{ entryDate: string }>()
 const emit = defineEmits<{
@@ -88,6 +89,13 @@ function acknowledge() {
   files.value = []
 }
 
+// Auto-dismiss when the job reaches a terminal state (user stayed on screen)
+watch(currentJob, (job) => {
+  if (job && isTerminal(job.status)) {
+    acknowledge()
+  }
+})
+
 function retry() {
   submitError.value = null
 }
@@ -115,7 +123,12 @@ function objectUrl(file: File): string {
         />
       </div>
       <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
-        <template v-if="currentJob?.progress_total">
+        <template
+          v-if="currentJob?.progress_total && currentJob.progress_current === 0"
+        >
+          Uploading images...
+        </template>
+        <template v-else-if="currentJob?.progress_total">
           Running OCR on page {{ currentJob.progress_current }} of
           {{ currentJob.progress_total }}...
         </template>

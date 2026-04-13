@@ -406,24 +406,29 @@ async function save() {
   saveError.value = null
   try {
     const entryId = store.currentEntry.id
-    const extractionJobId = await store.saveEntryText(entryId, editedText.value)
-    // Invalidate cached chunks/tokens — the server re-chunks and
-    // re-embeds on save, so the previously-fetched offsets and token
-    // spans no longer describe the persisted final_text. The next
-    // overlay-mode flip will refetch fresh data.
+    const { extractionJobId, reprocessJobId } = await store.saveEntryText(
+      entryId,
+      editedText.value,
+    )
+    // Invalidate cached chunks/tokens — the background re-embedding
+    // job will re-chunk and re-embed. The next overlay-mode flip
+    // will refetch fresh data.
     chunks.value = null
     tokens.value = null
     overlayError.value = null
 
-    // Clear stale entity highlight and track the extraction job.
-    // The notification UI shows progress; when the job finishes
-    // we reload entity chips automatically.
+    // Track background jobs. The notification UI shows progress;
+    // when entity extraction finishes we reload entity chips.
     selectedEntityId.value = null
+    if (reprocessJobId) {
+      jobsStore.trackJob(reprocessJobId, 'reprocess_embeddings', {
+        entry_id: entryId,
+      })
+    }
     if (extractionJobId) {
       jobsStore.trackJob(extractionJobId, 'entity_extraction', {
         entry_id: entryId,
       })
-      toast.success('Text saved. Entity extraction running in background.')
       const unwatch = watch(
         () => jobsStore.getJobById(extractionJobId),
         (job) => {
@@ -433,9 +438,8 @@ async function save() {
           }
         },
       )
-    } else {
-      toast.success('Text saved.')
     }
+    toast.success('Saved. Background jobs running.')
   } catch (e) {
     saveError.value = e instanceof Error ? e.message : 'Failed to save'
   } finally {
