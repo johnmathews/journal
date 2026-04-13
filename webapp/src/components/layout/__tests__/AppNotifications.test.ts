@@ -152,6 +152,21 @@ describe('AppNotifications', () => {
     expect(wrapper.text()).toContain('3/10')
   })
 
+  it('shows raw progress_total for ingest_images jobs (no off-by-one)', async () => {
+    const wrapper = mountWith(
+      makeJob({
+        id: 'j1',
+        type: 'ingest_images',
+        status: 'running',
+        progress_current: 2,
+        progress_total: 3,
+      }),
+    )
+    await wrapper.find('[data-testid="notifications-bell"]').trigger('click')
+    // Should show 2/3 — not 2/4 (old bug: server sent total+1)
+    expect(wrapper.text()).toContain('2/3')
+  })
+
   it('shows error message for failed job', async () => {
     const wrapper = mountWith(
       makeJob({

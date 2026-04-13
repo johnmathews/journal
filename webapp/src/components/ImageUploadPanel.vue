@@ -117,7 +117,7 @@ function objectUrl(file: File): string {
       <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
         <template v-if="currentJob?.progress_total">
           Running OCR on page {{ currentJob.progress_current }} of
-          {{ currentJob.progress_total - 1 }}...
+          {{ currentJob.progress_total }}...
         </template>
         <template v-else>Queued...</template>
       </p>

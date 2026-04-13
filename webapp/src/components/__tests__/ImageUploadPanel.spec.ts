@@ -374,4 +374,45 @@ describe('ImageUploadPanel', () => {
     // No 'created' event should be emitted
     expect(wrapper.emitted('created')).toBeUndefined()
   })
+
+  // --- Progress display regression (off-by-one) ---
+
+  it('displays progress_total directly without subtracting 1', async () => {
+    const wrapper = mountPanel()
+    const entriesStore = useEntriesStore()
+    const jobsStore = useJobsStore()
+    vi.spyOn(entriesStore, 'uploadImages').mockResolvedValue({
+      job_id: 'job-progress',
+      status: 'queued',
+    })
+
+    const file = new File(['img'], 'page.jpg', { type: 'image/jpeg' })
+    await selectFiles(wrapper, [file])
+
+    const uploadBtn = wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('Upload & Process'))
+    await uploadBtn!.trigger('click')
+    await flushPromises()
+
+    // Simulate the store returning a running job with progress
+    jobsStore.jobs['job-progress'] = {
+      id: 'job-progress',
+      type: 'ingest_images',
+      status: 'running',
+      params: {},
+      progress_current: 2,
+      progress_total: 3,
+      result: null,
+      error_message: null,
+      created_at: new Date().toISOString(),
+      started_at: new Date().toISOString(),
+      finished_at: null,
+    }
+    await flushPromises()
+
+    // Should show "page 2 of 3" — not "page 2 of 2"
+    expect(wrapper.text()).toContain('page 2 of 3')
+    expect(wrapper.text()).not.toContain('page 2 of 2')
+  })
 })
