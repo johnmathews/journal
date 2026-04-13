@@ -623,4 +623,36 @@ describe('DashboardView — mood chart', () => {
 
     expect(fetchMoodTrends).toHaveBeenCalled()
   })
+
+  it('mood chart y-axis is fixed to [-1, +1]', async () => {
+    await setupWithMoodData()
+
+    // The mood chart is the last Chart instance created (after writing + word charts).
+    const calls = chartConstructorSpy.mock.calls
+    const lastConfig = calls[calls.length - 1][1] as {
+      options: { scales: { y: { min: number; max: number } } }
+    }
+    expect(lastConfig.options.scales.y.min).toBe(-1)
+    expect(lastConfig.options.scales.y.max).toBe(1)
+  })
+
+  it('mood chart y-axis stays [-1, +1] after isolating a single series', async () => {
+    const wrapper = await setupWithMoodData()
+    chartConstructorSpy.mockClear()
+
+    // Isolate joy_sadness (a bipolar series with positive values ~0.4)
+    await wrapper
+      .find('[data-testid="dashboard-mood-toggle-joy_sadness"]')
+      .trigger('click')
+    await flushPromises()
+
+    // The chart was recreated — verify the new instance still has fixed bounds
+    const calls = chartConstructorSpy.mock.calls
+    expect(calls.length).toBeGreaterThan(0)
+    const lastConfig = calls[calls.length - 1][1] as {
+      options: { scales: { y: { min: number; max: number } } }
+    }
+    expect(lastConfig.options.scales.y.min).toBe(-1)
+    expect(lastConfig.options.scales.y.max).toBe(1)
+  })
 })
