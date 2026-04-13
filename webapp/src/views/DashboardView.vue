@@ -265,10 +265,14 @@ function renderMoodChart(): void {
   const colors = getChartColors()
   const { periods, series } = pivotMoodBins()
 
-  const datasets = store.moodDimensions
+  const allDimensions = store.moodDimensions
+  const datasets = allDimensions
     .filter((d) => !store.hiddenMoodDimensions.has(d.name))
-    .map((d, i) => {
-      const color = MOOD_LINE_COLORS[i % MOOD_LINE_COLORS.length]
+    .map((d) => {
+      // Use the index in the FULL dimension list so colors stay stable
+      // when other dimensions are hidden via isolate-on-click.
+      const fullIndex = allDimensions.indexOf(d)
+      const color = MOOD_LINE_COLORS[fullIndex % MOOD_LINE_COLORS.length]
       return {
         label: d.name,
         data: series[d.name] ?? [],
