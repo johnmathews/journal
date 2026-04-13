@@ -276,8 +276,24 @@ describe('jobs store', () => {
     await vi.advanceTimersByTimeAsync(5000)
     expect(getJob).toHaveBeenCalledTimes(1)
   })
-})
 
-// Suppress unused-import lint on flushPoll — keep it for future tests
-// that need a compound tick+microtask flush.
-void flushPoll
+  it('trackJob registers an externally-created job and starts polling', async () => {
+    const store = useJobsStore()
+    const { getJob } = await import('@/api/jobs')
+    vi.mocked(getJob).mockResolvedValue(
+      makeJob({ id: 'ext-1', status: 'running' }),
+    )
+
+    store.trackJob('ext-1', 'entity_extraction', { entry_id: 42 })
+
+    // Placeholder is created immediately
+    expect(store.getJobById('ext-1')).toBeDefined()
+    expect(store.getJobById('ext-1')?.status).toBe('queued')
+    expect(store.getJobById('ext-1')?.params).toEqual({ entry_id: 42 })
+
+    // First poll fires (async — flush microtasks)
+    await flushPoll()
+    expect(getJob).toHaveBeenCalledWith('ext-1')
+    expect(store.getJobById('ext-1')?.status).toBe('running')
+  })
+})
