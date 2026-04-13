@@ -32,13 +32,13 @@ describe('settings API', () => {
     expect(result).toEqual(payload)
   })
 
-  it('fetchHealth calls /health', async () => {
+  it('fetchHealth calls /api/health', async () => {
     const payload = { status: 'ok', checks: [] }
     mockApiFetch.mockResolvedValue(payload)
 
     const result = await fetchHealth()
 
-    expect(mockApiFetch).toHaveBeenCalledWith('/health')
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/health')
     expect(result).toEqual(payload)
   })
 })

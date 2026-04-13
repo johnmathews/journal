@@ -6,7 +6,5 @@ export function fetchSettings(): Promise<ServerSettings> {
 }
 
 export async function fetchHealth(): Promise<HealthResponse> {
-  // /health bypasses bearer auth on the server, but sending the
-  // header anyway is harmless and keeps the call simple.
-  return apiFetch<HealthResponse>('/health')
+  return apiFetch<HealthResponse>('/api/health')
 }
