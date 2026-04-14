@@ -53,9 +53,12 @@ async function handleSignOut() {
           </button>
         </div>
 
-        <!-- Right: admin link + notifications + theme toggle + user menu -->
+        <!-- Right: notifications + theme toggle + admin link + user menu -->
         <div class="flex items-center space-x-3">
-          <!-- Admin link (visible only to admins) -->
+          <AppNotifications />
+          <ThemeToggle />
+
+          <!-- Admin link (visible only to admins, positioned next to user name) -->
           <RouterLink
             v-if="authStore.isAdmin"
             to="/admin"
@@ -63,9 +66,6 @@ async function handleSignOut() {
           >
             Admin
           </RouterLink>
-
-          <AppNotifications />
-          <ThemeToggle />
 
           <!-- User menu -->
           <div class="relative inline-flex">

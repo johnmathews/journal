@@ -26,23 +26,27 @@ const fakeUsers = [
     id: 1,
     email: 'alice@example.com',
     display_name: 'Alice',
+    is_admin: false,
     is_active: true,
     email_verified: true,
-    entries_count: 42,
+    entry_count: 42,
     total_words: 12345,
-    cost_estimate: 1.23,
-    last_activity: '2026-04-10T10:00:00Z',
+    job_count: 5,
+    last_entry_at: '2026-04-10T10:00:00Z',
+    created_at: '2026-01-01T00:00:00Z',
   },
   {
     id: 2,
     email: 'bob@example.com',
     display_name: 'Bob',
+    is_admin: false,
     is_active: false,
     email_verified: false,
-    entries_count: 0,
+    entry_count: 0,
     total_words: 0,
-    cost_estimate: 0,
-    last_activity: null,
+    job_count: 0,
+    last_entry_at: null,
+    created_at: '2026-02-01T00:00:00Z',
   },
 ]
 
@@ -213,17 +217,17 @@ describe('AdminDashboard', () => {
     expect(wrapper.text()).toContain('Failed to update user')
   })
 
-  it('displays cost estimate formatted as currency', async () => {
+  it('displays job counts', async () => {
     mockApiFetch.mockResolvedValue({ items: fakeUsers })
 
     const wrapper = mountComponent()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('$1.23')
-    expect(wrapper.text()).toContain('$0.00')
+    expect(wrapper.text()).toContain('5')
+    expect(wrapper.text()).toContain('0')
   })
 
-  it('displays Never for null last_activity', async () => {
+  it('displays Never for null last_entry_at', async () => {
     mockApiFetch.mockResolvedValue({ items: fakeUsers })
 
     const wrapper = mountComponent()
@@ -256,7 +260,7 @@ describe('AdminDashboard', () => {
     expect(headerTexts).toContain('Verified')
     expect(headerTexts).toContain('Entries')
     expect(headerTexts).toContain('Words')
-    expect(headerTexts).toContain('Cost Est.')
+    expect(headerTexts).toContain('Jobs')
     expect(headerTexts).toContain('Last Activity')
     expect(headerTexts).toContain('Actions')
   })

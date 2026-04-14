@@ -6,12 +6,14 @@ interface AdminUser {
   id: number
   email: string
   display_name: string
+  is_admin: boolean
   is_active: boolean
   email_verified: boolean
-  entries_count: number
+  entry_count: number
   total_words: number
-  cost_estimate: number
-  last_activity: string | null
+  job_count: number
+  last_entry_at: string | null
+  created_at: string
 }
 
 const users = ref<AdminUser[]>([])
@@ -62,10 +64,6 @@ function formatDate(dateStr: string | null): string {
     month: 'short',
     day: 'numeric',
   })
-}
-
-function formatCost(cost: number): string {
-  return `$${cost.toFixed(2)}`
 }
 </script>
 
@@ -119,7 +117,7 @@ function formatCost(cost: number): string {
               <th class="px-4 py-3 text-center font-semibold">Verified</th>
               <th class="px-4 py-3 text-right font-semibold">Entries</th>
               <th class="px-4 py-3 text-right font-semibold">Words</th>
-              <th class="px-4 py-3 text-right font-semibold">Cost Est.</th>
+              <th class="px-4 py-3 text-right font-semibold">Jobs</th>
               <th class="px-4 py-3 text-left font-semibold">Last Activity</th>
               <th class="px-4 py-3 text-right font-semibold">Actions</th>
             </tr>
@@ -163,7 +161,7 @@ function formatCost(cost: number): string {
               <td
                 class="px-4 py-3 text-right text-gray-600 dark:text-gray-300 tabular-nums"
               >
-                {{ user.entries_count.toLocaleString() }}
+                {{ user.entry_count.toLocaleString() }}
               </td>
               <td
                 class="px-4 py-3 text-right text-gray-600 dark:text-gray-300 tabular-nums"
@@ -173,10 +171,10 @@ function formatCost(cost: number): string {
               <td
                 class="px-4 py-3 text-right text-gray-600 dark:text-gray-300 tabular-nums"
               >
-                {{ formatCost(user.cost_estimate) }}
+                {{ user.job_count }}
               </td>
               <td class="px-4 py-3 text-gray-500 dark:text-gray-400">
-                {{ formatDate(user.last_activity) }}
+                {{ formatDate(user.last_entry_at) }}
               </td>
               <td class="px-4 py-3 text-right">
                 <button
