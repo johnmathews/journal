@@ -1,31 +1,15 @@
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
 /**
- * Read the API bearer token.
- *
- * Two sources, in priority order:
- *
- *  1. `window.__JOURNAL_CONFIG__.apiToken` — the runtime value, written
- *     to `/config.js` at container startup by `docker/40-journal-config.sh`
- *     from the `JOURNAL_API_TOKEN` env var. This is the production path:
- *     the token lives only in the host's `.env`, never in the ghcr.io
- *     image, and rotates with a `docker compose up -d` (no rebuild).
- *
- *  2. `import.meta.env.VITE_JOURNAL_API_TOKEN` — the build-time value,
- *     inlined by Vite. Used in dev (set via `.env.local`) and in unit
- *     tests (via `vi.stubEnv`). Also used as a fallback in prod if the
- *     runtime injection stub was never replaced — which would be a
- *     deployment mistake, and the fallback is empty in that case, so
- *     the server will reject requests with 401 and the mistake is loud.
- *
- * Called per-request rather than captured as a module-level constant
- * so `vi.stubEnv` takes effect for every test without re-importing
- * the module.
+ * Handler invoked when a non-auth endpoint returns 401, indicating the
+ * session has expired. Registered by main.ts to avoid circular imports
+ * between the API client and the auth store / router.
  */
-function getApiToken(): string {
-  const runtime = window.__JOURNAL_CONFIG__?.apiToken
-  if (runtime) return runtime
-  return import.meta.env.VITE_JOURNAL_API_TOKEN || ''
+type UnauthorizedHandler = () => void
+let onUnauthorized: UnauthorizedHandler = () => {}
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler): void {
+  onUnauthorized = handler
 }
 
 export class ApiRequestError extends Error {
@@ -39,29 +23,40 @@ export class ApiRequestError extends Error {
   }
 }
 
+/**
+ * Auth endpoints where a 401 is an expected response (bad credentials)
+ * rather than an expired session. We must not trigger the global
+ * unauthorized handler for these.
+ */
+const AUTH_PATHS = ['/api/auth/login', '/api/auth/register', '/api/auth/me']
+
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
   const url = `${API_BASE}${path}`
-  const token = getApiToken()
-  // Build headers explicitly so the Authorization header is present
-  // whenever a token is configured. Caller-supplied headers override
-  // defaults, which lets individual callers change Content-Type for
-  // multipart uploads or replace Authorization if ever needed.
+  // Build headers explicitly. Caller-supplied headers override defaults,
+  // which lets individual callers change Content-Type for multipart
+  // uploads if ever needed.
   const headers: Record<string, string> = {
     ...(options.body instanceof FormData
       ? {}
       : { 'Content-Type': 'application/json' }),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...((options.headers as Record<string, string>) ?? {}),
   }
   const response = await fetch(url, {
     ...options,
     headers,
+    credentials: 'include',
   })
 
   if (!response.ok) {
+    // Global 401 handling: if a non-auth endpoint returns 401 the
+    // session has expired — clear user state and redirect to login.
+    if (response.status === 401 && !AUTH_PATHS.includes(path)) {
+      onUnauthorized()
+    }
+
     let errorCode = 'unknown'
     let message = `HTTP ${response.status}`
     try {
@@ -72,6 +67,11 @@ export async function apiFetch<T>(
       // ignore parse errors
     }
     throw new ApiRequestError(response.status, errorCode, message)
+  }
+
+  // Handle 204 No Content (e.g. logout)
+  if (response.status === 204) {
+    return undefined as T
   }
 
   return response.json()

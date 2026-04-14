@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
+import { createPinia } from 'pinia'
 import AppSidebar from '../AppSidebar.vue'
 
 /**
@@ -70,7 +71,7 @@ async function mountSidebar(sidebarOpen = true) {
   return mount(AppSidebar, {
     props: { sidebarOpen },
     attachTo: document.body,
-    global: { plugins: [router] },
+    global: { plugins: [router, createPinia()] },
   })
 }
 
@@ -223,7 +224,7 @@ describe('AppSidebar', () => {
     const wrapper = mount(AppSidebar, {
       props: { sidebarOpen: true },
       attachTo: document.body,
-      global: { plugins: [router] },
+      global: { plugins: [router, createPinia()] },
     })
 
     await router.push('/entries')

@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 // Option B routing — `/` is the Dashboard view. The entries list
 // lives at `/entries`, which is mounted explicitly so deep links
@@ -7,6 +8,39 @@ import { createRouter, createWebHistory } from 'vue-router'
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    // ---------- Public (auth) routes ----------
+    {
+      path: '/login',
+      name: 'login',
+      component: () => import('@/views/LoginView.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/register',
+      name: 'register',
+      component: () => import('@/views/RegisterView.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: () => import('@/views/ForgotPasswordView.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/reset-password',
+      name: 'reset-password',
+      component: () => import('@/views/ResetPasswordView.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/verify-email',
+      name: 'verify-email',
+      component: () => import('@/views/VerifyEmailView.vue'),
+      meta: { public: true },
+    },
+
+    // ---------- Authenticated routes ----------
     {
       path: '/',
       name: 'dashboard',
@@ -54,7 +88,54 @@ const router = createRouter({
       name: 'settings',
       component: () => import('@/views/SettingsView.vue'),
     },
+    {
+      path: '/api-keys',
+      name: 'api-keys',
+      component: () => import('@/views/ApiKeysView.vue'),
+    },
+
+    // ---------- Admin routes ----------
+    {
+      path: '/admin',
+      component: () => import('@/views/admin/AdminLayout.vue'),
+      meta: { requiresAdmin: true },
+      children: [
+        {
+          path: '',
+          name: 'admin-dashboard',
+          component: () => import('@/views/admin/AdminDashboard.vue'),
+        },
+      ],
+    },
   ],
+})
+
+// ---------- Global navigation guard ----------
+router.beforeEach(async (to) => {
+  const authStore = useAuthStore()
+
+  // Wait for the initial auth check to complete
+  if (!authStore.initialized) {
+    await authStore.initialize()
+  }
+
+  const isPublic = to.meta.public === true
+  const requiresAdmin = to.meta.requiresAdmin === true
+
+  // Redirect authenticated users away from login/register
+  if (isPublic && authStore.isAuthenticated) {
+    return { name: 'dashboard' }
+  }
+
+  // Redirect unauthenticated users to login
+  if (!isPublic && !authStore.isAuthenticated) {
+    return { name: 'login', query: { redirect: to.fullPath } }
+  }
+
+  // Block non-admin users from admin routes
+  if (requiresAdmin && !authStore.isAdmin) {
+    return { name: 'dashboard' }
+  }
 })
 
 export default router
