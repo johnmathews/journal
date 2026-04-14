@@ -27,6 +27,10 @@ function makeSettings(overrides: Partial<ServerSettings> = {}): ServerSettings {
       decisive_percentile: 10,
       embed_metadata_prefix: true,
     },
+    entity_extraction: {
+      model: 'claude-opus-4-6',
+      dedup_similarity_threshold: 0.88,
+    },
     features: {
       mood_scoring: true,
       mood_scorer_model: 'claude-sonnet-4-5',
@@ -179,7 +183,7 @@ describe('SettingsView', () => {
     expect(stats.text()).toContain('18 entries')
   })
 
-  it('displays OCR provider and model', async () => {
+  it('displays OCR provider and model in ingestion section', async () => {
     const wrapper = await mountView()
     expect(wrapper.find('[data-testid="ocr-provider"]').text()).toBe('gemini')
     expect(wrapper.find('[data-testid="ocr-model"]').text()).toBe(
@@ -187,14 +191,42 @@ describe('SettingsView', () => {
     )
   })
 
-  it('displays settings section', async () => {
+  it('displays pipeline sections with settings', async () => {
     const wrapper = await mountView()
     const section = wrapper.find('[data-testid="settings-section"]')
     expect(section.exists()).toBe(true)
-    expect(section.text()).toContain('semantic')
-    expect(section.text()).toContain('150')
-    expect(section.text()).toContain('text-embedding-3-large')
-    expect(section.text()).toContain('1024')
+    // Ingestion section
+    expect(wrapper.find('[data-testid="section-ingestion"]').exists()).toBe(
+      true,
+    )
+    // Chunking section
+    const chunking = wrapper.find('[data-testid="section-chunking"]')
+    expect(chunking.exists()).toBe(true)
+    expect(chunking.text()).toContain('semantic')
+    expect(chunking.text()).toContain('150')
+    expect(chunking.text()).toContain('text-embedding-3-large')
+    expect(chunking.text()).toContain('1024')
+    // Mood section
+    expect(wrapper.find('[data-testid="section-mood"]').exists()).toBe(true)
+    // Entity section
+    const entity = wrapper.find('[data-testid="section-entity"]')
+    expect(entity.exists()).toBe(true)
+    expect(entity.text()).toContain('claude-opus-4-6')
+    expect(entity.text()).toContain('0.88')
+  })
+
+  it('displays cost badges', async () => {
+    const wrapper = await mountView()
+    expect(wrapper.find('[data-testid="ingestion-cost"]').text()).toContain(
+      '/page',
+    )
+    expect(wrapper.find('[data-testid="chunking-cost"]').text()).toContain(
+      '/entry',
+    )
+    expect(wrapper.find('[data-testid="mood-cost"]').text()).toContain('/entry')
+    expect(wrapper.find('[data-testid="entity-cost"]').text()).toContain(
+      '/entry',
+    )
   })
 
   it('shows mood scorer model when mood scoring is enabled', async () => {
@@ -207,10 +239,12 @@ describe('SettingsView', () => {
         },
       }),
     )
-    expect(wrapper.text()).toContain('claude-sonnet-4-5')
+    const mood = wrapper.find('[data-testid="section-mood"]')
+    expect(mood.text()).toContain('claude-sonnet-4-5')
+    expect(wrapper.find('[data-testid="mood-cost"]').exists()).toBe(true)
   })
 
-  it('hides mood scorer model when mood scoring is disabled', async () => {
+  it('shows disabled badge when mood scoring is off', async () => {
     const wrapper = await mountView(
       makeSettings({
         features: {
@@ -220,6 +254,9 @@ describe('SettingsView', () => {
         },
       }),
     )
-    expect(wrapper.text()).not.toContain('claude-sonnet-4-5')
+    const mood = wrapper.find('[data-testid="section-mood"]')
+    expect(mood.text()).toContain('Disabled')
+    expect(mood.text()).not.toContain('claude-sonnet-4-5')
+    expect(wrapper.find('[data-testid="mood-cost"]').exists()).toBe(false)
   })
 })

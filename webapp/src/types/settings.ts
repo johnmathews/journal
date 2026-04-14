@@ -19,6 +19,10 @@ export interface ServerSettings {
     decisive_percentile: number
     embed_metadata_prefix: boolean
   }
+  entity_extraction: {
+    model: string
+    dedup_similarity_threshold: number
+  }
   features: {
     mood_scoring: boolean
     mood_scorer_model: string

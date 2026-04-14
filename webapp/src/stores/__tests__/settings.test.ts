@@ -25,6 +25,10 @@ function makeSettings(): ServerSettings {
       decisive_percentile: 10,
       embed_metadata_prefix: true,
     },
+    entity_extraction: {
+      model: 'claude-opus-4-6',
+      dedup_similarity_threshold: 0.88,
+    },
     features: {
       mood_scoring: false,
       mood_scorer_model: 'claude-sonnet-4-5',

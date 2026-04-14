@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { onMounted, computed } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
+import {
+  ocrCostPerPage,
+  transcriptionCostPerMinute,
+  chunkingCostPerEntry,
+  moodScoringCostPerEntry,
+  entityExtractionCostPerEntry,
+  formatCost,
+} from '@/utils/cost-estimates'
 
 const store = useSettingsStore()
 
@@ -28,6 +36,34 @@ const statusColor = computed(() => {
     default:
       return 'text-red-600 dark:text-red-400'
   }
+})
+
+const ocrCost = computed(() => {
+  if (!store.settings) return null
+  return ocrCostPerPage(store.settings.ocr.model)
+})
+
+const transcriptionCost = computed(() => {
+  if (!store.settings) return null
+  return transcriptionCostPerMinute(store.settings.transcription.model)
+})
+
+const chunkingCost = computed(() => {
+  if (!store.settings) return null
+  return chunkingCostPerEntry(store.settings.embedding.model)
+})
+
+const moodCost = computed(() => {
+  if (!store.settings) return null
+  return moodScoringCostPerEntry(store.settings.features.mood_scorer_model)
+})
+
+const entityCost = computed(() => {
+  if (!store.settings) return null
+  return entityExtractionCostPerEntry(
+    store.settings.entity_extraction.model,
+    store.settings.embedding.model,
+  )
 })
 </script>
 
@@ -203,19 +239,28 @@ const statusColor = computed(() => {
       <!-- Settings Section -->
       <section v-if="store.settings" data-testid="settings-section">
         <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
-          Configuration
+          Processing Pipeline
         </h2>
 
         <div class="space-y-4">
-          <!-- OCR -->
+          <!-- 1. Ingestion (OCR + Transcription) -->
           <div
             class="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs"
+            data-testid="section-ingestion"
           >
-            <h3
-              class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-3"
-            >
-              OCR & Ingestion
-            </h3>
+            <div class="flex items-center justify-between mb-3">
+              <h3
+                class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider"
+              >
+                1. Ingestion
+              </h3>
+              <span
+                class="text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full"
+                data-testid="ingestion-cost"
+              >
+                {{ formatCost(ocrCost) }}/page
+              </span>
+            </div>
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
               <div class="flex justify-between sm:block">
                 <dt class="text-gray-500 dark:text-gray-400">OCR Provider</dt>
@@ -245,6 +290,46 @@ const statusColor = computed(() => {
               </div>
               <div class="flex justify-between sm:block">
                 <dt class="text-gray-500 dark:text-gray-400">
+                  Transcription Cost
+                </dt>
+                <dd class="font-medium text-gray-900 dark:text-gray-100">
+                  {{
+                    transcriptionCost !== null
+                      ? `$${transcriptionCost}/min`
+                      : '—'
+                  }}
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          <!-- 2. Chunking & Embedding -->
+          <div
+            class="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs"
+            data-testid="section-chunking"
+          >
+            <div class="flex items-center justify-between mb-3">
+              <h3
+                class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider"
+              >
+                2. Chunking & Embedding
+              </h3>
+              <span
+                class="text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full"
+                data-testid="chunking-cost"
+              >
+                {{ formatCost(chunkingCost) }}/entry
+              </span>
+            </div>
+            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+              <div class="flex justify-between sm:block">
+                <dt class="text-gray-500 dark:text-gray-400">Strategy</dt>
+                <dd class="font-medium text-gray-900 dark:text-gray-100">
+                  {{ store.settings.chunking.strategy }}
+                </dd>
+              </div>
+              <div class="flex justify-between sm:block">
+                <dt class="text-gray-500 dark:text-gray-400">
                   Embedding Model
                 </dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
@@ -257,25 +342,6 @@ const statusColor = computed(() => {
                 </dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
                   {{ store.settings.embedding.dimensions }}
-                </dd>
-              </div>
-            </dl>
-          </div>
-
-          <!-- Chunking -->
-          <div
-            class="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs"
-          >
-            <h3
-              class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-3"
-            >
-              Chunking
-            </h3>
-            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-              <div class="flex justify-between sm:block">
-                <dt class="text-gray-500 dark:text-gray-400">Strategy</dt>
-                <dd class="font-medium text-gray-900 dark:text-gray-100">
-                  {{ store.settings.chunking.strategy }}
                 </dd>
               </div>
               <div class="flex justify-between sm:block">
@@ -319,35 +385,91 @@ const statusColor = computed(() => {
             </dl>
           </div>
 
-          <!-- Features -->
+          <!-- 3. Mood Scoring -->
           <div
             class="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs"
+            data-testid="section-mood"
           >
-            <h3
-              class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-3"
+            <div class="flex items-center justify-between mb-3">
+              <h3
+                class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider"
+              >
+                3. Mood Scoring
+              </h3>
+              <span
+                v-if="store.settings.features.mood_scoring"
+                class="text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full"
+                data-testid="mood-cost"
+              >
+                {{ formatCost(moodCost) }}/entry
+              </span>
+              <span
+                v-else
+                class="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full"
+              >
+                Disabled
+              </span>
+            </div>
+            <dl
+              v-if="store.settings.features.mood_scoring"
+              class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm"
             >
-              Features
-            </h3>
+              <div class="flex justify-between sm:block">
+                <dt class="text-gray-500 dark:text-gray-400">Model</dt>
+                <dd class="font-medium text-gray-900 dark:text-gray-100">
+                  {{ store.settings.features.mood_scorer_model }}
+                </dd>
+              </div>
+              <div class="flex justify-between sm:block">
+                <dt class="text-gray-500 dark:text-gray-400">Status</dt>
+                <dd class="font-medium text-gray-900 dark:text-gray-100">
+                  Enabled
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          <!-- 4. Entity Extraction -->
+          <div
+            class="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs"
+            data-testid="section-entity"
+          >
+            <div class="flex items-center justify-between mb-3">
+              <h3
+                class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider"
+              >
+                4. Entity Extraction
+              </h3>
+              <span
+                class="text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full"
+                data-testid="entity-cost"
+              >
+                {{ formatCost(entityCost) }}/entry
+              </span>
+            </div>
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
               <div class="flex justify-between sm:block">
-                <dt class="text-gray-500 dark:text-gray-400">Mood Scoring</dt>
+                <dt class="text-gray-500 dark:text-gray-400">Model</dt>
+                <dd class="font-medium text-gray-900 dark:text-gray-100">
+                  {{ store.settings.entity_extraction.model }}
+                </dd>
+              </div>
+              <div class="flex justify-between sm:block">
+                <dt class="text-gray-500 dark:text-gray-400">
+                  Dedup Threshold
+                </dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
                   {{
-                    store.settings.features.mood_scoring
-                      ? 'Enabled'
-                      : 'Disabled'
+                    store.settings.entity_extraction.dedup_similarity_threshold
                   }}
                 </dd>
               </div>
-              <div
-                v-if="store.settings.features.mood_scoring"
-                class="flex justify-between sm:block"
-              >
+              <div class="flex justify-between sm:block">
                 <dt class="text-gray-500 dark:text-gray-400">
-                  Mood Scorer Model
+                  Embedding Model
                 </dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
-                  {{ store.settings.features.mood_scorer_model }}
+                  {{ store.settings.embedding.model }}
                 </dd>
               </div>
               <div class="flex justify-between sm:block">
