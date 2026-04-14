@@ -23,6 +23,7 @@ function makeJob(overrides: Partial<Job> = {}): Job {
     progress_total: 1,
     result: { entities_created: 3 },
     error_message: null,
+    status_detail: null,
     created_at: '2026-04-13T10:00:00Z',
     started_at: '2026-04-13T10:00:01Z',
     finished_at: '2026-04-13T10:00:05Z',

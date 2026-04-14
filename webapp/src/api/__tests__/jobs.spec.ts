@@ -60,6 +60,7 @@ describe('jobs API client', () => {
       progress_total: 5,
       result: null,
       error_message: null,
+      status_detail: null,
       created_at: '2026-04-11T10:00:00Z',
       started_at: '2026-04-11T10:00:01Z',
       finished_at: null,

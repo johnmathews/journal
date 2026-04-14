@@ -122,7 +122,13 @@ function objectUrl(file: File): string {
           :style="{ width: `${progressPercent}%` }"
         />
       </div>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+      <p
+        v-if="currentJob?.status_detail"
+        class="text-sm text-amber-600 dark:text-amber-400 mb-6"
+      >
+        {{ currentJob.status_detail }}
+      </p>
+      <p v-else class="text-sm text-gray-500 dark:text-gray-400 mb-6">
         <template
           v-if="currentJob?.progress_total && currentJob.progress_current === 0"
         >

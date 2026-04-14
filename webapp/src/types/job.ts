@@ -40,6 +40,7 @@ export interface Job {
   progress_total: number
   result: Record<string, unknown> | null
   error_message: string | null
+  status_detail: string | null
   created_at: string
   started_at: string | null
   finished_at: string | null

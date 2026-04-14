@@ -202,7 +202,13 @@ function closeDropdown() {
                 {{ jobLabel(job.type) }}
               </p>
               <p
-                v-if="job.status === 'running' && job.progress_total > 0"
+                v-if="job.status === 'running' && job.status_detail"
+                class="text-xs text-amber-600 dark:text-amber-400"
+              >
+                {{ job.status_detail }}
+              </p>
+              <p
+                v-else-if="job.status === 'running' && job.progress_total > 0"
                 class="text-xs text-gray-400 dark:text-gray-500"
               >
                 {{ job.progress_current }}/{{ job.progress_total }}

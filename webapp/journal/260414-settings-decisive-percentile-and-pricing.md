@@ -13,8 +13,18 @@
 3. **Cost estimate test** — updated OCR cost test from `gemini-3-pro` to `gemini-2.5-pro`
    with correct expected values ($1.25/$10 pricing).
 
+## Job retry status display
+
+Added `status_detail` field to the Job type and updated the notifications panel and
+image upload panel to display retry status in amber when a transient error triggers
+automatic retries on the server side.
+
 ## Files changed
 
 - `src/views/SettingsView.vue` — new decisive_percentile field
 - `src/utils/cost-estimates.ts` — removed 2 stale model entries
 - `src/utils/__tests__/cost-estimates.test.ts` — updated test model + expected cost
+- `src/types/job.ts` — added `status_detail` field
+- `src/stores/jobs.ts` — added `status_detail` to placeholder job
+- `src/components/layout/AppNotifications.vue` — show `status_detail` for running jobs
+- `src/components/ImageUploadPanel.vue` — show retry status during processing

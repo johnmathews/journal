@@ -26,6 +26,7 @@ function makeJob(overrides: Partial<Job> = {}): Job {
     progress_total: 0,
     result: null,
     error_message: null,
+    status_detail: null,
     created_at: '2026-04-11T10:00:00Z',
     started_at: null,
     finished_at: null,
