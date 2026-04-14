@@ -372,6 +372,14 @@ const entityCost = computed(() => {
               </div>
               <div class="flex justify-between sm:block">
                 <dt class="text-gray-500 dark:text-gray-400">
+                  Decisive Percentile
+                </dt>
+                <dd class="font-medium text-gray-900 dark:text-gray-100">
+                  {{ store.settings.chunking.decisive_percentile }}
+                </dd>
+              </div>
+              <div class="flex justify-between sm:block">
+                <dt class="text-gray-500 dark:text-gray-400">
                   Metadata Prefix
                 </dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">

@@ -10,10 +10,10 @@ import {
 
 describe('cost-estimates', () => {
   describe('ocrCostPerPage', () => {
-    it('computes Gemini 3 Pro cost per page', () => {
-      const cost = ocrCostPerPage('gemini-3-pro')!
-      // 2100 * 2.0/1M + 800 * 12.0/1M = 0.0042 + 0.0096 = 0.0138
-      expect(cost).toBeCloseTo(0.0138, 4)
+    it('computes Gemini 2.5 Pro cost per page', () => {
+      const cost = ocrCostPerPage('gemini-2.5-pro')!
+      // 2100 * 1.25/1M + 800 * 10.0/1M = 0.002625 + 0.008 = 0.010625
+      expect(cost).toBeCloseTo(0.010625, 4)
     })
 
     it('computes Claude Opus cost per page', () => {
