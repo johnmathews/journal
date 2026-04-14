@@ -43,13 +43,22 @@ const viewModeDefaultSet = ref(false)
 // (not isModified) so this fires exactly once per navigation. A
 // follow-up tick via nextTick ensures the entry's text fields have
 // settled before reading isModified.
+// If the entry has uncertain spans (doubts), open in edit mode with
+// review enabled so the user can immediately start reviewing.
 watch(
   () => store.currentEntry?.id,
   async (id) => {
     if (id == null) return
     viewModeDefaultSet.value = false
     await nextTick()
-    viewMode.value = isModified.value ? 'read' : 'edit'
+    const entryHasDoubts =
+      (store.currentEntry?.uncertain_spans?.length ?? 0) > 0
+    if (entryHasDoubts) {
+      viewMode.value = 'edit'
+      showReview.value = true
+    } else {
+      viewMode.value = isModified.value ? 'read' : 'edit'
+    }
     viewModeDefaultSet.value = true
   },
 )
@@ -157,6 +166,11 @@ async function confirmVerifyDoubts() {
   if (!ok) return
   verifyingDoubts.value = true
   try {
+    // Save any pending text edits before verifying doubts
+    if (isDirty.value) {
+      await save()
+      if (saveError.value) return // abort if save failed
+    }
     await store.verifyDoubts(store.currentEntry.id)
     showReview.value = false
   } catch {
@@ -166,13 +180,12 @@ async function confirmVerifyDoubts() {
   }
 }
 
-// Reset the toggle and navigation when switching entries — the new
-// entry may not have any spans, and carrying old state would be
-// confusing.
+// Reset navigation index when switching entries. The showReview
+// toggle is set by the view-mode watcher above based on whether
+// the new entry has doubts, so we only reset the nav counter here.
 watch(
   () => store.currentEntry?.id,
   () => {
-    showReview.value = false
     currentUncertainIdx.value = 0
   },
 )

@@ -48,6 +48,21 @@ vi.mock('@/api/entries', () => ({
     created_at: '2026-03-23T10:30:00Z',
     updated_at: '2026-03-23T10:30:00Z',
   }),
+  verifyDoubts: vi.fn().mockResolvedValue({
+    id: 1,
+    entry_date: '2026-03-22',
+    source_type: 'ocr',
+    raw_text: 'Hello Ritsya from Vienna.',
+    final_text: 'Hello Ritsya from Vienna.',
+    page_count: 1,
+    word_count: 4,
+    chunk_count: 0,
+    language: 'en',
+    created_at: '2026-03-23T10:30:00Z',
+    updated_at: '2026-03-23T10:30:00Z',
+    doubts_verified: true,
+    uncertain_spans: [],
+  }),
   deleteEntry: vi.fn().mockResolvedValue({ deleted: true, id: 1 }),
   fetchEntryChunks: vi.fn().mockResolvedValue({
     entry_id: 1,
@@ -1297,26 +1312,17 @@ describe('EntryDetailView', () => {
       expect(input.element.disabled).toBe(false)
     })
 
-    it('applies uncertainty highlighting to the Original OCR panel when toggled on', async () => {
+    it('applies uncertainty highlighting to the Original OCR panel when review is on', async () => {
+      // When doubts exist, review is auto-enabled on load
       const wrapper = await mountWithSpans(
         // "Ritsya" at offsets 6..12 in "Hello Ritsya from Vienna."
         [{ char_start: 6, char_end: 12 }],
       )
       const original = wrapper.find('[data-testid="ocr-display"]')
       expect(original.exists()).toBe(true)
-      // Before toggling, the Original OCR panel should not show the
-      // uncertainty class.
-      expect(original.html()).not.toContain('bg-yellow-200')
 
-      // Turn the Review toggle on.
-      const input = wrapper.find<HTMLInputElement>(
-        '[data-testid="review-toggle"]',
-      )
-      await input.setValue(true)
-      await wrapper.vm.$nextTick()
-
-      // Now the uncertain word is highlighted on the Original OCR side.
-      const afterHtml = wrapper.find('[data-testid="ocr-display"]').html()
+      // Review is auto-enabled, so uncertainty highlights are already visible.
+      const afterHtml = original.html()
       expect(afterHtml).toContain('bg-yellow-200')
       expect(afterHtml).toContain('Ritsya')
     })
@@ -1348,19 +1354,21 @@ describe('EntryDetailView', () => {
       expect(textareaClass).not.toContain('bg-yellow')
     })
 
-    it('shows the uncertain legend only when the Review toggle is on', async () => {
+    it('shows the uncertain legend when the Review toggle is on', async () => {
+      // Review is auto-enabled when doubts exist
       const wrapper = await mountWithSpans([{ char_start: 6, char_end: 12 }])
-      // Legend is absent before the toggle is flipped.
-      expect(wrapper.find('[data-testid="review-legend"]').exists()).toBe(false)
-      const input = wrapper.find<HTMLInputElement>(
-        '[data-testid="review-toggle"]',
-      )
-      await input.setValue(true)
-      await wrapper.vm.$nextTick()
       expect(wrapper.find('[data-testid="review-legend"]').exists()).toBe(true)
       expect(wrapper.find('[data-testid="review-legend"]').text()).toContain(
         'uncertain',
       )
+
+      // Toggle review off — legend disappears
+      const input = wrapper.find<HTMLInputElement>(
+        '[data-testid="review-toggle"]',
+      )
+      await input.setValue(false)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.find('[data-testid="review-legend"]').exists()).toBe(false)
     })
 
     it('shows Review (N) label when uncertain spans exist', async () => {
@@ -1373,17 +1381,8 @@ describe('EntryDetailView', () => {
     })
 
     it('shows floating nav bar when review is on and spans exist', async () => {
+      // Review is auto-enabled when doubts exist
       const wrapper = await mountWithSpans([{ char_start: 6, char_end: 12 }])
-      // Nav bar hidden before toggling review on
-      expect(wrapper.find('[data-testid="uncertain-nav-bar"]').exists()).toBe(
-        false,
-      )
-
-      const input = wrapper.find<HTMLInputElement>(
-        '[data-testid="review-toggle"]',
-      )
-      await input.setValue(true)
-      await wrapper.vm.$nextTick()
 
       const navBar = wrapper.find('[data-testid="uncertain-nav-bar"]')
       expect(navBar.exists()).toBe(true)
@@ -1406,6 +1405,83 @@ describe('EntryDetailView', () => {
       expect(wrapper.find('[data-testid="uncertain-nav-bar"]').exists()).toBe(
         false,
       )
+    })
+
+    it('auto-opens edit mode with review enabled when entry has doubts', async () => {
+      const wrapper = await mountWithSpans([{ char_start: 6, char_end: 12 }])
+
+      // Should be in edit mode (not read)
+      expect(wrapper.find('[data-testid="corrected-textarea"]').exists()).toBe(
+        true,
+      )
+      expect(wrapper.find('[data-testid="reading-display"]').exists()).toBe(
+        false,
+      )
+
+      // Review toggle should be checked
+      const reviewToggle = wrapper.find<HTMLInputElement>(
+        '[data-testid="review-toggle"]',
+      )
+      expect(reviewToggle.element.checked).toBe(true)
+
+      // Nav bar should be visible
+      expect(wrapper.find('[data-testid="uncertain-nav-bar"]').exists()).toBe(
+        true,
+      )
+    })
+
+    it('does not auto-enable review when entry has no doubts', async () => {
+      const wrapper = await mountWithSpans([])
+
+      // Review toggle should NOT be checked
+      const reviewToggle = wrapper.find<HTMLInputElement>(
+        '[data-testid="review-toggle"]',
+      )
+      expect(reviewToggle.element.checked).toBe(false)
+    })
+
+    it('verify-all-doubts saves dirty entry before verifying', async () => {
+      const wrapper = await mountWithSpans([{ char_start: 6, char_end: 12 }])
+
+      // Type into the textarea to make it dirty
+      const textarea = wrapper.find('[data-testid="corrected-textarea"]')
+      await textarea.setValue('Hello Ritsya from Vienna. Edited.')
+
+      // Stub window.confirm to return true
+      const confirmStub = vi.fn(() => true)
+      vi.stubGlobal('confirm', confirmStub)
+
+      await wrapper.find('[data-testid="verify-all-doubts"]').trigger('click')
+      await flushPromises()
+
+      // updateEntryText should have been called (saving the edit)
+      const { updateEntryText, verifyDoubts } = await import('@/api/entries')
+      expect(updateEntryText).toHaveBeenCalled()
+      // verifyDoubts should also have been called
+      expect(verifyDoubts).toHaveBeenCalledWith(1)
+
+      vi.unstubAllGlobals()
+    })
+
+    it('verify-all-doubts skips save when entry is not dirty', async () => {
+      const wrapper = await mountWithSpans([{ char_start: 6, char_end: 12 }])
+
+      // Don't edit anything — entry is clean
+      const confirmStub = vi.fn(() => true)
+      vi.stubGlobal('confirm', confirmStub)
+      const { updateEntryText } = await import('@/api/entries')
+      vi.mocked(updateEntryText).mockClear()
+
+      await wrapper.find('[data-testid="verify-all-doubts"]').trigger('click')
+      await flushPromises()
+
+      // updateEntryText should NOT have been called
+      expect(updateEntryText).not.toHaveBeenCalled()
+      // verifyDoubts should still have been called
+      const { verifyDoubts } = await import('@/api/entries')
+      expect(verifyDoubts).toHaveBeenCalledWith(1)
+
+      vi.unstubAllGlobals()
     })
   })
 })
