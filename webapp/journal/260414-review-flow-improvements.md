@@ -22,10 +22,19 @@ Previously, if the user had corrected text and then clicked "All Verified", only
 doubts were verified — the text edits were lost unless separately saved. The button now
 calls `save()` first when `isDirty` is true, and aborts if the save fails.
 
+### 3. Entity highlight word boundary fix
+
+Single-character entity aliases (e.g. "R" for Ritsya) were matching every occurrence
+of that letter inside words like "car", "birthday", "result". Added `\b` word
+boundaries to the entity highlight regex so aliases only match as standalone words.
+The scroll-to-first-match on chip click was already implemented and now works
+correctly since only genuine matches are highlighted.
+
 ### Tests updated
 
 - 3 existing tests adapted for auto-review behavior (review toggle is now pre-checked
   when doubts exist, so assertions about "before toggling" state changed)
 - 3 new tests: auto-open with doubts, no auto-open without doubts, verify-saves-dirty
 - 1 new test: verify-skips-save-when-clean
+- 1 new test: single-char alias word boundary (verifies "R" doesn't match in "rabbit")
 - Added `verifyDoubts` mock to the API mock setup
