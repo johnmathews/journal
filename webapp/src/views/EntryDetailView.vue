@@ -239,7 +239,9 @@ function escapeForHighlight(term: string): string {
 
 function applyEntityHighlight(html: string, terms: string[]): string {
   if (!terms.length) return html
-  const pattern = terms.map(escapeForHighlight).join('|')
+  // Wrap each term with \b word boundaries so single-char aliases like
+  // "R" match only as standalone words, not inside "car" or "birthday".
+  const pattern = terms.map((t) => `\\b${escapeForHighlight(t)}\\b`).join('|')
   const regex = new RegExp(`(${pattern})`, 'gi')
   // Replace only within text nodes — skip HTML tags entirely. The
   // alternation matches either a full tag (<...>) or a text run; the

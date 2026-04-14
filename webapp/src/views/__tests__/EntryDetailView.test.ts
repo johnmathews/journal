@@ -1239,6 +1239,67 @@ describe('EntryDetailView', () => {
       const html = backdrop?.innerHTML ?? ''
       expect(html).toContain('bg-violet-200')
     })
+
+    it('single-char alias does not match inside words (word boundary)', async () => {
+      const { fetchEntry } = await import('@/api/entries')
+      vi.mocked(fetchEntry).mockResolvedValueOnce({
+        id: 1,
+        entry_date: '2026-03-22',
+        source_type: 'ocr',
+        raw_text: 'R is great. I saw a rabbit and a car.',
+        final_text: 'R is great. I saw a rabbit and a car.',
+        word_count: 10,
+        chunk_count: 1,
+        page_count: 1,
+        language: 'en',
+        created_at: '2026-03-22T10:00:00Z',
+        updated_at: '2026-03-22T10:00:00Z',
+        doubts_verified: false,
+        uncertain_spans: [],
+      })
+
+      const { fetchEntryEntities } = await import('@/api/entities')
+      vi.mocked(fetchEntryEntities).mockResolvedValueOnce({
+        entry_id: 1,
+        items: [
+          {
+            id: 50,
+            entity_type: 'person',
+            canonical_name: 'Ritsya',
+            aliases: ['R'],
+            mention_count: 1,
+            first_seen: '2026-01-01',
+            last_seen: '2026-03-22',
+          },
+        ],
+        total: 1,
+      })
+
+      const wrapper = mount(EntryDetailView, {
+        props: { id: '1' },
+        global: { plugins: [createPinia(), router] },
+      })
+      await flushPromises()
+
+      // Switch to read mode to check the reading display HTML
+      const readRadio = wrapper.find('[data-testid="view-mode-radio-read"]')
+      await readRadio.setValue(true)
+      await wrapper.vm.$nextTick()
+
+      const chip = wrapper.find('[data-testid="entry-entity-chip-50"]')
+      await chip.trigger('click')
+
+      const reading = wrapper.find('[data-testid="reading-display"]')
+      const html = reading.html()
+
+      // "R" at the start should be highlighted (standalone word)
+      expect(html).toContain('<mark')
+
+      // Count the <mark> tags — should be exactly 1 (the standalone "R").
+      // "rabbit" and "car" must NOT contain highlights.
+      const markCount = (html.match(/<mark /g) || []).length
+      expect(markCount).toBe(1)
+    })
   })
 
   describe('Review toggle', () => {
