@@ -32,6 +32,8 @@ const fakeUsers = [
     entry_count: 42,
     total_words: 12345,
     job_count: 5,
+    cost_estimate: 1.23,
+    cost_this_week: 0.45,
     last_entry_at: '2026-04-10T10:00:00Z',
     created_at: '2026-01-01T00:00:00Z',
   },
@@ -45,6 +47,8 @@ const fakeUsers = [
     entry_count: 0,
     total_words: 0,
     job_count: 0,
+    cost_estimate: 0,
+    cost_this_week: 0,
     last_entry_at: null,
     created_at: '2026-02-01T00:00:00Z',
   },
@@ -261,6 +265,8 @@ describe('AdminDashboard', () => {
     expect(headerTexts).toContain('Entries')
     expect(headerTexts).toContain('Words')
     expect(headerTexts).toContain('Jobs')
+    expect(headerTexts).toContain('Total Cost')
+    expect(headerTexts).toContain('Cost (7d)')
     expect(headerTexts).toContain('Last Activity')
     expect(headerTexts).toContain('Actions')
   })

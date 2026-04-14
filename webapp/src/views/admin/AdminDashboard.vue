@@ -12,6 +12,8 @@ interface AdminUser {
   entry_count: number
   total_words: number
   job_count: number
+  cost_estimate: number
+  cost_this_week: number
   last_entry_at: string | null
   created_at: string
 }
@@ -64,6 +66,10 @@ function formatDate(dateStr: string | null): string {
     month: 'short',
     day: 'numeric',
   })
+}
+
+function formatNumber(n: number): string {
+  return n.toLocaleString('en-US')
 }
 </script>
 
@@ -118,6 +124,8 @@ function formatDate(dateStr: string | null): string {
               <th class="px-4 py-3 text-right font-semibold">Entries</th>
               <th class="px-4 py-3 text-right font-semibold">Words</th>
               <th class="px-4 py-3 text-right font-semibold">Jobs</th>
+              <th class="px-4 py-3 text-right font-semibold">Total Cost</th>
+              <th class="px-4 py-3 text-right font-semibold">Cost (7d)</th>
               <th class="px-4 py-3 text-left font-semibold">Last Activity</th>
               <th class="px-4 py-3 text-right font-semibold">Actions</th>
             </tr>
@@ -161,17 +169,27 @@ function formatDate(dateStr: string | null): string {
               <td
                 class="px-4 py-3 text-right text-gray-600 dark:text-gray-300 tabular-nums"
               >
-                {{ user.entry_count.toLocaleString() }}
+                {{ formatNumber(user.entry_count) }}
               </td>
               <td
                 class="px-4 py-3 text-right text-gray-600 dark:text-gray-300 tabular-nums"
               >
-                {{ user.total_words.toLocaleString() }}
+                {{ formatNumber(user.total_words) }}
               </td>
               <td
                 class="px-4 py-3 text-right text-gray-600 dark:text-gray-300 tabular-nums"
               >
                 {{ user.job_count }}
+              </td>
+              <td
+                class="px-4 py-3 text-right text-gray-600 dark:text-gray-300 tabular-nums"
+              >
+                ${{ user.cost_estimate.toFixed(2) }}
+              </td>
+              <td
+                class="px-4 py-3 text-right text-gray-600 dark:text-gray-300 tabular-nums"
+              >
+                ${{ user.cost_this_week.toFixed(2) }}
               </td>
               <td class="px-4 py-3 text-gray-500 dark:text-gray-400">
                 {{ formatDate(user.last_entry_at) }}
