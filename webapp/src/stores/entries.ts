@@ -11,8 +11,13 @@ import {
   ingestText,
   ingestFile,
   ingestImages,
+  ingestAudio,
 } from '@/api/entries'
-import type { IngestTextResponse, IngestImagesResponse } from '@/types/ingest'
+import type {
+  IngestTextResponse,
+  IngestImagesResponse,
+  IngestAudioResponse,
+} from '@/types/ingest'
 
 export const useEntriesStore = defineStore('entries', () => {
   // State
@@ -191,6 +196,24 @@ export const useEntriesStore = defineStore('entries', () => {
     }
   }
 
+  async function uploadAudio(
+    recordings: Blob[],
+    entryDate?: string,
+  ): Promise<IngestAudioResponse> {
+    creating.value = true
+    createError.value = null
+    try {
+      const result = await ingestAudio(recordings, entryDate)
+      return result
+    } catch (err: unknown) {
+      createError.value =
+        err instanceof Error ? err.message : 'Failed to upload recordings'
+      throw err
+    } finally {
+      creating.value = false
+    }
+  }
+
   return {
     entries,
     currentEntry,
@@ -212,5 +235,6 @@ export const useEntriesStore = defineStore('entries', () => {
     createTextEntry,
     importFile,
     uploadImages,
+    uploadAudio,
   }
 })

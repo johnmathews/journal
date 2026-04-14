@@ -10,6 +10,7 @@ import type {
   IngestTextRequest,
   IngestTextResponse,
   IngestImagesResponse,
+  IngestAudioResponse,
 } from '@/types/ingest'
 import { apiFetch } from './client'
 
@@ -141,6 +142,42 @@ export async function ingestImages(
     formData.append('entry_date', entryDate)
   }
   return apiFetch<IngestImagesResponse>('/api/entries/ingest/images', {
+    method: 'POST',
+    body: formData,
+    headers: {},
+  })
+}
+
+function audioExtension(blob: Blob): string {
+  const sub = blob.type.split('/')[1]?.split(';')[0] // strip codec params
+  const map: Record<string, string> = {
+    webm: 'webm',
+    mp4: 'mp4',
+    ogg: 'ogg',
+    mpeg: 'mp3',
+    mp3: 'mp3',
+    wav: 'wav',
+    flac: 'flac',
+    m4a: 'm4a',
+    'x-m4a': 'm4a',
+    'x-wav': 'wav',
+  }
+  return map[sub] ?? 'webm'
+}
+
+export async function ingestAudio(
+  files: Blob[],
+  entryDate?: string,
+): Promise<IngestAudioResponse> {
+  const formData = new FormData()
+  for (let i = 0; i < files.length; i++) {
+    const ext = audioExtension(files[i])
+    formData.append('audio', files[i], `recording-${i + 1}.${ext}`)
+  }
+  if (entryDate) {
+    formData.append('entry_date', entryDate)
+  }
+  return apiFetch<IngestAudioResponse>('/api/entries/ingest/audio', {
     method: 'POST',
     body: formData,
     headers: {},

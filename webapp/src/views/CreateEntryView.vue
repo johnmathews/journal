@@ -5,11 +5,12 @@ import { useEntriesStore } from '@/stores/entries'
 import TextEntryPanel from '@/components/TextEntryPanel.vue'
 import FileImportPanel from '@/components/FileImportPanel.vue'
 import ImageUploadPanel from '@/components/ImageUploadPanel.vue'
+import VoiceRecordPanel from '@/components/VoiceRecordPanel.vue'
 
 const router = useRouter()
 const entriesStore = useEntriesStore()
 
-const activeTab = ref<'write' | 'import' | 'upload'>('upload')
+const activeTab = ref<'write' | 'import' | 'upload' | 'record'>('upload')
 const entryDate = ref(new Date().toISOString().slice(0, 10))
 
 function handleCreated(entryId: number) {
@@ -25,6 +26,7 @@ const tabs = [
   { key: 'upload' as const, label: 'Upload Images' },
   { key: 'import' as const, label: 'Import File' },
   { key: 'write' as const, label: 'Write Entry' },
+  { key: 'record' as const, label: 'Record Voice' },
 ]
 
 function switchTab(key: typeof activeTab.value) {
@@ -105,6 +107,11 @@ function switchTab(key: typeof activeTab.value) {
     />
     <ImageUploadPanel
       v-if="activeTab === 'upload'"
+      :entry-date="entryDate"
+      @submitted="handleJobSubmitted"
+    />
+    <VoiceRecordPanel
+      v-if="activeTab === 'record'"
       :entry-date="entryDate"
       @submitted="handleJobSubmitted"
     />

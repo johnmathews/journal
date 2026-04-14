@@ -15,3 +15,8 @@ export interface IngestImagesResponse {
   job_id: string
   status: 'queued'
 }
+
+export interface IngestAudioResponse {
+  job_id: string
+  status: 'queued'
+}

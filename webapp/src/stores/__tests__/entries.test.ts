@@ -11,6 +11,7 @@ vi.mock('@/api/entries', () => ({
   ingestText: vi.fn(),
   ingestFile: vi.fn(),
   ingestImages: vi.fn(),
+  ingestAudio: vi.fn(),
 }))
 
 import {
@@ -22,6 +23,7 @@ import {
   ingestText,
   ingestFile,
   ingestImages,
+  ingestAudio,
 } from '@/api/entries'
 const mockFetchEntries = vi.mocked(fetchEntries)
 const mockFetchEntry = vi.mocked(fetchEntry)
@@ -31,6 +33,7 @@ const mockVerifyDoubts = vi.mocked(verifyDoubts)
 const mockIngestText = vi.mocked(ingestText)
 const mockIngestFile = vi.mocked(ingestFile)
 const mockIngestImages = vi.mocked(ingestImages)
+const mockIngestAudio = vi.mocked(ingestAudio)
 
 describe('useEntriesStore', () => {
   beforeEach(() => {
@@ -560,5 +563,45 @@ describe('useEntriesStore', () => {
     const files = [new File(['img'], 'page.jpg', { type: 'image/jpeg' })]
     await expect(store.uploadImages(files)).rejects.toEqual({ code: 500 })
     expect(store.createError).toBe('Failed to upload images')
+  })
+
+  // --- uploadAudio ---
+
+  it('uploadAudio returns job_id', async () => {
+    mockIngestAudio.mockResolvedValue({
+      job_id: 'audio-job-1',
+      status: 'queued',
+    })
+
+    const store = useEntriesStore()
+    const blobs = [new Blob(['audio'], { type: 'audio/webm' })]
+    const result = await store.uploadAudio(blobs, '2026-04-14')
+
+    expect(result.job_id).toBe('audio-job-1')
+    expect(result.status).toBe('queued')
+    expect(mockIngestAudio).toHaveBeenCalledWith(blobs, '2026-04-14')
+    expect(store.creating).toBe(false)
+    expect(store.createError).toBeNull()
+  })
+
+  it('uploadAudio sets createError on failure', async () => {
+    mockIngestAudio.mockRejectedValue(new Error('Transcription failed'))
+
+    const store = useEntriesStore()
+    const blobs = [new Blob(['audio'], { type: 'audio/webm' })]
+    await expect(store.uploadAudio(blobs)).rejects.toThrow(
+      'Transcription failed',
+    )
+    expect(store.createError).toBe('Transcription failed')
+    expect(store.creating).toBe(false)
+  })
+
+  it('uploadAudio falls back to generic message for non-Error', async () => {
+    mockIngestAudio.mockRejectedValue({ code: 500 })
+
+    const store = useEntriesStore()
+    const blobs = [new Blob(['audio'], { type: 'audio/webm' })]
+    await expect(store.uploadAudio(blobs)).rejects.toEqual({ code: 500 })
+    expect(store.createError).toBe('Failed to upload recordings')
   })
 })
