@@ -47,7 +47,7 @@ describe('useAuthStore', () => {
   // --- initialize ---
 
   it('initialize calls GET /api/auth/me and sets user on success', async () => {
-    mockApiFetch.mockResolvedValue(fakeUser)
+    mockApiFetch.mockResolvedValue({ user: fakeUser })
 
     const store = useAuthStore()
     await store.initialize()
@@ -68,7 +68,7 @@ describe('useAuthStore', () => {
   })
 
   it('initialize is a no-op if already initialized', async () => {
-    mockApiFetch.mockResolvedValue(fakeUser)
+    mockApiFetch.mockResolvedValue({ user: fakeUser })
 
     const store = useAuthStore()
     await store.initialize()
@@ -81,7 +81,7 @@ describe('useAuthStore', () => {
   // --- login ---
 
   it('login calls POST /api/auth/login and sets user on success', async () => {
-    mockApiFetch.mockResolvedValue(fakeUser)
+    mockApiFetch.mockResolvedValue({ user: fakeUser })
 
     const store = useAuthStore()
     await store.login({ email: 'test@example.com', password: 'secret' })
@@ -125,7 +125,7 @@ describe('useAuthStore', () => {
   // --- logout ---
 
   it('logout calls POST /api/auth/logout and clears user', async () => {
-    mockApiFetch.mockResolvedValueOnce(fakeUser)
+    mockApiFetch.mockResolvedValueOnce({ user: fakeUser })
 
     const store = useAuthStore()
     // First, set user via initialize
@@ -142,7 +142,7 @@ describe('useAuthStore', () => {
   })
 
   it('logout clears user even if server call fails', async () => {
-    mockApiFetch.mockResolvedValueOnce(fakeUser)
+    mockApiFetch.mockResolvedValueOnce({ user: fakeUser })
 
     const store = useAuthStore()
     await store.initialize()
@@ -156,7 +156,7 @@ describe('useAuthStore', () => {
   // --- register ---
 
   it('register calls POST /api/auth/register and sets user', async () => {
-    mockApiFetch.mockResolvedValue(fakeUser)
+    mockApiFetch.mockResolvedValue({ user: fakeUser })
 
     const store = useAuthStore()
     await store.register({
@@ -215,7 +215,7 @@ describe('useAuthStore', () => {
   // --- computed properties ---
 
   it('isAuthenticated returns true when user is set', async () => {
-    mockApiFetch.mockResolvedValue(fakeUser)
+    mockApiFetch.mockResolvedValue({ user: fakeUser })
 
     const store = useAuthStore()
     expect(store.isAuthenticated).toBe(false)
@@ -225,7 +225,7 @@ describe('useAuthStore', () => {
   })
 
   it('isAdmin returns true when user is admin', async () => {
-    mockApiFetch.mockResolvedValue(adminUser)
+    mockApiFetch.mockResolvedValue({ user: adminUser })
 
     const store = useAuthStore()
     await store.initialize()
@@ -234,7 +234,7 @@ describe('useAuthStore', () => {
   })
 
   it('isAdmin returns false when user is not admin', async () => {
-    mockApiFetch.mockResolvedValue(fakeUser)
+    mockApiFetch.mockResolvedValue({ user: fakeUser })
 
     const store = useAuthStore()
     await store.initialize()
@@ -248,7 +248,7 @@ describe('useAuthStore', () => {
   })
 
   it('displayName returns display_name of the user', async () => {
-    mockApiFetch.mockResolvedValue(fakeUser)
+    mockApiFetch.mockResolvedValue({ user: fakeUser })
 
     const store = useAuthStore()
     await store.initialize()
@@ -262,7 +262,7 @@ describe('useAuthStore', () => {
   })
 
   it('emailVerified returns true when user email is verified', async () => {
-    mockApiFetch.mockResolvedValue(fakeUser)
+    mockApiFetch.mockResolvedValue({ user: fakeUser })
 
     const store = useAuthStore()
     await store.initialize()
@@ -297,7 +297,7 @@ describe('useAuthStore', () => {
   // --- $reset ---
 
   it('$reset restores initial state', async () => {
-    mockApiFetch.mockResolvedValue(fakeUser)
+    mockApiFetch.mockResolvedValue({ user: fakeUser })
 
     const store = useAuthStore()
     await store.initialize()

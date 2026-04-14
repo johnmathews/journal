@@ -38,7 +38,8 @@ export const useAuthStore = defineStore('auth', () => {
   async function initialize(): Promise<void> {
     if (initialized.value) return
     try {
-      user.value = await apiFetch<AuthUser>('/api/auth/me')
+      const resp = await apiFetch<{ user: AuthUser }>('/api/auth/me')
+      user.value = resp.user
     } catch {
       user.value = null
     } finally {
@@ -50,10 +51,11 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     error.value = null
     try {
-      user.value = await apiFetch<AuthUser>('/api/auth/login', {
+      const resp = await apiFetch<{ user: AuthUser }>('/api/auth/login', {
         method: 'POST',
         body: JSON.stringify(credentials),
       })
+      user.value = resp.user
     } catch (e) {
       if (e instanceof ApiRequestError) {
         error.value = e.message
@@ -79,10 +81,11 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     error.value = null
     try {
-      user.value = await apiFetch<AuthUser>('/api/auth/register', {
+      const resp = await apiFetch<{ user: AuthUser }>('/api/auth/register', {
         method: 'POST',
         body: JSON.stringify(data),
       })
+      user.value = resp.user
     } catch (e) {
       if (e instanceof ApiRequestError) {
         error.value = e.message
