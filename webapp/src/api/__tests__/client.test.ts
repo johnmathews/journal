@@ -1,31 +1,16 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { apiFetch, ApiRequestError } from '../client'
-
-// client.ts reads the API token from `import.meta.env` inside
-// `apiFetch` (per-call, not at import time), so `vi.stubEnv` in a
-// beforeEach takes effect for every test without needing dynamic
-// imports or module re-loads.
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { apiFetch, ApiRequestError, setUnauthorizedHandler } from '../client'
 
 describe('apiFetch', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    vi.stubEnv('VITE_JOURNAL_API_TOKEN', 'test-token-abc')
-    // Runtime config path (window.__JOURNAL_CONFIG__) is the production
-    // source of the token. Default each test to "no runtime config" so
-    // the fallback to import.meta.env is exercised by default; tests
-    // that cover the runtime path set it explicitly.
-    delete (window as { __JOURNAL_CONFIG__?: unknown }).__JOURNAL_CONFIG__
-  })
-
-  afterEach(() => {
-    vi.unstubAllEnvs()
-    delete (window as { __JOURNAL_CONFIG__?: unknown }).__JOURNAL_CONFIG__
   })
 
   it('makes a GET request and returns JSON', async () => {
     const mockData = { items: [], total: 0 }
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
+      status: 200,
       json: () => Promise.resolve(mockData),
     } as Response)
 
@@ -37,104 +22,38 @@ describe('apiFetch', () => {
         headers: expect.objectContaining({
           'Content-Type': 'application/json',
         }),
+        credentials: 'include',
       }),
     )
   })
 
-  it('sends the bearer token in the Authorization header when configured', async () => {
+  it('includes credentials: include on all requests', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
+      status: 200,
       json: () => Promise.resolve({}),
     } as Response)
 
     await apiFetch('/api/entries')
 
-    expect(fetch).toHaveBeenCalledWith(
-      '/api/entries',
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: 'Bearer test-token-abc',
-        }),
-      }),
-    )
+    const call = vi.mocked(fetch).mock.calls[0]
+    const init = call[1] as RequestInit
+    expect(init.credentials).toBe('include')
   })
 
-  it('omits the Authorization header when no token is configured', async () => {
-    vi.stubEnv('VITE_JOURNAL_API_TOKEN', '')
+  it('does not send an Authorization header', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
+      status: 200,
       json: () => Promise.resolve({}),
     } as Response)
 
     await apiFetch('/api/entries')
 
-    // Introspect the call args to assert the header is absent rather
-    // than present-with-some-value.
     const call = vi.mocked(fetch).mock.calls[0]
     const init = call[1] as RequestInit
     const headers = init.headers as Record<string, string>
     expect(headers.Authorization).toBeUndefined()
-    expect(headers['Content-Type']).toBe('application/json')
-  })
-
-  it('prefers the runtime token on window.__JOURNAL_CONFIG__ over the build-time env', async () => {
-    window.__JOURNAL_CONFIG__ = { apiToken: 'runtime-token-xyz' }
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({}),
-    } as Response)
-
-    await apiFetch('/api/entries')
-
-    expect(fetch).toHaveBeenCalledWith(
-      '/api/entries',
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: 'Bearer runtime-token-xyz',
-        }),
-      }),
-    )
-  })
-
-  it('falls back to the build-time env when the runtime stub is empty', async () => {
-    // Simulates the dev path (empty stub in public/config.js) and the
-    // "deployment mistake" path where the entrypoint never ran.
-    window.__JOURNAL_CONFIG__ = {}
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({}),
-    } as Response)
-
-    await apiFetch('/api/entries')
-
-    expect(fetch).toHaveBeenCalledWith(
-      '/api/entries',
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: 'Bearer test-token-abc',
-        }),
-      }),
-    )
-  })
-
-  it('allows a caller to override the Authorization header', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({}),
-    } as Response)
-
-    await apiFetch('/api/entries', {
-      headers: { Authorization: 'Bearer override-xyz' },
-    })
-
-    expect(fetch).toHaveBeenCalledWith(
-      '/api/entries',
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: 'Bearer override-xyz',
-        }),
-      }),
-    )
   })
 
   it('throws ApiRequestError on non-ok response', async () => {
@@ -188,6 +107,7 @@ describe('apiFetch', () => {
     const mockResponse = { id: 1 }
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
+      status: 200,
       json: () => Promise.resolve(mockResponse),
     } as Response)
 
@@ -204,7 +124,52 @@ describe('apiFetch', () => {
         headers: expect.objectContaining({
           'Content-Type': 'application/json',
         }),
+        credentials: 'include',
       }),
     )
+  })
+
+  it('returns undefined for 204 No Content responses', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 204,
+      json: () => Promise.reject(new Error('no body')),
+    } as Response)
+
+    const result = await apiFetch('/api/auth/logout')
+    expect(result).toBeUndefined()
+  })
+
+  it('calls the unauthorized handler on 401 from non-auth endpoints', async () => {
+    const handler = vi.fn()
+    setUnauthorizedHandler(handler)
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: () =>
+        Promise.resolve({ error: 'unauthorized', message: 'Unauthorized' }),
+    } as Response)
+
+    await expect(apiFetch('/api/entries')).rejects.toThrow(ApiRequestError)
+    expect(handler).toHaveBeenCalledOnce()
+  })
+
+  it('does not call the unauthorized handler on 401 from auth endpoints', async () => {
+    const handler = vi.fn()
+    setUnauthorizedHandler(handler)
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: () =>
+        Promise.resolve({
+          error: 'invalid_credentials',
+          message: 'Bad password',
+        }),
+    } as Response)
+
+    await expect(apiFetch('/api/auth/login')).rejects.toThrow(ApiRequestError)
+    expect(handler).not.toHaveBeenCalled()
   })
 })
