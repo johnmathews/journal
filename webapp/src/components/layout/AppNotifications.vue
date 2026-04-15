@@ -164,7 +164,7 @@ function closeDropdown() {
     >
       <div
         v-if="open"
-        class="absolute right-0 mt-2 w-80 origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black/5 dark:ring-white/10 z-50"
+        class="fixed left-2 right-2 top-[4.5rem] sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80 origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black/5 dark:ring-white/10 z-50"
         data-testid="notifications-dropdown"
       >
         <div class="px-3 py-2 border-b border-gray-100 dark:border-gray-700/60">
