@@ -21,10 +21,18 @@ onMounted(async () => {
   }
 
   try {
-    await apiFetch(`/api/auth/verify-email?token=${encodeURIComponent(token.value)}`)
-    // Refresh auth state so email_verified is true in the store
-    authStore.$reset()
-    await authStore.initialize()
+    await apiFetch(
+      `/api/auth/verify-email?token=${encodeURIComponent(token.value)}`,
+    )
+    // Refresh auth state so email_verified is true in the store.
+    // Avoid $reset() + initialize() — resetting sets initialized=false,
+    // which causes App.vue to flash its full-page "Loading..." spinner
+    // and creates a visual flicker race with this component's spinner.
+    // Instead, re-fetch the user directly and update in place.
+    const resp = await apiFetch<{ user: import('@/stores/auth').AuthUser }>(
+      '/api/auth/me',
+    )
+    authStore.user = resp.user
     success.value = true
   } catch (e) {
     if (e instanceof ApiRequestError) {

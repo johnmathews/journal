@@ -23,6 +23,7 @@ vi.mock('@/stores/auth', () => {
     $reset: vi.fn(),
     initialize: vi.fn().mockResolvedValue(undefined),
     emailVerified: false,
+    user: null as Record<string, unknown> | null,
   }
   return {
     useAuthStore: vi.fn(() => mockStore),
@@ -62,14 +63,28 @@ function mountComponent(router: ReturnType<typeof createTestRouter>) {
 }
 
 describe('VerifyEmailView', () => {
+  const mockUser = {
+    id: 1,
+    email: 'test@example.com',
+    display_name: 'Test User',
+    is_admin: false,
+    is_active: true,
+    email_verified: true,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+  }
+
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
     mockAuthStore.initialize.mockResolvedValue(undefined)
+    mockAuthStore.user = null
   })
 
   it('calls verify-email API via GET with token as query param', async () => {
-    mockApiFetch.mockResolvedValue(undefined)
+    mockApiFetch
+      .mockResolvedValueOnce(undefined) // verify-email
+      .mockResolvedValueOnce({ user: mockUser }) // /api/auth/me
 
     const router = createTestRouter()
     await router.isReady()
@@ -88,7 +103,9 @@ describe('VerifyEmailView', () => {
   })
 
   it('encodes special characters in token', async () => {
-    mockApiFetch.mockResolvedValue(undefined)
+    mockApiFetch
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ user: mockUser })
 
     const router = createTestRouter('/verify-email?token=abc+def/ghi')
     await router.isReady()
@@ -101,22 +118,23 @@ describe('VerifyEmailView', () => {
     expect(call).not.toContain(' ')
   })
 
-  it('refreshes auth store after successful verification', async () => {
-    mockApiFetch.mockResolvedValue(undefined)
+  it('refreshes auth user in store after successful verification', async () => {
+    mockApiFetch
+      .mockResolvedValueOnce(undefined) // verify-email
+      .mockResolvedValueOnce({ user: mockUser }) // /api/auth/me
 
     const router = createTestRouter()
     await router.isReady()
     mountComponent(router)
     await flushPromises()
 
-    // Regression: previously the auth store was never refreshed, so
-    // email_verified stayed false and user kept seeing "Please verify your email"
-    expect(mockAuthStore.$reset).toHaveBeenCalled()
-    expect(mockAuthStore.initialize).toHaveBeenCalled()
-    // $reset must be called before initialize
-    const resetOrder = mockAuthStore.$reset.mock.invocationCallOrder[0]
-    const initOrder = mockAuthStore.initialize.mock.invocationCallOrder[0]
-    expect(resetOrder).toBeLessThan(initOrder)
+    // After verification, the component fetches /api/auth/me and updates
+    // authStore.user directly (without $reset) to avoid App.vue flicker.
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/auth/me')
+    expect(mockAuthStore.user).toEqual(mockUser)
+    // Must NOT call $reset — that sets initialized=false and triggers
+    // App.vue's full-page loading spinner, causing a visual flicker.
+    expect(mockAuthStore.$reset).not.toHaveBeenCalled()
   })
 
   it('does not refresh auth store on verification failure', async () => {
@@ -129,12 +147,15 @@ describe('VerifyEmailView', () => {
     mountComponent(router)
     await flushPromises()
 
-    expect(mockAuthStore.$reset).not.toHaveBeenCalled()
-    expect(mockAuthStore.initialize).not.toHaveBeenCalled()
+    // Only the verify-email call should have been made, not /api/auth/me
+    expect(mockApiFetch).toHaveBeenCalledTimes(1)
+    expect(mockAuthStore.user).toBeNull()
   })
 
   it('shows success message on successful verification', async () => {
-    mockApiFetch.mockResolvedValue(undefined)
+    mockApiFetch
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ user: mockUser })
 
     const router = createTestRouter()
     await router.isReady()
@@ -148,7 +169,9 @@ describe('VerifyEmailView', () => {
   })
 
   it('shows Go to Dashboard link on success', async () => {
-    mockApiFetch.mockResolvedValue(undefined)
+    mockApiFetch
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ user: mockUser })
 
     const router = createTestRouter()
     await router.isReady()
