@@ -2,8 +2,10 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { apiFetch, ApiRequestError } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
+const authStore = useAuthStore()
 const token = computed(() => (route.query.token as string) || '')
 
 const loading = ref(true)
@@ -19,10 +21,10 @@ onMounted(async () => {
   }
 
   try {
-    await apiFetch('/api/auth/verify-email', {
-      method: 'POST',
-      body: JSON.stringify({ token: token.value }),
-    })
+    await apiFetch(`/api/auth/verify-email?token=${encodeURIComponent(token.value)}`)
+    // Refresh auth state so email_verified is true in the store
+    authStore.$reset()
+    await authStore.initialize()
     success.value = true
   } catch (e) {
     if (e instanceof ApiRequestError) {

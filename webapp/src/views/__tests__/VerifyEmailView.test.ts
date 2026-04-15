@@ -18,7 +18,22 @@ vi.mock('@/api/client', () => ({
   },
 }))
 
+vi.mock('@/stores/auth', () => {
+  const mockStore = {
+    $reset: vi.fn(),
+    initialize: vi.fn().mockResolvedValue(undefined),
+    emailVerified: false,
+  }
+  return {
+    useAuthStore: vi.fn(() => mockStore),
+    __mockStore: mockStore,
+  }
+})
+
 import { apiFetch, ApiRequestError } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mockAuthStore = (useAuthStore as any)()
 const mockApiFetch = vi.mocked(apiFetch)
 
 function createTestRouter(initialRoute = '/verify-email?token=verify123') {
@@ -50,9 +65,10 @@ describe('VerifyEmailView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    mockAuthStore.initialize.mockResolvedValue(undefined)
   })
 
-  it('calls verify-email API on mount with token', async () => {
+  it('calls verify-email API via GET with token as query param', async () => {
     mockApiFetch.mockResolvedValue(undefined)
 
     const router = createTestRouter()
@@ -60,10 +76,61 @@ describe('VerifyEmailView', () => {
     mountComponent(router)
     await flushPromises()
 
-    expect(mockApiFetch).toHaveBeenCalledWith('/api/auth/verify-email', {
-      method: 'POST',
-      body: JSON.stringify({ token: 'verify123' }),
-    })
+    // Regression: previously sent POST with token in body — server only accepts GET
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      '/api/auth/verify-email?token=verify123',
+    )
+    // Must NOT be called with POST method
+    expect(mockApiFetch).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ method: 'POST' }),
+    )
+  })
+
+  it('encodes special characters in token', async () => {
+    mockApiFetch.mockResolvedValue(undefined)
+
+    const router = createTestRouter('/verify-email?token=abc+def/ghi')
+    await router.isReady()
+    mountComponent(router)
+    await flushPromises()
+
+    const call = mockApiFetch.mock.calls[0][0]
+    expect(call).toContain('token=')
+    // Token should be URI-encoded
+    expect(call).not.toContain(' ')
+  })
+
+  it('refreshes auth store after successful verification', async () => {
+    mockApiFetch.mockResolvedValue(undefined)
+
+    const router = createTestRouter()
+    await router.isReady()
+    mountComponent(router)
+    await flushPromises()
+
+    // Regression: previously the auth store was never refreshed, so
+    // email_verified stayed false and user kept seeing "Please verify your email"
+    expect(mockAuthStore.$reset).toHaveBeenCalled()
+    expect(mockAuthStore.initialize).toHaveBeenCalled()
+    // $reset must be called before initialize
+    const resetOrder = mockAuthStore.$reset.mock.invocationCallOrder[0]
+    const initOrder = mockAuthStore.initialize.mock.invocationCallOrder[0]
+    expect(resetOrder).toBeLessThan(initOrder)
+  })
+
+  it('does not refresh auth store on verification failure', async () => {
+    mockApiFetch.mockRejectedValue(
+      new ApiRequestError(400, 'invalid_token', 'Invalid token'),
+    )
+
+    const router = createTestRouter()
+    await router.isReady()
+    mountComponent(router)
+    await flushPromises()
+
+    expect(mockAuthStore.$reset).not.toHaveBeenCalled()
+    expect(mockAuthStore.initialize).not.toHaveBeenCalled()
   })
 
   it('shows success message on successful verification', async () => {

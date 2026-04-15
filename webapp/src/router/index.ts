@@ -122,8 +122,10 @@ router.beforeEach(async (to) => {
   const isPublic = to.meta.public === true
   const requiresAdmin = to.meta.requiresAdmin === true
 
-  // Redirect authenticated users away from login/register
-  if (isPublic && authStore.isAuthenticated) {
+  // Redirect authenticated users away from login/register,
+  // but allow access to /verify-email (users are authenticated
+  // via session cookie from registration when they click the link)
+  if (isPublic && authStore.isAuthenticated && to.name !== 'verify-email') {
     return { name: 'dashboard' }
   }
 
