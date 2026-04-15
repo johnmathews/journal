@@ -470,6 +470,12 @@ function entityChipClass(type: EntityType): string {
 
 onMounted(() => {
   const entryId = Number(props.id)
+  // Clear stale entry so the view-mode watcher (which watches
+  // currentEntry.id) fires reliably when loadEntry resolves — even
+  // if the store already held this same entry id from a prior visit.
+  // Without this, navigating away and back to the same entry reuses
+  // the old id and the watcher never re-evaluates read vs edit mode.
+  store.currentEntry = null
   store.loadEntry(entryId)
   loadEntryEntities(entryId)
 })
