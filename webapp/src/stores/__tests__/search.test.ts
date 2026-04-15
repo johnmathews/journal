@@ -59,7 +59,7 @@ describe('useSearchStore', () => {
   it('initial state is empty', () => {
     const store = useSearchStore()
     expect(store.query).toBe('')
-    expect(store.mode).toBe('semantic')
+    expect(store.mode).toBe('keyword')
     expect(store.items).toEqual([])
     expect(store.hasRun).toBe(false)
     expect(store.hasResults).toBe(false)
@@ -208,7 +208,7 @@ describe('useSearchStore', () => {
 
     store.reset()
     expect(store.query).toBe('')
-    expect(store.mode).toBe('semantic')
+    expect(store.mode).toBe('keyword')
     expect(store.items).toEqual([])
     expect(store.hasRun).toBe(false)
   })

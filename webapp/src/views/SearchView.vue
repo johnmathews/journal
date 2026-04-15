@@ -25,6 +25,13 @@ function submit(): void {
   })
 }
 
+function selectMode(m: SearchMode): void {
+  modeInput.value = m
+  if (queryInput.value.trim()) {
+    submit()
+  }
+}
+
 function nextPage(): void {
   store.runSearch({ offset: store.offset + store.limit })
 }
@@ -126,29 +133,29 @@ function scorePercent(score: number): string {
             type="button"
             class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
             :class="
-              modeInput === 'semantic'
-                ? 'bg-violet-500 text-white border-violet-500'
-                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
-            "
-            data-testid="search-mode-semantic"
-            :aria-pressed="modeInput === 'semantic'"
-            @click="modeInput = 'semantic'"
-          >
-            Semantic
-          </button>
-          <button
-            type="button"
-            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
-            :class="
               modeInput === 'keyword'
                 ? 'bg-violet-500 text-white border-violet-500'
                 : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
             "
             data-testid="search-mode-keyword"
             :aria-pressed="modeInput === 'keyword'"
-            @click="modeInput = 'keyword'"
+            @click="selectMode('keyword')"
           >
             Keyword
+          </button>
+          <button
+            type="button"
+            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
+            :class="
+              modeInput === 'semantic'
+                ? 'bg-violet-500 text-white border-violet-500'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
+            "
+            data-testid="search-mode-semantic"
+            :aria-pressed="modeInput === 'semantic'"
+            @click="selectMode('semantic')"
+          >
+            Semantic
           </button>
         </div>
       </div>
@@ -264,6 +271,41 @@ function scorePercent(score: number): string {
           v-html="displayHtml(item)"
         ></div>
         <!-- eslint-enable vue/no-v-html -->
+
+        <!-- Semantic match explanation — show why this result is relevant -->
+        <div
+          v-if="
+            store.lastRunMode === 'semantic' && item.matching_chunks.length > 0
+          "
+          class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700/40"
+          data-testid="semantic-explanation"
+        >
+          <span
+            class="text-xs font-medium text-violet-500 dark:text-violet-400"
+          >
+            Matched by meaning
+          </span>
+          <span class="text-xs text-gray-400 dark:text-gray-500 ml-1">
+            — this passage is semantically similar to your query ({{
+              scorePercent(item.matching_chunks[0].score)
+            }}
+            similarity)
+          </span>
+          <ul
+            v-if="item.matching_chunks.length > 1"
+            class="mt-1 space-y-1"
+            data-testid="semantic-extra-chunks"
+          >
+            <li
+              v-for="(chunk, idx) in item.matching_chunks.slice(1, 3)"
+              :key="idx"
+              class="text-xs text-gray-500 dark:text-gray-400 pl-3 border-l-2 border-gray-200 dark:border-gray-700/60 line-clamp-2"
+            >
+              {{ scorePercent(chunk.score) }} — {{ chunk.text.slice(0, 150)
+              }}{{ chunk.text.length > 150 ? '…' : '' }}
+            </li>
+          </ul>
+        </div>
       </li>
     </ul>
 

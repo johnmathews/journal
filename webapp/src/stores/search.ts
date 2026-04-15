@@ -24,7 +24,7 @@ export const useSearchStore = defineStore('search', () => {
   // triggering a fetch on every keystroke — the view calls
   // `runSearch()` when the user submits.
   const query = ref('')
-  const mode = ref<SearchMode>('semantic')
+  const mode = ref<SearchMode>('keyword')
   const startDate = ref<string | null>(null)
   const endDate = ref<string | null>(null)
 
@@ -36,7 +36,7 @@ export const useSearchStore = defineStore('search', () => {
   // Result state.
   const items = ref<SearchResultItem[]>([])
   const lastRunQuery = ref('')
-  const lastRunMode = ref<SearchMode>('semantic')
+  const lastRunMode = ref<SearchMode>('keyword')
   const loading = ref(false)
   const error = ref<string | null>(null)
   // True once the user has actually run at least one search. Lets
@@ -115,14 +115,14 @@ export const useSearchStore = defineStore('search', () => {
 
   function reset(): void {
     query.value = ''
-    mode.value = 'semantic'
+    mode.value = 'keyword'
     startDate.value = null
     endDate.value = null
     limit.value = 20
     offset.value = 0
     items.value = []
     lastRunQuery.value = ''
-    lastRunMode.value = 'semantic'
+    lastRunMode.value = 'keyword'
     loading.value = false
     error.value = null
     hasRun.value = false

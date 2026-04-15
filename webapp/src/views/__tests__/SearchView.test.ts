@@ -53,10 +53,10 @@ describe('SearchView', () => {
     expect(mockSearch).not.toHaveBeenCalled()
   })
 
-  it('submitting a query calls the API with semantic mode by default', async () => {
+  it('submitting a query calls the API with keyword mode by default', async () => {
     mockSearch.mockResolvedValue({
       query: 'vienna',
-      mode: 'semantic',
+      mode: 'keyword',
       limit: 20,
       offset: 0,
       items: [
@@ -64,17 +64,9 @@ describe('SearchView', () => {
           entry_id: 1,
           entry_date: '2026-03-22',
           text: 'Vienna trip',
-          score: 0.87,
-          snippet: null,
-          matching_chunks: [
-            {
-              text: 'Vienna trip',
-              score: 0.87,
-              chunk_index: 0,
-              char_start: 0,
-              char_end: 11,
-            },
-          ],
+          score: 1.0,
+          snippet: 'today was \x02Vienna\x03 trip',
+          matching_chunks: [],
         },
       ],
     })
@@ -87,18 +79,18 @@ describe('SearchView', () => {
     expect(mockSearch).toHaveBeenCalledTimes(1)
     const call = mockSearch.mock.calls[0][0]
     expect(call.q).toBe('vienna')
-    expect(call.mode).toBe('semantic')
+    expect(call.mode).toBe('keyword')
 
     const rows = wrapper.findAll('[data-testid="search-result-row"]')
     expect(rows).toHaveLength(1)
     expect(rows[0].text()).toContain('2026-03-22')
-    expect(rows[0].text()).toContain('87%')
+    expect(rows[0].text()).toContain('100%')
   })
 
-  it('switching to keyword mode runs a keyword search', async () => {
+  it('switching to semantic mode runs a semantic search', async () => {
     mockSearch.mockResolvedValue({
       query: 'vienna',
-      mode: 'keyword',
+      mode: 'semantic',
       limit: 20,
       offset: 0,
       items: [
@@ -106,26 +98,28 @@ describe('SearchView', () => {
           entry_id: 2,
           entry_date: '2026-03-23',
           text: 'Vienna today',
-          score: 1.0,
-          snippet: 'today was \x02Vienna\x03 again',
-          matching_chunks: [],
+          score: 0.85,
+          snippet: null,
+          matching_chunks: [
+            {
+              text: 'Vienna today was great',
+              score: 0.85,
+              chunk_index: 0,
+              char_start: 0,
+              char_end: 22,
+            },
+          ],
         },
       ],
     })
 
     const wrapper = mountView()
-    await wrapper.find('[data-testid="search-mode-keyword"]').trigger('click')
     await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
-    await wrapper.find('[data-testid="search-form"]').trigger('submit')
+    await wrapper.find('[data-testid="search-mode-semantic"]').trigger('click')
     await flushPromises()
 
     const call = mockSearch.mock.calls[0][0]
-    expect(call.mode).toBe('keyword')
-
-    // Snippet markers should be converted to <mark> tags.
-    const snippet = wrapper.find('[data-testid="search-result-snippet"]')
-    expect(snippet.html()).toContain('<mark')
-    expect(snippet.html()).toContain('Vienna</mark>')
+    expect(call.mode).toBe('semantic')
   })
 
   it('renders the empty state when the server returns zero items', async () => {
@@ -242,7 +236,6 @@ describe('SearchView', () => {
 
     const wrapper = mountView()
     await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
-    await wrapper.find('[data-testid="search-mode-keyword"]').trigger('click')
     await wrapper.find('[data-testid="search-form"]').trigger('submit')
     await flushPromises()
 
@@ -251,6 +244,97 @@ describe('SearchView', () => {
       .attributes('href') as string
     expect(href).toContain('/entries/7')
     expect(href).not.toContain('chunk=')
+  })
+
+  it('clicking a mode button triggers a search when there is a query', async () => {
+    mockSearch.mockResolvedValue({
+      query: 'vienna',
+      mode: 'semantic',
+      limit: 20,
+      offset: 0,
+      items: [],
+    })
+
+    const wrapper = mountView()
+    await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
+    await wrapper.find('[data-testid="search-mode-semantic"]').trigger('click')
+    await flushPromises()
+
+    expect(mockSearch).toHaveBeenCalledTimes(1)
+    expect(mockSearch.mock.calls[0][0].mode).toBe('semantic')
+  })
+
+  it('clicking a mode button does not trigger a search when query is empty', async () => {
+    const wrapper = mountView()
+    await wrapper.find('[data-testid="search-mode-semantic"]').trigger('click')
+    await flushPromises()
+
+    expect(mockSearch).not.toHaveBeenCalled()
+  })
+
+  it('shows semantic match explanation for semantic results', async () => {
+    mockSearch.mockResolvedValue({
+      query: 'travel',
+      mode: 'semantic',
+      limit: 20,
+      offset: 0,
+      items: [
+        {
+          entry_id: 10,
+          entry_date: '2026-03-22',
+          text: 'We went on a trip to Vienna',
+          score: 0.82,
+          snippet: null,
+          matching_chunks: [
+            {
+              text: 'We went on a trip to Vienna',
+              score: 0.82,
+              chunk_index: 0,
+              char_start: 0,
+              char_end: 27,
+            },
+          ],
+        },
+      ],
+    })
+
+    const wrapper = mountView()
+    await wrapper.find('[data-testid="search-query-input"]').setValue('travel')
+    await wrapper.find('[data-testid="search-mode-semantic"]').trigger('click')
+    await flushPromises()
+
+    const explanation = wrapper.find('[data-testid="semantic-explanation"]')
+    expect(explanation.exists()).toBe(true)
+    expect(explanation.text()).toContain('Matched by meaning')
+    expect(explanation.text()).toContain('82%')
+  })
+
+  it('does not show semantic explanation for keyword results', async () => {
+    mockSearch.mockResolvedValue({
+      query: 'vienna',
+      mode: 'keyword',
+      limit: 20,
+      offset: 0,
+      items: [
+        {
+          entry_id: 10,
+          entry_date: '2026-03-22',
+          text: 'Vienna trip',
+          score: 1.0,
+          snippet: '\x02Vienna\x03 trip',
+          matching_chunks: [],
+        },
+      ],
+    })
+
+    const wrapper = mountView()
+    await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
+    await wrapper.find('[data-testid="search-form"]').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="semantic-explanation"]').exists()).toBe(
+      false,
+    )
   })
 
   it('Next button fires a new search with the advanced offset', async () => {
