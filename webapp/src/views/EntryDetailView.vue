@@ -18,6 +18,14 @@ import type { Chunk, TokenSpan, UncertainSpan } from '@/types/entry'
 import type { EntryEntityRef, EntityType } from '@/types/entity'
 import { displayName } from '@/utils/entityName'
 
+const SOURCE_TYPE_LABELS: Record<string, string> = {
+  photo: 'Photo',
+  voice: 'Voice',
+  text_entry: 'Text Entry',
+  imported_text_file: 'Imported Text',
+  imported_audio_file: 'Imported Audio',
+}
+
 const props = defineProps<{
   id: string
 }>()
@@ -677,7 +685,9 @@ onBeforeUnmount(() => {
             class="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400"
           >
             <span>{{
-              (store.currentEntry.source_type ?? '').toUpperCase() || '—'
+              SOURCE_TYPE_LABELS[store.currentEntry.source_type ?? ''] ??
+              store.currentEntry.source_type ??
+              '—'
             }}</span>
             <span
               >{{

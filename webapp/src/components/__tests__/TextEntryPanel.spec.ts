@@ -81,7 +81,7 @@ describe('TextEntryPanel', () => {
       entry: {
         id: 42,
         entry_date: '2026-04-12',
-        source_type: 'manual',
+        source_type: 'text_entry',
         raw_text: 'Hello world',
         final_text: 'Hello world',
         page_count: 1,
@@ -112,7 +112,7 @@ describe('TextEntryPanel', () => {
       entry: {
         id: 99,
         entry_date: '2026-04-12',
-        source_type: 'manual',
+        source_type: 'text_entry',
         raw_text: 'test',
         final_text: 'test',
         page_count: 1,

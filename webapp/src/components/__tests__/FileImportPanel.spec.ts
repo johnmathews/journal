@@ -62,7 +62,7 @@ describe('FileImportPanel', () => {
       entry: {
         id: 7,
         entry_date: '2026-04-12',
-        source_type: 'import',
+        source_type: 'imported_text_file',
         raw_text: 'file content',
         final_text: 'file content',
         page_count: 1,
@@ -110,7 +110,7 @@ describe('FileImportPanel', () => {
       entry: {
         id: 55,
         entry_date: '2026-04-12',
-        source_type: 'import',
+        source_type: 'imported_text_file',
         raw_text: 'content',
         final_text: 'content',
         page_count: 1,

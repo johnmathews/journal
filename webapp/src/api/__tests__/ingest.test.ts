@@ -25,7 +25,7 @@ describe('ingest API', () => {
   describe('ingestText', () => {
     it('sends POST with JSON body', async () => {
       const mockResponse = {
-        entry: { id: 1, source_type: 'manual' },
+        entry: { id: 1, source_type: 'text_entry' },
         mood_job_id: null,
       }
       mockApiFetch.mockResolvedValue(mockResponse)

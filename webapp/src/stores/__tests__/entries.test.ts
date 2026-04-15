@@ -47,7 +47,7 @@ describe('useEntriesStore', () => {
         {
           id: 1,
           entry_date: '2026-01-01',
-          source_type: 'ocr',
+          source_type: 'photo',
           page_count: 1,
           word_count: 100,
           chunk_count: 3,
@@ -85,7 +85,7 @@ describe('useEntriesStore', () => {
     const entry = {
       id: 1,
       entry_date: '2026-01-01',
-      source_type: 'ocr' as const,
+      source_type: 'photo' as const,
       raw_text: 'raw',
       final_text: 'final',
       page_count: 1,
@@ -110,7 +110,7 @@ describe('useEntriesStore', () => {
     const updated = {
       id: 1,
       entry_date: '2026-01-01',
-      source_type: 'ocr' as const,
+      source_type: 'photo' as const,
       raw_text: 'raw',
       final_text: 'corrected',
       page_count: 1,
@@ -219,7 +219,7 @@ describe('useEntriesStore', () => {
         {
           id: 1,
           entry_date: '2026-01-01',
-          source_type: 'ocr',
+          source_type: 'photo',
           page_count: 1,
           word_count: 10,
           chunk_count: 1,
@@ -243,7 +243,7 @@ describe('useEntriesStore', () => {
         {
           id: 1,
           entry_date: '2026-01-01',
-          source_type: 'ocr',
+          source_type: 'photo',
           page_count: 1,
           word_count: 10,
           chunk_count: 1,
@@ -254,7 +254,7 @@ describe('useEntriesStore', () => {
         {
           id: 2,
           entry_date: '2026-01-02',
-          source_type: 'ocr',
+          source_type: 'photo',
           page_count: 1,
           word_count: 20,
           chunk_count: 2,
@@ -283,7 +283,7 @@ describe('useEntriesStore', () => {
     const entry = {
       id: 42,
       entry_date: '2026-01-01',
-      source_type: 'ocr' as const,
+      source_type: 'photo' as const,
       raw_text: 'raw',
       final_text: 'final',
       page_count: 1,
@@ -330,7 +330,7 @@ describe('useEntriesStore', () => {
     const verified = {
       id: 1,
       entry_date: '2026-01-01',
-      source_type: 'ocr' as const,
+      source_type: 'photo' as const,
       raw_text: 'Hello Ritsya.',
       final_text: 'Hello Ritsya.',
       page_count: 1,
@@ -394,7 +394,7 @@ describe('useEntriesStore', () => {
     const entry = {
       id: 10,
       entry_date: '2026-04-12',
-      source_type: 'manual' as const,
+      source_type: 'text_entry' as const,
       raw_text: 'hello',
       final_text: 'hello',
       page_count: 1,
@@ -430,7 +430,7 @@ describe('useEntriesStore', () => {
       entry: {
         id: 11,
         entry_date: '2026-04-12',
-        source_type: 'manual' as const,
+        source_type: 'text_entry' as const,
         raw_text: 'text',
         final_text: 'text',
         page_count: 1,
@@ -481,7 +481,7 @@ describe('useEntriesStore', () => {
       entry: {
         id: 12,
         entry_date: '2026-04-12',
-        source_type: 'import' as const,
+        source_type: 'imported_text_file' as const,
         raw_text: 'imported',
         final_text: 'imported',
         page_count: 1,

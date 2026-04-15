@@ -7,7 +7,7 @@ function makeEntry(overrides: Partial<EntryDetail> = {}): EntryDetail {
   return {
     id: 1,
     entry_date: '2026-03-22',
-    source_type: 'ocr',
+    source_type: 'photo',
     raw_text: 'original ocr text',
     final_text: 'original ocr text',
     page_count: 1,

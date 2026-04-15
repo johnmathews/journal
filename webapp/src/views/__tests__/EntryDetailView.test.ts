@@ -25,7 +25,7 @@ vi.mock('@/api/entries', () => ({
   fetchEntry: vi.fn().mockResolvedValue({
     id: 1,
     entry_date: '2026-03-22',
-    source_type: 'ocr',
+    source_type: 'photo',
     raw_text: 'Original OCR text here.',
     final_text: 'Original OCR text here.',
     page_count: 2,
@@ -38,7 +38,7 @@ vi.mock('@/api/entries', () => ({
   updateEntryText: vi.fn().mockResolvedValue({
     id: 1,
     entry_date: '2026-03-22',
-    source_type: 'ocr',
+    source_type: 'photo',
     raw_text: 'Original OCR text here.',
     final_text: 'Updated text',
     page_count: 2,
@@ -51,7 +51,7 @@ vi.mock('@/api/entries', () => ({
   verifyDoubts: vi.fn().mockResolvedValue({
     id: 1,
     entry_date: '2026-03-22',
-    source_type: 'ocr',
+    source_type: 'photo',
     raw_text: 'Hello Ritsya from Vienna.',
     final_text: 'Hello Ritsya from Vienna.',
     page_count: 1,
@@ -196,7 +196,7 @@ describe('EntryDetailView', () => {
     ;(fetchEntry as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       id: 1,
       entry_date: '2026-03-22',
-      source_type: 'ocr',
+      source_type: 'photo',
       raw_text: 'Original OCR text here.',
       final_text: 'Corrected text here.',
       page_count: 2,
@@ -228,7 +228,7 @@ describe('EntryDetailView', () => {
     ;(fetchEntry as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       id: 1,
       entry_date: '2026-03-22',
-      source_type: 'ocr',
+      source_type: 'photo',
       raw_text: 'Original OCR text here.',
       final_text: 'Corrected text here.',
       page_count: 2,
@@ -552,7 +552,7 @@ describe('EntryDetailView', () => {
     ;(fetchEntry as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       id: 1,
       entry_date: '2026-03-22',
-      source_type: 'ocr',
+      source_type: 'photo',
       raw_text: 'Original OCR text here.',
       final_text: 'Corrected text here.',
       page_count: 2,
@@ -860,7 +860,7 @@ describe('EntryDetailView', () => {
       vi.mocked(fetchEntry).mockResolvedValueOnce({
         id: 1,
         entry_date: '2026-03-22',
-        source_type: 'ocr',
+        source_type: 'photo',
         raw_text: 'Hello.',
         final_text: 'Hello.',
         page_count: 1,
@@ -892,7 +892,7 @@ describe('EntryDetailView', () => {
       vi.mocked(fetchEntry).mockResolvedValueOnce({
         id: 1,
         entry_date: '2026-03-22',
-        source_type: 'ocr',
+        source_type: 'photo',
         raw_text: null,
         final_text: null,
         page_count: 1,
@@ -952,7 +952,7 @@ describe('EntryDetailView', () => {
       resolveFetch({
         id: 1,
         entry_date: '2026-03-22',
-        source_type: 'ocr',
+        source_type: 'photo',
         raw_text: 'ok',
         final_text: 'ok',
         page_count: 1,
@@ -1064,7 +1064,7 @@ describe('EntryDetailView', () => {
       vi.mocked(fetchEntry).mockResolvedValueOnce({
         id: 1,
         entry_date: '2026-03-22',
-        source_type: 'ocr',
+        source_type: 'photo',
         raw_text: 'Walked with Alice in the park.',
         final_text: 'Walked with Alice in the park.',
         word_count: 7,
@@ -1118,7 +1118,7 @@ describe('EntryDetailView', () => {
       vi.mocked(fetchEntry).mockResolvedValueOnce({
         id: 1,
         entry_date: '2026-03-22',
-        source_type: 'ocr',
+        source_type: 'photo',
         raw_text: 'The text was clear.',
         final_text: 'The text was clear and readable.',
         word_count: 6,
@@ -1188,7 +1188,7 @@ describe('EntryDetailView', () => {
       vi.mocked(fetchEntry).mockResolvedValueOnce({
         id: 1,
         entry_date: '2026-03-22',
-        source_type: 'ocr',
+        source_type: 'photo',
         raw_text: "Met O'Brien at the cafe.",
         final_text: "Met O'Brien at the cafe.",
         word_count: 6,
@@ -1245,7 +1245,7 @@ describe('EntryDetailView', () => {
       vi.mocked(fetchEntry).mockResolvedValueOnce({
         id: 1,
         entry_date: '2026-03-22',
-        source_type: 'ocr',
+        source_type: 'photo',
         raw_text: 'R is great. I saw a rabbit and a car.',
         final_text: 'R is great. I saw a rabbit and a car.',
         word_count: 10,
@@ -1319,7 +1319,7 @@ describe('EntryDetailView', () => {
       vi.mocked(fetchEntry).mockResolvedValueOnce({
         id: 1,
         entry_date: '2026-03-22',
-        source_type: 'ocr',
+        source_type: 'photo',
         raw_text: rawText,
         final_text: rawText,
         page_count: 1,

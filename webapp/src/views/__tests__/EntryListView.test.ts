@@ -10,7 +10,7 @@ vi.mock('@/api/entries', () => ({
       {
         id: 1,
         entry_date: '2026-03-22',
-        source_type: 'ocr',
+        source_type: 'photo',
         page_count: 2,
         word_count: 347,
         chunk_count: 5,
@@ -169,7 +169,7 @@ describe('EntryListView', () => {
       items: Array.from({ length: 20 }, (_, i) => ({
         id: i + 1,
         entry_date: '2026-01-01',
-        source_type: 'ocr' as const,
+        source_type: 'photo' as const,
         page_count: 1,
         word_count: 1,
         chunk_count: 1,
@@ -202,7 +202,7 @@ describe('EntryListView', () => {
         {
           id: 1,
           entry_date: '2026-03-22',
-          source_type: 'ocr',
+          source_type: 'photo',
           page_count: 2,
           word_count: 347,
           chunk_count: 5,
@@ -243,7 +243,7 @@ describe('EntryListView', () => {
         {
           id: 1,
           entry_date: '2026-03-22',
-          source_type: 'ocr',
+          source_type: 'photo',
           page_count: 2,
           word_count: 347,
           chunk_count: 5,
@@ -285,7 +285,7 @@ describe('EntryListView', () => {
         {
           id: 1,
           entry_date: '2026-03-22',
-          source_type: 'ocr',
+          source_type: 'photo',
           page_count: 2,
           word_count: 347,
           chunk_count: 5,
@@ -327,7 +327,7 @@ describe('EntryListView', () => {
       items: Array.from({ length: 20 }, (_, i) => ({
         id: i + 1,
         entry_date: '2026-01-01',
-        source_type: 'ocr' as const,
+        source_type: 'photo' as const,
         page_count: 1,
         word_count: 1,
         chunk_count: 1,
@@ -362,7 +362,7 @@ describe('OCR Doubts column', () => {
         {
           id: 10,
           entry_date: '2026-04-01',
-          source_type: 'ocr',
+          source_type: 'photo',
           page_count: 1,
           word_count: 50,
           chunk_count: 1,
@@ -373,7 +373,7 @@ describe('OCR Doubts column', () => {
         {
           id: 11,
           entry_date: '2026-04-02',
-          source_type: 'ocr',
+          source_type: 'photo',
           page_count: 1,
           word_count: 50,
           chunk_count: 1,
@@ -384,7 +384,7 @@ describe('OCR Doubts column', () => {
         {
           id: 12,
           entry_date: '2026-04-03',
-          source_type: 'ocr',
+          source_type: 'photo',
           page_count: 1,
           word_count: 50,
           chunk_count: 1,

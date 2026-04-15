@@ -58,7 +58,7 @@ function makeHealth(overrides: Partial<HealthResponse> = {}): HealthResponse {
       last_ingested_at: '2026-04-14T10:00:00Z',
       entries_last_7d: 5,
       entries_last_30d: 18,
-      by_source_type: { ocr: 40, voice: 2 },
+      by_source_type: { photo: 40, voice: 2 },
       row_counts: { entries: 42, entry_pages: 42, chunks: 210 },
     },
     queries: {

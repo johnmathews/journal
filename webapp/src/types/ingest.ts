@@ -3,7 +3,7 @@ import type { EntryDetail } from './entry'
 export interface IngestTextRequest {
   text: string
   entry_date?: string
-  source_type?: 'manual' | 'import'
+  source_type?: 'text_entry' | 'imported_text_file' | 'imported_audio_file'
 }
 
 export interface IngestTextResponse {
