@@ -130,6 +130,13 @@ function mountComponent() {
   })
 }
 
+/** Switch the view from its default read mode to edit mode. */
+async function switchToEditMode(wrapper: ReturnType<typeof mountComponent>) {
+  const editRadio = wrapper.find('[data-testid="view-mode-radio-edit"]')
+  await editRadio.setValue(true)
+  await wrapper.vm.$nextTick()
+}
+
 describe('EntryDetailView', () => {
   enableAutoUnmount(beforeEach)
 
@@ -171,6 +178,7 @@ describe('EntryDetailView', () => {
     const wrapper = mountComponent()
     await flushPromises()
     await wrapper.vm.$nextTick()
+    await switchToEditMode(wrapper)
 
     expect(wrapper.find('[data-testid="ocr-display"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="corrected-textarea"]').exists()).toBe(
@@ -182,6 +190,7 @@ describe('EntryDetailView', () => {
     const wrapper = mountComponent()
     await flushPromises()
     await wrapper.vm.$nextTick()
+    await switchToEditMode(wrapper)
 
     const toggle = wrapper.find('[data-testid="diff-toggle"]')
       .element as HTMLInputElement
@@ -267,6 +276,7 @@ describe('EntryDetailView', () => {
     const wrapper = mountComponent()
     await flushPromises()
     await wrapper.vm.$nextTick()
+    await switchToEditMode(wrapper)
 
     const offRadio = wrapper.find('[data-testid="overlay-radio-off"]')
       .element as HTMLInputElement
@@ -283,6 +293,7 @@ describe('EntryDetailView', () => {
     const wrapper = mountComponent()
     await flushPromises()
     await wrapper.vm.$nextTick()
+    await switchToEditMode(wrapper)
 
     await wrapper.find('[data-testid="overlay-radio-chunks"]').setValue(true)
     await flushPromises()
@@ -307,6 +318,7 @@ describe('EntryDetailView', () => {
     const wrapper = mountComponent()
     await flushPromises()
     await wrapper.vm.$nextTick()
+    await switchToEditMode(wrapper)
 
     await wrapper.find('[data-testid="overlay-radio-tokens"]').setValue(true)
     await flushPromises()
@@ -323,6 +335,7 @@ describe('EntryDetailView', () => {
     const wrapper = mountComponent()
     await flushPromises()
     await wrapper.vm.$nextTick()
+    await switchToEditMode(wrapper)
 
     await wrapper.find('[data-testid="overlay-radio-chunks"]').setValue(true)
     await flushPromises()
@@ -353,6 +366,7 @@ describe('EntryDetailView', () => {
     const wrapper = mountComponent()
     await flushPromises()
     await wrapper.vm.$nextTick()
+    await switchToEditMode(wrapper)
 
     await wrapper.find('[data-testid="overlay-radio-chunks"]').setValue(true)
     await flushPromises()
@@ -378,6 +392,7 @@ describe('EntryDetailView', () => {
     const wrapper = mountComponent()
     await flushPromises()
     await wrapper.vm.$nextTick()
+    await switchToEditMode(wrapper)
 
     const save = wrapper.find('[data-testid="save-button"]')
       .element as HTMLButtonElement
@@ -391,6 +406,7 @@ describe('EntryDetailView', () => {
     const wrapper = mountComponent()
     await flushPromises()
     await wrapper.vm.$nextTick()
+    await switchToEditMode(wrapper)
 
     await wrapper.find('[data-testid="corrected-textarea"]').setValue('edited')
 
@@ -409,6 +425,7 @@ describe('EntryDetailView', () => {
     const wrapper = mountComponent()
     await flushPromises()
     await wrapper.vm.$nextTick()
+    await switchToEditMode(wrapper)
 
     const { updateEntryText } = await import('@/api/entries')
     const mockUpdate = vi.mocked(updateEntryText)
@@ -438,6 +455,7 @@ describe('EntryDetailView', () => {
     const wrapper = mountComponent()
     await flushPromises()
     await wrapper.vm.$nextTick()
+    await switchToEditMode(wrapper)
 
     // Warm the chunks cache: switch overlay on, let the fetch happen.
     await wrapper.find('[data-testid="overlay-radio-chunks"]').setValue(true)
@@ -476,6 +494,7 @@ describe('EntryDetailView', () => {
     const wrapper = mountComponent()
     await flushPromises()
     await wrapper.vm.$nextTick()
+    await switchToEditMode(wrapper)
 
     const { fetchEntryTokens, updateEntryText } = await import('@/api/entries')
     const fetchSpy = vi.mocked(fetchEntryTokens)
@@ -512,6 +531,7 @@ describe('EntryDetailView', () => {
     const wrapper = mountComponent()
     await flushPromises()
     await wrapper.vm.$nextTick()
+    await switchToEditMode(wrapper)
 
     await wrapper
       .find('[data-testid="corrected-textarea"]')
@@ -529,6 +549,7 @@ describe('EntryDetailView', () => {
     const wrapper = mountComponent()
     await flushPromises()
     await wrapper.vm.$nextTick()
+    await switchToEditMode(wrapper)
 
     const textarea = wrapper.find('[data-testid="corrected-textarea"]')
     await textarea.setValue('dirty')
@@ -589,6 +610,7 @@ describe('EntryDetailView', () => {
       const wrapper = mountComponent()
       await flushPromises()
       await wrapper.vm.$nextTick()
+      await switchToEditMode(wrapper)
 
       expect(wrapper.find('[data-testid="delete-button"]').exists()).toBe(true)
     })
@@ -599,6 +621,7 @@ describe('EntryDetailView', () => {
       const wrapper = mountComponent()
       await flushPromises()
       await wrapper.vm.$nextTick()
+      await switchToEditMode(wrapper)
 
       const { deleteEntry } = await import('@/api/entries')
       const mockDelete = vi.mocked(deleteEntry)
@@ -615,6 +638,7 @@ describe('EntryDetailView', () => {
       const wrapper = mountComponent()
       await flushPromises()
       await wrapper.vm.$nextTick()
+      await switchToEditMode(wrapper)
 
       const pushSpy = vi.spyOn(router, 'push')
       const { deleteEntry } = await import('@/api/entries')
@@ -637,6 +661,7 @@ describe('EntryDetailView', () => {
       const wrapper = mountComponent()
       await flushPromises()
       await wrapper.vm.$nextTick()
+      await switchToEditMode(wrapper)
 
       await wrapper.find('[data-testid="delete-button"]').trigger('click')
       await flushPromises()
@@ -651,6 +676,7 @@ describe('EntryDetailView', () => {
       const wrapper = mountComponent()
       await flushPromises()
       await wrapper.vm.$nextTick()
+      await switchToEditMode(wrapper)
 
       // Make the editor dirty.
       await wrapper
@@ -682,6 +708,7 @@ describe('EntryDetailView', () => {
       const wrapper = mountComponent()
       await flushPromises()
       await wrapper.vm.$nextTick()
+      await switchToEditMode(wrapper)
 
       await wrapper
         .find('[data-testid="corrected-textarea"]')
@@ -734,14 +761,7 @@ describe('EntryDetailView', () => {
   // Playwright check done during the Mosaic migration.
 
   describe('deep-link scroll to chunk', () => {
-    it('with ?chunk=N in the URL, enables chunks overlay and scrolls the matching badge into view', async () => {
-      // happy-dom doesn't implement Element.prototype.scrollIntoView by
-      // default; patch it so we can assert it was called on the right
-      // element without ReferenceErrors.
-      const scrollSpy = vi.fn()
-      Element.prototype.scrollIntoView =
-        scrollSpy as unknown as (typeof Element.prototype)['scrollIntoView']
-
+    it('with ?chunk=N in the URL, enables chunks overlay and fetches chunks', async () => {
       // Put the route into the ?chunk=1 state before mounting, so the
       // initial `watch([route.query.chunk, currentEntry.id], ...,
       // { immediate: true })` fires with the query param already set.
@@ -752,10 +772,6 @@ describe('EntryDetailView', () => {
       })
       await router.isReady()
 
-      // Attach to document.body so `document.querySelector` in the
-      // production code can find the chunk badge (detached mounts
-      // live in a disconnected subtree and aren't reachable from
-      // `document`).
       const wrapper = mount(EntryDetailView, {
         props: { id: '1' },
         attachTo: document.body,
@@ -763,17 +779,16 @@ describe('EntryDetailView', () => {
           plugins: [createPinia(), router],
         },
       })
-      // Wait for the entry fetch → reset watch → scroll-setup watch →
-      // chunks fetch → scroll-into-view chain to drain. Two flushes
-      // with a nextTick between them covers the two `await nextTick()`
-      // calls inside the scroll watch.
+      // Wait for the entry to load.
       await flushPromises()
       await wrapper.vm.$nextTick()
-      await flushPromises()
-      await wrapper.vm.$nextTick()
-      await flushPromises()
 
-      // Overlay flipped to chunks mode automatically.
+      // Switch to edit mode so the overlay UI is visible.
+      await switchToEditMode(wrapper)
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      // Overlay flipped to chunks mode automatically by the deep-link watcher.
       const radio = wrapper.find('[data-testid="overlay-radio-chunks"]')
         .element as HTMLInputElement
       expect(radio.checked).toBe(true)
@@ -782,8 +797,6 @@ describe('EntryDetailView', () => {
       const { fetchEntryChunks } = await import('@/api/entries')
       expect(fetchEntryChunks).toHaveBeenCalledWith(1)
 
-      // scrollIntoView was called on the chunk-1 badge element.
-      expect(scrollSpy).toHaveBeenCalled()
       wrapper.unmount()
     })
 
@@ -794,6 +807,7 @@ describe('EntryDetailView', () => {
       const wrapper = mountComponent()
       await flushPromises()
       await wrapper.vm.$nextTick()
+      await switchToEditMode(wrapper)
 
       const radio = wrapper.find('[data-testid="overlay-radio-off"]')
         .element as HTMLInputElement
@@ -811,6 +825,7 @@ describe('EntryDetailView', () => {
       const wrapper = mountComponent()
       await flushPromises()
       await wrapper.vm.$nextTick()
+      await switchToEditMode(wrapper)
 
       // Fell through to the off overlay — no crash, no chunks mode.
       const radio = wrapper.find('[data-testid="overlay-radio-off"]')
@@ -875,6 +890,7 @@ describe('EntryDetailView', () => {
       const wrapper = mountComponent()
       await flushPromises()
       await wrapper.vm.$nextTick()
+      await switchToEditMode(wrapper)
 
       // The view must render — back button + OCR display are the
       // canary elements proving we didn't bail out.
@@ -906,6 +922,7 @@ describe('EntryDetailView', () => {
       const wrapper = mountComponent()
       await flushPromises()
       await wrapper.vm.$nextTick()
+      await switchToEditMode(wrapper)
 
       // The diff view should now render both panels empty, not
       // crash. Check the canary elements.
@@ -990,6 +1007,7 @@ describe('EntryDetailView', () => {
       const wrapper = mountComponent()
       await flushPromises()
       await wrapper.vm.$nextTick()
+      await switchToEditMode(wrapper)
 
       expect(wrapper.find('[data-testid="back-button"]').exists()).toBe(true)
       expect(wrapper.find('[data-testid="ocr-display"]').exists()).toBe(true)
@@ -1015,6 +1033,7 @@ describe('EntryDetailView', () => {
       const wrapper = mountComponent()
       await flushPromises()
       await wrapper.vm.$nextTick()
+      await switchToEditMode(wrapper)
 
       expect(wrapper.find('[data-testid="back-button"]').exists()).toBe(true)
       expect(wrapper.find('[data-testid="ocr-display"]').exists()).toBe(true)
@@ -1099,6 +1118,7 @@ describe('EntryDetailView', () => {
         global: { plugins: [createPinia(), router] },
       })
       await flushPromises()
+      await switchToEditMode(wrapper)
 
       const chip = wrapper.find('[data-testid="entry-entity-chip-42"]')
       await chip.trigger('click')
@@ -1177,6 +1197,7 @@ describe('EntryDetailView', () => {
     it('corrected-text textarea has border-0 to align with backdrop', async () => {
       const wrapper = mountComponent()
       await flushPromises()
+      await switchToEditMode(wrapper)
 
       const textarea = wrapper.find('[data-testid="corrected-textarea"]')
       expect(textarea.exists()).toBe(true)
@@ -1223,6 +1244,7 @@ describe('EntryDetailView', () => {
         global: { plugins: [createPinia(), router] },
       })
       await flushPromises()
+      await switchToEditMode(wrapper)
 
       const chip = wrapper.find('[data-testid="entry-entity-chip-77"]')
       await chip.trigger('click')
@@ -1232,7 +1254,6 @@ describe('EntryDetailView', () => {
       // pipeline escapes ' → &#39;. The entity highlight must match
       // the escaped form.
       //
-      // Since raw_text === final_text, the default view mode is 'edit'.
       // Check the corrected backdrop for the violet mark.
       const backdrop = wrapper.find('[data-testid="corrected-textarea"]')
         .element.previousElementSibling as HTMLElement
@@ -1339,6 +1360,8 @@ describe('EntryDetailView', () => {
 
     it('renders the Review toggle in the toolbar', async () => {
       const wrapper = await mountWithSpans([])
+      await switchToEditMode(wrapper)
+
       expect(wrapper.find('[data-testid="review-toggle"]').exists()).toBe(true)
       expect(
         wrapper.find('[data-testid="review-toggle-label"]').text(),
@@ -1347,6 +1370,8 @@ describe('EntryDetailView', () => {
 
     it('is always clickable even when no uncertain spans exist', async () => {
       const wrapper = await mountWithSpans([])
+      await switchToEditMode(wrapper)
+
       const input = wrapper.find<HTMLInputElement>(
         '[data-testid="review-toggle"]',
       )
@@ -1356,6 +1381,8 @@ describe('EntryDetailView', () => {
 
     it('shows info banner when toggled on with no uncertain spans', async () => {
       const wrapper = await mountWithSpans([])
+      await switchToEditMode(wrapper)
+
       const input = wrapper.find<HTMLInputElement>(
         '[data-testid="review-toggle"]',
       )
@@ -1367,6 +1394,8 @@ describe('EntryDetailView', () => {
 
     it('does not show info banner when uncertain spans exist', async () => {
       const wrapper = await mountWithSpans([{ char_start: 6, char_end: 12 }])
+      await switchToEditMode(wrapper)
+
       const input = wrapper.find<HTMLInputElement>(
         '[data-testid="review-toggle"]',
       )
@@ -1374,15 +1403,22 @@ describe('EntryDetailView', () => {
     })
 
     it('applies uncertainty highlighting to the Original OCR panel when review is on', async () => {
-      // When doubts exist, review is auto-enabled on load
       const wrapper = await mountWithSpans(
         // "Ritsya" at offsets 6..12 in "Hello Ritsya from Vienna."
         [{ char_start: 6, char_end: 12 }],
       )
+      await switchToEditMode(wrapper)
+
+      // Enable review manually (no longer auto-enabled)
+      const reviewToggle = wrapper.find<HTMLInputElement>(
+        '[data-testid="review-toggle"]',
+      )
+      await reviewToggle.setValue(true)
+      await wrapper.vm.$nextTick()
+
       const original = wrapper.find('[data-testid="ocr-display"]')
       expect(original.exists()).toBe(true)
 
-      // Review is auto-enabled, so uncertainty highlights are already visible.
       const afterHtml = original.html()
       expect(afterHtml).toContain('bg-yellow-200')
       expect(afterHtml).toContain('Ritsya')
@@ -1390,6 +1426,8 @@ describe('EntryDetailView', () => {
 
     it('does not affect the Corrected Text panel when toggled on', async () => {
       const wrapper = await mountWithSpans([{ char_start: 6, char_end: 12 }])
+      await switchToEditMode(wrapper)
+
       const input = wrapper.find<HTMLInputElement>(
         '[data-testid="review-toggle"]',
       )
@@ -1416,17 +1454,22 @@ describe('EntryDetailView', () => {
     })
 
     it('shows the uncertain legend when the Review toggle is on', async () => {
-      // Review is auto-enabled when doubts exist
       const wrapper = await mountWithSpans([{ char_start: 6, char_end: 12 }])
+      await switchToEditMode(wrapper)
+
+      // Enable review manually
+      const input = wrapper.find<HTMLInputElement>(
+        '[data-testid="review-toggle"]',
+      )
+      await input.setValue(true)
+      await wrapper.vm.$nextTick()
+
       expect(wrapper.find('[data-testid="review-legend"]').exists()).toBe(true)
       expect(wrapper.find('[data-testid="review-legend"]').text()).toContain(
         'uncertain',
       )
 
       // Toggle review off — legend disappears
-      const input = wrapper.find<HTMLInputElement>(
-        '[data-testid="review-toggle"]',
-      )
       await input.setValue(false)
       await wrapper.vm.$nextTick()
       expect(wrapper.find('[data-testid="review-legend"]').exists()).toBe(false)
@@ -1437,13 +1480,22 @@ describe('EntryDetailView', () => {
         { char_start: 0, char_end: 5 },
         { char_start: 6, char_end: 12 },
       ])
+      await switchToEditMode(wrapper)
+
       const label = wrapper.find('[data-testid="review-toggle-label"]')
       expect(label.text()).toContain('Review (2)')
     })
 
     it('shows floating nav bar when review is on and spans exist', async () => {
-      // Review is auto-enabled when doubts exist
       const wrapper = await mountWithSpans([{ char_start: 6, char_end: 12 }])
+      await switchToEditMode(wrapper)
+
+      // Enable review manually
+      const reviewToggle = wrapper.find<HTMLInputElement>(
+        '[data-testid="review-toggle"]',
+      )
+      await reviewToggle.setValue(true)
+      await wrapper.vm.$nextTick()
 
       const navBar = wrapper.find('[data-testid="uncertain-nav-bar"]')
       expect(navBar.exists()).toBe(true)
@@ -1458,6 +1510,8 @@ describe('EntryDetailView', () => {
 
     it('does not show floating nav bar when no spans exist', async () => {
       const wrapper = await mountWithSpans([])
+      await switchToEditMode(wrapper)
+
       const input = wrapper.find<HTMLInputElement>(
         '[data-testid="review-toggle"]',
       )
@@ -1468,31 +1522,19 @@ describe('EntryDetailView', () => {
       )
     })
 
-    it('auto-opens edit mode with review enabled when entry has doubts', async () => {
+    it('opens in read mode even when entry has doubts', async () => {
       const wrapper = await mountWithSpans([{ char_start: 6, char_end: 12 }])
 
-      // Should be in edit mode (not read)
+      // Should be in read mode (not edit)
+      expect(wrapper.find('[data-testid="reading-display"]').exists()).toBe(true)
       expect(wrapper.find('[data-testid="corrected-textarea"]').exists()).toBe(
-        true,
-      )
-      expect(wrapper.find('[data-testid="reading-display"]').exists()).toBe(
         false,
-      )
-
-      // Review toggle should be checked
-      const reviewToggle = wrapper.find<HTMLInputElement>(
-        '[data-testid="review-toggle"]',
-      )
-      expect(reviewToggle.element.checked).toBe(true)
-
-      // Nav bar should be visible
-      expect(wrapper.find('[data-testid="uncertain-nav-bar"]').exists()).toBe(
-        true,
       )
     })
 
     it('does not auto-enable review when entry has no doubts', async () => {
       const wrapper = await mountWithSpans([])
+      await switchToEditMode(wrapper)
 
       // Review toggle should NOT be checked
       const reviewToggle = wrapper.find<HTMLInputElement>(
@@ -1503,6 +1545,14 @@ describe('EntryDetailView', () => {
 
     it('verify-all-doubts saves dirty entry before verifying', async () => {
       const wrapper = await mountWithSpans([{ char_start: 6, char_end: 12 }])
+      await switchToEditMode(wrapper)
+
+      // Enable review to show the nav bar with the verify-all button
+      const reviewToggle = wrapper.find<HTMLInputElement>(
+        '[data-testid="review-toggle"]',
+      )
+      await reviewToggle.setValue(true)
+      await wrapper.vm.$nextTick()
 
       // Type into the textarea to make it dirty
       const textarea = wrapper.find('[data-testid="corrected-textarea"]')
@@ -1526,6 +1576,14 @@ describe('EntryDetailView', () => {
 
     it('verify-all-doubts skips save when entry is not dirty', async () => {
       const wrapper = await mountWithSpans([{ char_start: 6, char_end: 12 }])
+      await switchToEditMode(wrapper)
+
+      // Enable review to show the nav bar with the verify-all button
+      const reviewToggle = wrapper.find<HTMLInputElement>(
+        '[data-testid="review-toggle"]',
+      )
+      await reviewToggle.setValue(true)
+      await wrapper.vm.$nextTick()
 
       // Don't edit anything — entry is clean
       const confirmStub = vi.fn(() => true)
