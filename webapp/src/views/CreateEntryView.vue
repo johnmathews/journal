@@ -3,14 +3,13 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEntriesStore } from '@/stores/entries'
 import TextEntryPanel from '@/components/TextEntryPanel.vue'
-import FileImportPanel from '@/components/FileImportPanel.vue'
-import ImageUploadPanel from '@/components/ImageUploadPanel.vue'
+import FileUploadPanel from '@/components/FileUploadPanel.vue'
 import VoiceRecordPanel from '@/components/VoiceRecordPanel.vue'
 
 const router = useRouter()
 const entriesStore = useEntriesStore()
 
-const activeTab = ref<'write' | 'import' | 'upload' | 'record'>('upload')
+const activeTab = ref<'upload' | 'write' | 'record'>('upload')
 const entryDate = ref(new Date().toISOString().slice(0, 10))
 
 function handleCreated(entryId: number) {
@@ -23,8 +22,7 @@ function handleJobSubmitted(_jobId: string) {
 }
 
 const tabs = [
-  { key: 'upload' as const, label: 'Upload Images' },
-  { key: 'import' as const, label: 'Import File' },
+  { key: 'upload' as const, label: 'Upload Files' },
   { key: 'write' as const, label: 'Write Entry' },
   { key: 'record' as const, label: 'Record Voice' },
 ]
@@ -95,20 +93,16 @@ function switchTab(key: typeof activeTab.value) {
     </div>
 
     <!-- Tab panels -->
+    <FileUploadPanel
+      v-if="activeTab === 'upload'"
+      :entry-date="entryDate"
+      @created="handleCreated"
+      @submitted="handleJobSubmitted"
+    />
     <TextEntryPanel
       v-if="activeTab === 'write'"
       :entry-date="entryDate"
       @created="handleCreated"
-    />
-    <FileImportPanel
-      v-if="activeTab === 'import'"
-      :entry-date="entryDate"
-      @created="handleCreated"
-    />
-    <ImageUploadPanel
-      v-if="activeTab === 'upload'"
-      :entry-date="entryDate"
-      @submitted="handleJobSubmitted"
     />
     <VoiceRecordPanel
       v-if="activeTab === 'record'"

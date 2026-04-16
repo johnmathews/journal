@@ -121,10 +121,7 @@ function nextPage() {
 </script>
 
 <template>
-  <div
-    class="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-5xl mx-auto"
-    data-testid="job-history-view"
-  >
+  <div data-testid="job-history-view">
     <header class="mb-6">
       <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">
         Job History

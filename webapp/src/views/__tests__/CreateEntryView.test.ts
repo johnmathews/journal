@@ -31,15 +31,10 @@ function mountView() {
           props: ['entryDate'],
           emits: ['created'],
         },
-        FileImportPanel: {
-          template: '<div data-testid="file-import-panel" />',
+        FileUploadPanel: {
+          template: '<div data-testid="file-upload-panel" />',
           props: ['entryDate'],
-          emits: ['created'],
-        },
-        ImageUploadPanel: {
-          template: '<div data-testid="image-upload-panel" />',
-          props: ['entryDate'],
-          emits: ['submitted'],
+          emits: ['created', 'submitted'],
         },
       },
     },
@@ -59,23 +54,20 @@ describe('CreateEntryView', () => {
     expect(wrapper.find('h1').text()).toBe('New Journal Entry')
   })
 
-  it('renders with "Upload Images" tab active by default', () => {
+  it('renders with "Upload Files" tab active by default', () => {
     const wrapper = mountView()
     const buttons = wrapper.findAll('button')
-    const uploadTab = buttons.find((b) => b.text() === 'Upload Images')
+    const uploadTab = buttons.find((b) => b.text() === 'Upload Files')
     expect(uploadTab).toBeDefined()
     // Active tab has shadow-sm class
     expect(uploadTab!.classes()).toContain('shadow-sm')
 
-    // ImageUploadPanel should be rendered
-    expect(wrapper.find('[data-testid="image-upload-panel"]').exists()).toBe(
+    // FileUploadPanel should be rendered
+    expect(wrapper.find('[data-testid="file-upload-panel"]').exists()).toBe(
       true,
     )
     // Others should not
     expect(wrapper.find('[data-testid="text-entry-panel"]').exists()).toBe(
-      false,
-    )
-    expect(wrapper.find('[data-testid="file-import-panel"]').exists()).toBe(
       false,
     )
   })
@@ -88,42 +80,42 @@ describe('CreateEntryView', () => {
     expect((dateInput.element as HTMLInputElement).value).toBe(today)
   })
 
-  it('switching to "Import File" tab shows FileImportPanel', async () => {
+  it('switching to "Write Entry" tab shows TextEntryPanel', async () => {
     const wrapper = mountView()
     const buttons = wrapper.findAll('button')
-    const importTab = buttons.find((b) => b.text() === 'Import File')
-    expect(importTab).toBeDefined()
+    const writeTab = buttons.find((b) => b.text() === 'Write Entry')
+    expect(writeTab).toBeDefined()
 
-    await importTab!.trigger('click')
+    await writeTab!.trigger('click')
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="file-import-panel"]').exists()).toBe(
+    expect(wrapper.find('[data-testid="text-entry-panel"]').exists()).toBe(
       true,
     )
-    expect(wrapper.find('[data-testid="text-entry-panel"]').exists()).toBe(
-      false,
-    )
-    expect(wrapper.find('[data-testid="image-upload-panel"]').exists()).toBe(
+    expect(wrapper.find('[data-testid="file-upload-panel"]').exists()).toBe(
       false,
     )
   })
 
-  it('switching to "Upload Images" tab shows ImageUploadPanel', async () => {
+  it('switching to "Upload Files" tab shows FileUploadPanel', async () => {
     const wrapper = mountView()
+    // Switch away first
     const buttons = wrapper.findAll('button')
-    const uploadTab = buttons.find((b) => b.text() === 'Upload Images')
-    expect(uploadTab).toBeDefined()
+    const writeTab = buttons.find((b) => b.text() === 'Write Entry')
+    await writeTab!.trigger('click')
+    await flushPromises()
 
+    // Switch back
+    const uploadTab = wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Upload Files')
     await uploadTab!.trigger('click')
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="image-upload-panel"]').exists()).toBe(
+    expect(wrapper.find('[data-testid="file-upload-panel"]').exists()).toBe(
       true,
     )
     expect(wrapper.find('[data-testid="text-entry-panel"]').exists()).toBe(
-      false,
-    )
-    expect(wrapper.find('[data-testid="file-import-panel"]').exists()).toBe(
       false,
     )
   })
@@ -144,8 +136,6 @@ describe('CreateEntryView', () => {
 
   it('does not show error banner when createError is null', () => {
     const wrapper = mountView()
-    // The error div uses v-if="entriesStore.createError"
-    // When null, it should not render
     const errorDivs = wrapper.findAll('.text-red-700')
     expect(errorDivs).toHaveLength(0)
   })
@@ -154,11 +144,11 @@ describe('CreateEntryView', () => {
     const wrapper = mountView()
     const pushSpy = vi.spyOn(router, 'push')
 
-    // ImageUploadPanel stub is rendered by default — find it by testid
-    const panel = wrapper.find('[data-testid="image-upload-panel"]')
+    // FileUploadPanel stub is rendered by default
+    const panel = wrapper.find('[data-testid="file-upload-panel"]')
     expect(panel.exists()).toBe(true)
 
-    // Call the handleCreated function via the component instance.
+    // Call the handleCreated function via the component instance
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const vm = wrapper.vm as any
     vm.handleCreated(42)
@@ -170,15 +160,12 @@ describe('CreateEntryView', () => {
     })
   })
 
-  it('renders the image upload panel by default', () => {
+  it('renders the file upload panel by default', () => {
     const wrapper = mountView()
-    expect(wrapper.find('[data-testid="image-upload-panel"]').exists()).toBe(
+    expect(wrapper.find('[data-testid="file-upload-panel"]').exists()).toBe(
       true,
     )
     expect(wrapper.find('[data-testid="text-entry-panel"]').exists()).toBe(
-      false,
-    )
-    expect(wrapper.find('[data-testid="file-import-panel"]').exists()).toBe(
       false,
     )
   })
@@ -187,8 +174,8 @@ describe('CreateEntryView', () => {
     const wrapper = mountView()
     const buttons = wrapper.findAll('button')
     const tabLabels = buttons.map((b) => b.text())
+    expect(tabLabels).toContain('Upload Files')
     expect(tabLabels).toContain('Write Entry')
-    expect(tabLabels).toContain('Import File')
-    expect(tabLabels).toContain('Upload Images')
+    expect(tabLabels).toContain('Record Voice')
   })
 })
