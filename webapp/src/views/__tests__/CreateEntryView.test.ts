@@ -89,9 +89,7 @@ describe('CreateEntryView', () => {
     await writeTab!.trigger('click')
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="text-entry-panel"]').exists()).toBe(
-      true,
-    )
+    expect(wrapper.find('[data-testid="text-entry-panel"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="file-upload-panel"]').exists()).toBe(
       false,
     )

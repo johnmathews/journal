@@ -156,10 +156,7 @@ async function submitImages() {
 
 async function submitText() {
   if (!textFile.value) return
-  const result = await entriesStore.importFile(
-    textFile.value,
-    props.entryDate,
-  )
+  const result = await entriesStore.importFile(textFile.value, props.entryDate)
   emit('created', result.entry.id)
 }
 
@@ -173,15 +170,6 @@ function acknowledge() {
 function clearFile() {
   textFile.value = null
   textPreview.value = ''
-  mode.value = 'idle'
-}
-
-function resetAll() {
-  imageFiles.value = []
-  textFile.value = null
-  textPreview.value = ''
-  jobId.value = null
-  submitError.value = null
   mode.value = 'idle'
 }
 
@@ -221,9 +209,7 @@ watch(currentJob, (job) => {
       </p>
       <p v-else class="text-sm text-gray-500 dark:text-gray-400 mb-6">
         <template
-          v-if="
-            currentJob?.progress_total && currentJob.progress_current === 0
-          "
+          v-if="currentJob?.progress_total && currentJob.progress_current === 0"
         >
           Uploading images...
         </template>

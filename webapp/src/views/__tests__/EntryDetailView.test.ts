@@ -1526,7 +1526,9 @@ describe('EntryDetailView', () => {
       const wrapper = await mountWithSpans([{ char_start: 6, char_end: 12 }])
 
       // Should be in read mode (not edit)
-      expect(wrapper.find('[data-testid="reading-display"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="reading-display"]').exists()).toBe(
+        true,
+      )
       expect(wrapper.find('[data-testid="corrected-textarea"]').exists()).toBe(
         false,
       )

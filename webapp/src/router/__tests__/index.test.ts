@@ -37,21 +37,45 @@ vi.mock('@/stores/auth', () => ({
 // try to import real Vue SFCs (which need the full build pipeline).
 vi.mock('@/views/LoginView.vue', () => ({ default: { template: '<div/>' } }))
 vi.mock('@/views/RegisterView.vue', () => ({ default: { template: '<div/>' } }))
-vi.mock('@/views/ForgotPasswordView.vue', () => ({ default: { template: '<div/>' } }))
-vi.mock('@/views/ResetPasswordView.vue', () => ({ default: { template: '<div/>' } }))
-vi.mock('@/views/VerifyEmailView.vue', () => ({ default: { template: '<div/>' } }))
-vi.mock('@/views/DashboardView.vue', () => ({ default: { template: '<div/>' } }))
-vi.mock('@/views/EntryListView.vue', () => ({ default: { template: '<div/>' } }))
-vi.mock('@/views/CreateEntryView.vue', () => ({ default: { template: '<div/>' } }))
-vi.mock('@/views/EntryDetailView.vue', () => ({ default: { template: '<div/>' } }))
+vi.mock('@/views/ForgotPasswordView.vue', () => ({
+  default: { template: '<div/>' },
+}))
+vi.mock('@/views/ResetPasswordView.vue', () => ({
+  default: { template: '<div/>' },
+}))
+vi.mock('@/views/VerifyEmailView.vue', () => ({
+  default: { template: '<div/>' },
+}))
+vi.mock('@/views/DashboardView.vue', () => ({
+  default: { template: '<div/>' },
+}))
+vi.mock('@/views/EntryListView.vue', () => ({
+  default: { template: '<div/>' },
+}))
+vi.mock('@/views/CreateEntryView.vue', () => ({
+  default: { template: '<div/>' },
+}))
+vi.mock('@/views/EntryDetailView.vue', () => ({
+  default: { template: '<div/>' },
+}))
 vi.mock('@/views/SearchView.vue', () => ({ default: { template: '<div/>' } }))
-vi.mock('@/views/EntityListView.vue', () => ({ default: { template: '<div/>' } }))
-vi.mock('@/views/EntityDetailView.vue', () => ({ default: { template: '<div/>' } }))
-vi.mock('@/views/JobHistoryView.vue', () => ({ default: { template: '<div/>' } }))
+vi.mock('@/views/EntityListView.vue', () => ({
+  default: { template: '<div/>' },
+}))
+vi.mock('@/views/EntityDetailView.vue', () => ({
+  default: { template: '<div/>' },
+}))
+vi.mock('@/views/JobHistoryView.vue', () => ({
+  default: { template: '<div/>' },
+}))
 vi.mock('@/views/SettingsView.vue', () => ({ default: { template: '<div/>' } }))
 vi.mock('@/views/ApiKeysView.vue', () => ({ default: { template: '<div/>' } }))
-vi.mock('@/views/admin/AdminLayout.vue', () => ({ default: { template: '<div><router-view/></div>' } }))
-vi.mock('@/views/admin/AdminDashboard.vue', () => ({ default: { template: '<div/>' } }))
+vi.mock('@/views/admin/AdminLayout.vue', () => ({
+  default: { template: '<div><router-view/></div>' },
+}))
+vi.mock('@/views/admin/AdminDashboard.vue', () => ({
+  default: { template: '<div/>' },
+}))
 
 import router from '../index'
 import { useAuthStore } from '@/stores/auth'
