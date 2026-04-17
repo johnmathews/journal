@@ -95,6 +95,13 @@ describe('RegisterView', () => {
     expect(button.text()).toBe('Creating account...')
   })
 
+  it('shows full name helper text on display name field', () => {
+    const wrapper = mountComponent()
+    const hint = wrapper.find('[data-testid="register-name-hint"]')
+    expect(hint.exists()).toBe(true)
+    expect(hint.text()).toContain('full name')
+  })
+
   it('shows sign in link', () => {
     const wrapper = mountComponent()
     expect(wrapper.text()).toContain('Already have an account?')

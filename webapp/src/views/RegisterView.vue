@@ -63,11 +63,18 @@ async function handleRegister() {
                 v-model="displayName"
                 type="text"
                 class="form-input w-full"
-                placeholder="Your name"
+                placeholder="e.g. John Mathews"
                 required
                 autocomplete="name"
                 @focus="authStore.clearError()"
               />
+              <p
+                class="mt-1 text-xs text-gray-400 dark:text-gray-500"
+                data-testid="register-name-hint"
+              >
+                Use your full name — it helps the system understand who
+                first-person pronouns refer to in your journal entries
+              </p>
             </div>
 
             <div>

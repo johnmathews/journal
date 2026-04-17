@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, ref } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
+import { useAuthStore } from '@/stores/auth'
+import { useJobsStore } from '@/stores/jobs'
+import { triggerEntityExtraction } from '@/api/entities'
 import {
   ocrCostPerPage,
   transcriptionCostPerMinute,
@@ -11,6 +14,66 @@ import {
 } from '@/utils/cost-estimates'
 
 const store = useSettingsStore()
+const authStore = useAuthStore()
+const jobsStore = useJobsStore()
+
+const editingName = ref(false)
+const nameInput = ref('')
+const nameSaving = ref(false)
+const nameError = ref<string | null>(null)
+const showReextractPrompt = ref(false)
+const reextractSubmitting = ref(false)
+
+function startEditingName() {
+  nameInput.value = authStore.displayName
+  nameError.value = null
+  editingName.value = true
+}
+
+function cancelEditingName() {
+  editingName.value = false
+  nameError.value = null
+}
+
+async function saveDisplayName() {
+  const trimmed = nameInput.value.trim()
+  if (!trimmed) {
+    nameError.value = 'Name cannot be empty'
+    return
+  }
+  if (trimmed === authStore.displayName) {
+    editingName.value = false
+    return
+  }
+  nameSaving.value = true
+  nameError.value = null
+  try {
+    await authStore.updateDisplayName(trimmed)
+    editingName.value = false
+    showReextractPrompt.value = true
+  } catch {
+    nameError.value = 'Failed to update name'
+  } finally {
+    nameSaving.value = false
+  }
+}
+
+async function triggerReextraction() {
+  reextractSubmitting.value = true
+  try {
+    const resp = await triggerEntityExtraction({ stale_only: false })
+    jobsStore.trackJob(resp.job_id, 'entity_extraction', {})
+    showReextractPrompt.value = false
+  } catch {
+    // Prompt stays open so user can retry
+  } finally {
+    reextractSubmitting.value = false
+  }
+}
+
+function dismissReextractPrompt() {
+  showReextractPrompt.value = false
+}
 
 onMounted(() => {
   store.load()
@@ -480,13 +543,88 @@ const entityCost = computed(() => {
                   {{ store.settings.embedding.model }}
                 </dd>
               </div>
-              <div class="flex justify-between sm:block">
+              <div class="flex justify-between sm:block" data-testid="author-name-field">
                 <dt class="text-gray-500 dark:text-gray-400">Author Name</dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
-                  {{ store.settings.features.journal_author_name }}
+                  <template v-if="!editingName">
+                    <span data-testid="author-name-value">{{ authStore.displayName }}</span>
+                    <button
+                      class="ml-2 text-xs text-violet-500 hover:text-violet-600 dark:hover:text-violet-400"
+                      data-testid="author-name-edit-btn"
+                      @click="startEditingName"
+                    >
+                      Edit
+                    </button>
+                  </template>
+                  <template v-else>
+                    <div class="flex items-center gap-2 mt-1">
+                      <input
+                        v-model="nameInput"
+                        type="text"
+                        class="form-input text-sm py-1 px-2 w-48"
+                        data-testid="author-name-input"
+                        @keyup.enter="saveDisplayName"
+                        @keyup.escape="cancelEditingName"
+                      />
+                      <button
+                        class="text-xs text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 disabled:opacity-50"
+                        data-testid="author-name-save-btn"
+                        :disabled="nameSaving"
+                        @click="saveDisplayName"
+                      >
+                        {{ nameSaving ? 'Saving...' : 'Save' }}
+                      </button>
+                      <button
+                        class="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                        data-testid="author-name-cancel-btn"
+                        @click="cancelEditingName"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <p
+                      v-if="nameError"
+                      class="text-xs text-red-600 dark:text-red-400 mt-1"
+                      data-testid="author-name-error"
+                    >
+                      {{ nameError }}
+                    </p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      Use your full name (e.g. John Mathews) for accurate entity extraction
+                    </p>
+                  </template>
                 </dd>
               </div>
             </dl>
+          </div>
+
+          <!-- Re-extract prompt -->
+          <div
+            v-if="showReextractPrompt"
+            class="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/60 rounded-xl"
+            data-testid="reextract-prompt"
+          >
+            <p class="text-sm text-amber-800 dark:text-amber-200 mb-3">
+              Author name changed. Re-run entity extraction on all entries so first-person
+              pronouns resolve to the updated name?
+            </p>
+            <div class="flex gap-2">
+              <button
+                class="btn text-xs bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50"
+                data-testid="reextract-confirm-btn"
+                :disabled="reextractSubmitting"
+                @click="triggerReextraction"
+              >
+                {{ reextractSubmitting ? 'Submitting...' : 'Re-run extraction' }}
+              </button>
+              <button
+                class="btn text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                data-testid="reextract-dismiss-btn"
+                @click="dismissReextractPrompt"
+              >
+                Skip
+              </button>
+            </div>
           </div>
         </div>
       </section>

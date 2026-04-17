@@ -275,6 +275,38 @@ describe('useAuthStore', () => {
     expect(store.emailVerified).toBe(false)
   })
 
+  // --- updateDisplayName ---
+
+  it('updateDisplayName calls PATCH /api/auth/me and updates user', async () => {
+    const updatedUser = { ...fakeUser, display_name: 'New Name' }
+    mockApiFetch
+      .mockResolvedValueOnce({ user: fakeUser }) // initialize
+      .mockResolvedValueOnce({ user: updatedUser }) // updateDisplayName
+
+    const store = useAuthStore()
+    await store.initialize()
+    await store.updateDisplayName('New Name')
+
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/auth/me', {
+      method: 'PATCH',
+      body: JSON.stringify({ display_name: 'New Name' }),
+    })
+    expect(store.user?.display_name).toBe('New Name')
+    expect(store.displayName).toBe('New Name')
+  })
+
+  it('updateDisplayName throws on failure without changing user', async () => {
+    mockApiFetch
+      .mockResolvedValueOnce({ user: fakeUser }) // initialize
+      .mockRejectedValueOnce(new Error('Server error')) // updateDisplayName
+
+    const store = useAuthStore()
+    await store.initialize()
+
+    await expect(store.updateDisplayName('Bad')).rejects.toThrow()
+    expect(store.user?.display_name).toBe('Test User')
+  })
+
   // --- clearError ---
 
   it('clearError resets error to null', async () => {

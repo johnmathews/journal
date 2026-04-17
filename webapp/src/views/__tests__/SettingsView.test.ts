@@ -3,15 +3,39 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import SettingsView from '../SettingsView.vue'
+import { useAuthStore } from '@/stores/auth'
 import type { HealthResponse, ServerSettings } from '@/types/settings'
 
 const mockFetchSettings = vi.fn()
 const mockFetchHealth = vi.fn()
+const mockTriggerEntityExtraction = vi.fn()
 
 vi.mock('@/api/settings', () => ({
   fetchSettings: (...args: unknown[]) => mockFetchSettings(...args),
   fetchHealth: (...args: unknown[]) => mockFetchHealth(...args),
 }))
+
+vi.mock('@/api/entities', () => ({
+  triggerEntityExtraction: (...args: unknown[]) =>
+    mockTriggerEntityExtraction(...args),
+}))
+
+vi.mock('@/api/client', () => ({
+  apiFetch: vi.fn(),
+  ApiRequestError: class ApiRequestError extends Error {
+    constructor(
+      public status: number,
+      public errorCode: string,
+      message: string,
+    ) {
+      super(message)
+      this.name = 'ApiRequestError'
+    }
+  },
+}))
+
+import { apiFetch } from '@/api/client'
+const mockApiFetch = vi.mocked(apiFetch)
 
 function makeSettings(overrides: Partial<ServerSettings> = {}): ServerSettings {
   return {
@@ -90,11 +114,25 @@ describe('SettingsView', () => {
   ) {
     mockFetchSettings.mockResolvedValue(settings)
     mockFetchHealth.mockResolvedValue(health)
+    const pinia = createPinia()
     const router = makeRouter()
     await router.push('/settings')
     await router.isReady()
+    // Pre-populate the auth store with a user
+    setActivePinia(pinia)
+    const authStore = useAuthStore()
+    authStore.user = {
+      id: 1,
+      email: 'john@example.com',
+      display_name: 'John Mathews',
+      is_admin: false,
+      is_active: true,
+      email_verified: true,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    }
     const wrapper = mount(SettingsView, {
-      global: { plugins: [createPinia(), router] },
+      global: { plugins: [pinia, router] },
     })
     await flushPromises()
     return wrapper
@@ -258,5 +296,175 @@ describe('SettingsView', () => {
     expect(mood.text()).toContain('Disabled')
     expect(mood.text()).not.toContain('claude-sonnet-4-5')
     expect(wrapper.find('[data-testid="mood-cost"]').exists()).toBe(false)
+  })
+
+  // --- Author name editing ---
+
+  it('displays author name from auth store, not server settings', async () => {
+    const wrapper = await mountView()
+    expect(
+      wrapper.find('[data-testid="author-name-value"]').text(),
+    ).toBe('John Mathews')
+  })
+
+  it('shows edit button for author name', async () => {
+    const wrapper = await mountView()
+    expect(
+      wrapper.find('[data-testid="author-name-edit-btn"]').exists(),
+    ).toBe(true)
+  })
+
+  it('clicking Edit shows input with current name', async () => {
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="author-name-edit-btn"]').trigger('click')
+    const input = wrapper.find(
+      '[data-testid="author-name-input"]',
+    )
+    expect(input.exists()).toBe(true)
+    expect((input.element as HTMLInputElement).value).toBe('John Mathews')
+  })
+
+  it('clicking Cancel hides the input', async () => {
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="author-name-edit-btn"]').trigger('click')
+    expect(
+      wrapper.find('[data-testid="author-name-input"]').exists(),
+    ).toBe(true)
+    await wrapper
+      .find('[data-testid="author-name-cancel-btn"]')
+      .trigger('click')
+    expect(
+      wrapper.find('[data-testid="author-name-input"]').exists(),
+    ).toBe(false)
+  })
+
+  it('saving unchanged name closes editor without API call', async () => {
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="author-name-edit-btn"]').trigger('click')
+    await wrapper.find('[data-testid="author-name-save-btn"]').trigger('click')
+    await flushPromises()
+    expect(mockApiFetch).not.toHaveBeenCalledWith(
+      '/api/auth/me',
+      expect.anything(),
+    )
+    expect(
+      wrapper.find('[data-testid="author-name-input"]').exists(),
+    ).toBe(false)
+  })
+
+  it('saving new name calls updateDisplayName and shows re-extract prompt', async () => {
+    mockApiFetch.mockResolvedValueOnce({
+      user: {
+        id: 1,
+        email: 'john@example.com',
+        display_name: 'Johnny M',
+        is_admin: false,
+        is_active: true,
+        email_verified: true,
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+      },
+    })
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="author-name-edit-btn"]').trigger('click')
+    await wrapper.find('[data-testid="author-name-input"]').setValue('Johnny M')
+    await wrapper.find('[data-testid="author-name-save-btn"]').trigger('click')
+    await flushPromises()
+
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/auth/me', {
+      method: 'PATCH',
+      body: JSON.stringify({ display_name: 'Johnny M' }),
+    })
+    expect(
+      wrapper.find('[data-testid="reextract-prompt"]').exists(),
+    ).toBe(true)
+  })
+
+  it('shows error when saving name fails', async () => {
+    mockApiFetch.mockRejectedValueOnce(new Error('Server error'))
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="author-name-edit-btn"]').trigger('click')
+    await wrapper.find('[data-testid="author-name-input"]').setValue('New Name')
+    await wrapper.find('[data-testid="author-name-save-btn"]').trigger('click')
+    await flushPromises()
+
+    expect(
+      wrapper.find('[data-testid="author-name-error"]').text(),
+    ).toBe('Failed to update name')
+  })
+
+  it('shows error for empty name', async () => {
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="author-name-edit-btn"]').trigger('click')
+    await wrapper.find('[data-testid="author-name-input"]').setValue('  ')
+    await wrapper.find('[data-testid="author-name-save-btn"]').trigger('click')
+    await flushPromises()
+
+    expect(
+      wrapper.find('[data-testid="author-name-error"]').text(),
+    ).toBe('Name cannot be empty')
+  })
+
+  it('dismiss button hides re-extract prompt', async () => {
+    mockApiFetch.mockResolvedValueOnce({
+      user: {
+        id: 1,
+        email: 'john@example.com',
+        display_name: 'New',
+        is_admin: false,
+        is_active: true,
+        email_verified: true,
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+      },
+    })
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="author-name-edit-btn"]').trigger('click')
+    await wrapper.find('[data-testid="author-name-input"]').setValue('New')
+    await wrapper.find('[data-testid="author-name-save-btn"]').trigger('click')
+    await flushPromises()
+
+    await wrapper
+      .find('[data-testid="reextract-dismiss-btn"]')
+      .trigger('click')
+    expect(
+      wrapper.find('[data-testid="reextract-prompt"]').exists(),
+    ).toBe(false)
+  })
+
+  it('confirm re-extract triggers entity extraction', async () => {
+    mockApiFetch.mockResolvedValueOnce({
+      user: {
+        id: 1,
+        email: 'john@example.com',
+        display_name: 'New',
+        is_admin: false,
+        is_active: true,
+        email_verified: true,
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+      },
+    })
+    mockTriggerEntityExtraction.mockResolvedValueOnce({
+      job_id: 'job-123',
+      status: 'queued',
+    })
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="author-name-edit-btn"]').trigger('click')
+    await wrapper.find('[data-testid="author-name-input"]').setValue('New')
+    await wrapper.find('[data-testid="author-name-save-btn"]').trigger('click')
+    await flushPromises()
+
+    await wrapper
+      .find('[data-testid="reextract-confirm-btn"]')
+      .trigger('click')
+    await flushPromises()
+
+    expect(mockTriggerEntityExtraction).toHaveBeenCalledWith({
+      stale_only: false,
+    })
+    expect(
+      wrapper.find('[data-testid="reextract-prompt"]').exists(),
+    ).toBe(false)
   })
 })

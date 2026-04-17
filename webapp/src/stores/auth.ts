@@ -98,6 +98,14 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function updateDisplayName(displayName: string): Promise<void> {
+    const resp = await apiFetch<{ user: AuthUser }>('/api/auth/me', {
+      method: 'PATCH',
+      body: JSON.stringify({ display_name: displayName }),
+    })
+    user.value = resp.user
+  }
+
   function clearError(): void {
     error.value = null
   }
@@ -122,6 +130,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     logout,
     register,
+    updateDisplayName,
     clearError,
     $reset,
   }
