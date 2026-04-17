@@ -216,7 +216,7 @@ describe('JobHistoryView', () => {
         result: { entities_created: 5, relationships: 2 },
       }),
     ])
-    expect(wrapper.text()).toContain('entities_created')
+    expect(wrapper.text()).toContain('Entities Created: 5')
   })
 
   it('shows dash for params with no recognized fields', async () => {

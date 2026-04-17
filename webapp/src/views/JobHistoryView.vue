@@ -12,6 +12,28 @@ const page = ref(0)
 const pageSize = 25
 const filterStatus = ref<string>('')
 const filterType = ref<string>('')
+const expandedRows = ref<Set<string>>(new Set())
+
+function toggleExpand(jobId: string) {
+  const s = expandedRows.value
+  if (s.has(jobId)) s.delete(jobId)
+  else s.add(jobId)
+}
+
+function formatResultKey(key: string): string {
+  return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function resultSummary(result: Record<string, unknown>): string {
+  const parts: string[] = []
+  for (const [k, v] of Object.entries(result)) {
+    if (k === 'warnings' && Array.isArray(v) && v.length === 0) continue
+    if (typeof v === 'number' || typeof v === 'string') {
+      parts.push(`${formatResultKey(k)}: ${v}`)
+    }
+  }
+  return parts.join(', ') || JSON.stringify(result)
+}
 
 const totalPages = computed(() =>
   Math.max(1, Math.ceil(total.value / pageSize)),
@@ -247,9 +269,7 @@ function nextPage() {
             >
               {{ duration(job) }}
             </td>
-            <td
-              class="px-4 py-3 text-gray-500 dark:text-gray-400 max-w-[250px] truncate"
-            >
+            <td class="px-4 py-3 text-gray-500 dark:text-gray-400 max-w-[350px]">
               <template v-if="job.status === 'failed' && job.error_message">
                 <span class="text-red-500 dark:text-red-400">{{
                   job.error_message
@@ -262,7 +282,42 @@ function nextPage() {
                 <span v-else class="text-violet-500">Running...</span>
               </template>
               <template v-else-if="job.status === 'succeeded' && job.result">
-                {{ JSON.stringify(job.result).slice(0, 80) }}
+                <button
+                  type="button"
+                  class="text-left w-full group"
+                  :data-testid="`job-details-toggle-${job.id}`"
+                  @click="toggleExpand(job.id)"
+                >
+                  <div
+                    v-if="!expandedRows.has(job.id)"
+                    class="truncate group-hover:text-gray-700 dark:group-hover:text-gray-200 cursor-pointer"
+                  >
+                    {{ resultSummary(job.result) }}
+                    <span
+                      class="ml-1 text-xs text-gray-400 dark:text-gray-500 group-hover:text-violet-500"
+                      >+</span
+                    >
+                  </div>
+                  <dl
+                    v-else
+                    class="space-y-0.5 text-xs cursor-pointer"
+                  >
+                    <div
+                      v-for="(v, k) in job.result"
+                      :key="String(k)"
+                      class="flex gap-2"
+                    >
+                      <dt class="font-medium text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                        {{ formatResultKey(String(k)) }}:
+                      </dt>
+                      <dd>
+                        <template v-if="Array.isArray(v) && v.length === 0">none</template>
+                        <template v-else-if="Array.isArray(v)">{{ v.join(', ') }}</template>
+                        <template v-else>{{ v }}</template>
+                      </dd>
+                    </div>
+                  </dl>
+                </button>
               </template>
               <template v-else>-</template>
             </td>
