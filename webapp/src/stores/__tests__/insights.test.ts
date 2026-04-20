@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useInsightsStore } from '../insights'
 import { ApiRequestError } from '@/api/client'
+import type { InsightsEntityType } from '@/types/insights'
 
 vi.mock('@/api/insights', () => ({
   fetchMoodDimensions: vi.fn(),
@@ -345,7 +346,10 @@ describe('insights store', () => {
 
     it('loadMoodTrends applies range override', async () => {
       mockMoodTrends.mockResolvedValue({
-        from: null, to: null, bin: 'month', bins: [],
+        from: null,
+        to: null,
+        bin: 'month',
+        bins: [],
       })
       const store = useInsightsStore()
       await store.loadMoodTrends({ range: 'last_1_year', bin: 'month' })
@@ -355,10 +359,14 @@ describe('insights store', () => {
 
     it('loadEntityDistribution without explicit type uses current', async () => {
       mockEntityDist.mockResolvedValue({
-        type: 'topic', from: null, to: null, total: 0, items: [],
+        type: 'topic',
+        from: null,
+        to: null,
+        total: 0,
+        items: [],
       })
       const store = useInsightsStore()
-      store.entityType = 'activity' as any
+      store.entityType = 'activity' as InsightsEntityType
       await store.loadEntityDistribution()
       expect(store.entityType).toBe('activity')
     })
