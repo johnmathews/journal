@@ -231,4 +231,182 @@ describe('InsightsView', () => {
       true,
     )
   })
+
+  it('shows mood error state', async () => {
+    vi.mocked(fetchMoodDimensions).mockResolvedValue({
+      dimensions: fakeDimensions,
+    })
+    vi.mocked(fetchMoodTrends).mockRejectedValue(new Error('server down'))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="insights-mood-error"]').exists()).toBe(
+      true,
+    )
+  })
+
+  it('shows entity error state', async () => {
+    vi.mocked(fetchEntityDistribution).mockRejectedValue(new Error('fail'))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="insights-entity-error"]').exists()).toBe(
+      true,
+    )
+  })
+
+  it('hides mood section when scoring is disabled', async () => {
+    vi.mocked(fetchMoodDimensions).mockResolvedValue({ dimensions: [] })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="insights-mood-section"]').exists()).toBe(
+      false,
+    )
+  })
+
+  it('shows drill-down panel when drillPeriod is set', async () => {
+    vi.mocked(fetchMoodDimensions).mockResolvedValue({
+      dimensions: fakeDimensions,
+    })
+    vi.mocked(fetchMoodTrends).mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: [
+        {
+          period: '2026-04-14',
+          dimension: 'agency',
+          avg_score: 0.7,
+          entry_count: 3,
+          score_min: 0.5,
+          score_max: 0.9,
+        },
+      ],
+    })
+    const { fetchMoodDrilldown } = await import('@/api/insights')
+    vi.mocked(fetchMoodDrilldown).mockResolvedValue({
+      dimension: 'agency',
+      from: '2026-04-14',
+      to: '2026-04-20',
+      entries: [
+        {
+          entry_id: 42,
+          entry_date: '2026-04-15',
+          score: 0.72,
+          confidence: 0.88,
+          rationale: 'Took initiative on project.',
+        },
+        {
+          entry_id: 43,
+          entry_date: '2026-04-16',
+          score: -0.3,
+          confidence: null,
+          rationale: null,
+        },
+      ],
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Trigger drill-down via store
+    const { useInsightsStore } = await import('@/stores/insights')
+    const store = useInsightsStore()
+    await store.loadDrillDown('2026-04-14', 'agency')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="insights-drilldown"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="insights-drilldown-table"]').exists()).toBe(true)
+    const rows = wrapper.findAll('[data-testid="insights-drilldown-table"] tbody tr')
+    expect(rows).toHaveLength(2)
+
+    // Close drill-down
+    await wrapper.find('[data-testid="insights-drilldown-close"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="insights-drilldown"]').exists()).toBe(false)
+  })
+
+  it('clicking a range button changes the filter', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const btn = wrapper.find('[data-testid="insights-range-last_1_year"]')
+    expect(btn.exists()).toBe(true)
+    await btn.trigger('click')
+    await flushPromises()
+    const { useInsightsStore } = await import('@/stores/insights')
+    const store = useInsightsStore()
+    expect(store.range).toBe('last_1_year')
+  })
+
+  it('clicking a bin button changes the filter', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const btn = wrapper.find('[data-testid="insights-bin-month"]')
+    expect(btn.exists()).toBe(true)
+    await btn.trigger('click')
+    await flushPromises()
+    const { useInsightsStore } = await import('@/stores/insights')
+    const store = useInsightsStore()
+    expect(store.bin).toBe('month')
+  })
+
+  it('clicking entity type tab changes the type', async () => {
+    vi.mocked(fetchEntityDistribution).mockResolvedValue({
+      type: 'activity',
+      from: null,
+      to: null,
+      total: 0,
+      items: [],
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.find('[data-testid="insights-entity-tab-activity"]').trigger('click')
+    await flushPromises()
+    const { useInsightsStore } = await import('@/stores/insights')
+    const store = useInsightsStore()
+    expect(store.entityType).toBe('activity')
+  })
+
+  it('clicking mood dimension toggle calls store', async () => {
+    vi.mocked(fetchMoodDimensions).mockResolvedValue({
+      dimensions: fakeDimensions,
+    })
+    vi.mocked(fetchMoodTrends).mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: [
+        {
+          period: '2026-04-14',
+          dimension: 'agency',
+          avg_score: 0.7,
+          entry_count: 1,
+          score_min: 0.7,
+          score_max: 0.7,
+        },
+      ],
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    const toggle = wrapper.find('[data-testid="insights-mood-toggle-joy_sadness"]')
+    expect(toggle.exists()).toBe(true)
+    await toggle.trigger('click')
+    await flushPromises()
+    const { useInsightsStore } = await import('@/stores/insights')
+    const store = useInsightsStore()
+    // After clicking joy_sadness (which was hidden), it should now be isolated
+    expect(store.hiddenMoodDimensions.has('agency')).toBe(true)
+    expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(false)
+  })
+
+  it('shows mood loading state', async () => {
+    vi.mocked(fetchMoodDimensions).mockResolvedValue({
+      dimensions: fakeDimensions,
+    })
+    // Make mood trends hang forever
+    vi.mocked(fetchMoodTrends).mockReturnValue(new Promise(() => {}))
+    const wrapper = mountView()
+    // Don't flush — let it stay in loading state
+    await new Promise((r) => setTimeout(r, 10))
+    expect(wrapper.find('[data-testid="insights-mood-loading"]').exists()).toBe(
+      true,
+    )
+  })
 })

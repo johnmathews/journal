@@ -297,4 +297,81 @@ describe('insights store', () => {
       expect(store.moodHasLoaded).toBe(false)
     })
   })
+
+  describe('error branch coverage', () => {
+    it('loadMoodTrends handles generic Error', async () => {
+      mockMoodTrends.mockRejectedValue(new Error('generic'))
+      const store = useInsightsStore()
+      await store.loadMoodTrends()
+      expect(store.moodError).toBe('generic')
+    })
+
+    it('loadMoodTrends handles non-Error throw', async () => {
+      mockMoodTrends.mockRejectedValue('string error')
+      const store = useInsightsStore()
+      await store.loadMoodTrends()
+      expect(store.moodError).toBe('Failed to load mood data')
+    })
+
+    it('loadDrillDown handles ApiRequestError', async () => {
+      mockDrilldown.mockRejectedValue(
+        new ApiRequestError(400, 'bad', 'bad request'),
+      )
+      const store = useInsightsStore()
+      await store.loadDrillDown('2026-04-14', 'agency')
+      expect(store.drillError).toBe('bad request')
+    })
+
+    it('loadDrillDown handles non-Error throw', async () => {
+      mockDrilldown.mockRejectedValue(42)
+      const store = useInsightsStore()
+      await store.loadDrillDown('2026-04-14', 'agency')
+      expect(store.drillError).toBe('Failed to load drill-down data')
+    })
+
+    it('loadEntityDistribution handles generic Error', async () => {
+      mockEntityDist.mockRejectedValue(new Error('net fail'))
+      const store = useInsightsStore()
+      await store.loadEntityDistribution()
+      expect(store.entityError).toBe('net fail')
+    })
+
+    it('loadEntityDistribution handles non-Error throw', async () => {
+      mockEntityDist.mockRejectedValue(null)
+      const store = useInsightsStore()
+      await store.loadEntityDistribution()
+      expect(store.entityError).toBe('Failed to load entity distribution')
+    })
+
+    it('loadMoodTrends applies range override', async () => {
+      mockMoodTrends.mockResolvedValue({
+        from: null, to: null, bin: 'month', bins: [],
+      })
+      const store = useInsightsStore()
+      await store.loadMoodTrends({ range: 'last_1_year', bin: 'month' })
+      expect(store.range).toBe('last_1_year')
+      expect(store.bin).toBe('month')
+    })
+
+    it('loadEntityDistribution without explicit type uses current', async () => {
+      mockEntityDist.mockResolvedValue({
+        type: 'topic', from: null, to: null, total: 0, items: [],
+      })
+      const store = useInsightsStore()
+      store.entityType = 'activity' as any
+      await store.loadEntityDistribution()
+      expect(store.entityType).toBe('activity')
+    })
+
+    it('loadMoodDimensions does not re-apply defaults on second call', async () => {
+      mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+      const store = useInsightsStore()
+      await store.loadMoodDimensions()
+      // Manually show all
+      store.hiddenMoodDimensions = new Set()
+      // Second call should not reapply defaults
+      await store.loadMoodDimensions()
+      expect(store.hiddenMoodDimensions.size).toBe(0)
+    })
+  })
 })
