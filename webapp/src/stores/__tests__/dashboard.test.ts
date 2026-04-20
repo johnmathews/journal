@@ -210,7 +210,7 @@ describe('useDashboardStore — mood surface', () => {
     expect(store.moodScoringEnabled).toBe(true)
   })
 
-  it('loadMoodDimensions hides non-default dimensions on first load', async () => {
+  it('loadMoodDimensions isolates agency by default on first load', async () => {
     const dims = [
       { ...fakeDimensions[0], name: 'joy_sadness' },
       { ...fakeDimensions[1], name: 'agency' },
@@ -221,12 +221,12 @@ describe('useDashboardStore — mood surface', () => {
     mockMoodDims.mockResolvedValue({ dimensions: dims })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
-    // Only joy_sadness, agency, proactive_reactive should be visible
+    // Only agency should be visible (isolated)
+    expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(true)
     expect(store.hiddenMoodDimensions.has('anxiety_eagerness')).toBe(true)
+    expect(store.hiddenMoodDimensions.has('proactive_reactive')).toBe(true)
     expect(store.hiddenMoodDimensions.has('fulfillment')).toBe(true)
-    expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(false)
     expect(store.hiddenMoodDimensions.has('agency')).toBe(false)
-    expect(store.hiddenMoodDimensions.has('proactive_reactive')).toBe(false)
   })
 
   it('loadMoodDimensions does not reapply defaults on subsequent calls', async () => {

@@ -85,14 +85,9 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const moodBins = ref<MoodTrendBin[]>([])
   // Dimensions the user has toggled OFF in the chart UI. Stored
   // as a Set<string> so flipping a toggle is O(1). Not
-  // persisted across sessions — defaults to showing only
-  // joy_sadness, agency, and proactive_reactive.
+  // persisted across sessions — defaults to isolating agency.
   const hiddenMoodDimensions = ref<Set<string>>(new Set())
-  const DEFAULT_VISIBLE_MOODS = new Set([
-    'joy_sadness',
-    'agency',
-    'proactive_reactive',
-  ])
+  const DEFAULT_ISOLATED_MOOD = 'agency'
   let moodDefaultsApplied = false
   const moodLoading = ref(false)
   const moodError = ref<string | null>(null)
@@ -154,7 +149,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
         hiddenMoodDimensions.value = new Set(
           response.dimensions
             .map((d) => d.name)
-            .filter((n) => !DEFAULT_VISIBLE_MOODS.has(n)),
+            .filter((n) => n !== DEFAULT_ISOLATED_MOOD),
         )
         moodDefaultsApplied = true
       }
