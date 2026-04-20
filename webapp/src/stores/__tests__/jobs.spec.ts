@@ -10,6 +10,9 @@ vi.mock('@/api/entities', () => ({
 vi.mock('@/api/jobs', () => ({
   triggerMoodBackfill: vi.fn(),
   getJob: vi.fn(),
+  listJobs: vi
+    .fn()
+    .mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 }),
 }))
 
 /**
@@ -296,5 +299,87 @@ describe('jobs store', () => {
     await flushPoll()
     expect(getJob).toHaveBeenCalledWith('ext-1')
     expect(store.getJobById('ext-1')?.status).toBe('running')
+  })
+
+  it('hydrateActiveJobs fetches queued and running jobs from the API', async () => {
+    const { listJobs, getJob } = await import('@/api/jobs')
+    const runningJob = makeJob({
+      id: 'srv-1',
+      status: 'running',
+      type: 'ingest_images',
+    })
+    const queuedJob = makeJob({
+      id: 'srv-2',
+      status: 'queued',
+      type: 'mood_backfill',
+    })
+
+    vi.mocked(listJobs)
+      .mockResolvedValueOnce({
+        items: [queuedJob],
+        total: 1,
+        limit: 50,
+        offset: 0,
+      })
+      .mockResolvedValueOnce({
+        items: [runningJob],
+        total: 1,
+        limit: 50,
+        offset: 0,
+      })
+    vi.mocked(getJob).mockImplementation(() => new Promise<Job>(() => {}))
+
+    const store = useJobsStore()
+    await store.hydrateActiveJobs()
+
+    expect(listJobs).toHaveBeenCalledWith({ status: 'queued', limit: 50 })
+    expect(listJobs).toHaveBeenCalledWith({ status: 'running', limit: 50 })
+    expect(store.getJobById('srv-1')).toBeDefined()
+    expect(store.getJobById('srv-1')?.status).toBe('running')
+    expect(store.getJobById('srv-2')).toBeDefined()
+    expect(store.getJobById('srv-2')?.status).toBe('queued')
+  })
+
+  it('hydrateActiveJobs does not overwrite locally-tracked jobs', async () => {
+    const { listJobs, getJob } = await import('@/api/jobs')
+    const serverJob = makeJob({
+      id: 'dup-1',
+      status: 'running',
+      progress_current: 5,
+    })
+
+    vi.mocked(listJobs).mockResolvedValue({
+      items: [serverJob],
+      total: 1,
+      limit: 50,
+      offset: 0,
+    })
+    vi.mocked(getJob).mockImplementation(() => new Promise<Job>(() => {}))
+
+    const store = useJobsStore()
+    // Simulate a job already tracked in this session
+    store.trackJob('dup-1', 'ingest_images', {})
+
+    await store.hydrateActiveJobs()
+
+    // Should keep the local placeholder (status queued), not overwrite with server state
+    expect(store.getJobById('dup-1')?.status).toBe('queued')
+  })
+
+  it('hydrateActiveJobs only runs once', async () => {
+    const { listJobs } = await import('@/api/jobs')
+    vi.mocked(listJobs).mockResolvedValue({
+      items: [],
+      total: 0,
+      limit: 50,
+      offset: 0,
+    })
+
+    const store = useJobsStore()
+    await store.hydrateActiveJobs()
+    await store.hydrateActiveJobs()
+
+    // Two calls: one for queued, one for running — only from the first invocation
+    expect(listJobs).toHaveBeenCalledTimes(2)
   })
 })

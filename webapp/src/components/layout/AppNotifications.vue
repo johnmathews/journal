@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useJobsStore } from '@/stores/jobs'
 import { useToast } from '@/composables/useToast'
 import { isTerminal } from '@/types/job'
 import type { Job, JobType } from '@/types/job'
 
 const jobsStore = useJobsStore()
+
+onMounted(() => {
+  jobsStore.hydrateActiveJobs()
+})
 const toast = useToast()
 const open = ref(false)
 

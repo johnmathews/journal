@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { triggerEntityExtraction } from '@/api/entities'
-import { triggerMoodBackfill, getJob } from '@/api/jobs'
+import { triggerMoodBackfill, getJob, listJobs } from '@/api/jobs'
 import type { MoodBackfillParams } from '@/api/jobs'
 import type { Job, JobType } from '@/types/job'
 import { isTerminal } from '@/types/job'
@@ -249,6 +249,33 @@ export const useJobsStore = defineStore('jobs', () => {
     void pollJob(jobId)
   }
 
+  /**
+   * Fetch all queued/running jobs from the server and start polling them.
+   * Called once on app startup so the notification bell reflects jobs
+   * started in previous sessions, via CLI, or by other clients.
+   */
+  let hydrated = false
+  async function hydrateActiveJobs(): Promise<void> {
+    if (hydrated) return
+    hydrated = true
+    try {
+      const [queued, running] = await Promise.all([
+        listJobs({ status: 'queued', limit: 50 }),
+        listJobs({ status: 'running', limit: 50 }),
+      ])
+      for (const job of [...queued.items, ...running.items]) {
+        if (!jobs.value[job.id]) {
+          upsertJob(job)
+          void pollJob(job.id)
+        }
+      }
+    } catch {
+      // Non-critical: the bell just won't show pre-existing jobs.
+      // Reset so a retry is possible (e.g. after network recovery).
+      hydrated = false
+    }
+  }
+
   return {
     jobs,
     getJobById,
@@ -260,5 +287,6 @@ export const useJobsStore = defineStore('jobs', () => {
     pollJob,
     stopPolling,
     clearJob,
+    hydrateActiveJobs,
   }
 })
