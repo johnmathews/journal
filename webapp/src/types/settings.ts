@@ -28,6 +28,16 @@ export interface ServerSettings {
     mood_scorer_model: string
     journal_author_name: string
   }
+  runtime: RuntimeSetting[]
+}
+
+export interface RuntimeSetting {
+  key: string
+  type: 'bool' | 'string'
+  label: string
+  description: string
+  value: boolean | string
+  choices?: string[]
 }
 
 export interface ComponentCheck {

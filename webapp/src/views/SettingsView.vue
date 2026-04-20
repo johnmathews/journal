@@ -3,6 +3,7 @@ import { onMounted, computed, ref } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import { useAuthStore } from '@/stores/auth'
 import { useJobsStore } from '@/stores/jobs'
+import { useToast } from '@/composables/useToast'
 import { triggerEntityExtraction } from '@/api/entities'
 import {
   ocrCostPerPage,
@@ -16,6 +17,16 @@ import {
 const store = useSettingsStore()
 const authStore = useAuthStore()
 const jobsStore = useJobsStore()
+const toast = useToast()
+
+async function toggleRuntimeSetting(key: string, value: boolean | string) {
+  try {
+    await store.updateRuntime({ [key]: value })
+    toast.success('Setting updated')
+  } catch {
+    toast.error('Failed to update setting')
+  }
+}
 
 const editingName = ref(false)
 const nameInput = ref('')
@@ -295,6 +306,82 @@ const entityCost = computed(() => {
             <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">
               {{ store.health.ingestion.avg_chunks_per_entry.toFixed(1) }}
             </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Runtime Settings -->
+      <section
+        v-if="store.settings?.runtime?.length"
+        data-testid="runtime-settings-section"
+      >
+        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
+          Runtime Settings
+        </h2>
+        <div
+          class="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs space-y-4"
+        >
+          <div
+            v-for="setting in store.settings.runtime"
+            :key="setting.key"
+            class="flex items-center justify-between"
+            :data-testid="`runtime-${setting.key}`"
+          >
+            <div class="flex-1 min-w-0 mr-4">
+              <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {{ setting.label }}
+              </p>
+              <p class="text-xs text-gray-400 dark:text-gray-500">
+                {{ setting.description }}
+              </p>
+            </div>
+
+            <!-- Boolean toggle -->
+            <button
+              v-if="setting.type === 'bool'"
+              type="button"
+              :class="[
+                'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900',
+                setting.value
+                  ? 'bg-violet-500'
+                  : 'bg-gray-200 dark:bg-gray-600',
+              ]"
+              role="switch"
+              :aria-checked="!!setting.value"
+              :disabled="store.updating"
+              :data-testid="`toggle-${setting.key}`"
+              @click="toggleRuntimeSetting(setting.key, !setting.value)"
+            >
+              <span
+                :class="[
+                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                  setting.value ? 'translate-x-5' : 'translate-x-0',
+                ]"
+              />
+            </button>
+
+            <!-- String select -->
+            <select
+              v-else-if="setting.type === 'string' && setting.choices"
+              :value="setting.value"
+              class="form-select text-sm py-1 px-2 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+              :disabled="store.updating"
+              :data-testid="`select-${setting.key}`"
+              @change="
+                toggleRuntimeSetting(
+                  setting.key,
+                  ($event.target as HTMLSelectElement).value,
+                )
+              "
+            >
+              <option
+                v-for="choice in setting.choices"
+                :key="choice"
+                :value="choice"
+              >
+                {{ choice }}
+              </option>
+            </select>
           </div>
         </div>
       </section>

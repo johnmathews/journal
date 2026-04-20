@@ -5,10 +5,13 @@ import type { HealthResponse, ServerSettings } from '@/types/settings'
 
 const mockFetchSettings = vi.fn()
 const mockFetchHealth = vi.fn()
+const mockUpdateRuntimeSettings = vi.fn()
 
 vi.mock('@/api/settings', () => ({
   fetchSettings: (...args: unknown[]) => mockFetchSettings(...args),
   fetchHealth: (...args: unknown[]) => mockFetchHealth(...args),
+  updateRuntimeSettings: (...args: unknown[]) =>
+    mockUpdateRuntimeSettings(...args),
 }))
 
 function makeSettings(): ServerSettings {
@@ -34,6 +37,22 @@ function makeSettings(): ServerSettings {
       mood_scorer_model: 'claude-sonnet-4-5',
       journal_author_name: 'John',
     },
+    runtime: [
+      {
+        key: 'preprocess_images',
+        type: 'bool' as const,
+        label: 'Image Preprocessing',
+        description: 'Auto-rotate, crop, downscale, enhance.',
+        value: true,
+      },
+      {
+        key: 'ocr_dual_pass',
+        type: 'bool' as const,
+        label: 'Dual-Pass OCR',
+        description: 'Run both providers.',
+        value: false,
+      },
+    ],
   }
 }
 
@@ -143,5 +162,40 @@ describe('useSettingsStore', () => {
     resolve!(makeSettings())
     await p
     expect(store.loading).toBe(false)
+  })
+
+  it('updateRuntime patches settings and refreshes runtime array', async () => {
+    mockFetchSettings.mockResolvedValue(makeSettings())
+    mockFetchHealth.mockResolvedValue(makeHealth())
+
+    const updatedRuntime = [
+      {
+        key: 'preprocess_images',
+        type: 'bool',
+        label: 'Image Preprocessing',
+        description: 'Auto-rotate, crop, downscale, enhance.',
+        value: true,
+      },
+      {
+        key: 'ocr_dual_pass',
+        type: 'bool',
+        label: 'Dual-Pass OCR',
+        description: 'Run both providers.',
+        value: true,
+      },
+    ]
+    mockUpdateRuntimeSettings.mockResolvedValue({
+      updated: ['ocr_dual_pass'],
+      settings: updatedRuntime,
+    })
+
+    const store = useSettingsStore()
+    await store.load()
+    await store.updateRuntime({ ocr_dual_pass: true })
+
+    expect(mockUpdateRuntimeSettings).toHaveBeenCalledWith({
+      ocr_dual_pass: true,
+    })
+    expect(store.settings!.runtime[1].value).toBe(true)
   })
 })
