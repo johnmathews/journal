@@ -86,9 +86,13 @@ export const useDashboardStore = defineStore('dashboard', () => {
   // Dimensions the user has toggled OFF in the chart UI. Stored
   // as a Set<string> so flipping a toggle is O(1). Not
   // persisted across sessions — defaults to showing only
-  // joy, agency, and proactive.
+  // joy_sadness, agency, and proactive_reactive.
   const hiddenMoodDimensions = ref<Set<string>>(new Set())
-  const DEFAULT_VISIBLE_MOODS = new Set(['joy', 'agency', 'proactive'])
+  const DEFAULT_VISIBLE_MOODS = new Set([
+    'joy_sadness',
+    'agency',
+    'proactive_reactive',
+  ])
   let moodDefaultsApplied = false
   const moodLoading = ref(false)
   const moodError = ref<string | null>(null)

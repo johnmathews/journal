@@ -212,21 +212,21 @@ describe('useDashboardStore — mood surface', () => {
 
   it('loadMoodDimensions hides non-default dimensions on first load', async () => {
     const dims = [
-      { ...fakeDimensions[0], name: 'joy' },
+      { ...fakeDimensions[0], name: 'joy_sadness' },
       { ...fakeDimensions[1], name: 'agency' },
-      { ...fakeDimensions[0], name: 'anxiety' },
-      { ...fakeDimensions[0], name: 'proactive' },
-      { ...fakeDimensions[0], name: 'gratitude' },
+      { ...fakeDimensions[0], name: 'anxiety_eagerness' },
+      { ...fakeDimensions[0], name: 'proactive_reactive' },
+      { ...fakeDimensions[0], name: 'fulfillment' },
     ]
     mockMoodDims.mockResolvedValue({ dimensions: dims })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
-    // Only joy, agency, proactive should be visible
-    expect(store.hiddenMoodDimensions.has('anxiety')).toBe(true)
-    expect(store.hiddenMoodDimensions.has('gratitude')).toBe(true)
-    expect(store.hiddenMoodDimensions.has('joy')).toBe(false)
+    // Only joy_sadness, agency, proactive_reactive should be visible
+    expect(store.hiddenMoodDimensions.has('anxiety_eagerness')).toBe(true)
+    expect(store.hiddenMoodDimensions.has('fulfillment')).toBe(true)
+    expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(false)
     expect(store.hiddenMoodDimensions.has('agency')).toBe(false)
-    expect(store.hiddenMoodDimensions.has('proactive')).toBe(false)
+    expect(store.hiddenMoodDimensions.has('proactive_reactive')).toBe(false)
   })
 
   it('loadMoodDimensions does not reapply defaults on subsequent calls', async () => {

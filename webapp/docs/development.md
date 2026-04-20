@@ -73,6 +73,23 @@ src/
 |----------------|----------------------------|---------|
 | `VITE_API_URL` | API base URL override      | `` (uses relative /api/) |
 
+## Git Hooks
+
+A **pre-push** hook runs the linter and test suite before every `git push`. If either fails, the push is aborted. The hook lives at `.git/hooks/pre-push` and is not tracked by git — each developer must set it up locally:
+
+```bash
+cat > .git/hooks/pre-push << 'EOF'
+#!/bin/sh
+set -e
+echo "Running linter..."
+npm run lint --prefix "$(git rev-parse --show-toplevel)"
+echo "Running tests..."
+npm run test:unit --prefix "$(git rev-parse --show-toplevel)"
+echo "All checks passed."
+EOF
+chmod +x .git/hooks/pre-push
+```
+
 ## Docker
 
 ```bash
