@@ -171,15 +171,18 @@ describe('InsightsView', () => {
   it('renders entity type tabs', async () => {
     const wrapper = mountView()
     await flushPromises()
-    expect(
-      wrapper.find('[data-testid="insights-entity-tab-topic"]').exists(),
-    ).toBe(true)
-    expect(
-      wrapper.find('[data-testid="insights-entity-tab-activity"]').exists(),
-    ).toBe(true)
-    expect(
-      wrapper.find('[data-testid="insights-entity-tab-place"]').exists(),
-    ).toBe(true)
+    for (const type of [
+      'topic',
+      'activity',
+      'place',
+      'person',
+      'organization',
+      'other',
+    ]) {
+      expect(
+        wrapper.find(`[data-testid="insights-entity-tab-${type}"]`).exists(),
+      ).toBe(true)
+    }
   })
 
   it('shows empty entity state when no entities found', async () => {
@@ -211,7 +214,7 @@ describe('InsightsView', () => {
       wrapper.find('[data-testid="insights-entity-legend"]').exists(),
     ).toBe(true)
     expect(
-      wrapper.findAll('[data-testid="insights-entity-legend"] li'),
+      wrapper.findAll('[data-testid="insights-entity-legend"] tbody tr'),
     ).toHaveLength(2)
   })
 
@@ -312,15 +315,25 @@ describe('InsightsView', () => {
     await store.loadDrillDown('2026-04-14', 'agency')
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="insights-drilldown"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="insights-drilldown-table"]').exists()).toBe(true)
-    const rows = wrapper.findAll('[data-testid="insights-drilldown-table"] tbody tr')
+    expect(wrapper.find('[data-testid="insights-drilldown"]').exists()).toBe(
+      true,
+    )
+    expect(
+      wrapper.find('[data-testid="insights-drilldown-table"]').exists(),
+    ).toBe(true)
+    const rows = wrapper.findAll(
+      '[data-testid="insights-drilldown-table"] tbody tr',
+    )
     expect(rows).toHaveLength(2)
 
     // Close drill-down
-    await wrapper.find('[data-testid="insights-drilldown-close"]').trigger('click')
+    await wrapper
+      .find('[data-testid="insights-drilldown-close"]')
+      .trigger('click')
     await flushPromises()
-    expect(wrapper.find('[data-testid="insights-drilldown"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="insights-drilldown"]').exists()).toBe(
+      false,
+    )
   })
 
   it('clicking a range button changes the filter', async () => {
@@ -357,7 +370,9 @@ describe('InsightsView', () => {
     })
     const wrapper = mountView()
     await flushPromises()
-    await wrapper.find('[data-testid="insights-entity-tab-activity"]').trigger('click')
+    await wrapper
+      .find('[data-testid="insights-entity-tab-activity"]')
+      .trigger('click')
     await flushPromises()
     const { useInsightsStore } = await import('@/stores/insights')
     const store = useInsightsStore()
@@ -385,7 +400,9 @@ describe('InsightsView', () => {
     })
     const wrapper = mountView()
     await flushPromises()
-    const toggle = wrapper.find('[data-testid="insights-mood-toggle-joy_sadness"]')
+    const toggle = wrapper.find(
+      '[data-testid="insights-mood-toggle-joy_sadness"]',
+    )
     expect(toggle.exists()).toBe(true)
     await toggle.trigger('click')
     await flushPromises()

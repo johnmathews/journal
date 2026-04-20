@@ -3,12 +3,21 @@
  * distribution features on `/insights`.
  */
 
-export type InsightsEntityType = 'topic' | 'activity' | 'place'
+export type InsightsEntityType =
+  | 'topic'
+  | 'activity'
+  | 'place'
+  | 'person'
+  | 'organization'
+  | 'other'
 
 export const INSIGHTS_ENTITY_TYPES: readonly InsightsEntityType[] = [
   'topic',
   'activity',
   'place',
+  'person',
+  'organization',
+  'other',
 ] as const
 
 /** One entry's mood score for a given dimension/period drill-down. */

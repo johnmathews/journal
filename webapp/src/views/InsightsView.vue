@@ -74,7 +74,15 @@ function binLabel(b: DashboardBin): string {
 }
 
 function entityTypeLabel(t: InsightsEntityType): string {
-  return t.charAt(0).toUpperCase() + t.slice(1) + 's'
+  const labels: Record<InsightsEntityType, string> = {
+    topic: 'Topics',
+    activity: 'Activities',
+    place: 'Places',
+    person: 'People',
+    organization: 'Organizations',
+    other: 'Other',
+  }
+  return labels[t]
 }
 
 // --- Mood chart with variance bands ---
@@ -373,9 +381,9 @@ function navigateToEntry(entryId: number): void {
       </p>
     </div>
 
-    <!-- Filter bar -->
+    <!-- Filter bar (sticky so it stays visible while scrolling) -->
     <div
-      class="mb-6 flex flex-wrap items-end gap-6"
+      class="mb-6 flex flex-wrap items-end gap-6 sticky top-0 z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm py-3 -mt-3 border-b border-gray-200/60 dark:border-gray-700/40"
       data-testid="insights-filters"
     >
       <div>
@@ -690,29 +698,36 @@ function navigateToEntry(entryId: number): void {
             data-testid="insights-entity-chart"
           ></canvas>
         </div>
-        <ul
-          class="flex-1 space-y-1 max-h-64 overflow-y-auto"
+        <table
+          class="max-h-64 overflow-y-auto text-sm"
           data-testid="insights-entity-legend"
         >
-          <li
-            v-for="(item, i) in store.entityDistribution"
-            :key="item.canonical_name"
-            class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 py-0.5"
-          >
-            <span
-              class="inline-block w-3 h-3 rounded-sm flex-shrink-0"
-              :style="{
-                backgroundColor: DOUGHNUT_COLORS[i % DOUGHNUT_COLORS.length],
-              }"
-            ></span>
-            <span class="truncate">{{ item.canonical_name }}</span>
-            <span
-              class="ml-auto text-xs text-gray-400 dark:text-gray-500 font-mono tabular-nums"
+          <tbody>
+            <tr
+              v-for="(item, i) in store.entityDistribution"
+              :key="item.canonical_name"
+              class="text-gray-700 dark:text-gray-200"
             >
-              {{ item.mention_count }}
-            </span>
-          </li>
-        </ul>
+              <td class="py-0.5 pr-2">
+                <span
+                  class="inline-block w-3 h-3 rounded-sm"
+                  :style="{
+                    backgroundColor:
+                      DOUGHNUT_COLORS[i % DOUGHNUT_COLORS.length],
+                  }"
+                ></span>
+              </td>
+              <td class="py-0.5 pr-3 truncate max-w-48">
+                {{ item.canonical_name }}
+              </td>
+              <td
+                class="py-0.5 text-right text-xs text-gray-400 dark:text-gray-500 font-mono tabular-nums"
+              >
+                {{ item.mention_count }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </section>
   </div>
