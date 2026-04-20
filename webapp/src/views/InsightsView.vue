@@ -9,7 +9,10 @@ import {
   type DashboardBin,
   type DashboardRange,
 } from '@/types/dashboard'
-import { INSIGHTS_ENTITY_TYPES, type InsightsEntityType } from '@/types/insights'
+import {
+  INSIGHTS_ENTITY_TYPES,
+  type InsightsEntityType,
+} from '@/types/insights'
 import { getChartColors } from '@/utils/chartjs-config'
 import { adjustColorOpacity } from '@/utils/mosaic'
 
@@ -26,23 +29,43 @@ let entityChart: Chart | null = null
 let moodChartRenderedOnce = false
 
 const MOOD_LINE_COLORS: readonly string[] = [
-  '#8b5cf6', '#0ea5e9', '#22c55e', '#f59e0b',
-  '#ef4444', '#ec4899', '#14b8a6', '#a855f7',
+  '#8b5cf6',
+  '#0ea5e9',
+  '#22c55e',
+  '#f59e0b',
+  '#ef4444',
+  '#ec4899',
+  '#14b8a6',
+  '#a855f7',
 ]
 
 const DOUGHNUT_COLORS: readonly string[] = [
-  '#8b5cf6', '#0ea5e9', '#22c55e', '#f59e0b', '#ef4444',
-  '#ec4899', '#14b8a6', '#a855f7', '#6366f1', '#84cc16',
-  '#f97316', '#06b6d4',
+  '#8b5cf6',
+  '#0ea5e9',
+  '#22c55e',
+  '#f59e0b',
+  '#ef4444',
+  '#ec4899',
+  '#14b8a6',
+  '#a855f7',
+  '#6366f1',
+  '#84cc16',
+  '#f97316',
+  '#06b6d4',
 ]
 
 function rangeLabel(r: DashboardRange): string {
   switch (r) {
-    case 'last_1_month': return 'Last month'
-    case 'last_3_months': return 'Last 3 months'
-    case 'last_6_months': return 'Last 6 months'
-    case 'last_1_year': return 'Last year'
-    case 'all': return 'All time'
+    case 'last_1_month':
+      return 'Last month'
+    case 'last_3_months':
+      return 'Last 3 months'
+    case 'last_6_months':
+      return 'Last 6 months'
+    case 'last_1_year':
+      return 'Last year'
+    case 'all':
+      return 'All time'
   }
 }
 
@@ -62,23 +85,36 @@ function pivotMoodBins(): {
   minSeries: Record<string, (number | null)[]>
   maxSeries: Record<string, (number | null)[]>
 } {
-  const byPeriod: Map<string, Map<string, { avg: number; min: number | null; max: number | null }>> = new Map()
+  const byPeriod: Map<
+    string,
+    Map<string, { avg: number; min: number | null; max: number | null }>
+  > = new Map()
   for (const b of store.moodBins) {
     let periodRow = byPeriod.get(b.period)
     if (!periodRow) {
       periodRow = new Map()
       byPeriod.set(b.period, periodRow)
     }
-    periodRow.set(b.dimension, { avg: b.avg_score, min: b.score_min, max: b.score_max })
+    periodRow.set(b.dimension, {
+      avg: b.avg_score,
+      min: b.score_min,
+      max: b.score_max,
+    })
   }
   const periods = Array.from(byPeriod.keys()).sort()
   const series: Record<string, (number | null)[]> = {}
   const minSeries: Record<string, (number | null)[]> = {}
   const maxSeries: Record<string, (number | null)[]> = {}
   for (const d of store.moodDimensions) {
-    series[d.name] = periods.map((p) => byPeriod.get(p)?.get(d.name)?.avg ?? null)
-    minSeries[d.name] = periods.map((p) => byPeriod.get(p)?.get(d.name)?.min ?? null)
-    maxSeries[d.name] = periods.map((p) => byPeriod.get(p)?.get(d.name)?.max ?? null)
+    series[d.name] = periods.map(
+      (p) => byPeriod.get(p)?.get(d.name)?.avg ?? null,
+    )
+    minSeries[d.name] = periods.map(
+      (p) => byPeriod.get(p)?.get(d.name)?.min ?? null,
+    )
+    maxSeries[d.name] = periods.map(
+      (p) => byPeriod.get(p)?.get(d.name)?.max ?? null,
+    )
   }
   return { periods, series, minSeries, maxSeries }
 }
@@ -96,6 +132,7 @@ function renderMoodChart(): void {
   const { periods, series, minSeries, maxSeries } = pivotMoodBins()
 
   const allDimensions = store.moodDimensions
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const datasets: any[] = []
 
   for (const d of allDimensions) {
@@ -208,7 +245,9 @@ function renderEntityChart(): void {
   }
 
   const colors = getChartColors()
-  const bgColors = items.map((_, i) => DOUGHNUT_COLORS[i % DOUGHNUT_COLORS.length])
+  const bgColors = items.map(
+    (_, i) => DOUGHNUT_COLORS[i % DOUGHNUT_COLORS.length],
+  )
 
   entityChart = new Chart(entityChartCanvas.value, {
     type: 'doughnut',
@@ -305,7 +344,11 @@ async function onEntityTypeChange(type: InsightsEntityType): Promise<void> {
 
 function formatDate(iso: string): string {
   const d = new Date(iso + 'T00:00:00')
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  return d.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
 }
 
 function formatScore(score: number): string {
@@ -320,7 +363,9 @@ function navigateToEntry(entryId: number): void {
 <template>
   <div data-testid="insights-view">
     <div class="mb-6">
-      <h1 class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold">
+      <h1
+        class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold"
+      >
         Insights
       </h1>
       <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -329,18 +374,31 @@ function navigateToEntry(entryId: number): void {
     </div>
 
     <!-- Filter bar -->
-    <div class="mb-6 flex flex-wrap items-end gap-6" data-testid="insights-filters">
+    <div
+      class="mb-6 flex flex-wrap items-end gap-6"
+      data-testid="insights-filters"
+    >
       <div>
-        <label class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1">Range</label>
-        <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="Date range" data-testid="insights-range">
+        <label
+          class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1"
+          >Range</label
+        >
+        <div
+          class="flex flex-wrap gap-2"
+          role="radiogroup"
+          aria-label="Date range"
+          data-testid="insights-range"
+        >
           <button
             v-for="r in DASHBOARD_RANGES"
             :key="r"
             type="button"
             class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
-            :class="store.range === r
-              ? 'bg-violet-500 text-white border-violet-500'
-              : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'"
+            :class="
+              store.range === r
+                ? 'bg-violet-500 text-white border-violet-500'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
+            "
             :data-testid="`insights-range-${r}`"
             :aria-pressed="store.range === r"
             @click="onRangeChange(r)"
@@ -350,16 +408,26 @@ function navigateToEntry(entryId: number): void {
         </div>
       </div>
       <div>
-        <label class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1">Bin width</label>
-        <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="Bin width" data-testid="insights-bin">
+        <label
+          class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1"
+          >Bin width</label
+        >
+        <div
+          class="flex flex-wrap gap-2"
+          role="radiogroup"
+          aria-label="Bin width"
+          data-testid="insights-bin"
+        >
           <button
             v-for="b in DASHBOARD_BINS"
             :key="b"
             type="button"
             class="px-3 py-1 rounded-full text-xs font-medium border transition-colors capitalize"
-            :class="store.bin === b
-              ? 'bg-violet-500 text-white border-violet-500'
-              : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'"
+            :class="
+              store.bin === b
+                ? 'bg-violet-500 text-white border-violet-500'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
+            "
             :data-testid="`insights-bin-${b}`"
             :aria-pressed="store.bin === b"
             @click="onBinChange(b)"
@@ -381,7 +449,8 @@ function navigateToEntry(entryId: number): void {
           Mood Trends
         </h2>
         <p class="text-xs text-gray-500 dark:text-gray-400">
-          Average score per {{ store.bin }} with min/max variance bands. Click a data point to see contributing entries.
+          Average score per {{ store.bin }} with min/max variance bands. Click a
+          data point to see contributing entries.
         </p>
       </header>
 
@@ -398,20 +467,26 @@ function navigateToEntry(entryId: number): void {
           :key="d.name"
           type="button"
           class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
-          :class="store.hiddenMoodDimensions.has(d.name)
-            ? 'bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700/60 opacity-40'
-            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700/60'"
+          :class="
+            store.hiddenMoodDimensions.has(d.name)
+              ? 'bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700/60 opacity-40'
+              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700/60'
+          "
           :data-testid="`insights-mood-toggle-${d.name}`"
           :aria-pressed="!store.hiddenMoodDimensions.has(d.name)"
           @click="toggleDimension(d.name)"
         >
           <span
             class="inline-block w-2 h-2 rounded-full"
-            :style="{ backgroundColor: MOOD_LINE_COLORS[i % MOOD_LINE_COLORS.length] }"
+            :style="{
+              backgroundColor: MOOD_LINE_COLORS[i % MOOD_LINE_COLORS.length],
+            }"
             aria-hidden="true"
           ></span>
           {{ d.positive_pole }}
-          <span class="text-gray-400 dark:text-gray-500 font-mono text-[0.65rem]">
+          <span
+            class="text-gray-400 dark:text-gray-500 font-mono text-[0.65rem]"
+          >
             {{ d.scale_type === 'bipolar' ? '±1' : '0..1' }}
           </span>
         </button>
@@ -441,8 +516,15 @@ function navigateToEntry(entryId: number): void {
         No mood data in this range yet.
       </div>
 
-      <div v-else class="h-72 relative" data-testid="insights-mood-chart-container">
-        <canvas ref="moodChartCanvas" data-testid="insights-mood-chart"></canvas>
+      <div
+        v-else
+        class="h-72 relative"
+        data-testid="insights-mood-chart-container"
+      >
+        <canvas
+          ref="moodChartCanvas"
+          data-testid="insights-mood-chart"
+        ></canvas>
       </div>
 
       <!-- Drill-down panel -->
@@ -492,7 +574,9 @@ function navigateToEntry(entryId: number): void {
         <div v-else class="overflow-x-auto">
           <table class="w-full text-sm" data-testid="insights-drilldown-table">
             <thead>
-              <tr class="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700/60">
+              <tr
+                class="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700/60"
+              >
                 <th class="pb-2 pr-4 font-medium">Date</th>
                 <th class="pb-2 pr-4 font-medium">Score</th>
                 <th class="pb-2 font-medium">Rationale</th>
@@ -506,11 +590,18 @@ function navigateToEntry(entryId: number): void {
                 :data-testid="`insights-drilldown-row-${entry.entry_id}`"
                 @click="navigateToEntry(entry.entry_id)"
               >
-                <td class="py-2 pr-4 whitespace-nowrap text-gray-700 dark:text-gray-200">
+                <td
+                  class="py-2 pr-4 whitespace-nowrap text-gray-700 dark:text-gray-200"
+                >
                   {{ formatDate(entry.entry_date) }}
                 </td>
-                <td class="py-2 pr-4 whitespace-nowrap font-mono text-xs"
-                  :class="entry.score >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'"
+                <td
+                  class="py-2 pr-4 whitespace-nowrap font-mono text-xs"
+                  :class="
+                    entry.score >= 0
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-red-600 dark:text-red-400'
+                  "
                 >
                   {{ formatScore(entry.score) }}
                 </td>
@@ -521,8 +612,10 @@ function navigateToEntry(entryId: number): void {
             </tbody>
           </table>
           <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">
-            Note: Entries scored before the rationale feature will show "No rationale available".
-            Run <code class="font-mono">journal backfill-mood --force</code> to populate rationales for all entries.
+            Note: Entries scored before the rationale feature will show "No
+            rationale available". Run
+            <code class="font-mono">journal backfill-mood --force</code> to
+            populate rationales for all entries.
           </p>
         </div>
       </div>
@@ -549,9 +642,11 @@ function navigateToEntry(entryId: number): void {
           :key="t"
           type="button"
           class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
-          :class="store.entityType === t
-            ? 'bg-violet-500 text-white border-violet-500'
-            : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'"
+          :class="
+            store.entityType === t
+              ? 'bg-violet-500 text-white border-violet-500'
+              : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
+          "
           :data-testid="`insights-entity-tab-${t}`"
           :aria-pressed="store.entityType === t"
           @click="onEntityTypeChange(t)"
@@ -584,11 +679,21 @@ function navigateToEntry(entryId: number): void {
         No {{ store.entityType }} entities found in this range.
       </div>
 
-      <div v-else class="flex flex-col md:flex-row gap-6" data-testid="insights-entity-content">
+      <div
+        v-else
+        class="flex flex-col md:flex-row gap-6"
+        data-testid="insights-entity-content"
+      >
         <div class="h-64 w-64 flex-shrink-0 mx-auto md:mx-0">
-          <canvas ref="entityChartCanvas" data-testid="insights-entity-chart"></canvas>
+          <canvas
+            ref="entityChartCanvas"
+            data-testid="insights-entity-chart"
+          ></canvas>
         </div>
-        <ul class="flex-1 space-y-1 max-h-64 overflow-y-auto" data-testid="insights-entity-legend">
+        <ul
+          class="flex-1 space-y-1 max-h-64 overflow-y-auto"
+          data-testid="insights-entity-legend"
+        >
           <li
             v-for="(item, i) in store.entityDistribution"
             :key="item.canonical_name"
@@ -596,10 +701,14 @@ function navigateToEntry(entryId: number): void {
           >
             <span
               class="inline-block w-3 h-3 rounded-sm flex-shrink-0"
-              :style="{ backgroundColor: DOUGHNUT_COLORS[i % DOUGHNUT_COLORS.length] }"
+              :style="{
+                backgroundColor: DOUGHNUT_COLORS[i % DOUGHNUT_COLORS.length],
+              }"
             ></span>
             <span class="truncate">{{ item.canonical_name }}</span>
-            <span class="ml-auto text-xs text-gray-400 dark:text-gray-500 font-mono tabular-nums">
+            <span
+              class="ml-auto text-xs text-gray-400 dark:text-gray-500 font-mono tabular-nums"
+            >
               {{ item.mention_count }}
             </span>
           </li>

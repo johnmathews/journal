@@ -7,7 +7,12 @@ import {
   fetchMoodDrilldown,
   fetchMoodTrends,
 } from '@/api/insights'
-import type { DashboardBin, DashboardRange, MoodDimension, MoodTrendBin } from '@/types/dashboard'
+import type {
+  DashboardBin,
+  DashboardRange,
+  MoodDimension,
+  MoodTrendBin,
+} from '@/types/dashboard'
 import type {
   EntityDistributionItem,
   InsightsEntityType,
@@ -55,7 +60,9 @@ export const useInsightsStore = defineStore('insights', () => {
       moodDimensions.value = response.dimensions
       if (!moodDefaultsApplied && response.dimensions.length > 0) {
         hiddenMoodDimensions.value = new Set(
-          response.dimensions.map((d) => d.name).filter((n) => n !== DEFAULT_ISOLATED_MOOD),
+          response.dimensions
+            .map((d) => d.name)
+            .filter((n) => n !== DEFAULT_ISOLATED_MOOD),
         )
         moodDefaultsApplied = true
       }
@@ -138,7 +145,10 @@ export const useInsightsStore = defineStore('insights', () => {
     return `${y}-${m}-${day}`
   }
 
-  async function loadDrillDown(period: string, dimension: string): Promise<void> {
+  async function loadDrillDown(
+    period: string,
+    dimension: string,
+  ): Promise<void> {
     drillPeriod.value = period
     drillDimension.value = dimension
     drillLoading.value = true
@@ -171,7 +181,9 @@ export const useInsightsStore = defineStore('insights', () => {
     drillError.value = null
   }
 
-  async function loadEntityDistribution(type?: InsightsEntityType): Promise<void> {
+  async function loadEntityDistribution(
+    type?: InsightsEntityType,
+  ): Promise<void> {
     if (type !== undefined) entityType.value = type
 
     entityLoading.value = true

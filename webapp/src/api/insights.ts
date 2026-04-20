@@ -34,7 +34,9 @@ export function fetchMoodDrilldown(
     from: params.from,
     to: params.to,
   })
-  return apiFetch<MoodDrilldownResponse>(`/api/dashboard/mood-drilldown${query}`)
+  return apiFetch<MoodDrilldownResponse>(
+    `/api/dashboard/mood-drilldown${query}`,
+  )
 }
 
 /**

@@ -46,10 +46,13 @@ vi.mock('@/utils/mosaic', async () => {
   return { ...actual }
 })
 
-const { destroySpy, chartConstructorSpy, ChartStub } = vi.hoisted(() => {
+const { ChartStub } = vi.hoisted(() => {
   const destroy = vi.fn()
   const ctor = vi.fn().mockImplementation(() => ({ destroy }))
-  function ChartStub(this: unknown, ...args: unknown[]): { destroy: () => void } {
+  function ChartStub(
+    this: unknown,
+    ...args: unknown[]
+  ): { destroy: () => void } {
     return ctor(...args)
   }
   return {
@@ -75,7 +78,12 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/insights', name: 'insights', component: InsightsView },
-    { path: '/entries/:id', name: 'entry-detail', component: { template: '<div/>' }, props: true },
+    {
+      path: '/entries/:id',
+      name: 'entry-detail',
+      component: { template: '<div/>' },
+      props: true,
+    },
   ],
 })
 
@@ -126,11 +134,15 @@ describe('InsightsView', () => {
   it('shows entity section even without mood data', async () => {
     const wrapper = mountView()
     await flushPromises()
-    expect(wrapper.find('[data-testid="insights-entity-section"]').exists()).toBe(true)
+    expect(
+      wrapper.find('[data-testid="insights-entity-section"]').exists(),
+    ).toBe(true)
   })
 
   it('shows mood section when scoring is enabled', async () => {
-    vi.mocked(fetchMoodDimensions).mockResolvedValue({ dimensions: fakeDimensions })
+    vi.mocked(fetchMoodDimensions).mockResolvedValue({
+      dimensions: fakeDimensions,
+    })
     vi.mocked(fetchMoodTrends).mockResolvedValue({
       from: null,
       to: null,
@@ -148,22 +160,34 @@ describe('InsightsView', () => {
     })
     const wrapper = mountView()
     await flushPromises()
-    expect(wrapper.find('[data-testid="insights-mood-section"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="insights-mood-toggles"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="insights-mood-section"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('[data-testid="insights-mood-toggles"]').exists()).toBe(
+      true,
+    )
   })
 
   it('renders entity type tabs', async () => {
     const wrapper = mountView()
     await flushPromises()
-    expect(wrapper.find('[data-testid="insights-entity-tab-topic"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="insights-entity-tab-activity"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="insights-entity-tab-place"]').exists()).toBe(true)
+    expect(
+      wrapper.find('[data-testid="insights-entity-tab-topic"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="insights-entity-tab-activity"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="insights-entity-tab-place"]').exists(),
+    ).toBe(true)
   })
 
   it('shows empty entity state when no entities found', async () => {
     const wrapper = mountView()
     await flushPromises()
-    expect(wrapper.find('[data-testid="insights-entity-empty"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="insights-entity-empty"]').exists()).toBe(
+      true,
+    )
   })
 
   it('renders entity legend when data is present', async () => {
@@ -173,18 +197,28 @@ describe('InsightsView', () => {
       to: null,
       total: 2,
       items: [
-        { canonical_name: 'meditation', entity_type: 'topic', mention_count: 14 },
+        {
+          canonical_name: 'meditation',
+          entity_type: 'topic',
+          mention_count: 14,
+        },
         { canonical_name: 'running', entity_type: 'topic', mention_count: 9 },
       ],
     })
     const wrapper = mountView()
     await flushPromises()
-    expect(wrapper.find('[data-testid="insights-entity-legend"]').exists()).toBe(true)
-    expect(wrapper.findAll('[data-testid="insights-entity-legend"] li')).toHaveLength(2)
+    expect(
+      wrapper.find('[data-testid="insights-entity-legend"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.findAll('[data-testid="insights-entity-legend"] li'),
+    ).toHaveLength(2)
   })
 
   it('shows mood empty state when no mood data in range', async () => {
-    vi.mocked(fetchMoodDimensions).mockResolvedValue({ dimensions: fakeDimensions })
+    vi.mocked(fetchMoodDimensions).mockResolvedValue({
+      dimensions: fakeDimensions,
+    })
     vi.mocked(fetchMoodTrends).mockResolvedValue({
       from: null,
       to: null,
@@ -193,6 +227,8 @@ describe('InsightsView', () => {
     })
     const wrapper = mountView()
     await flushPromises()
-    expect(wrapper.find('[data-testid="insights-mood-empty"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="insights-mood-empty"]').exists()).toBe(
+      true,
+    )
   })
 })

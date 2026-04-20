@@ -189,7 +189,11 @@ describe('insights store', () => {
         to: null,
         total: 2,
         items: [
-          { canonical_name: 'meditation', entity_type: 'topic', mention_count: 14 },
+          {
+            canonical_name: 'meditation',
+            entity_type: 'topic',
+            mention_count: 14,
+          },
           { canonical_name: 'running', entity_type: 'topic', mention_count: 9 },
         ],
       })
@@ -277,7 +281,9 @@ describe('insights store', () => {
         from: null,
         to: null,
         total: 1,
-        items: [{ canonical_name: 'x', entity_type: 'topic', mention_count: 1 }],
+        items: [
+          { canonical_name: 'x', entity_type: 'topic', mention_count: 1 },
+        ],
       })
       const store = useInsightsStore()
       await store.loadMoodDimensions()

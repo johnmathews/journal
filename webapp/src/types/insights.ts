@@ -3,8 +3,6 @@
  * distribution features on `/insights`.
  */
 
-import type { DashboardBin } from './dashboard'
-
 export type InsightsEntityType = 'topic' | 'activity' | 'place'
 
 export const INSIGHTS_ENTITY_TYPES: readonly InsightsEntityType[] = [

@@ -99,7 +99,9 @@ describe('insights API', () => {
         items: [],
       })
       await fetchEntityDistribution()
-      expect(mockApiFetch).toHaveBeenCalledWith('/api/dashboard/entity-distribution')
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        '/api/dashboard/entity-distribution',
+      )
     })
 
     it('returns the response body unchanged', async () => {
@@ -109,7 +111,11 @@ describe('insights API', () => {
         to: '2026-04-20',
         total: 2,
         items: [
-          { canonical_name: 'meditation', entity_type: 'topic', mention_count: 14 },
+          {
+            canonical_name: 'meditation',
+            entity_type: 'topic',
+            mention_count: 14,
+          },
           { canonical_name: 'running', entity_type: 'topic', mention_count: 9 },
         ],
       }
