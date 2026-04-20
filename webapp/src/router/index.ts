@@ -79,6 +79,11 @@ const router = createRouter({
       props: true,
     },
     {
+      path: '/insights',
+      name: 'insights',
+      component: () => import('@/views/InsightsView.vue'),
+    },
+    {
       path: '/jobs',
       name: 'job-history',
       component: () => import('@/views/JobHistoryView.vue'),

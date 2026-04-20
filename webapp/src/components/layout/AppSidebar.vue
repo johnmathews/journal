@@ -379,6 +379,56 @@ watch(
               </li>
             </RouterLink>
 
+            <!-- Insights link -->
+            <RouterLink
+              v-slot="{ href, navigate, isActive }"
+              to="/insights"
+              custom
+            >
+              <li
+                class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
+                :class="
+                  isActive &&
+                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                "
+              >
+                <a
+                  :href="href"
+                  class="block truncate transition"
+                  data-testid="sidebar-insights-link"
+                  :class="
+                    isActive
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-800 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white'
+                  "
+                  @click="navigate"
+                >
+                  <div class="flex items-center">
+                    <svg
+                      class="shrink-0 fill-current"
+                      :class="
+                        isActive
+                          ? 'text-violet-500'
+                          : 'text-gray-400 dark:text-gray-500'
+                      "
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M2 11a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-3Zm4-4a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7Zm4-4a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1V3Z"
+                      />
+                    </svg>
+                    <span
+                      class="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                      >Insights</span
+                    >
+                  </div>
+                </a>
+              </li>
+            </RouterLink>
+
             <!-- Job History link -->
             <RouterLink v-slot="{ href, navigate, isActive }" to="/jobs" custom>
               <li

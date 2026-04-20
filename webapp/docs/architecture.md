@@ -55,6 +55,28 @@ Page-level components, one per route. Each view composes layout, components, and
   "explicit > implicit" rule. Chart instances are destroyed
   and recreated on bin/range changes so axis labels and tick
   formatting match the new granularity without stale state.
+- **InsightsView** (`/insights`) — Analytics dashboard for mood
+  trends and entity distributions. Combines two sections:
+  1. **Mood Trends** — Line chart with min/max variance bands
+     (shaded fill between boundary datasets) showing score
+     spread within each time bin. Click a data point to open an
+     inline drill-down panel showing the individual entries that
+     contributed to that period's average, with per-entry score,
+     confidence, and a 1-2 sentence rationale from the LLM
+     explaining why that score was given. Clicking an entry row
+     navigates to `EntryDetailView`. Dimension toggles and
+     Grafana-style isolate-on-click work identically to the
+     Dashboard mood chart.
+  2. **What I Write About** — Doughnut chart (Chart.js
+     `DoughnutController`) showing entity mention frequency,
+     filterable by entity type (Topics / Activities / Places)
+     via pill tabs. An HTML legend beside the chart lists each
+     entity with its mention count.
+  Shares the same Range/Bin filter controls as the Dashboard.
+  Backed by `useInsightsStore` (independent from `useDashboardStore`)
+  and three API endpoints: `/api/dashboard/mood-trends` (reused),
+  `/api/dashboard/mood-drilldown` (new), and
+  `/api/dashboard/entity-distribution` (new).
 - **EntryListView** (now at `/entries`, was `/`) — Native HTML table with Tailwind styling, hand-rolled pagination controls (rows-per-page select, prev/next buttons), row click navigation. Demoted from the home route when `DashboardView` shipped (Option B routing).
 - **EntryDetailView** — Two view modes controlled by a **Read / Edit** segmented toggle. **Reading mode** renders the corrected text in a single centered pane (`max-w-prose`) with comfortable serif typography — the default when the entry has been edited before (`raw_text !== final_text`). **Edit mode** is a responsive flex layout for OCR correction: the left panel renders the original OCR text as a read-only `<div>` with diff highlights; the right panel uses a CSS Grid overlay pattern (invisible sizer div + styled backdrop + transparent textarea sharing a single grid cell via `[grid-area:1/1]`) so the user can edit the corrected text and see live highlights in the same spot — this is the default for unedited entries. Both panels auto-size to their content (no internal scrolling) which is especially important on mobile where scrolling inside fixed-height text areas is awkward. On desktop (`lg+`) the panels sit side-by-side with equal width (`flex-1`); on mobile they stack vertically. Save feedback is a non-blocking toast: "Text saved. Entity extraction running in background." (or just "Text saved." when no extraction job was triggered). Entity chips appear above the text in both modes. Clicking a chip highlights all occurrences of the entity in the text using the verbatim `quotes` from the extraction (not just the canonical name), with auto-scroll to the first match. The highlighting builds a single alternation regex from the entity's canonical name, aliases, and quotes, sorted longest-first so longer spans match before substrings. A "Show diff" toggle turns diff highlighting on/off; a separate "Review" toggle overlays OCR uncertainty highlights (yellow, dotted underline) on the Original OCR panel only — it's disabled with a tooltip for entries whose `uncertain_spans` array is empty (old entries and entries where the model was fully confident). Includes an inline save error banner, dirty tracking, and re-processing on save. Also exposes a Delete button (with a `window.confirm` guard) that removes the entry from both SQLite and ChromaDB and navigates back to the list on success. A three-radio **Overlay** segmented control (off / chunks / tokens) toggles visualisations of the embedding-model boundaries on top of the corrected panel — when either mode is active the textarea is hidden and the panel becomes read-only, so chunk and token offsets cannot drift from the text they describe. Accepts a `?chunk=N` query param for deep-link entry from SearchView: on mount the overlay flips to `chunks` mode and the matching chunk badge is scrolled into view. The template is **render-safe by contract**: it carries an unconditional `v-else` "Loading entry…" branch so the initial tick before `onMounted` never leaves `<main>` empty, all direct property accesses (`word_count.toLocaleString()`, `source_type.toUpperCase()`, `page_count`) use `??` fallbacks so a missing field cannot bail out of the rendered subtree, the `useDiffHighlight` / `useEntryEditor` composables coerce `null` text to `''` before calling `diff-match-patch`, and the entity chip strip reads `resp.items` (the server's real `{entry_id, items, total}` shape) with a `?? []` fallback and a `v-if="entryEntities?.length"` so any off-contract payload fails hidden instead of blanking the view. Each of those was a blank-page failure mode — see `journal/260411-blank-page-regression.md` and `journal/260411-entry-entities-contract.md`.
 - **SearchView** — Full-text search across journal entries. Wraps the server's `GET /api/search` endpoint via `useSearchStore`. Supports two modes: **keyword** (SQLite FTS5, default) and **semantic** (vector similarity, returns per-chunk matches with char offsets). Keyword is the default because exact-term lookup is the more common use case; semantic search is one click away. Clicking either mode button immediately triggers a new search (if a query is present) so the user can compare modes without re-submitting. Each result row renders the entry date, a relevance score badge, and a snippet — in keyword mode the snippet is passed through `renderSnippetHtml` from `src/utils/searchSnippet.ts` which converts the server's `\x02`/`\x03` marker characters into `<mark>` tags. In semantic mode, each result includes a "Matched by meaning" explanation showing why the result is relevant (similarity percentage of the top matching chunk, plus up to 2 additional matching chunks with their scores and text previews). Clicking a result navigates to `EntryDetailView` with `?chunk=N` set to the top matching chunk's index so the user lands on the matching passage. Form state (query, mode, dates) is kept in the Pinia store so back-navigation preserves the query.
@@ -73,6 +95,7 @@ Pinia stores for server state management.
 - **entries** — Entry list, current entry, pagination, loading/error states, CRUD actions
 - **entities** — Entity list, current entity, mentions and relationships (entity tracking)
 - **search** — Full-text search state: query, mode, date range, result items, `hasRun` flag so the view can distinguish "no results" from "not yet searched". Exposes a `runSearch(partial)` action that accepts per-call overrides (useful for pagination) and surfaces server error messages from `ApiRequestError` directly.
+- **insights** — Insights page state: independent range/bin filter, mood trends with score_min/score_max for variance bands, drill-down state (period, dimension, entries with rationales), entity distribution (type, items with mention counts). Actions: `loadMoodDimensions`, `loadMoodTrends`, `loadDrillDown`, `clearDrillDown`, `loadEntityDistribution`, `toggleMoodDimension`, `periodEndDate`. Error handling mirrors the dashboard store pattern.
 - **dashboard** — Dashboard filter state (range + bin) and the most recently fetched writing-stats bins, plus a parallel mood surface: `moodDimensions` (fetched once from `/api/dashboard/mood-dimensions` on mount), `moodBins` (fetched from `/api/dashboard/mood-trends` on every range/bin change), and `hiddenMoodDimensions: Set<string>` for per-session facet toggles. `loadMoodDimensions()` swallows errors (dimension-load failure is interpreted as "mood scoring not configured" and hides the card; it's not a loud error). `loadMoodTrends()` surfaces `ApiRequestError.message` verbatim like `loadWritingStats`. `toggleMoodDimension(name)` flips visibility and creates a new Set instance so Vue reactivity fires on the change. Initial state is `last_3_months` + `week`. A pure `rangeToDates(range, now)` helper (also exported for tests) converts a `DashboardRange` option into a concrete ISO `{from, to}` pair against an injectable clock.
 
 ### API Layer (`src/api/`)
@@ -96,7 +119,8 @@ Shared TypeScript interfaces matching the REST API response schemas.
 
 The home route (`/`) is the **Dashboard**. Entries list is
 reachable at `/entries`, entry detail at `/entries/:id`, search
-at `/search`, and entity tracking at `/entities`. The 2026-04-11
+at `/search`, entity tracking at `/entities`, and insights at
+`/insights`. The 2026-04-11
 "Option B" migration flipped `/` from the entries list to the
 dashboard — see the matching journal entry for the audit of
 every `RouterLink to="/"` and `router.push({ name: 'entries' })`

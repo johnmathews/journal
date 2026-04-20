@@ -414,12 +414,16 @@ describe('DashboardView — mood chart', () => {
           dimension: 'joy_sadness',
           avg_score: 0.4,
           entry_count: 3,
+          score_min: 0.2,
+          score_max: 0.6,
         },
         {
           period: '2026-03-02',
           dimension: 'agency',
           avg_score: 0.7,
           entry_count: 3,
+          score_min: 0.5,
+          score_max: 0.9,
         },
       ],
     })

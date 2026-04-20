@@ -1,6 +1,8 @@
 import {
+  ArcElement,
   CategoryScale,
   Chart,
+  DoughnutController,
   Filler,
   Legend,
   LinearScale,
@@ -18,6 +20,8 @@ import { adjustColorOpacity, getCssVariable } from './mosaic'
 // Add new registrations here (not inside individual views) so
 // every chart in the app shares the same set.
 Chart.register(
+  ArcElement,
+  DoughnutController,
   LineController,
   LineElement,
   PointElement,

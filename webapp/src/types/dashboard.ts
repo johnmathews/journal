@@ -96,6 +96,8 @@ export interface MoodTrendBin {
   dimension: string
   avg_score: number
   entry_count: number
+  score_min: number | null
+  score_max: number | null
 }
 
 export interface MoodTrendsResponse {

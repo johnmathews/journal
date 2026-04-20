@@ -259,12 +259,16 @@ describe('useDashboardStore — mood surface', () => {
           dimension: 'joy_sadness',
           avg_score: 0.5,
           entry_count: 3,
+          score_min: 0.3,
+          score_max: 0.7,
         },
         {
           period: '2026-03-02',
           dimension: 'agency',
           avg_score: 0.7,
           entry_count: 3,
+          score_min: 0.5,
+          score_max: 0.9,
         },
       ],
     })
@@ -347,6 +351,8 @@ describe('useDashboardStore — mood surface', () => {
           dimension: 'joy_sadness',
           avg_score: 0.5,
           entry_count: 1,
+          score_min: 0.5,
+          score_max: 0.5,
         },
       ],
     })
