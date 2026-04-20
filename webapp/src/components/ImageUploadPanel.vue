@@ -19,7 +19,14 @@ const submitError = ref<string | null>(null)
 
 function addFiles(newFiles: FileList | File[]) {
   const imageFiles = Array.from(newFiles).filter((f) =>
-    ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(f.type),
+    [
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'image/heic',
+      'image/heif',
+    ].includes(f.type),
   )
   files.value = [...files.value, ...imageFiles]
 }
@@ -196,12 +203,12 @@ function objectUrl(file: File): string {
           Drag journal page images here, or click to browse
         </p>
         <p class="text-xs text-gray-400">
-          JPEG, PNG, GIF, WebP — up to 10 MB each
+          JPEG, PNG, GIF, WebP, HEIC — up to 10 MB each
         </p>
         <input
           type="file"
           multiple
-          accept="image/jpeg,image/png,image/gif,image/webp"
+          accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif,.heic,.heif"
           class="hidden"
           @change="handleFileInput"
         />
@@ -271,7 +278,7 @@ function objectUrl(file: File): string {
           <input
             type="file"
             multiple
-            accept="image/jpeg,image/png,image/gif,image/webp"
+            accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif,.heic,.heif"
             class="hidden"
             @change="handleFileInput"
           />

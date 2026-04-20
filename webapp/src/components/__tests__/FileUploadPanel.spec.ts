@@ -207,6 +207,49 @@ describe('FileUploadPanel', () => {
     expect(wrapper.text()).toContain('1 page')
   })
 
+  it('accepts HEIC files from macOS Photos', async () => {
+    const wrapper = mountPanel()
+    const file = new File(['heic-data'], 'IMG_1234.HEIC', {
+      type: 'image/heic',
+    })
+    await selectFiles(wrapper, [file])
+
+    expect(wrapper.text()).toContain('IMG_1234.HEIC')
+    expect(wrapper.text()).toContain('Upload & Process')
+  })
+
+  it('accepts HEIF files', async () => {
+    const wrapper = mountPanel()
+    const file = new File(['heif-data'], 'photo.heif', {
+      type: 'image/heif',
+    })
+    await selectFiles(wrapper, [file])
+
+    expect(wrapper.text()).toContain('photo.heif')
+    expect(wrapper.text()).toContain('1 page')
+  })
+
+  it('shows a warning when all selected files are unsupported', async () => {
+    const wrapper = mountPanel()
+    const pdf = new File(['%PDF'], 'doc.pdf', { type: 'application/pdf' })
+    await selectFiles(wrapper, [pdf])
+
+    const warning = wrapper.find('[data-testid="file-warning"]')
+    expect(warning.exists()).toBe(true)
+    expect(warning.text()).toContain('Unsupported file type')
+    expect(warning.text()).toContain('application/pdf')
+  })
+
+  it('does not show warning when valid files are selected alongside unsupported ones', async () => {
+    const wrapper = mountPanel()
+    const image = new File(['img'], 'photo.jpg', { type: 'image/jpeg' })
+    const pdf = new File(['%PDF'], 'doc.pdf', { type: 'application/pdf' })
+    await selectFiles(wrapper, [image, pdf])
+
+    expect(wrapper.find('[data-testid="file-warning"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('photo.jpg')
+  })
+
   it('calls uploadImages on the store when submit is clicked', async () => {
     const wrapper = mountPanel()
     const store = useEntriesStore()

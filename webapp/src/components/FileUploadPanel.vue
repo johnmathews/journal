@@ -13,7 +13,14 @@ const emit = defineEmits<{
 const entriesStore = useEntriesStore()
 const jobsStore = useJobsStore()
 
-const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+const IMAGE_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+]
 const TEXT_EXTENSIONS = ['.md', '.txt']
 
 type UploadMode = 'idle' | 'images' | 'text'
@@ -30,6 +37,9 @@ const submitError = ref<string | null>(null)
 const textFile = ref<File | null>(null)
 const textPreview = ref('')
 
+// Warning for unsupported files
+const fileWarning = ref<string | null>(null)
+
 function isImageFile(file: File): boolean {
   return IMAGE_TYPES.includes(file.type)
 }
@@ -43,10 +53,16 @@ function addFiles(newFiles: FileList | File[]) {
   const fileArray = Array.from(newFiles)
   const images = fileArray.filter(isImageFile)
   const texts = fileArray.filter(isTextFile)
+  const rejected = fileArray.filter((f) => !isImageFile(f) && !isTextFile(f))
+
+  fileWarning.value = null
 
   if (mode.value === 'images') {
     if (images.length > 0) {
       imageFiles.value = [...imageFiles.value, ...images]
+    }
+    if (rejected.length > 0 && images.length === 0) {
+      fileWarning.value = unsupportedMessage(rejected)
     }
     return
   }
@@ -71,7 +87,15 @@ function addFiles(newFiles: FileList | File[]) {
     // Mixed: take images (most common use case)
     mode.value = 'images'
     imageFiles.value = images
+  } else if (rejected.length > 0) {
+    // All files were unsupported
+    fileWarning.value = unsupportedMessage(rejected)
   }
+}
+
+function unsupportedMessage(files: File[]): string {
+  const types = [...new Set(files.map((f) => f.type || 'unknown'))]
+  return `Unsupported file type: ${types.join(', ')}. Accepted: JPEG, PNG, GIF, WebP, HEIC, or .md/.txt files.`
 }
 
 function handleFileInput(event: Event) {
@@ -273,17 +297,24 @@ watch(currentJob, (job) => {
           Drag files here, or click to browse
         </p>
         <p class="text-xs text-gray-400">
-          Images (JPEG, PNG, GIF, WebP) or text files (.md, .txt)
+          Images (JPEG, PNG, GIF, WebP, HEIC) or text files (.md, .txt)
         </p>
         <input
           type="file"
           multiple
-          accept="image/jpeg,image/png,image/gif,image/webp,.md,.txt,text/markdown,text/plain"
+          accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif,.heic,.heif,.md,.txt,text/markdown,text/plain"
           class="hidden"
           data-testid="file-input"
           @change="handleFileInput"
         />
       </label>
+      <p
+        v-if="fileWarning"
+        class="mt-3 text-sm text-amber-600 dark:text-amber-400"
+        data-testid="file-warning"
+      >
+        {{ fileWarning }}
+      </p>
     </div>
 
     <!-- Image mode: file list with ordering -->
@@ -351,7 +382,7 @@ watch(currentJob, (job) => {
           <input
             type="file"
             multiple
-            accept="image/jpeg,image/png,image/gif,image/webp,.md,.txt,text/markdown,text/plain"
+            accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif,.heic,.heif,.md,.txt,text/markdown,text/plain"
             class="hidden"
             @change="handleFileInput"
           />
