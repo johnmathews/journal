@@ -210,6 +210,36 @@ describe('useDashboardStore — mood surface', () => {
     expect(store.moodScoringEnabled).toBe(true)
   })
 
+  it('loadMoodDimensions hides non-default dimensions on first load', async () => {
+    const dims = [
+      { ...fakeDimensions[0], name: 'joy' },
+      { ...fakeDimensions[1], name: 'agency' },
+      { ...fakeDimensions[0], name: 'anxiety' },
+      { ...fakeDimensions[0], name: 'proactive' },
+      { ...fakeDimensions[0], name: 'gratitude' },
+    ]
+    mockMoodDims.mockResolvedValue({ dimensions: dims })
+    const store = useDashboardStore()
+    await store.loadMoodDimensions()
+    // Only joy, agency, proactive should be visible
+    expect(store.hiddenMoodDimensions.has('anxiety')).toBe(true)
+    expect(store.hiddenMoodDimensions.has('gratitude')).toBe(true)
+    expect(store.hiddenMoodDimensions.has('joy')).toBe(false)
+    expect(store.hiddenMoodDimensions.has('agency')).toBe(false)
+    expect(store.hiddenMoodDimensions.has('proactive')).toBe(false)
+  })
+
+  it('loadMoodDimensions does not reapply defaults on subsequent calls', async () => {
+    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    const store = useDashboardStore()
+    await store.loadMoodDimensions()
+    // Clear hidden set (simulating user restoring all)
+    store.hiddenMoodDimensions.clear()
+    // Second load should not reapply defaults
+    await store.loadMoodDimensions()
+    expect(store.hiddenMoodDimensions.size).toBe(0)
+  })
+
   it('loadMoodDimensions swallows errors and leaves state empty', async () => {
     mockMoodDims.mockRejectedValue(new Error('network down'))
     const store = useDashboardStore()
@@ -268,7 +298,7 @@ describe('useDashboardStore — mood surface', () => {
     const store = useDashboardStore()
     await store.loadMoodDimensions()
 
-    // All visible → click joy_sadness → isolate it (agency hidden)
+    // Click joy_sadness → isolate it (agency hidden)
     store.toggleMoodDimension('joy_sadness')
     expect(store.hiddenMoodDimensions.has('agency')).toBe(true)
     expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(false)

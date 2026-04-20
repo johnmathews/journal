@@ -543,11 +543,16 @@ const entityCost = computed(() => {
                   {{ store.settings.embedding.model }}
                 </dd>
               </div>
-              <div class="flex justify-between sm:block" data-testid="author-name-field">
+              <div
+                class="flex justify-between sm:block"
+                data-testid="author-name-field"
+              >
                 <dt class="text-gray-500 dark:text-gray-400">Author Name</dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
                   <template v-if="!editingName">
-                    <span data-testid="author-name-value">{{ authStore.displayName }}</span>
+                    <span data-testid="author-name-value">{{
+                      authStore.displayName
+                    }}</span>
                     <button
                       class="ml-2 text-xs text-violet-500 hover:text-violet-600 dark:hover:text-violet-400"
                       data-testid="author-name-edit-btn"
@@ -590,7 +595,8 @@ const entityCost = computed(() => {
                       {{ nameError }}
                     </p>
                     <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                      Use your full name (e.g. John Mathews) for accurate entity extraction
+                      Use your full name (e.g. John Mathews) for accurate entity
+                      extraction
                     </p>
                   </template>
                 </dd>
@@ -605,8 +611,8 @@ const entityCost = computed(() => {
             data-testid="reextract-prompt"
           >
             <p class="text-sm text-amber-800 dark:text-amber-200 mb-3">
-              Author name changed. Re-run entity extraction on all entries so first-person
-              pronouns resolve to the updated name?
+              Author name changed. Re-run entity extraction on all entries so
+              first-person pronouns resolve to the updated name?
             </p>
             <div class="flex gap-2">
               <button
@@ -615,7 +621,9 @@ const entityCost = computed(() => {
                 :disabled="reextractSubmitting"
                 @click="triggerReextraction"
               >
-                {{ reextractSubmitting ? 'Submitting...' : 'Re-run extraction' }}
+                {{
+                  reextractSubmitting ? 'Submitting...' : 'Re-run extraction'
+                }}
               </button>
               <button
                 class="btn text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"

@@ -85,8 +85,11 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const moodBins = ref<MoodTrendBin[]>([])
   // Dimensions the user has toggled OFF in the chart UI. Stored
   // as a Set<string> so flipping a toggle is O(1). Not
-  // persisted across sessions — the default is "show everything".
+  // persisted across sessions — defaults to showing only
+  // joy, agency, and proactive.
   const hiddenMoodDimensions = ref<Set<string>>(new Set())
+  const DEFAULT_VISIBLE_MOODS = new Set(['joy', 'agency', 'proactive'])
+  let moodDefaultsApplied = false
   const moodLoading = ref(false)
   const moodError = ref<string | null>(null)
   // True once at least one mood load has completed, regardless
@@ -143,6 +146,14 @@ export const useDashboardStore = defineStore('dashboard', () => {
     try {
       const response = await fetchMoodDimensions()
       moodDimensions.value = response.dimensions
+      if (!moodDefaultsApplied && response.dimensions.length > 0) {
+        hiddenMoodDimensions.value = new Set(
+          response.dimensions
+            .map((d) => d.name)
+            .filter((n) => !DEFAULT_VISIBLE_MOODS.has(n)),
+        )
+        moodDefaultsApplied = true
+      }
     } catch {
       // Swallow — if the dimensions load fails, the view shows
       // the generic "mood scoring not configured" state instead
@@ -214,6 +225,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     moodDimensions.value = []
     moodBins.value = []
     hiddenMoodDimensions.value = new Set()
+    moodDefaultsApplied = false
     moodLoading.value = false
     moodError.value = null
     moodHasLoaded.value = false

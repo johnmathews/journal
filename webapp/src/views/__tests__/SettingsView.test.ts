@@ -302,24 +302,22 @@ describe('SettingsView', () => {
 
   it('displays author name from auth store, not server settings', async () => {
     const wrapper = await mountView()
-    expect(
-      wrapper.find('[data-testid="author-name-value"]').text(),
-    ).toBe('John Mathews')
+    expect(wrapper.find('[data-testid="author-name-value"]').text()).toBe(
+      'John Mathews',
+    )
   })
 
   it('shows edit button for author name', async () => {
     const wrapper = await mountView()
-    expect(
-      wrapper.find('[data-testid="author-name-edit-btn"]').exists(),
-    ).toBe(true)
+    expect(wrapper.find('[data-testid="author-name-edit-btn"]').exists()).toBe(
+      true,
+    )
   })
 
   it('clicking Edit shows input with current name', async () => {
     const wrapper = await mountView()
     await wrapper.find('[data-testid="author-name-edit-btn"]').trigger('click')
-    const input = wrapper.find(
-      '[data-testid="author-name-input"]',
-    )
+    const input = wrapper.find('[data-testid="author-name-input"]')
     expect(input.exists()).toBe(true)
     expect((input.element as HTMLInputElement).value).toBe('John Mathews')
   })
@@ -327,15 +325,15 @@ describe('SettingsView', () => {
   it('clicking Cancel hides the input', async () => {
     const wrapper = await mountView()
     await wrapper.find('[data-testid="author-name-edit-btn"]').trigger('click')
-    expect(
-      wrapper.find('[data-testid="author-name-input"]').exists(),
-    ).toBe(true)
+    expect(wrapper.find('[data-testid="author-name-input"]').exists()).toBe(
+      true,
+    )
     await wrapper
       .find('[data-testid="author-name-cancel-btn"]')
       .trigger('click')
-    expect(
-      wrapper.find('[data-testid="author-name-input"]').exists(),
-    ).toBe(false)
+    expect(wrapper.find('[data-testid="author-name-input"]').exists()).toBe(
+      false,
+    )
   })
 
   it('saving unchanged name closes editor without API call', async () => {
@@ -347,9 +345,9 @@ describe('SettingsView', () => {
       '/api/auth/me',
       expect.anything(),
     )
-    expect(
-      wrapper.find('[data-testid="author-name-input"]').exists(),
-    ).toBe(false)
+    expect(wrapper.find('[data-testid="author-name-input"]').exists()).toBe(
+      false,
+    )
   })
 
   it('saving new name calls updateDisplayName and shows re-extract prompt', async () => {
@@ -375,9 +373,7 @@ describe('SettingsView', () => {
       method: 'PATCH',
       body: JSON.stringify({ display_name: 'Johnny M' }),
     })
-    expect(
-      wrapper.find('[data-testid="reextract-prompt"]').exists(),
-    ).toBe(true)
+    expect(wrapper.find('[data-testid="reextract-prompt"]').exists()).toBe(true)
   })
 
   it('shows error when saving name fails', async () => {
@@ -388,9 +384,9 @@ describe('SettingsView', () => {
     await wrapper.find('[data-testid="author-name-save-btn"]').trigger('click')
     await flushPromises()
 
-    expect(
-      wrapper.find('[data-testid="author-name-error"]').text(),
-    ).toBe('Failed to update name')
+    expect(wrapper.find('[data-testid="author-name-error"]').text()).toBe(
+      'Failed to update name',
+    )
   })
 
   it('shows error for empty name', async () => {
@@ -400,9 +396,9 @@ describe('SettingsView', () => {
     await wrapper.find('[data-testid="author-name-save-btn"]').trigger('click')
     await flushPromises()
 
-    expect(
-      wrapper.find('[data-testid="author-name-error"]').text(),
-    ).toBe('Name cannot be empty')
+    expect(wrapper.find('[data-testid="author-name-error"]').text()).toBe(
+      'Name cannot be empty',
+    )
   })
 
   it('dismiss button hides re-extract prompt', async () => {
@@ -424,12 +420,10 @@ describe('SettingsView', () => {
     await wrapper.find('[data-testid="author-name-save-btn"]').trigger('click')
     await flushPromises()
 
-    await wrapper
-      .find('[data-testid="reextract-dismiss-btn"]')
-      .trigger('click')
-    expect(
-      wrapper.find('[data-testid="reextract-prompt"]').exists(),
-    ).toBe(false)
+    await wrapper.find('[data-testid="reextract-dismiss-btn"]').trigger('click')
+    expect(wrapper.find('[data-testid="reextract-prompt"]').exists()).toBe(
+      false,
+    )
   })
 
   it('confirm re-extract triggers entity extraction', async () => {
@@ -455,16 +449,14 @@ describe('SettingsView', () => {
     await wrapper.find('[data-testid="author-name-save-btn"]').trigger('click')
     await flushPromises()
 
-    await wrapper
-      .find('[data-testid="reextract-confirm-btn"]')
-      .trigger('click')
+    await wrapper.find('[data-testid="reextract-confirm-btn"]').trigger('click')
     await flushPromises()
 
     expect(mockTriggerEntityExtraction).toHaveBeenCalledWith({
       stale_only: false,
     })
-    expect(
-      wrapper.find('[data-testid="reextract-prompt"]').exists(),
-    ).toBe(false)
+    expect(wrapper.find('[data-testid="reextract-prompt"]').exists()).toBe(
+      false,
+    )
   })
 })

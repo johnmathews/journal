@@ -269,7 +269,9 @@ function nextPage() {
             >
               {{ duration(job) }}
             </td>
-            <td class="px-4 py-3 text-gray-500 dark:text-gray-400 max-w-[350px]">
+            <td
+              class="px-4 py-3 text-gray-500 dark:text-gray-400 max-w-[350px]"
+            >
               <template v-if="job.status === 'failed' && job.error_message">
                 <span class="text-red-500 dark:text-red-400">{{
                   job.error_message
@@ -298,21 +300,24 @@ function nextPage() {
                       >+</span
                     >
                   </div>
-                  <dl
-                    v-else
-                    class="space-y-0.5 text-xs cursor-pointer"
-                  >
+                  <dl v-else class="space-y-0.5 text-xs cursor-pointer">
                     <div
                       v-for="(v, k) in job.result"
                       :key="String(k)"
                       class="flex gap-2"
                     >
-                      <dt class="font-medium text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                      <dt
+                        class="font-medium text-gray-600 dark:text-gray-300 whitespace-nowrap"
+                      >
                         {{ formatResultKey(String(k)) }}:
                       </dt>
                       <dd>
-                        <template v-if="Array.isArray(v) && v.length === 0">none</template>
-                        <template v-else-if="Array.isArray(v)">{{ v.join(', ') }}</template>
+                        <template v-if="Array.isArray(v) && v.length === 0"
+                          >none</template
+                        >
+                        <template v-else-if="Array.isArray(v)">{{
+                          v.join(', ')
+                        }}</template>
                         <template v-else>{{ v }}</template>
                       </dd>
                     </div>
