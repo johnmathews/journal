@@ -212,9 +212,7 @@ describe('calendar heatmap API', () => {
       days: [],
     })
     await fetchCalendarHeatmap()
-    expect(mockApiFetch).toHaveBeenCalledWith(
-      '/api/dashboard/calendar-heatmap',
-    )
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/dashboard/calendar-heatmap')
   })
 
   it('returns the response body unchanged', async () => {
@@ -279,9 +277,7 @@ describe('entity trends API', () => {
       bin: 'week' as const,
       entity_type: 'topic',
       entities: ['meditation', 'running'],
-      bins: [
-        { period: '2026-03-02', entity: 'meditation', mention_count: 5 },
-      ],
+      bins: [{ period: '2026-03-02', entity: 'meditation', mention_count: 5 }],
     }
     mockApiFetch.mockResolvedValue(payload)
     const result = await fetchEntityTrends({ type: 'topic' })
@@ -311,9 +307,7 @@ describe('mood-entity correlation API', () => {
       limit: 10,
     })
     const url = mockApiFetch.mock.calls[0][0] as string
-    expect(url.startsWith('/api/dashboard/mood-entity-correlation?')).toBe(
-      true,
-    )
+    expect(url.startsWith('/api/dashboard/mood-entity-correlation?')).toBe(true)
     expect(url).toContain('dimension=agency')
     expect(url).toContain('from=2026-01-01')
     expect(url).toContain('to=2026-04-11')
@@ -377,9 +371,7 @@ describe('word count distribution API', () => {
       bucket_size: 100,
     })
     const url = mockApiFetch.mock.calls[0][0] as string
-    expect(url.startsWith('/api/dashboard/word-count-distribution?')).toBe(
-      true,
-    )
+    expect(url.startsWith('/api/dashboard/word-count-distribution?')).toBe(true)
     expect(url).toContain('from=2026-01-01')
     expect(url).toContain('to=2026-04-11')
     expect(url).toContain('bucket_size=100')

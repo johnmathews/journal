@@ -987,9 +987,7 @@ describe('useDashboardStore — word count distribution', () => {
     mockWordDist.mockRejectedValue('kaboom')
     const store = useDashboardStore()
     await store.loadWordCountDistribution()
-    expect(store.wordCountError).toBe(
-      'Failed to load word count distribution',
-    )
+    expect(store.wordCountError).toBe('Failed to load word count distribution')
   })
 
   it('reset clears word count distribution state', async () => {
