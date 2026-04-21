@@ -15,6 +15,10 @@ vi.mock('@/api/dashboard', () => ({
   }),
 }))
 
+vi.mock('@/api/insights', () => ({
+  fetchMoodDrilldown: vi.fn().mockResolvedValue({ entries: [] }),
+}))
+
 // The mood-backfill modal reaches through the jobs store into
 // these clients; stub them so no real fetches are attempted.
 vi.mock('@/api/entities', () => ({
@@ -123,6 +127,11 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'dashboard', component: DashboardView },
+    {
+      path: '/entries/:id',
+      name: 'entry-detail',
+      component: { template: '<div />' },
+    },
     {
       path: '/entries',
       name: 'entries',
@@ -685,5 +694,48 @@ describe('DashboardView — mood chart', () => {
       options: { animation?: false }
     }
     expect(secondConfig.options.animation).toBe(false)
+  })
+
+  it('renders the drill-down panel when store has drill-down state', async () => {
+    const wrapper = await setupWithMoodData()
+
+    // No drill-down initially
+    expect(
+      wrapper.find('[data-testid="dashboard-drilldown"]').exists(),
+    ).toBe(false)
+
+    // Simulate drill-down via store (clicking chart points is hard to
+    // test through Chart.js stubs, so we set store state directly)
+    const { useDashboardStore } = await import('@/stores/dashboard')
+    const store = useDashboardStore()
+    const { fetchMoodDrilldown } = await import('@/api/insights')
+    vi.mocked(fetchMoodDrilldown).mockResolvedValue({
+      entries: [
+        {
+          entry_id: 1,
+          entry_date: '2026-03-02',
+          score: 0.5,
+          confidence: 0.9,
+          rationale: 'Positive day',
+        },
+      ],
+    })
+    await store.loadDrillDown('2026-03-02', 'joy_sadness')
+    await flushPromises()
+
+    // Drill-down panel should now be visible
+    const panel = wrapper.find('[data-testid="dashboard-drilldown"]')
+    expect(panel.exists()).toBe(true)
+    expect(panel.text()).toContain('joy_sadness')
+    expect(panel.text()).toContain('Positive day')
+
+    // Close button clears drill-down
+    await wrapper
+      .find('[data-testid="dashboard-drilldown-close"]')
+      .trigger('click')
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="dashboard-drilldown"]').exists(),
+    ).toBe(false)
   })
 })

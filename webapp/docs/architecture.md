@@ -46,6 +46,10 @@ Page-level components, one per route. Each view composes layout, components, and
      lines never dip below 0, which is visually informative).
      Dimension toggles above the chart let the user hide
      individual lines; state is local to the session.
+     Click a data point to open an inline drill-down panel
+     showing the individual entries that contributed to that
+     period's average, with per-entry score and rationale.
+     Clicking an entry row navigates to `EntryDetailView`.
   The mood chart card is conditionally rendered — when the
   server returns an empty dimension set
   (`JOURNAL_ENABLE_MOOD_SCORING=false` or config file empty)
@@ -73,6 +77,8 @@ Page-level components, one per route. Each view composes layout, components, and
      via pill tabs. An HTML legend beside the chart lists each
      entity with its mention count.
   Shares the same Range/Bin filter controls as the Dashboard.
+  The filter bar is `sticky top-16` so it remains visible below the
+  header while scrolling through charts.
   Backed by `useInsightsStore` (independent from `useDashboardStore`)
   and three API endpoints: `/api/dashboard/mood-trends` (reused),
   `/api/dashboard/mood-drilldown` (new), and
@@ -96,7 +102,7 @@ Pinia stores for server state management.
 - **entities** — Entity list, current entity, mentions and relationships (entity tracking)
 - **search** — Full-text search state: query, mode, date range, result items, `hasRun` flag so the view can distinguish "no results" from "not yet searched". Exposes a `runSearch(partial)` action that accepts per-call overrides (useful for pagination) and surfaces server error messages from `ApiRequestError` directly.
 - **insights** — Insights page state: independent range/bin filter, mood trends with score_min/score_max for variance bands, drill-down state (period, dimension, entries with rationales), entity distribution (type, items with mention counts). Actions: `loadMoodDimensions`, `loadMoodTrends`, `loadDrillDown`, `clearDrillDown`, `loadEntityDistribution`, `toggleMoodDimension`, `periodEndDate`. Error handling mirrors the dashboard store pattern.
-- **dashboard** — Dashboard filter state (range + bin) and the most recently fetched writing-stats bins, plus a parallel mood surface: `moodDimensions` (fetched once from `/api/dashboard/mood-dimensions` on mount), `moodBins` (fetched from `/api/dashboard/mood-trends` on every range/bin change), and `hiddenMoodDimensions: Set<string>` for per-session facet toggles. `loadMoodDimensions()` swallows errors (dimension-load failure is interpreted as "mood scoring not configured" and hides the card; it's not a loud error). `loadMoodTrends()` surfaces `ApiRequestError.message` verbatim like `loadWritingStats`. `toggleMoodDimension(name)` flips visibility and creates a new Set instance so Vue reactivity fires on the change. Initial state is `last_3_months` + `week`. A pure `rangeToDates(range, now)` helper (also exported for tests) converts a `DashboardRange` option into a concrete ISO `{from, to}` pair against an injectable clock.
+- **dashboard** — Dashboard filter state (range + bin) and the most recently fetched writing-stats bins, plus a parallel mood surface: `moodDimensions` (fetched once from `/api/dashboard/mood-dimensions` on mount), `moodBins` (fetched from `/api/dashboard/mood-trends` on every range/bin change), and `hiddenMoodDimensions: Set<string>` for per-session facet toggles. Includes drill-down state (`drillPeriod`, `drillDimension`, `drillEntries`) and actions (`loadDrillDown`, `clearDrillDown`, `periodEndDate`) so clicking a mood chart data point on the dashboard shows the same entry-level detail as the Insights page. `loadMoodDimensions()` swallows errors (dimension-load failure is interpreted as "mood scoring not configured" and hides the card; it's not a loud error). `loadMoodTrends()` surfaces `ApiRequestError.message` verbatim like `loadWritingStats`. `toggleMoodDimension(name)` flips visibility and creates a new Set instance so Vue reactivity fires on the change. Initial state is `last_3_months` + `week`. A pure `rangeToDates(range, now)` helper (also exported for tests) converts a `DashboardRange` option into a concrete ISO `{from, to}` pair against an injectable clock.
 
 ### API Layer (`src/api/`)
 Typed fetch wrappers for the journal-server REST API.

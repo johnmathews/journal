@@ -430,4 +430,71 @@ describe('useDashboardStore — mood surface', () => {
     expect(store.drillDimension).toBeNull()
     expect(store.drillEntries).toEqual([])
   })
+
+  it('loadDrillDown surfaces ApiRequestError verbatim', async () => {
+    const { fetchMoodDrilldown } = await import('@/api/insights')
+    vi.mocked(fetchMoodDrilldown).mockRejectedValue(
+      new ApiRequestError(400, 'invalid', 'Bad dimension'),
+    )
+    const store = useDashboardStore()
+    await store.loadDrillDown('2026-03-02', 'joy_sadness')
+    expect(store.drillError).toBe('Bad dimension')
+    expect(store.drillEntries).toEqual([])
+    expect(store.drillLoading).toBe(false)
+  })
+
+  it('loadDrillDown surfaces plain Error messages', async () => {
+    const { fetchMoodDrilldown } = await import('@/api/insights')
+    vi.mocked(fetchMoodDrilldown).mockRejectedValue(new Error('network'))
+    const store = useDashboardStore()
+    await store.loadDrillDown('2026-03-02', 'joy_sadness')
+    expect(store.drillError).toBe('network')
+  })
+
+  it('loadDrillDown falls back on non-Error throw', async () => {
+    const { fetchMoodDrilldown } = await import('@/api/insights')
+    vi.mocked(fetchMoodDrilldown).mockRejectedValue('kaboom')
+    const store = useDashboardStore()
+    await store.loadDrillDown('2026-03-02', 'joy_sadness')
+    expect(store.drillError).toBe('Failed to load drill-down data')
+  })
+
+  it('loadDrillDown uses correct end date for month bin', async () => {
+    const { fetchMoodDrilldown } = await import('@/api/insights')
+    vi.mocked(fetchMoodDrilldown).mockResolvedValue({ entries: [] })
+    const store = useDashboardStore()
+    store.bin = 'month'
+    await store.loadDrillDown('2026-03-01', 'agency')
+    expect(vi.mocked(fetchMoodDrilldown)).toHaveBeenCalledWith({
+      dimension: 'agency',
+      from: '2026-03-01',
+      to: '2026-03-31',
+    })
+  })
+
+  it('loadDrillDown uses correct end date for quarter bin', async () => {
+    const { fetchMoodDrilldown } = await import('@/api/insights')
+    vi.mocked(fetchMoodDrilldown).mockResolvedValue({ entries: [] })
+    const store = useDashboardStore()
+    store.bin = 'quarter'
+    await store.loadDrillDown('2026-01-01', 'agency')
+    expect(vi.mocked(fetchMoodDrilldown)).toHaveBeenCalledWith({
+      dimension: 'agency',
+      from: '2026-01-01',
+      to: '2026-03-31',
+    })
+  })
+
+  it('loadDrillDown uses correct end date for year bin', async () => {
+    const { fetchMoodDrilldown } = await import('@/api/insights')
+    vi.mocked(fetchMoodDrilldown).mockResolvedValue({ entries: [] })
+    const store = useDashboardStore()
+    store.bin = 'year'
+    await store.loadDrillDown('2026-01-01', 'agency')
+    expect(vi.mocked(fetchMoodDrilldown)).toHaveBeenCalledWith({
+      dimension: 'agency',
+      from: '2026-01-01',
+      to: '2026-12-31',
+    })
+  })
 })
