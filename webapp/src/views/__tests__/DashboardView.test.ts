@@ -16,9 +16,23 @@ vi.mock('@/api/dashboard', () => ({
 }))
 
 vi.mock('@/api/insights', () => ({
+  fetchMoodDimensions: vi.fn().mockResolvedValue({ dimensions: [] }),
+  fetchMoodTrends: vi.fn().mockResolvedValue({
+    from: null,
+    to: null,
+    bin: 'week',
+    bins: [],
+  }),
   fetchMoodDrilldown: vi
     .fn()
     .mockResolvedValue({ dimension: '', from: '', to: '', entries: [] }),
+  fetchEntityDistribution: vi.fn().mockResolvedValue({
+    type: 'topic',
+    from: null,
+    to: null,
+    total: 0,
+    items: [],
+  }),
 }))
 
 // The mood-backfill modal reaches through the jobs store into
@@ -123,7 +137,9 @@ vi.mock('chart.js', () => {
 })
 
 import { fetchWritingStats } from '@/api/dashboard'
+import { fetchEntityDistribution } from '@/api/insights'
 const mockFetch = vi.mocked(fetchWritingStats)
+const mockEntityDist = vi.mocked(fetchEntityDistribution)
 
 const router = createRouter({
   history: createWebHistory(),
@@ -360,15 +376,23 @@ describe('DashboardView', () => {
     // Empty state now shown.
     expect(wrapper.find('[data-testid="dashboard-empty"]').exists()).toBe(true)
   })
+
+  it('has a sticky filter bar', async () => {
+    mockFetch.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: [],
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    const filters = wrapper.find('[data-testid="dashboard-filters"]')
+    expect(filters.exists()).toBe(true)
+    expect(filters.classes()).toContain('sticky')
+  })
 })
 
 describe('DashboardView — mood chart', () => {
-  // `enableAutoUnmount(beforeEach)` is already installed at the
-  // top of the sibling describe block above; calling it again
-  // here would register a second unmount hook and vitest
-  // reports it as a duplicate-setup error. One call covers the
-  // whole test file.
-
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
@@ -575,12 +599,13 @@ describe('DashboardView — mood chart', () => {
     expect(banner.text()).toContain('mood upstream down')
   })
 
-  it('range change triggers BOTH writing and mood reloads', async () => {
+  it('range change triggers writing, mood, and entity reloads', async () => {
     const wrapper = await setupWithMoodData()
     const { fetchWritingStats, fetchMoodTrends } =
       await import('@/api/dashboard')
     vi.mocked(fetchWritingStats).mockClear()
     vi.mocked(fetchMoodTrends).mockClear()
+    mockEntityDist.mockClear()
 
     await wrapper
       .find('[data-testid="dashboard-range-last_6_months"]')
@@ -589,9 +614,10 @@ describe('DashboardView — mood chart', () => {
 
     expect(fetchWritingStats).toHaveBeenCalledTimes(1)
     expect(fetchMoodTrends).toHaveBeenCalledTimes(1)
+    expect(mockEntityDist).toHaveBeenCalledTimes(1)
   })
 
-  it('bin change triggers BOTH writing and mood reloads', async () => {
+  it('bin change triggers writing and mood reloads', async () => {
     const wrapper = await setupWithMoodData()
     const { fetchWritingStats, fetchMoodTrends } =
       await import('@/api/dashboard')
@@ -742,5 +768,183 @@ describe('DashboardView — mood chart', () => {
     expect(wrapper.find('[data-testid="dashboard-drilldown"]').exists()).toBe(
       false,
     )
+  })
+})
+
+describe('DashboardView — entity distribution', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    chartConstructorSpy.mockClear()
+    destroySpy.mockClear()
+  })
+
+  const manyWritingBins = Array.from({ length: 6 }, (_, i) => ({
+    bin_start: `2026-03-${String(i * 7 + 2).padStart(2, '0')}`,
+    entry_count: 1,
+    total_words: 100,
+  }))
+
+  function setupWritingStats() {
+    mockFetch.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: manyWritingBins,
+    })
+  }
+
+  it('renders entity type tabs', async () => {
+    setupWritingStats()
+    const wrapper = mountView()
+    await flushPromises()
+    for (const type of [
+      'topic',
+      'activity',
+      'place',
+      'person',
+      'organization',
+      'other',
+    ]) {
+      expect(
+        wrapper.find(`[data-testid="dashboard-entity-tab-${type}"]`).exists(),
+      ).toBe(true)
+    }
+  })
+
+  it('shows empty entity state when no entities found', async () => {
+    setupWritingStats()
+    const wrapper = mountView()
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="dashboard-entity-empty"]').exists(),
+    ).toBe(true)
+  })
+
+  it('renders entity legend capped at 8 items', async () => {
+    setupWritingStats()
+    const items = Array.from({ length: 12 }, (_, i) => ({
+      canonical_name: `entity-${i}`,
+      entity_type: 'topic',
+      mention_count: 20 - i,
+    }))
+    mockEntityDist.mockResolvedValue({
+      type: 'topic',
+      from: null,
+      to: null,
+      total: 12,
+      items,
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    const rows = wrapper.findAll(
+      '[data-testid="dashboard-entity-legend"] tbody tr',
+    )
+    expect(rows).toHaveLength(8)
+    expect(
+      wrapper.find('[data-testid="dashboard-entity-legend-toggle"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="dashboard-entity-legend-toggle"]').text(),
+    ).toContain('Show 4 more')
+  })
+
+  it('expands and collapses the entity legend', async () => {
+    setupWritingStats()
+    const items = Array.from({ length: 12 }, (_, i) => ({
+      canonical_name: `entity-${i}`,
+      entity_type: 'topic',
+      mention_count: 20 - i,
+    }))
+    mockEntityDist.mockResolvedValue({
+      type: 'topic',
+      from: null,
+      to: null,
+      total: 12,
+      items,
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Expand
+    await wrapper
+      .find('[data-testid="dashboard-entity-legend-toggle"]')
+      .trigger('click')
+    await flushPromises()
+    expect(
+      wrapper.findAll('[data-testid="dashboard-entity-legend"] tbody tr'),
+    ).toHaveLength(12)
+    expect(
+      wrapper.find('[data-testid="dashboard-entity-legend-toggle"]').text(),
+    ).toContain('Show fewer')
+
+    // Collapse
+    await wrapper
+      .find('[data-testid="dashboard-entity-legend-toggle"]')
+      .trigger('click')
+    await flushPromises()
+    expect(
+      wrapper.findAll('[data-testid="dashboard-entity-legend"] tbody tr'),
+    ).toHaveLength(8)
+  })
+
+  it('does not show toggle when 8 or fewer items', async () => {
+    setupWritingStats()
+    mockEntityDist.mockResolvedValue({
+      type: 'topic',
+      from: null,
+      to: null,
+      total: 3,
+      items: [
+        {
+          canonical_name: 'meditation',
+          entity_type: 'topic',
+          mention_count: 14,
+        },
+        { canonical_name: 'running', entity_type: 'topic', mention_count: 9 },
+        { canonical_name: 'sleep', entity_type: 'topic', mention_count: 5 },
+      ],
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(
+      wrapper.findAll('[data-testid="dashboard-entity-legend"] tbody tr'),
+    ).toHaveLength(3)
+    expect(
+      wrapper.find('[data-testid="dashboard-entity-legend-toggle"]').exists(),
+    ).toBe(false)
+  })
+
+  it('clicking entity type tab changes the type', async () => {
+    setupWritingStats()
+    mockEntityDist.mockResolvedValue({
+      type: 'activity',
+      from: null,
+      to: null,
+      total: 0,
+      items: [],
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    mockEntityDist.mockClear()
+
+    await wrapper
+      .find('[data-testid="dashboard-entity-tab-activity"]')
+      .trigger('click')
+    await flushPromises()
+
+    expect(mockEntityDist).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows entity error state', async () => {
+    setupWritingStats()
+    mockEntityDist.mockRejectedValue(new Error('entity fail'))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="dashboard-entity-error"]').exists(),
+    ).toBe(true)
   })
 })

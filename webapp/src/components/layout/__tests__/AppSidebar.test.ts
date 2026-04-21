@@ -308,11 +308,10 @@ describe('AppSidebar', () => {
     wrapper.unmount()
   })
 
-  it('renders the Insights sidebar link', async () => {
+  it('does not render the old Insights sidebar link', async () => {
     const wrapper = await mountSidebar()
     const link = wrapper.find('[data-testid="sidebar-insights-link"]')
-    expect(link.exists()).toBe(true)
-    expect(link.attributes('href')).toBe('/insights')
+    expect(link.exists()).toBe(false)
     wrapper.unmount()
   })
 })

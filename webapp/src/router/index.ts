@@ -80,8 +80,7 @@ const router = createRouter({
     },
     {
       path: '/insights',
-      name: 'insights',
-      component: () => import('@/views/InsightsView.vue'),
+      redirect: '/',
     },
     {
       path: '/jobs',

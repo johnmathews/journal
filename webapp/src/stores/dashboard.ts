@@ -6,7 +6,7 @@ import {
   fetchMoodTrends,
   fetchWritingStats,
 } from '@/api/dashboard'
-import { fetchMoodDrilldown } from '@/api/insights'
+import { fetchEntityDistribution, fetchMoodDrilldown } from '@/api/insights'
 import type {
   DashboardBin,
   DashboardRange,
@@ -14,7 +14,11 @@ import type {
   MoodTrendBin,
   WritingFrequencyBin,
 } from '@/types/dashboard'
-import type { MoodDrilldownEntry } from '@/types/insights'
+import type {
+  EntityDistributionItem,
+  InsightsEntityType,
+  MoodDrilldownEntry,
+} from '@/types/insights'
 
 /**
  * Convert a `DashboardRange` into a concrete `{from, to}` pair
@@ -105,6 +109,15 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const drillEntries = ref<MoodDrilldownEntry[]>([])
   const drillLoading = ref(false)
   const drillError = ref<string | null>(null)
+
+  // Entity distribution state — powers the "what I write about"
+  // doughnut chart. `entityType` selects which entity category
+  // to display (topic, person, place, etc.).
+  const entityType = ref<InsightsEntityType>('topic')
+  const entityDistribution = ref<EntityDistributionItem[]>([])
+  const entityLoading = ref(false)
+  const entityError = ref<string | null>(null)
+  const entityHasLoaded = ref(false)
 
   const totalEntriesInRange = computed(() =>
     bins.value.reduce((sum, b) => sum + b.entry_count, 0),
@@ -285,6 +298,37 @@ export const useDashboardStore = defineStore('dashboard', () => {
     drillError.value = null
   }
 
+  async function loadEntityDistribution(
+    type?: InsightsEntityType,
+  ): Promise<void> {
+    if (type !== undefined) entityType.value = type
+
+    entityLoading.value = true
+    entityError.value = null
+    try {
+      const { from, to } = rangeToDates(range.value)
+      const response = await fetchEntityDistribution({
+        type: entityType.value,
+        from: from ?? undefined,
+        to: to ?? undefined,
+        limit: 30,
+      })
+      entityDistribution.value = response.items
+      entityHasLoaded.value = true
+    } catch (e) {
+      if (e instanceof ApiRequestError) {
+        entityError.value = e.message
+      } else if (e instanceof Error) {
+        entityError.value = e.message
+      } else {
+        entityError.value = 'Failed to load entity distribution'
+      }
+      entityDistribution.value = []
+    } finally {
+      entityLoading.value = false
+    }
+  }
+
   function reset(): void {
     range.value = 'last_3_months'
     bin.value = 'week'
@@ -304,6 +348,11 @@ export const useDashboardStore = defineStore('dashboard', () => {
     drillEntries.value = []
     drillLoading.value = false
     drillError.value = null
+    entityType.value = 'topic'
+    entityDistribution.value = []
+    entityLoading.value = false
+    entityError.value = null
+    entityHasLoaded.value = false
   }
 
   return {
@@ -334,6 +383,13 @@ export const useDashboardStore = defineStore('dashboard', () => {
     drillError,
     loadDrillDown,
     clearDrillDown,
+    // Entity distribution surface
+    entityType,
+    entityDistribution,
+    entityLoading,
+    entityError,
+    entityHasLoaded,
+    loadEntityDistribution,
     reset,
   }
 })
