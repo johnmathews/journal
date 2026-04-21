@@ -16,7 +16,7 @@ vi.mock('@/api/dashboard', () => ({
 }))
 
 vi.mock('@/api/insights', () => ({
-  fetchMoodDrilldown: vi.fn().mockResolvedValue({ entries: [] }),
+  fetchMoodDrilldown: vi.fn().mockResolvedValue({ dimension: '', from: '', to: '', entries: [] }),
 }))
 
 // The mood-backfill modal reaches through the jobs store into
@@ -700,9 +700,9 @@ describe('DashboardView — mood chart', () => {
     const wrapper = await setupWithMoodData()
 
     // No drill-down initially
-    expect(
-      wrapper.find('[data-testid="dashboard-drilldown"]').exists(),
-    ).toBe(false)
+    expect(wrapper.find('[data-testid="dashboard-drilldown"]').exists()).toBe(
+      false,
+    )
 
     // Simulate drill-down via store (clicking chart points is hard to
     // test through Chart.js stubs, so we set store state directly)
@@ -710,6 +710,9 @@ describe('DashboardView — mood chart', () => {
     const store = useDashboardStore()
     const { fetchMoodDrilldown } = await import('@/api/insights')
     vi.mocked(fetchMoodDrilldown).mockResolvedValue({
+      dimension: 'joy_sadness',
+      from: '2026-03-02',
+      to: '2026-03-08',
       entries: [
         {
           entry_id: 1,
@@ -734,8 +737,8 @@ describe('DashboardView — mood chart', () => {
       .find('[data-testid="dashboard-drilldown-close"]')
       .trigger('click')
     await flushPromises()
-    expect(
-      wrapper.find('[data-testid="dashboard-drilldown"]').exists(),
-    ).toBe(false)
+    expect(wrapper.find('[data-testid="dashboard-drilldown"]').exists()).toBe(
+      false,
+    )
   })
 })
