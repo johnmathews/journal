@@ -1054,6 +1054,66 @@ describe('DashboardView — calendar heatmap', () => {
       wrapper.find('[data-testid="dashboard-calendar-error"]').text(),
     ).toContain('calendar fail')
   })
+
+  it('colors cells by word count using quantile thresholds', async () => {
+    setupWritingStats()
+    // Provide a spread of word counts so quantile buckets are exercised:
+    // p25 ≈ 100, p50 ≈ 300, p75 ≈ 800
+    mockCalendar.mockResolvedValue({
+      from: '2026-03-02',
+      to: '2026-03-09',
+      days: [
+        { date: '2026-03-02', entry_count: 1, total_words: 50 },
+        { date: '2026-03-03', entry_count: 1, total_words: 100 },
+        { date: '2026-03-04', entry_count: 1, total_words: 300 },
+        { date: '2026-03-05', entry_count: 1, total_words: 800 },
+        { date: '2026-03-06', entry_count: 1, total_words: 2000 },
+        { date: '2026-03-07', entry_count: 0, total_words: 0 },
+      ],
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    // Zero-word cell gets the gray bg class
+    const zeroCell = wrapper.find(
+      '[data-testid="dashboard-calendar-cell-2026-03-07"]',
+    )
+    expect(zeroCell.exists()).toBe(true)
+    expect(zeroCell.classes()).toContain('bg-gray-100')
+    // Non-zero cells exist and have violet color classes
+    const lowCell = wrapper.find(
+      '[data-testid="dashboard-calendar-cell-2026-03-02"]',
+    )
+    expect(lowCell.exists()).toBe(true)
+    expect(
+      lowCell.classes().some((c: string) => c.startsWith('bg-violet')),
+    ).toBe(true)
+    // High word-count cell (outlier)
+    const highCell = wrapper.find(
+      '[data-testid="dashboard-calendar-cell-2026-03-06"]',
+    )
+    expect(highCell.exists()).toBe(true)
+    expect(
+      highCell.classes().some((c: string) => c.startsWith('bg-violet')),
+    ).toBe(true)
+  })
+
+  it('shows word count in tooltip text', async () => {
+    setupWritingStats()
+    mockCalendar.mockResolvedValue({
+      from: '2026-03-02',
+      to: '2026-03-04',
+      days: [{ date: '2026-03-02', entry_count: 1, total_words: 1234 }],
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    const cell = wrapper.find(
+      '[data-testid="dashboard-calendar-cell-2026-03-02"]',
+    )
+    expect(cell.exists()).toBe(true)
+    const title = cell.attributes('title') ?? ''
+    expect(title).toContain('1,234 words')
+    expect(title).toContain('1 entry')
+  })
 })
 
 describe('DashboardView — entity trends', () => {
@@ -1360,4 +1420,3 @@ describe('DashboardView — mood-entity correlation', () => {
     ).toContain('correlation fail')
   })
 })
-
