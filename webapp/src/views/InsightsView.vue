@@ -383,7 +383,7 @@ function navigateToEntry(entryId: number): void {
 
     <!-- Filter bar (sticky so it stays visible while scrolling) -->
     <div
-      class="mb-6 flex flex-wrap items-end gap-6 sticky top-16 z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm py-3 -mt-3 border-b border-gray-200/60 dark:border-gray-700/40"
+      class="mb-6 flex flex-wrap items-end gap-6 sticky top-16 z-10 bg-white dark:bg-gray-800 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-gray-700/60 shadow-xs px-5 py-3"
       data-testid="insights-filters"
     >
       <div>
