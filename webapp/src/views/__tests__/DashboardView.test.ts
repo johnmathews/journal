@@ -1425,3 +1425,195 @@ describe('DashboardView — mood-entity correlation', () => {
     ).toContain('correlation fail')
   })
 })
+
+describe('DashboardView — tile layout editing', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    chartConstructorSpy.mockClear()
+    destroySpy.mockClear()
+  })
+
+  const manyBins = Array.from({ length: 6 }, (_, i) => ({
+    bin_start: `2026-03-${String(i * 7 + 2).padStart(2, '0')}`,
+    entry_count: 1,
+    total_words: 100,
+  }))
+
+  function setupMocks() {
+    mockFetch.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: manyBins,
+    })
+  }
+
+  it('shows the edit layout button', async () => {
+    setupMocks()
+    const wrapper = mountView()
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="dashboard-edit-layout-toggle"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="dashboard-edit-layout-toggle"]').text(),
+    ).toBe('Edit layout')
+  })
+
+  it('toggles edit mode and shows tile controls', async () => {
+    setupMocks()
+    const wrapper = mountView()
+    await flushPromises()
+
+    // No move/hide buttons before edit mode
+    expect(wrapper.find('button[title="Move up"]').exists()).toBe(false)
+    expect(wrapper.find('button[title="Hide chart"]').exists()).toBe(false)
+
+    // Enter edit mode
+    await wrapper
+      .find('[data-testid="dashboard-edit-layout-toggle"]')
+      .trigger('click')
+
+    expect(
+      wrapper.find('[data-testid="dashboard-edit-layout-toggle"]').text(),
+    ).toBe('Done editing')
+    // Now controls should be visible
+    expect(wrapper.find('button[title="Move up"]').exists()).toBe(true)
+    expect(wrapper.find('button[title="Move down"]').exists()).toBe(true)
+    expect(wrapper.find('button[title="Hide chart"]').exists()).toBe(true)
+  })
+
+  it('hides a tile and shows the restore panel', async () => {
+    setupMocks()
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Enter edit mode
+    await wrapper
+      .find('[data-testid="dashboard-edit-layout-toggle"]')
+      .trigger('click')
+
+    // Both chart cards should be visible
+    expect(
+      wrapper.find('[data-testid="dashboard-writing-chart-card"]').exists(),
+    ).toBe(true)
+
+    // Hide the writing chart via its hide button
+    const writingCard = wrapper.find(
+      '[data-testid="dashboard-writing-chart-card"]',
+    )
+    await writingCard.find('button[title="Hide chart"]').trigger('click')
+
+    // Writing chart should be gone
+    expect(
+      wrapper.find('[data-testid="dashboard-writing-chart-card"]').exists(),
+    ).toBe(false)
+
+    // Hidden tiles panel should appear with a restore button
+    expect(
+      wrapper.find('[data-testid="dashboard-hidden-tiles-panel"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper
+        .find('[data-testid="dashboard-restore-tile-writing-frequency"]')
+        .exists(),
+    ).toBe(true)
+  })
+
+  it('restores a hidden tile', async () => {
+    setupMocks()
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Enter edit mode and hide writing chart
+    await wrapper
+      .find('[data-testid="dashboard-edit-layout-toggle"]')
+      .trigger('click')
+    const writingCard = wrapper.find(
+      '[data-testid="dashboard-writing-chart-card"]',
+    )
+    await writingCard.find('button[title="Hide chart"]').trigger('click')
+
+    // Restore it
+    await wrapper
+      .find('[data-testid="dashboard-restore-tile-writing-frequency"]')
+      .trigger('click')
+
+    // Should be back
+    expect(
+      wrapper.find('[data-testid="dashboard-writing-chart-card"]').exists(),
+    ).toBe(true)
+    // Hidden tiles panel should be gone (no more hidden tiles)
+    expect(
+      wrapper.find('[data-testid="dashboard-hidden-tiles-panel"]').exists(),
+    ).toBe(false)
+  })
+
+  it('reset layout button restores all tiles', async () => {
+    setupMocks()
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Enter edit mode and hide two tiles
+    await wrapper
+      .find('[data-testid="dashboard-edit-layout-toggle"]')
+      .trigger('click')
+
+    // Hide writing chart
+    let card = wrapper.find('[data-testid="dashboard-writing-chart-card"]')
+    await card.find('button[title="Hide chart"]').trigger('click')
+
+    // Hide word chart
+    card = wrapper.find('[data-testid="dashboard-word-chart-card"]')
+    await card.find('button[title="Hide chart"]').trigger('click')
+
+    // Both should be gone
+    expect(
+      wrapper.find('[data-testid="dashboard-writing-chart-card"]').exists(),
+    ).toBe(false)
+    expect(
+      wrapper.find('[data-testid="dashboard-word-chart-card"]').exists(),
+    ).toBe(false)
+
+    // Click reset
+    await wrapper
+      .find('[data-testid="dashboard-reset-layout"]')
+      .trigger('click')
+
+    // Both should be back
+    expect(
+      wrapper.find('[data-testid="dashboard-writing-chart-card"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="dashboard-word-chart-card"]').exists(),
+    ).toBe(true)
+  })
+
+  it('hidden tiles panel is not visible outside edit mode', async () => {
+    setupMocks()
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Enter edit mode and hide a tile
+    await wrapper
+      .find('[data-testid="dashboard-edit-layout-toggle"]')
+      .trigger('click')
+    const card = wrapper.find('[data-testid="dashboard-writing-chart-card"]')
+    await card.find('button[title="Hide chart"]').trigger('click')
+
+    // Exit edit mode
+    await wrapper
+      .find('[data-testid="dashboard-edit-layout-toggle"]')
+      .trigger('click')
+
+    // Hidden tiles panel should NOT be visible outside edit mode
+    expect(
+      wrapper.find('[data-testid="dashboard-hidden-tiles-panel"]').exists(),
+    ).toBe(false)
+    // But the tile should still be hidden
+    expect(
+      wrapper.find('[data-testid="dashboard-writing-chart-card"]').exists(),
+    ).toBe(false)
+  })
+})
