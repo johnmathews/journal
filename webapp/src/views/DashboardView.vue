@@ -502,7 +502,7 @@ const calendarGrid = computed(() => {
   const cur = new Date(startDate)
 
   while (cur <= endDate) {
-    const iso = cur.toISOString().slice(0, 10)
+    const iso = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`
     const jsDay = cur.getDay() // 0=Sun
     const dayOfWeek = jsDay === 0 ? 6 : jsDay - 1 // 0=Mon … 6=Sun
 
@@ -1045,9 +1045,10 @@ async function onMoodJobSucceeded(): Promise<void> {
     </div>
 
     <div v-else>
-      <!-- Calendar Heatmap (full width) -->
+      <!-- Heatmap + Entity distribution — side by side, shrink to fit -->
+      <div class="flex flex-wrap gap-6">
       <section
-        class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
+        class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4 grow"
         data-testid="dashboard-calendar-section"
       >
         <header class="mb-3">
@@ -1190,7 +1191,7 @@ async function onMoodJobSucceeded(): Promise<void> {
 
       <!-- Entity Distribution -->
       <section
-        class="mt-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
+        class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4 grow"
         data-testid="dashboard-entity-section"
       >
         <header class="mb-3">
@@ -1304,6 +1305,7 @@ async function onMoodJobSucceeded(): Promise<void> {
           </div>
         </div>
       </section>
+      </div><!-- end heatmap + entity flex row -->
 
       <!-- Writing frequency + word count -->
       <div class="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">

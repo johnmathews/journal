@@ -80,7 +80,7 @@ export function rangeToDates(
  * `invalid_bin` / 400 message is visible.
  */
 export const useDashboardStore = defineStore('dashboard', () => {
-  const range = ref<DashboardRange>('last_3_months')
+  const range = ref<DashboardRange>('all')
   const bin = ref<DashboardBin>('week')
   const bins = ref<WritingFrequencyBin[]>([])
   const loading = ref(false)
@@ -492,7 +492,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   }
 
   function reset(): void {
-    range.value = 'last_3_months'
+    range.value = 'all'
     bin.value = 'week'
     bins.value = []
     loading.value = false
