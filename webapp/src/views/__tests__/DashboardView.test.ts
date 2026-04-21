@@ -180,7 +180,7 @@ const mockFetch = vi.mocked(fetchWritingStats)
 const mockEntityDist = vi.mocked(fetchEntityDistribution)
 const mockCalendar = vi.mocked(fetchCalendarHeatmap)
 const mockEntityTrends = vi.mocked(fetchEntityTrends)
-const mockMoodCorrelation = vi.mocked(fetchMoodEntityCorrelation)
+vi.mocked(fetchMoodEntityCorrelation)
 const mockWordDist = vi.mocked(fetchWordCountDistribution)
 
 const router = createRouter({
@@ -1330,9 +1330,7 @@ describe('DashboardView — mood-entity correlation', () => {
     const wrapper = mountView()
     await flushPromises()
     expect(
-      wrapper
-        .find('[data-testid="dashboard-mood-correlation-empty"]')
-        .exists(),
+      wrapper.find('[data-testid="dashboard-mood-correlation-empty"]').exists(),
     ).toBe(true)
   })
 
@@ -1364,9 +1362,7 @@ describe('DashboardView — mood-entity correlation', () => {
     const wrapper = mountView()
     await flushPromises()
     expect(
-      wrapper
-        .find('[data-testid="dashboard-mood-correlation-error"]')
-        .exists(),
+      wrapper.find('[data-testid="dashboard-mood-correlation-error"]').exists(),
     ).toBe(true)
     expect(
       wrapper.find('[data-testid="dashboard-mood-correlation-error"]').text(),
