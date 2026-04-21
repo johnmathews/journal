@@ -9,6 +9,7 @@ vi.mock('@/api/dashboard', () => ({
 }))
 vi.mock('@/api/insights', () => ({
   fetchMoodDrilldown: vi.fn(),
+  fetchEntityDistribution: vi.fn(),
 }))
 vi.mock('@/api/client', () => ({
   ApiRequestError: class extends Error {
@@ -514,5 +515,107 @@ describe('useDashboardStore — mood surface', () => {
       from: '2026-01-01',
       to: '2026-12-31',
     })
+  })
+})
+
+describe('useDashboardStore — entity distribution', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  it('initial entity state is empty', () => {
+    const store = useDashboardStore()
+    expect(store.entityType).toBe('topic')
+    expect(store.entityDistribution).toEqual([])
+    expect(store.entityLoading).toBe(false)
+    expect(store.entityError).toBeNull()
+    expect(store.entityHasLoaded).toBe(false)
+  })
+
+  it('loadEntityDistribution populates state on success', async () => {
+    const { fetchEntityDistribution } = await import('@/api/insights')
+    vi.mocked(fetchEntityDistribution).mockResolvedValue({
+      type: 'topic',
+      from: null,
+      to: null,
+      total: 2,
+      items: [
+        {
+          canonical_name: 'meditation',
+          entity_type: 'topic',
+          mention_count: 14,
+        },
+        { canonical_name: 'running', entity_type: 'topic', mention_count: 9 },
+      ],
+    })
+    const store = useDashboardStore()
+    await store.loadEntityDistribution('topic')
+    expect(store.entityDistribution).toHaveLength(2)
+    expect(store.entityType).toBe('topic')
+    expect(store.entityHasLoaded).toBe(true)
+    expect(store.entityLoading).toBe(false)
+    expect(store.entityError).toBeNull()
+  })
+
+  it('loadEntityDistribution surfaces ApiRequestError verbatim', async () => {
+    const { fetchEntityDistribution } = await import('@/api/insights')
+    vi.mocked(fetchEntityDistribution).mockRejectedValue(
+      new ApiRequestError(400, 'invalid_type', 'bad entity type'),
+    )
+    const store = useDashboardStore()
+    await store.loadEntityDistribution()
+    expect(store.entityError).toBe('bad entity type')
+    expect(store.entityDistribution).toEqual([])
+  })
+
+  it('loadEntityDistribution surfaces plain Error messages', async () => {
+    const { fetchEntityDistribution } = await import('@/api/insights')
+    vi.mocked(fetchEntityDistribution).mockRejectedValue(new Error('net fail'))
+    const store = useDashboardStore()
+    await store.loadEntityDistribution()
+    expect(store.entityError).toBe('net fail')
+  })
+
+  it('loadEntityDistribution falls back on non-Error throw', async () => {
+    const { fetchEntityDistribution } = await import('@/api/insights')
+    vi.mocked(fetchEntityDistribution).mockRejectedValue(null)
+    const store = useDashboardStore()
+    await store.loadEntityDistribution()
+    expect(store.entityError).toBe('Failed to load entity distribution')
+  })
+
+  it('loadEntityDistribution without explicit type uses current', async () => {
+    const { fetchEntityDistribution } = await import('@/api/insights')
+    vi.mocked(fetchEntityDistribution).mockResolvedValue({
+      type: 'activity',
+      from: null,
+      to: null,
+      total: 0,
+      items: [],
+    })
+    const store = useDashboardStore()
+    store.entityType = 'activity'
+    await store.loadEntityDistribution()
+    expect(store.entityType).toBe('activity')
+  })
+
+  it('reset clears entity state', async () => {
+    const { fetchEntityDistribution } = await import('@/api/insights')
+    vi.mocked(fetchEntityDistribution).mockResolvedValue({
+      type: 'topic',
+      from: null,
+      to: null,
+      total: 1,
+      items: [{ canonical_name: 'x', entity_type: 'topic', mention_count: 1 }],
+    })
+    const store = useDashboardStore()
+    await store.loadEntityDistribution()
+    expect(store.entityHasLoaded).toBe(true)
+
+    store.reset()
+    expect(store.entityType).toBe('topic')
+    expect(store.entityDistribution).toEqual([])
+    expect(store.entityHasLoaded).toBe(false)
   })
 })

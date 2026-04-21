@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Chart } from 'chart.js'
 import { useDashboardStore } from '@/stores/dashboard'
@@ -9,14 +9,15 @@ import {
   type DashboardBin,
   type DashboardRange,
 } from '@/types/dashboard'
+import {
+  INSIGHTS_ENTITY_TYPES,
+  type InsightsEntityType,
+} from '@/types/insights'
 import { getChartColors } from '@/utils/chartjs-config'
 import { adjustColorOpacity } from '@/utils/mosaic'
 import BatchJobModal from '@/components/BatchJobModal.vue'
 
-// The side-effect import in chartjs-config.ts registers the line
-// chart components with Chart.js. Referencing the named export
-// here prevents the bundler from tree-shaking the side-effect
-// import away when this view is lazy-loaded by the router.
+// Prevent tree-shaking of Chart.js registration side-effect.
 void getChartColors
 
 const store = useDashboardStore()
@@ -39,38 +40,6 @@ function navigateToEntry(entryId: number): void {
   router.push({ name: 'entry-detail', params: { id: String(entryId) } })
 }
 
-// Minimum corpus threshold for showing the charts. Below this
-// number of entries in the active range we show an explicit
-// "not enough data yet" message — following the user's
-// "explicit is better than implicit" rule. Hiding charts
-// silently or showing a 1-point chart is both ambiguous and
-// embarrassing.
-const MIN_ENTRIES_FOR_CHARTS = 5
-
-const writingChartCanvas = ref<HTMLCanvasElement | null>(null)
-const wordChartCanvas = ref<HTMLCanvasElement | null>(null)
-const moodChartCanvas = ref<HTMLCanvasElement | null>(null)
-let writingChart: Chart | null = null
-let wordChart: Chart | null = null
-let moodChart: Chart | null = null
-let moodChartRenderedOnce = false
-
-// Fixed palette for mood lines — cycled by dimension index so
-// reordering facets in the TOML file produces a stable colour
-// assignment. 8 colours is plenty for the 7-facet starting set
-// plus one headroom; adding a 9th facet wraps around.
-const MOOD_LINE_COLORS: readonly string[] = [
-  '#8b5cf6', // violet
-  '#0ea5e9', // sky
-  '#22c55e', // green
-  '#f59e0b', // amber
-  '#ef4444', // red
-  '#ec4899', // pink
-  '#14b8a6', // teal
-  '#a855f7', // purple
-]
-
-/** Human-readable label for a DashboardRange option. */
 function rangeLabel(r: DashboardRange): string {
   switch (r) {
     case 'last_1_month':
@@ -86,10 +55,72 @@ function rangeLabel(r: DashboardRange): string {
   }
 }
 
-/** Human-readable label for a DashboardBin option. */
 function binLabel(b: DashboardBin): string {
   return b.charAt(0).toUpperCase() + b.slice(1)
 }
+
+function entityTypeLabel(t: InsightsEntityType): string {
+  const labels: Record<InsightsEntityType, string> = {
+    topic: 'Topics',
+    activity: 'Activities',
+    place: 'Places',
+    person: 'People',
+    organization: 'Organizations',
+    other: 'Other',
+  }
+  return labels[t]
+}
+
+const MIN_ENTRIES_FOR_CHARTS = 5
+
+const writingChartCanvas = ref<HTMLCanvasElement | null>(null)
+const wordChartCanvas = ref<HTMLCanvasElement | null>(null)
+const moodChartCanvas = ref<HTMLCanvasElement | null>(null)
+const entityChartCanvas = ref<HTMLCanvasElement | null>(null)
+let writingChart: Chart | null = null
+let wordChart: Chart | null = null
+let moodChart: Chart | null = null
+let entityChart: Chart | null = null
+let moodChartRenderedOnce = false
+
+const MOOD_LINE_COLORS: readonly string[] = [
+  '#8b5cf6', // violet
+  '#0ea5e9', // sky
+  '#22c55e', // green
+  '#f59e0b', // amber
+  '#ef4444', // red
+  '#ec4899', // pink
+  '#14b8a6', // teal
+  '#a855f7', // purple
+]
+
+const DOUGHNUT_COLORS: readonly string[] = [
+  '#8b5cf6',
+  '#0ea5e9',
+  '#22c55e',
+  '#f59e0b',
+  '#ef4444',
+  '#ec4899',
+  '#14b8a6',
+  '#a855f7',
+  '#6366f1',
+  '#84cc16',
+  '#f97316',
+  '#06b6d4',
+]
+
+// Entity legend expand/collapse — show top 8 by default.
+const LEGEND_COLLAPSED_COUNT = 8
+const entityLegendExpanded = ref(false)
+
+const visibleEntityItems = computed(() => {
+  if (entityLegendExpanded.value) return store.entityDistribution
+  return store.entityDistribution.slice(0, LEGEND_COLLAPSED_COUNT)
+})
+
+const hiddenEntityCount = computed(
+  () => store.entityDistribution.length - LEGEND_COLLAPSED_COUNT,
+)
 
 const showCharts = computed(
   () => store.totalEntriesInRange >= MIN_ENTRIES_FOR_CHARTS,
@@ -99,19 +130,10 @@ const labels = computed(() => store.bins.map((b) => b.bin_start))
 const entryCountSeries = computed(() => store.bins.map((b) => b.entry_count))
 const wordCountSeries = computed(() => store.bins.map((b) => b.total_words))
 
-/**
- * Create or update the two charts. Called on initial data load
- * and whenever the bins array changes. We `destroy()` and
- * recreate rather than mutating `chart.data` because the axis
- * labels change with the bin width and Chart.js handles a fresh
- * instance more predictably than an in-place update.
- */
+// --- Writing + word count charts ---
+
 function renderCharts(): void {
   if (!showCharts.value) {
-    // If the user zooms back down below the threshold (e.g.
-    // switches to "last month" on an empty corpus), make sure
-    // any previous chart instances are torn down so Chart.js
-    // doesn't retain the old canvas context.
     writingChart?.destroy()
     writingChart = null
     wordChart?.destroy()
@@ -119,10 +141,9 @@ function renderCharts(): void {
     return
   }
   const colors = getChartColors()
-  const violet = '#8b5cf6' // matches Mosaic accent for highlights
+  const violet = '#8b5cf6'
   const translucent = adjustColorOpacity(violet, 0.15)
 
-  // Writing frequency
   if (writingChartCanvas.value) {
     writingChart?.destroy()
     writingChart = new Chart(writingChartCanvas.value, {
@@ -163,17 +184,13 @@ function renderCharts(): void {
           y: {
             beginAtZero: true,
             grid: { color: colors.gridColor.light },
-            ticks: {
-              color: colors.textColor.light,
-              precision: 0,
-            },
+            ticks: { color: colors.textColor.light, precision: 0 },
           },
         },
       },
     })
   }
 
-  // Word count
   if (wordChartCanvas.value) {
     wordChart?.destroy()
     wordChart = new Chart(wordChartCanvas.value, {
@@ -222,97 +239,112 @@ function renderCharts(): void {
   }
 }
 
-/**
- * Pivot the flat `{period, dimension, avg_score, entry_count}`
- * rows returned by /api/dashboard/mood-trends into a
- * `{periods: [], series: {dim: [value | null, ...]}}` shape
- * suitable for Chart.js multi-line rendering. Missing values
- * (period × dimension combinations the server didn't return)
- * are filled with `null` so Chart.js draws a gap rather than
- * connecting across missing data.
- *
- * Periods come out sorted chronologically (ISO dates sort
- * lexicographically). Dimensions follow the order of the
- * loaded dimension config so the chart colours are stable
- * across bin changes.
- */
+// --- Mood chart with variance bands ---
+
 function pivotMoodBins(): {
   periods: string[]
   series: Record<string, (number | null)[]>
+  minSeries: Record<string, (number | null)[]>
+  maxSeries: Record<string, (number | null)[]>
 } {
-  const byPeriod: Map<string, Map<string, number>> = new Map()
+  const byPeriod: Map<
+    string,
+    Map<string, { avg: number; min: number | null; max: number | null }>
+  > = new Map()
   for (const b of store.moodBins) {
     let periodRow = byPeriod.get(b.period)
     if (!periodRow) {
       periodRow = new Map()
       byPeriod.set(b.period, periodRow)
     }
-    periodRow.set(b.dimension, b.avg_score)
+    periodRow.set(b.dimension, {
+      avg: b.avg_score,
+      min: b.score_min,
+      max: b.score_max,
+    })
   }
   const periods = Array.from(byPeriod.keys()).sort()
   const series: Record<string, (number | null)[]> = {}
+  const minSeries: Record<string, (number | null)[]> = {}
+  const maxSeries: Record<string, (number | null)[]> = {}
   for (const d of store.moodDimensions) {
-    series[d.name] = periods.map((p) => byPeriod.get(p)?.get(d.name) ?? null)
+    series[d.name] = periods.map(
+      (p) => byPeriod.get(p)?.get(d.name)?.avg ?? null,
+    )
+    minSeries[d.name] = periods.map(
+      (p) => byPeriod.get(p)?.get(d.name)?.min ?? null,
+    )
+    maxSeries[d.name] = periods.map(
+      (p) => byPeriod.get(p)?.get(d.name)?.max ?? null,
+    )
   }
-  return { periods, series }
+  return { periods, series, minSeries, maxSeries }
 }
 
-/**
- * Create or update the mood chart. Called on initial load, on
- * bin/range change, and whenever the dimension-visibility
- * toggles flip. Destroys and recreates the instance on every
- * call — same rationale as the writing/word charts.
- *
- * Y-axis is fixed to `[-1, +1]` regardless of the mix of
- * bipolar and unipolar facets. Unipolar lines simply never
- * dip below zero, which is visually informative (you can see
- * "hovered near 0" distinct from "went negative"). Plotting
- * unipolar on a 0-to-1 sub-axis would fragment the visual and
- * hide any cross-facet correlation, which is the whole point
- * of the chart.
- */
 function renderMoodChart(): void {
   if (!moodChartCanvas.value) return
   moodChart?.destroy()
 
-  // No data to plot — the template shows the empty-state card
-  // and we don't instantiate Chart.js at all.
   if (!store.hasMoodData) {
     moodChart = null
     return
   }
 
   const colors = getChartColors()
-  const { periods, series } = pivotMoodBins()
+  const { periods, series, minSeries, maxSeries } = pivotMoodBins()
 
   const allDimensions = store.moodDimensions
-  const datasets = allDimensions
-    .filter((d) => !store.hiddenMoodDimensions.has(d.name))
-    .map((d) => {
-      // Use the index in the FULL dimension list so colors stay stable
-      // when other dimensions are hidden via isolate-on-click.
-      const fullIndex = allDimensions.indexOf(d)
-      const color = MOOD_LINE_COLORS[fullIndex % MOOD_LINE_COLORS.length]
-      return {
-        label: d.name,
-        data: series[d.name] ?? [],
-        borderColor: color,
-        backgroundColor: adjustColorOpacity(color, 0.12),
-        fill: false,
-        tension: 0.3,
-        pointRadius: 3,
-        pointHoverRadius: 5,
-        pointBackgroundColor: color,
-        spanGaps: false,
-      }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const datasets: any[] = []
+
+  for (const d of allDimensions) {
+    if (store.hiddenMoodDimensions.has(d.name)) continue
+    const fullIndex = allDimensions.indexOf(d)
+    const color = MOOD_LINE_COLORS[fullIndex % MOOD_LINE_COLORS.length]
+    const bandColor = adjustColorOpacity(color, 0.1)
+
+    // Max boundary line (invisible, defines the top of the fill band)
+    datasets.push({
+      label: `${d.name}_max`,
+      data: maxSeries[d.name] ?? [],
+      borderColor: 'transparent',
+      backgroundColor: 'transparent',
+      pointRadius: 0,
+      borderWidth: 0,
+      fill: false,
+      spanGaps: false,
     })
+
+    // Min boundary line (fills up to the max line above)
+    datasets.push({
+      label: `${d.name}_min`,
+      data: minSeries[d.name] ?? [],
+      borderColor: 'transparent',
+      backgroundColor: bandColor,
+      pointRadius: 0,
+      borderWidth: 0,
+      fill: '-1',
+      spanGaps: false,
+    })
+
+    // Average line (the main visible line)
+    datasets.push({
+      label: d.name,
+      data: series[d.name] ?? [],
+      borderColor: color,
+      backgroundColor: adjustColorOpacity(color, 0.12),
+      fill: false,
+      tension: 0.3,
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      pointBackgroundColor: color,
+      spanGaps: false,
+    })
+  }
 
   moodChart = new Chart(moodChartCanvas.value, {
     type: 'line',
-    data: {
-      labels: periods,
-      datasets,
-    },
+    data: { labels: periods, datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -321,6 +353,7 @@ function renderMoodChart(): void {
         if (elements.length === 0) return
         const el = elements[0]
         const dsLabel = chart.data.datasets[el.datasetIndex].label as string
+        if (dsLabel.endsWith('_min') || dsLabel.endsWith('_max')) return
         const period = chart.data.labels?.[el.index] as string
         if (!period || !dsLabel) return
         if (store.drillPeriod === period && store.drillDimension === dsLabel) {
@@ -336,6 +369,10 @@ function renderMoodChart(): void {
           titleColor: colors.tooltipTitleColor.light,
           bodyColor: colors.tooltipBodyColor.light,
           borderColor: colors.tooltipBorderColor.light,
+          filter: (item) => {
+            const label = item.dataset.label || ''
+            return !label.endsWith('_min') && !label.endsWith('_max')
+          },
         },
       },
       scales: {
@@ -347,10 +384,7 @@ function renderMoodChart(): void {
           min: -1,
           max: 1,
           grid: { color: colors.gridColor.light },
-          ticks: {
-            color: colors.textColor.light,
-            stepSize: 0.5,
-          },
+          ticks: { color: colors.textColor.light, stepSize: 0.5 },
         },
       },
     },
@@ -358,54 +392,111 @@ function renderMoodChart(): void {
   moodChartRenderedOnce = true
 }
 
+// --- Entity doughnut chart ---
+
+function renderEntityChart(): void {
+  if (!entityChartCanvas.value) return
+  entityChart?.destroy()
+
+  const items = store.entityDistribution
+  if (items.length === 0) {
+    entityChart = null
+    return
+  }
+
+  const colors = getChartColors()
+  const bgColors = items.map(
+    (_, i) => DOUGHNUT_COLORS[i % DOUGHNUT_COLORS.length],
+  )
+
+  entityChart = new Chart(entityChartCanvas.value, {
+    type: 'doughnut',
+    data: {
+      labels: items.map((it) => it.canonical_name),
+      datasets: [
+        {
+          data: items.map((it) => it.mention_count),
+          backgroundColor: bgColors,
+          borderColor: colors.backdropColor.light,
+          borderWidth: 2,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: colors.tooltipBgColor.light,
+          titleColor: colors.tooltipTitleColor.light,
+          bodyColor: colors.tooltipBodyColor.light,
+          borderColor: colors.tooltipBorderColor.light,
+          callbacks: {
+            label: (ctx) => `${ctx.label}: ${ctx.parsed} mentions`,
+          },
+        },
+      },
+    },
+  })
+}
+
+// --- Watchers ---
+
 watch(
   () => store.bins,
   () => renderCharts(),
   { deep: false },
 )
 
-// Render mood chart when the data or the toggle set changes.
-// `deep: false` on moodBins is fine because the store always
-// replaces the array on reload rather than mutating in place.
 watch(
   [() => store.moodBins, () => store.hiddenMoodDimensions],
   () => renderMoodChart(),
   { deep: false },
 )
 
+watch(
+  () => store.entityDistribution,
+  () => {
+    entityLegendExpanded.value = false
+    renderEntityChart()
+  },
+  { deep: false },
+)
+
+// --- Lifecycle ---
+
 onMounted(async () => {
-  // Load writing stats + mood dimensions in parallel on first
-  // mount. Mood trends load happens after the dimensions arrive
-  // so the chart has colour/label metadata ready before data.
   await Promise.all([store.loadWritingStats(), store.loadMoodDimensions()])
   renderCharts()
-  // Only fire the mood-trends request when scoring is actually
-  // configured on the server — an empty dimensions list is the
-  // signal that `JOURNAL_ENABLE_MOOD_SCORING=false` and there's
-  // nothing to plot.
+  const promises: Promise<void>[] = [store.loadEntityDistribution()]
   if (store.moodScoringEnabled) {
-    await store.loadMoodTrends()
-    renderMoodChart()
+    promises.push(store.loadMoodTrends())
   }
+  await Promise.all(promises)
+  renderMoodChart()
+  renderEntityChart()
 })
 
-// Dispose any Chart.js instances on unmount so canvas contexts
-// don't leak across route changes.
-import { onBeforeUnmount } from 'vue'
 onBeforeUnmount(() => {
   writingChart?.destroy()
   wordChart?.destroy()
   moodChart?.destroy()
+  entityChart?.destroy()
   writingChart = null
   wordChart = null
   moodChart = null
+  entityChart = null
 })
 
+// --- Event handlers ---
+
 async function onRangeChange(r: DashboardRange): Promise<void> {
-  // Fire both requests in parallel — the range + bin controls
-  // apply to both charts, and running them sequentially would
-  // double the wait on every click.
-  const promises: Promise<void>[] = [store.loadWritingStats({ range: r })]
+  store.clearDrillDown()
+  const promises: Promise<void>[] = [
+    store.loadWritingStats({ range: r }),
+    store.loadEntityDistribution(),
+  ]
   if (store.moodScoringEnabled) {
     promises.push(store.loadMoodTrends({ range: r }))
   }
@@ -413,6 +504,7 @@ async function onRangeChange(r: DashboardRange): Promise<void> {
 }
 
 async function onBinChange(b: DashboardBin): Promise<void> {
+  store.clearDrillDown()
   const promises: Promise<void>[] = [store.loadWritingStats({ bin: b })]
   if (store.moodScoringEnabled) {
     promises.push(store.loadMoodTrends({ bin: b }))
@@ -422,13 +514,12 @@ async function onBinChange(b: DashboardBin): Promise<void> {
 
 function toggleDimension(name: string): void {
   store.toggleMoodDimension(name)
-  // renderMoodChart fires via the watcher on hiddenMoodDimensions.
 }
 
-// Mood backfill modal. Fires a background job that re-scores
-// journal entries so the mood chart picks up dimensions added
-// to the config after older entries were ingested. On success
-// we reload the mood trends so the new rows appear in the chart.
+async function onEntityTypeChange(type: InsightsEntityType): Promise<void> {
+  await store.loadEntityDistribution(type)
+}
+
 const showMoodBackfillModal = ref(false)
 
 async function onMoodJobSucceeded(): Promise<void> {
@@ -447,9 +538,9 @@ async function onMoodJobSucceeded(): Promise<void> {
       </h1>
     </div>
 
-    <!-- Filter bar -->
+    <!-- Filter bar (sticky so it stays visible while scrolling) -->
     <div
-      class="mb-6 flex flex-wrap items-end gap-6"
+      class="mb-6 flex flex-wrap items-end gap-6 sticky top-16 z-10 bg-white dark:bg-gray-800 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-gray-700/60 shadow-xs px-5 py-3"
       data-testid="dashboard-filters"
     >
       <div>
@@ -553,6 +644,7 @@ async function onMoodJobSucceeded(): Promise<void> {
     </div>
 
     <div v-else>
+      <!-- Writing frequency + word count -->
       <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <section
           class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
@@ -594,7 +686,7 @@ async function onMoodJobSucceeded(): Promise<void> {
         </section>
       </div>
 
-      <!-- Mood chart -->
+      <!-- Mood chart with variance bands -->
       <section
         v-if="store.moodScoringEnabled"
         class="mt-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
@@ -603,12 +695,11 @@ async function onMoodJobSucceeded(): Promise<void> {
         <header class="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-              Mood
+              Mood Trends
             </h2>
             <p class="text-xs text-gray-500 dark:text-gray-400">
-              Average score per {{ store.bin }} across each configured facet.
-              Bipolar facets use [-1, +1]; unipolar facets use [0, +1] (absence
-              of the positive pole).
+              Average score per {{ store.bin }} with min/max variance bands.
+              Click a data point to see contributing entries.
             </p>
           </div>
           <button
@@ -690,7 +781,11 @@ async function onMoodJobSucceeded(): Promise<void> {
           </p>
         </div>
 
-        <div v-else class="h-72 relative">
+        <div
+          v-else
+          class="h-72 relative"
+          data-testid="dashboard-mood-chart-container"
+        >
           <canvas
             ref="moodChartCanvas"
             data-testid="dashboard-mood-chart"
@@ -780,6 +875,129 @@ async function onMoodJobSucceeded(): Promise<void> {
                 </tr>
               </tbody>
             </table>
+            <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">
+              Note: Entries scored before the rationale feature will show "No
+              rationale available". Run
+              <code class="font-mono">journal backfill-mood --force</code> to
+              populate rationales for all entries.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Entity Distribution -->
+      <section
+        class="mt-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
+        data-testid="dashboard-entity-section"
+      >
+        <header class="mb-3">
+          <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+            What I Write About
+          </h2>
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            Entity mention frequency by type in the selected range.
+          </p>
+        </header>
+
+        <!-- Entity type tabs -->
+        <div
+          class="flex flex-wrap gap-2 mb-4"
+          data-testid="dashboard-entity-tabs"
+        >
+          <button
+            v-for="t in INSIGHTS_ENTITY_TYPES"
+            :key="t"
+            type="button"
+            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
+            :class="
+              store.entityType === t
+                ? 'bg-violet-500 text-white border-violet-500'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
+            "
+            :data-testid="`dashboard-entity-tab-${t}`"
+            :aria-pressed="store.entityType === t"
+            @click="onEntityTypeChange(t)"
+          >
+            {{ entityTypeLabel(t) }}
+          </button>
+        </div>
+
+        <div
+          v-if="store.entityLoading && !store.entityHasLoaded"
+          class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
+          data-testid="dashboard-entity-loading"
+        >
+          Loading entity data…
+        </div>
+
+        <div
+          v-else-if="store.entityError"
+          class="mb-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
+          data-testid="dashboard-entity-error"
+        >
+          {{ store.entityError }}
+        </div>
+
+        <div
+          v-else-if="store.entityDistribution.length === 0"
+          class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
+          data-testid="dashboard-entity-empty"
+        >
+          No {{ store.entityType }} entities found in this range.
+        </div>
+
+        <div
+          v-else
+          class="flex flex-col md:flex-row gap-6"
+          data-testid="dashboard-entity-content"
+        >
+          <div class="h-64 w-64 flex-shrink-0 mx-auto md:mx-0">
+            <canvas
+              ref="entityChartCanvas"
+              data-testid="dashboard-entity-chart"
+            ></canvas>
+          </div>
+          <div>
+            <table class="text-sm" data-testid="dashboard-entity-legend">
+              <tbody>
+                <tr
+                  v-for="(item, i) in visibleEntityItems"
+                  :key="item.canonical_name"
+                  class="text-gray-700 dark:text-gray-200"
+                >
+                  <td class="py-0.5 pr-2">
+                    <span
+                      class="inline-block w-3 h-3 rounded-sm"
+                      :style="{
+                        backgroundColor:
+                          DOUGHNUT_COLORS[i % DOUGHNUT_COLORS.length],
+                      }"
+                    ></span>
+                  </td>
+                  <td class="py-0.5 pr-3 truncate max-w-48">
+                    {{ item.canonical_name }}
+                  </td>
+                  <td
+                    class="py-0.5 text-right text-xs text-gray-400 dark:text-gray-500 font-mono tabular-nums"
+                  >
+                    {{ item.mention_count }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <button
+              v-if="hiddenEntityCount > 0"
+              type="button"
+              class="mt-2 text-xs text-violet-500 hover:text-violet-600 dark:text-violet-400 dark:hover:text-violet-300 font-medium"
+              data-testid="dashboard-entity-legend-toggle"
+              @click="entityLegendExpanded = !entityLegendExpanded"
+            >
+              {{
+                entityLegendExpanded
+                  ? 'Show fewer'
+                  : `Show ${hiddenEntityCount} more`
+              }}
+            </button>
           </div>
         </div>
       </section>
