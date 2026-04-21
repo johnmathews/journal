@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Chart } from 'chart.js'
-import { useDashboardStore } from '@/stores/dashboard'
+import { useDashboardStore, rangeToDates } from '@/stores/dashboard'
 import {
   DASHBOARD_BINS,
   DASHBOARD_RANGES,
@@ -478,10 +478,17 @@ const calendarGrid = computed(() => {
     lookup.set(d.date, d)
   }
 
-  // Determine the full date range
+  // Use the selected range for grid boundaries so the chart always
+  // spans the full period (e.g. 3 full months for "Last 3 months"),
+  // falling back to data bounds for "All time" or when range is null.
+  const { from: rangeFrom, to: rangeTo } = rangeToDates(store.range)
   const sortedDates = days.map((d) => d.date).sort()
-  const startDate = new Date(sortedDates[0] + 'T00:00:00')
-  const endDate = new Date(sortedDates[sortedDates.length - 1] + 'T00:00:00')
+  const startDate = rangeFrom
+    ? new Date(rangeFrom + 'T00:00:00')
+    : new Date(sortedDates[0] + 'T00:00:00')
+  const endDate = rangeTo
+    ? new Date(rangeTo + 'T00:00:00')
+    : new Date(sortedDates[sortedDates.length - 1] + 'T00:00:00')
 
   // Align start to the Monday of its week
   const startDay = startDate.getDay() // 0=Sun, 1=Mon, ...
@@ -606,6 +613,30 @@ function renderEntityTrendsChart(): void {
         legend: {
           display: true,
           position: 'bottom',
+          onClick: (_event, legendItem, legend) => {
+            const chart = legend.chart
+            const clickedIndex = legendItem.datasetIndex!
+            const totalDatasets = chart.data.datasets.length
+            const visibleIndices: number[] = []
+            for (let i = 0; i < totalDatasets; i++) {
+              if (chart.isDatasetVisible(i)) visibleIndices.push(i)
+            }
+            if (
+              visibleIndices.length === 1 &&
+              visibleIndices[0] === clickedIndex
+            ) {
+              // Currently isolated → restore all
+              for (let i = 0; i < totalDatasets; i++) {
+                chart.setDatasetVisibility(i, true)
+              }
+            } else {
+              // Isolate: show only clicked, hide all others
+              for (let i = 0; i < totalDatasets; i++) {
+                chart.setDatasetVisibility(i, i === clickedIndex)
+              }
+            }
+            chart.update()
+          },
           labels: {
             color: colors.textColor.light,
             usePointStyle: true,
@@ -1045,148 +1076,269 @@ async function onMoodJobSucceeded(): Promise<void> {
     </div>
 
     <div v-else>
-      <!-- Calendar Heatmap -->
-      <section
-        class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
-        data-testid="dashboard-calendar-section"
-      >
-        <header class="mb-3">
-          <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-            Writing Consistency
-          </h2>
-          <p class="text-xs text-gray-500 dark:text-gray-400">
-            Daily writing activity in the selected range.
-          </p>
-        </header>
-
-        <div
-          v-if="store.calendarLoading && !store.calendarHasLoaded"
-          class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
-          data-testid="dashboard-calendar-loading"
+      <!-- Calendar Heatmap + Entity Distribution -->
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <section
+          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
+          data-testid="dashboard-calendar-section"
         >
-          Loading calendar data…
-        </div>
+          <header class="mb-3">
+            <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+              Writing Consistency
+            </h2>
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              Daily writing activity in the selected range.
+            </p>
+          </header>
 
-        <div
-          v-else-if="store.calendarError"
-          class="mb-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
-          data-testid="dashboard-calendar-error"
-        >
-          {{ store.calendarError }}
-        </div>
-
-        <div
-          v-else-if="store.calendarDays.length === 0"
-          class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
-          data-testid="dashboard-calendar-empty"
-        >
-          No calendar data available for this range.
-        </div>
-
-        <div
-          v-else
-          class="overflow-x-auto"
-          data-testid="dashboard-calendar-content"
-        >
-          <!-- Month labels -->
           <div
-            class="flex text-[10px] text-gray-400 dark:text-gray-500 mb-1"
-            :style="{ paddingLeft: '28px' }"
+            v-if="store.calendarLoading && !store.calendarHasLoaded"
+            class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
+            data-testid="dashboard-calendar-loading"
           >
-            <div
-              v-for="(m, mi) in calendarGrid.months"
-              :key="mi"
-              class="whitespace-nowrap"
-              :style="{
-                position: 'absolute',
-                left: `${28 + m.colStart * 14}px`,
-              }"
-            >
-              {{ m.label }}
-            </div>
+            Loading calendar data…
           </div>
 
-          <div class="flex gap-0 mt-4" data-testid="dashboard-calendar-grid">
-            <!-- Day-of-week labels -->
+          <div
+            v-else-if="store.calendarError"
+            class="mb-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
+            data-testid="dashboard-calendar-error"
+          >
+            {{ store.calendarError }}
+          </div>
+
+          <div
+            v-else-if="store.calendarDays.length === 0"
+            class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
+            data-testid="dashboard-calendar-empty"
+          >
+            No calendar data available for this range.
+          </div>
+
+          <div
+            v-else
+            class="overflow-x-auto"
+            data-testid="dashboard-calendar-content"
+          >
+            <!-- Month labels -->
             <div
-              class="flex flex-col gap-[2px] mr-1 text-[10px] text-gray-400 dark:text-gray-500"
+              class="flex text-[10px] text-gray-400 dark:text-gray-500 mb-1"
+              :style="{ paddingLeft: '28px' }"
             >
               <div
-                v-for="(lbl, li) in WEEKDAY_LABELS"
-                :key="li"
-                class="h-[12px] flex items-center justify-end pr-1"
-                :style="{ width: '24px' }"
+                v-for="(m, mi) in calendarGrid.months"
+                :key="mi"
+                class="whitespace-nowrap"
+                :style="{
+                  position: 'absolute',
+                  left: `${28 + m.colStart * 16}px`,
+                }"
               >
-                {{ lbl }}
+                {{ m.label }}
               </div>
             </div>
 
-            <!-- Week columns -->
-            <div class="flex gap-[2px]">
+            <div class="flex gap-0 mt-4" data-testid="dashboard-calendar-grid">
+              <!-- Day-of-week labels -->
               <div
-                v-for="w in calendarGrid.weeks"
-                :key="w"
-                class="flex flex-col gap-[2px]"
+                class="flex flex-col gap-[2px] mr-1 text-[10px] text-gray-400 dark:text-gray-500"
               >
-                <template v-for="dow in 7" :key="`${w}-${dow}`">
-                  <div
-                    v-if="
-                      calendarGrid.cells.find(
-                        (c) => c.weekIndex === w - 1 && c.dayOfWeek === dow - 1,
-                      )
-                    "
-                    class="w-[12px] h-[12px] rounded-sm"
-                    :class="[
-                      heatmapColor(
+                <div
+                  v-for="(lbl, li) in WEEKDAY_LABELS"
+                  :key="li"
+                  class="h-[14px] flex items-center justify-end pr-1"
+                  :style="{ width: '24px' }"
+                >
+                  {{ lbl }}
+                </div>
+              </div>
+
+              <!-- Week columns -->
+              <div class="flex gap-[2px]">
+                <div
+                  v-for="w in calendarGrid.weeks"
+                  :key="w"
+                  class="flex flex-col gap-[2px]"
+                >
+                  <template v-for="dow in 7" :key="`${w}-${dow}`">
+                    <div
+                      v-if="
                         calendarGrid.cells.find(
                           (c) =>
                             c.weekIndex === w - 1 && c.dayOfWeek === dow - 1,
-                        )!.entry_count,
-                      ),
-                      calendarGrid.cells.find(
-                        (c) => c.weekIndex === w - 1 && c.dayOfWeek === dow - 1,
-                      )!.entry_count === 0
-                        ? 'bg-gray-100 dark:bg-gray-700'
-                        : '',
-                    ]"
-                    :title="
-                      heatmapTooltip(
+                        )
+                      "
+                      class="w-[14px] h-[14px] rounded-sm"
+                      :class="[
+                        heatmapColor(
+                          calendarGrid.cells.find(
+                            (c) =>
+                              c.weekIndex === w - 1 && c.dayOfWeek === dow - 1,
+                          )!.entry_count,
+                        ),
                         calendarGrid.cells.find(
                           (c) =>
                             c.weekIndex === w - 1 && c.dayOfWeek === dow - 1,
-                        )!,
-                      )
-                    "
-                    :data-testid="`dashboard-calendar-cell-${calendarGrid.cells.find((c) => c.weekIndex === w - 1 && c.dayOfWeek === dow - 1)!.date}`"
-                  ></div>
-                  <div v-else class="w-[12px] h-[12px]"></div>
-                </template>
+                        )!.entry_count === 0
+                          ? 'bg-gray-100 dark:bg-gray-700'
+                          : '',
+                      ]"
+                      :title="
+                        heatmapTooltip(
+                          calendarGrid.cells.find(
+                            (c) =>
+                              c.weekIndex === w - 1 && c.dayOfWeek === dow - 1,
+                          )!,
+                        )
+                      "
+                      :data-testid="`dashboard-calendar-cell-${calendarGrid.cells.find((c) => c.weekIndex === w - 1 && c.dayOfWeek === dow - 1)!.date}`"
+                    ></div>
+                    <div v-else class="w-[14px] h-[14px]"></div>
+                  </template>
+                </div>
               </div>
             </div>
+
+            <!-- Legend -->
+            <div
+              class="flex items-center gap-2 mt-3 text-[10px] text-gray-400 dark:text-gray-500"
+              data-testid="dashboard-calendar-legend"
+            >
+              <span>Less</span>
+              <div
+                class="w-[14px] h-[14px] rounded-sm bg-gray-100 dark:bg-gray-700"
+              ></div>
+              <div
+                class="w-[14px] h-[14px] rounded-sm bg-violet-200 dark:bg-violet-300/40"
+              ></div>
+              <div
+                class="w-[14px] h-[14px] rounded-sm bg-violet-400 dark:bg-violet-400/60"
+              ></div>
+              <div
+                class="w-[14px] h-[14px] rounded-sm bg-violet-600 dark:bg-violet-500/80"
+              ></div>
+              <span>More</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Entity Distribution -->
+        <section
+          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
+          data-testid="dashboard-entity-section"
+        >
+          <header class="mb-3">
+            <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+              What I Write About
+            </h2>
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              Entity mention frequency by type in the selected range.
+            </p>
+          </header>
+
+          <!-- Entity type tabs -->
+          <div
+            class="flex flex-wrap gap-2 mb-4"
+            data-testid="dashboard-entity-tabs"
+          >
+            <button
+              v-for="t in INSIGHTS_ENTITY_TYPES"
+              :key="t"
+              type="button"
+              class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
+              :class="
+                store.entityType === t
+                  ? 'bg-violet-500 text-white border-violet-500'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
+              "
+              :data-testid="`dashboard-entity-tab-${t}`"
+              :aria-pressed="store.entityType === t"
+              @click="onEntityTypeChange(t)"
+            >
+              {{ entityTypeLabel(t) }}
+            </button>
           </div>
 
-          <!-- Legend -->
           <div
-            class="flex items-center gap-2 mt-3 text-[10px] text-gray-400 dark:text-gray-500"
-            data-testid="dashboard-calendar-legend"
+            v-if="store.entityLoading && !store.entityHasLoaded"
+            class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
+            data-testid="dashboard-entity-loading"
           >
-            <span>Less</span>
-            <div
-              class="w-[12px] h-[12px] rounded-sm bg-gray-100 dark:bg-gray-700"
-            ></div>
-            <div
-              class="w-[12px] h-[12px] rounded-sm bg-violet-200 dark:bg-violet-300/40"
-            ></div>
-            <div
-              class="w-[12px] h-[12px] rounded-sm bg-violet-400 dark:bg-violet-400/60"
-            ></div>
-            <div
-              class="w-[12px] h-[12px] rounded-sm bg-violet-600 dark:bg-violet-500/80"
-            ></div>
-            <span>More</span>
+            Loading entity data…
           </div>
-        </div>
-      </section>
+
+          <div
+            v-else-if="store.entityError"
+            class="mb-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
+            data-testid="dashboard-entity-error"
+          >
+            {{ store.entityError }}
+          </div>
+
+          <div
+            v-else-if="store.entityDistribution.length === 0"
+            class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
+            data-testid="dashboard-entity-empty"
+          >
+            No {{ store.entityType }} entities found in this range.
+          </div>
+
+          <div
+            v-else
+            class="flex flex-col md:flex-row gap-6"
+            data-testid="dashboard-entity-content"
+          >
+            <div class="h-64 w-64 flex-shrink-0 mx-auto md:mx-0">
+              <canvas
+                ref="entityChartCanvas"
+                data-testid="dashboard-entity-chart"
+              ></canvas>
+            </div>
+            <div>
+              <table class="text-sm" data-testid="dashboard-entity-legend">
+                <tbody>
+                  <tr
+                    v-for="(item, i) in visibleEntityItems"
+                    :key="item.canonical_name"
+                    class="text-gray-700 dark:text-gray-200"
+                  >
+                    <td class="py-0.5 pr-2">
+                      <span
+                        class="inline-block w-3 h-3 rounded-sm"
+                        :style="{
+                          backgroundColor:
+                            DOUGHNUT_COLORS[i % DOUGHNUT_COLORS.length],
+                        }"
+                      ></span>
+                    </td>
+                    <td class="py-0.5 pr-3 truncate max-w-48">
+                      {{ item.canonical_name }}
+                    </td>
+                    <td
+                      class="py-0.5 text-right text-xs text-gray-400 dark:text-gray-500 font-mono tabular-nums"
+                    >
+                      {{ item.mention_count }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <button
+                v-if="hiddenEntityCount > 0"
+                type="button"
+                class="mt-2 text-xs text-violet-500 hover:text-violet-600 dark:text-violet-400 dark:hover:text-violet-300 font-medium"
+                data-testid="dashboard-entity-legend-toggle"
+                @click="entityLegendExpanded = !entityLegendExpanded"
+              >
+                {{
+                  entityLegendExpanded
+                    ? 'Show fewer'
+                    : `Show ${hiddenEntityCount} more`
+                }}
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
 
       <!-- Writing frequency + word count -->
       <div class="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -1429,123 +1581,6 @@ async function onMoodJobSucceeded(): Promise<void> {
         </div>
       </section>
 
-      <!-- Entity Distribution -->
-      <section
-        class="mt-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
-        data-testid="dashboard-entity-section"
-      >
-        <header class="mb-3">
-          <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-            What I Write About
-          </h2>
-          <p class="text-xs text-gray-500 dark:text-gray-400">
-            Entity mention frequency by type in the selected range.
-          </p>
-        </header>
-
-        <!-- Entity type tabs -->
-        <div
-          class="flex flex-wrap gap-2 mb-4"
-          data-testid="dashboard-entity-tabs"
-        >
-          <button
-            v-for="t in INSIGHTS_ENTITY_TYPES"
-            :key="t"
-            type="button"
-            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
-            :class="
-              store.entityType === t
-                ? 'bg-violet-500 text-white border-violet-500'
-                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
-            "
-            :data-testid="`dashboard-entity-tab-${t}`"
-            :aria-pressed="store.entityType === t"
-            @click="onEntityTypeChange(t)"
-          >
-            {{ entityTypeLabel(t) }}
-          </button>
-        </div>
-
-        <div
-          v-if="store.entityLoading && !store.entityHasLoaded"
-          class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
-          data-testid="dashboard-entity-loading"
-        >
-          Loading entity data…
-        </div>
-
-        <div
-          v-else-if="store.entityError"
-          class="mb-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
-          data-testid="dashboard-entity-error"
-        >
-          {{ store.entityError }}
-        </div>
-
-        <div
-          v-else-if="store.entityDistribution.length === 0"
-          class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
-          data-testid="dashboard-entity-empty"
-        >
-          No {{ store.entityType }} entities found in this range.
-        </div>
-
-        <div
-          v-else
-          class="flex flex-col md:flex-row gap-6"
-          data-testid="dashboard-entity-content"
-        >
-          <div class="h-64 w-64 flex-shrink-0 mx-auto md:mx-0">
-            <canvas
-              ref="entityChartCanvas"
-              data-testid="dashboard-entity-chart"
-            ></canvas>
-          </div>
-          <div>
-            <table class="text-sm" data-testid="dashboard-entity-legend">
-              <tbody>
-                <tr
-                  v-for="(item, i) in visibleEntityItems"
-                  :key="item.canonical_name"
-                  class="text-gray-700 dark:text-gray-200"
-                >
-                  <td class="py-0.5 pr-2">
-                    <span
-                      class="inline-block w-3 h-3 rounded-sm"
-                      :style="{
-                        backgroundColor:
-                          DOUGHNUT_COLORS[i % DOUGHNUT_COLORS.length],
-                      }"
-                    ></span>
-                  </td>
-                  <td class="py-0.5 pr-3 truncate max-w-48">
-                    {{ item.canonical_name }}
-                  </td>
-                  <td
-                    class="py-0.5 text-right text-xs text-gray-400 dark:text-gray-500 font-mono tabular-nums"
-                  >
-                    {{ item.mention_count }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <button
-              v-if="hiddenEntityCount > 0"
-              type="button"
-              class="mt-2 text-xs text-violet-500 hover:text-violet-600 dark:text-violet-400 dark:hover:text-violet-300 font-medium"
-              data-testid="dashboard-entity-legend-toggle"
-              @click="entityLegendExpanded = !entityLegendExpanded"
-            >
-              {{
-                entityLegendExpanded
-                  ? 'Show fewer'
-                  : `Show ${hiddenEntityCount} more`
-              }}
-            </button>
-          </div>
-        </div>
-      </section>
-
       <!-- Topic Trends -->
       <section
         class="mt-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
@@ -1635,7 +1670,7 @@ async function onMoodJobSucceeded(): Promise<void> {
         </header>
 
         <!-- Dimension selector -->
-        <div class="flex flex-wrap items-center gap-4 mb-4">
+        <div class="flex flex-col gap-3 mb-4">
           <div>
             <label
               class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1"
