@@ -10,9 +10,13 @@ const mockFetchSettings = vi.fn()
 const mockFetchHealth = vi.fn()
 const mockTriggerEntityExtraction = vi.fn()
 
+const mockUpdateRuntimeSettings = vi.fn()
+
 vi.mock('@/api/settings', () => ({
   fetchSettings: (...args: unknown[]) => mockFetchSettings(...args),
   fetchHealth: (...args: unknown[]) => mockFetchHealth(...args),
+  updateRuntimeSettings: (...args: unknown[]) =>
+    mockUpdateRuntimeSettings(...args),
 }))
 
 vi.mock('@/api/entities', () => ({
@@ -459,5 +463,98 @@ describe('SettingsView', () => {
     expect(wrapper.find('[data-testid="reextract-prompt"]').exists()).toBe(
       false,
     )
+  })
+
+  // --- Runtime settings ---
+
+  it('renders runtime settings section when runtime array is non-empty', async () => {
+    const settings = makeSettings({
+      runtime: [
+        {
+          key: 'preprocess_images',
+          type: 'bool',
+          label: 'Image Preprocessing',
+          description: 'Auto-rotate, crop, downscale.',
+          value: true,
+        },
+        {
+          key: 'ocr_provider',
+          type: 'string',
+          label: 'OCR Provider',
+          description: 'Primary OCR provider.',
+          value: 'anthropic',
+          choices: ['anthropic', 'gemini'],
+        },
+      ],
+    })
+    const wrapper = await mountView(settings)
+    expect(
+      wrapper.find('[data-testid="runtime-settings-section"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="runtime-preprocess_images"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="runtime-ocr_provider"]').exists(),
+    ).toBe(true)
+  })
+
+  it('does not render runtime section when runtime array is empty', async () => {
+    const wrapper = await mountView(makeSettings({ runtime: [] }))
+    expect(
+      wrapper.find('[data-testid="runtime-settings-section"]').exists(),
+    ).toBe(false)
+  })
+
+  it('toggles a boolean runtime setting on click', async () => {
+    const runtimeItems = [
+      {
+        key: 'ocr_dual_pass',
+        type: 'bool' as const,
+        label: 'Dual-Pass OCR',
+        description: 'Run both providers.',
+        value: false,
+      },
+    ]
+    mockUpdateRuntimeSettings.mockResolvedValue({
+      updated: ['ocr_dual_pass'],
+      settings: [{ ...runtimeItems[0], value: true }],
+    })
+
+    const wrapper = await mountView(makeSettings({ runtime: runtimeItems }))
+    await wrapper
+      .find('[data-testid="toggle-ocr_dual_pass"]')
+      .trigger('click')
+    await flushPromises()
+
+    expect(mockUpdateRuntimeSettings).toHaveBeenCalledWith({
+      ocr_dual_pass: true,
+    })
+  })
+
+  it('changes a string runtime setting via select', async () => {
+    const runtimeItems = [
+      {
+        key: 'ocr_provider',
+        type: 'string' as const,
+        label: 'OCR Provider',
+        description: 'Primary OCR provider.',
+        value: 'anthropic',
+        choices: ['anthropic', 'gemini'],
+      },
+    ]
+    mockUpdateRuntimeSettings.mockResolvedValue({
+      updated: ['ocr_provider'],
+      settings: [{ ...runtimeItems[0], value: 'gemini' }],
+    })
+
+    const wrapper = await mountView(makeSettings({ runtime: runtimeItems }))
+    const select = wrapper.find('[data-testid="select-ocr_provider"]')
+    await select.setValue('gemini')
+    await flushPromises()
+
+    expect(mockUpdateRuntimeSettings).toHaveBeenCalledWith({
+      ocr_provider: 'gemini',
+    })
   })
 })
