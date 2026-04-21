@@ -464,7 +464,12 @@ describe('useDashboardStore — mood surface', () => {
 
   it('loadDrillDown uses correct end date for month bin', async () => {
     const { fetchMoodDrilldown } = await import('@/api/insights')
-    vi.mocked(fetchMoodDrilldown).mockResolvedValue({ dimension: 'agency', from: '2026-03-01', to: '2026-03-31', entries: [] })
+    vi.mocked(fetchMoodDrilldown).mockResolvedValue({
+      dimension: 'agency',
+      from: '2026-03-01',
+      to: '2026-03-31',
+      entries: [],
+    })
     const store = useDashboardStore()
     store.bin = 'month'
     await store.loadDrillDown('2026-03-01', 'agency')
@@ -477,7 +482,12 @@ describe('useDashboardStore — mood surface', () => {
 
   it('loadDrillDown uses correct end date for quarter bin', async () => {
     const { fetchMoodDrilldown } = await import('@/api/insights')
-    vi.mocked(fetchMoodDrilldown).mockResolvedValue({ dimension: 'agency', from: '2026-03-01', to: '2026-03-31', entries: [] })
+    vi.mocked(fetchMoodDrilldown).mockResolvedValue({
+      dimension: 'agency',
+      from: '2026-03-01',
+      to: '2026-03-31',
+      entries: [],
+    })
     const store = useDashboardStore()
     store.bin = 'quarter'
     await store.loadDrillDown('2026-01-01', 'agency')
@@ -490,7 +500,12 @@ describe('useDashboardStore — mood surface', () => {
 
   it('loadDrillDown uses correct end date for year bin', async () => {
     const { fetchMoodDrilldown } = await import('@/api/insights')
-    vi.mocked(fetchMoodDrilldown).mockResolvedValue({ dimension: 'agency', from: '2026-03-01', to: '2026-03-31', entries: [] })
+    vi.mocked(fetchMoodDrilldown).mockResolvedValue({
+      dimension: 'agency',
+      from: '2026-03-01',
+      to: '2026-03-31',
+      entries: [],
+    })
     const store = useDashboardStore()
     store.bin = 'year'
     await store.loadDrillDown('2026-01-01', 'agency')

@@ -16,7 +16,9 @@ vi.mock('@/api/dashboard', () => ({
 }))
 
 vi.mock('@/api/insights', () => ({
-  fetchMoodDrilldown: vi.fn().mockResolvedValue({ dimension: '', from: '', to: '', entries: [] }),
+  fetchMoodDrilldown: vi
+    .fn()
+    .mockResolvedValue({ dimension: '', from: '', to: '', entries: [] }),
 }))
 
 // The mood-backfill modal reaches through the jobs store into

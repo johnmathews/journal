@@ -739,7 +739,10 @@ async function onMoodJobSucceeded(): Promise<void> {
           </div>
 
           <div v-else class="overflow-x-auto">
-            <table class="w-full text-sm" data-testid="dashboard-drilldown-table">
+            <table
+              class="w-full text-sm"
+              data-testid="dashboard-drilldown-table"
+            >
               <thead>
                 <tr
                   class="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700/60"

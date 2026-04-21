@@ -416,9 +416,7 @@ describe('jobs store', () => {
       })
     // getJob: first call returns succeeded (terminal), then hangs for follow-up polling
     vi.mocked(getJob)
-      .mockResolvedValueOnce(
-        makeJob({ id: 'ingest-1', status: 'succeeded' }),
-      )
+      .mockResolvedValueOnce(makeJob({ id: 'ingest-1', status: 'succeeded' }))
       .mockImplementation(() => new Promise<Job>(() => {}))
 
     // Seed the ingestion job and poll it

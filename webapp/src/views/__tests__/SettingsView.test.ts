@@ -494,9 +494,9 @@ describe('SettingsView', () => {
     expect(
       wrapper.find('[data-testid="runtime-preprocess_images"]').exists(),
     ).toBe(true)
-    expect(
-      wrapper.find('[data-testid="runtime-ocr_provider"]').exists(),
-    ).toBe(true)
+    expect(wrapper.find('[data-testid="runtime-ocr_provider"]').exists()).toBe(
+      true,
+    )
   })
 
   it('does not render runtime section when runtime array is empty', async () => {
@@ -522,9 +522,7 @@ describe('SettingsView', () => {
     })
 
     const wrapper = await mountView(makeSettings({ runtime: runtimeItems }))
-    await wrapper
-      .find('[data-testid="toggle-ocr_dual_pass"]')
-      .trigger('click')
+    await wrapper.find('[data-testid="toggle-ocr_dual_pass"]').trigger('click')
     await flushPromises()
 
     expect(mockUpdateRuntimeSettings).toHaveBeenCalledWith({
