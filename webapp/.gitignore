@@ -29,6 +29,9 @@ credentials.json
 *.log
 npm-debug.log*
 
+# Database
+*.db
+
 # OS
 .DS_Store
 Thumbs.db

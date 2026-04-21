@@ -74,6 +74,29 @@ Open http://localhost:5173 in your browser.
 > **Note:** The server reads config from environment variables, not from `.env` directly. The
 > `set -a && source .env && set +a` prefix exports the variables into the shell before starting.
 
+### 3. Create a user account
+
+The seeded entries belong to the default admin user. To see them in the webapp, register a new user,
+promote them to admin, verify their email, and reassign the entries:
+
+```bash
+# Register
+curl -s -X POST http://localhost:8400/api/auth/register \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-JOURNAL_API_TOKEN>" \
+  -d '{"email":"test@test.com","password":"testpass123","display_name":"Bilbo"}'
+
+# Promote to admin, verify email, and reassign entries
+sqlite3 ../journal-server/journal.db \
+  "UPDATE users SET is_admin=1, email_verified=1 WHERE email='test@test.com';
+   UPDATE entries SET user_id = (SELECT id FROM users WHERE email='test@test.com');"
+```
+
+Restart the server, then log in at http://localhost:5173 with `test@test.com` / `testpass123`.
+
+> **Resetting:** To start fresh, delete `journal.db` in the server directory and repeat from
+> `uv run journal seed` onwards.
+
 ## Features
 
 - **Entry table** — Browse entries with date, page count, word count, chunk count, and ingestion date
