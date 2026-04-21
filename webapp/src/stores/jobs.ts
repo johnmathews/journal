@@ -161,6 +161,11 @@ export const useJobsStore = defineStore('jobs', () => {
         // Natural termination: no further scheduling, clean up bookkeeping.
         inFlight.delete(jobId)
         stopPolling(jobId)
+        // A completed job may have triggered follow-up jobs server-side
+        // (e.g., entity extraction after image ingestion). Re-hydrate so
+        // the notification bell discovers them.
+        hydrated = false
+        void hydrateActiveJobs()
         return
       }
       shouldScheduleNext = true

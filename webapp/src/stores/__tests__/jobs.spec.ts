@@ -366,7 +366,7 @@ describe('jobs store', () => {
     expect(store.getJobById('dup-1')?.status).toBe('queued')
   })
 
-  it('hydrateActiveJobs only runs once', async () => {
+  it('hydrateActiveJobs only runs once under normal conditions', async () => {
     const { listJobs } = await import('@/api/jobs')
     vi.mocked(listJobs).mockResolvedValue({
       items: [],
@@ -381,5 +381,57 @@ describe('jobs store', () => {
 
     // Two calls: one for queued, one for running — only from the first invocation
     expect(listJobs).toHaveBeenCalledTimes(2)
+  })
+
+  it('re-hydrates to discover follow-up jobs when a tracked job reaches terminal state', async () => {
+    const { listJobs, getJob } = await import('@/api/jobs')
+
+    // First hydration: no active jobs
+    vi.mocked(listJobs).mockResolvedValue({
+      items: [],
+      total: 0,
+      limit: 50,
+      offset: 0,
+    })
+
+    const store = useJobsStore()
+    await store.hydrateActiveJobs()
+    expect(listJobs).toHaveBeenCalledTimes(2) // queued + running
+
+    // A follow-up job the server created after the ingestion completed
+    const followUpJob = makeJob({
+      id: 'entity-1',
+      status: 'running',
+      type: 'entity_extraction',
+    })
+
+    // When the ingestion job finishes, re-hydration should find the follow-up
+    vi.mocked(listJobs)
+      .mockResolvedValueOnce({ items: [], total: 0, limit: 50, offset: 0 })
+      .mockResolvedValueOnce({
+        items: [followUpJob],
+        total: 1,
+        limit: 50,
+        offset: 0,
+      })
+    // getJob: first call returns succeeded (terminal), then hangs for follow-up polling
+    vi.mocked(getJob)
+      .mockResolvedValueOnce(
+        makeJob({ id: 'ingest-1', status: 'succeeded' }),
+      )
+      .mockImplementation(() => new Promise<Job>(() => {}))
+
+    // Seed the ingestion job and poll it
+    store.jobs['ingest-1'] = makeJob({ id: 'ingest-1', status: 'running' })
+    await store.pollJob('ingest-1')
+
+    // Wait for the re-hydration promise to settle
+    await vi.runAllTimersAsync()
+
+    // Re-hydration should have called listJobs again (2 more calls)
+    expect(listJobs).toHaveBeenCalledTimes(4)
+    // The follow-up job should now be in the store
+    expect(store.getJobById('entity-1')).toBeDefined()
+    expect(store.getJobById('entity-1')?.status).toBe('running')
   })
 })
