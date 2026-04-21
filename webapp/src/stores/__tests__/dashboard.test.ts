@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useDashboardStore, rangeToDates } from '../dashboard'
 
@@ -14,6 +14,10 @@ vi.mock('@/api/dashboard', () => ({
 vi.mock('@/api/insights', () => ({
   fetchMoodDrilldown: vi.fn(),
   fetchEntityDistribution: vi.fn(),
+}))
+vi.mock('@/api/preferences', () => ({
+  fetchPreferences: vi.fn(),
+  updatePreferences: vi.fn(),
 }))
 vi.mock('@/api/client', () => ({
   ApiRequestError: class extends Error {
@@ -36,7 +40,12 @@ import {
   fetchWordCountDistribution,
   fetchWritingStats,
 } from '@/api/dashboard'
+import { fetchPreferences, updatePreferences } from '@/api/preferences'
 import { ApiRequestError } from '@/api/client'
+import { DEFAULT_TILE_ORDER } from '@/types/dashboard'
+import type { DashboardTileId } from '@/types/dashboard'
+const mockFetchPreferences = vi.mocked(fetchPreferences)
+const mockUpdatePreferences = vi.mocked(updatePreferences)
 const mockFetch = vi.mocked(fetchWritingStats)
 const mockMoodDims = vi.mocked(fetchMoodDimensions)
 const mockMoodTrends = vi.mocked(fetchMoodTrends)
@@ -1007,5 +1016,408 @@ describe('useDashboardStore — word count distribution', () => {
     expect(store.wordCountStats).toBeNull()
     expect(store.wordCountHasLoaded).toBe(false)
     expect(store.wordCountError).toBeNull()
+  })
+})
+
+describe('useDashboardStore — tile layout', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  // ── Default state ──────────────────────────────────────────────
+
+  it('tileOrder defaults to DEFAULT_TILE_ORDER', () => {
+    const store = useDashboardStore()
+    expect(store.tileOrder).toEqual([...DEFAULT_TILE_ORDER])
+  })
+
+  it('hiddenTiles defaults to empty array', () => {
+    const store = useDashboardStore()
+    expect(store.hiddenTiles).toEqual([])
+  })
+
+  it('editingLayout defaults to false', () => {
+    const store = useDashboardStore()
+    expect(store.editingLayout).toBe(false)
+  })
+
+  it('layoutLoaded defaults to false', () => {
+    const store = useDashboardStore()
+    expect(store.layoutLoaded).toBe(false)
+  })
+
+  it('visibleTiles equals tileOrder when nothing is hidden', () => {
+    const store = useDashboardStore()
+    expect(store.visibleTiles).toEqual([...DEFAULT_TILE_ORDER])
+  })
+
+  // ── moveTile ───────────────────────────────────────────────────
+
+  it('moveTile("down") swaps a tile with its next neighbor', () => {
+    const store = useDashboardStore()
+    const first = store.tileOrder[0]
+    const second = store.tileOrder[1]
+    store.moveTile(first, 'down')
+    expect(store.tileOrder[0]).toBe(second)
+    expect(store.tileOrder[1]).toBe(first)
+  })
+
+  it('moveTile("up") swaps a tile with its previous neighbor', () => {
+    const store = useDashboardStore()
+    const first = store.tileOrder[0]
+    const second = store.tileOrder[1]
+    store.moveTile(second, 'up')
+    expect(store.tileOrder[0]).toBe(second)
+    expect(store.tileOrder[1]).toBe(first)
+  })
+
+  it('moveTile("up") on the first tile is a no-op', () => {
+    const store = useDashboardStore()
+    const before = [...store.tileOrder]
+    store.moveTile(before[0], 'up')
+    expect(store.tileOrder).toEqual(before)
+  })
+
+  it('moveTile("down") on the last tile is a no-op', () => {
+    const store = useDashboardStore()
+    const before = [...store.tileOrder]
+    const last = before[before.length - 1]
+    store.moveTile(last, 'down')
+    expect(store.tileOrder).toEqual(before)
+  })
+
+  it('moveTile with an unknown ID is a no-op', () => {
+    const store = useDashboardStore()
+    const before = [...store.tileOrder]
+    store.moveTile('nonexistent-tile' as DashboardTileId, 'up')
+    expect(store.tileOrder).toEqual(before)
+  })
+
+  it('moveTile triggers a debounced persist call', () => {
+    mockUpdatePreferences.mockResolvedValue({ preferences: {} })
+    const store = useDashboardStore()
+    store.moveTile(store.tileOrder[0], 'down')
+    // Before the timer fires, updatePreferences should not have been called
+    expect(mockUpdatePreferences).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(500)
+    expect(mockUpdatePreferences).toHaveBeenCalledTimes(1)
+    expect(mockUpdatePreferences).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dashboard_layout: expect.objectContaining({
+          tileOrder: expect.any(Array),
+          hiddenTiles: expect.any(Array),
+        }),
+      }),
+    )
+  })
+
+  // ── hideTile / showTile ────────────────────────────────────────
+
+  it('hideTile adds a tile to hiddenTiles', () => {
+    const store = useDashboardStore()
+    const tile = DEFAULT_TILE_ORDER[0]
+    store.hideTile(tile)
+    expect(store.hiddenTiles).toContain(tile)
+  })
+
+  it('hideTile is idempotent — hiding the same tile twice does not duplicate', () => {
+    const store = useDashboardStore()
+    const tile = DEFAULT_TILE_ORDER[0]
+    store.hideTile(tile)
+    store.hideTile(tile)
+    expect(store.hiddenTiles.filter((t) => t === tile)).toHaveLength(1)
+  })
+
+  it('showTile removes a tile from hiddenTiles', () => {
+    const store = useDashboardStore()
+    const tile = DEFAULT_TILE_ORDER[0]
+    store.hideTile(tile)
+    expect(store.hiddenTiles).toContain(tile)
+    store.showTile(tile)
+    expect(store.hiddenTiles).not.toContain(tile)
+  })
+
+  it('showTile on an already-visible tile is a no-op', () => {
+    const store = useDashboardStore()
+    const before = [...store.hiddenTiles]
+    store.showTile(DEFAULT_TILE_ORDER[0])
+    expect(store.hiddenTiles).toEqual(before)
+  })
+
+  it('hideTile triggers a debounced persist call', () => {
+    mockUpdatePreferences.mockResolvedValue({ preferences: {} })
+    const store = useDashboardStore()
+    store.hideTile(DEFAULT_TILE_ORDER[0])
+    vi.advanceTimersByTime(500)
+    expect(mockUpdatePreferences).toHaveBeenCalledTimes(1)
+  })
+
+  it('showTile triggers a debounced persist call', () => {
+    mockUpdatePreferences.mockResolvedValue({ preferences: {} })
+    const store = useDashboardStore()
+    store.hideTile(DEFAULT_TILE_ORDER[0])
+    vi.advanceTimersByTime(500)
+    vi.clearAllMocks()
+    store.showTile(DEFAULT_TILE_ORDER[0])
+    vi.advanceTimersByTime(500)
+    expect(mockUpdatePreferences).toHaveBeenCalledTimes(1)
+  })
+
+  // ── visibleTiles ───────────────────────────────────────────────
+
+  it('visibleTiles excludes hidden tiles', () => {
+    const store = useDashboardStore()
+    const hidden = DEFAULT_TILE_ORDER[1]
+    store.hideTile(hidden)
+    expect(store.visibleTiles).not.toContain(hidden)
+    // All others should still be present
+    for (const id of DEFAULT_TILE_ORDER) {
+      if (id !== hidden) {
+        expect(store.visibleTiles).toContain(id)
+      }
+    }
+  })
+
+  it('visibleTiles preserves the order from tileOrder', () => {
+    const store = useDashboardStore()
+    // Swap first two tiles
+    const first = store.tileOrder[0]
+    store.moveTile(first, 'down')
+    // Hide third tile
+    const third = store.tileOrder[2]
+    store.hideTile(third)
+
+    const visible = store.visibleTiles
+    // The swapped order should be reflected, minus the hidden tile
+    const expected = store.tileOrder.filter((id) => id !== third)
+    expect(visible).toEqual(expected)
+  })
+
+  it('visibleTiles is empty when all tiles are hidden', () => {
+    const store = useDashboardStore()
+    for (const id of DEFAULT_TILE_ORDER) {
+      store.hideTile(id)
+    }
+    expect(store.visibleTiles).toEqual([])
+  })
+
+  // ── resetLayout ────────────────────────────────────────────────
+
+  it('resetLayout restores tileOrder to defaults', () => {
+    const store = useDashboardStore()
+    store.moveTile(store.tileOrder[0], 'down')
+    store.hideTile(DEFAULT_TILE_ORDER[2])
+    expect(store.tileOrder).not.toEqual([...DEFAULT_TILE_ORDER])
+
+    store.resetLayout()
+    expect(store.tileOrder).toEqual([...DEFAULT_TILE_ORDER])
+    expect(store.hiddenTiles).toEqual([])
+  })
+
+  it('resetLayout triggers a debounced persist call', () => {
+    mockUpdatePreferences.mockResolvedValue({ preferences: {} })
+    const store = useDashboardStore()
+    store.hideTile(DEFAULT_TILE_ORDER[0])
+    vi.advanceTimersByTime(500)
+    vi.clearAllMocks()
+
+    store.resetLayout()
+    vi.advanceTimersByTime(500)
+    expect(mockUpdatePreferences).toHaveBeenCalledTimes(1)
+  })
+
+  it('store.reset() does NOT reset tile layout', () => {
+    const store = useDashboardStore()
+    store.moveTile(store.tileOrder[0], 'down')
+    store.hideTile(DEFAULT_TILE_ORDER[2])
+    const orderBefore = [...store.tileOrder]
+    const hiddenBefore = [...store.hiddenTiles]
+
+    store.reset()
+
+    // Layout should be preserved across reset()
+    expect(store.tileOrder).toEqual(orderBefore)
+    expect(store.hiddenTiles).toEqual(hiddenBefore)
+  })
+
+  // ── loadLayout ─────────────────────────────────────────────────
+
+  it('loadLayout applies saved layout from server', async () => {
+    const customOrder: DashboardTileId[] = [
+      'word-count',
+      'mood-trends',
+      'calendar-heatmap',
+      'entity-distribution',
+      'writing-frequency',
+      'topic-trends',
+      'mood-entity-correlation',
+    ]
+    const customHidden: DashboardTileId[] = ['mood-trends', 'word-count']
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        dashboard_layout: {
+          tileOrder: customOrder,
+          hiddenTiles: customHidden,
+        },
+      },
+    })
+
+    const store = useDashboardStore()
+    await store.loadLayout()
+
+    expect(store.tileOrder).toEqual(customOrder)
+    expect(store.hiddenTiles).toEqual(customHidden)
+    expect(store.layoutLoaded).toBe(true)
+  })
+
+  it('loadLayout uses defaults when server returns no dashboard_layout', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {},
+    })
+
+    const store = useDashboardStore()
+    await store.loadLayout()
+
+    expect(store.tileOrder).toEqual([...DEFAULT_TILE_ORDER])
+    expect(store.hiddenTiles).toEqual([])
+    expect(store.layoutLoaded).toBe(true)
+  })
+
+  it('loadLayout uses defaults when fetchPreferences rejects', async () => {
+    mockFetchPreferences.mockRejectedValue(new Error('network down'))
+
+    const store = useDashboardStore()
+    await store.loadLayout()
+
+    expect(store.tileOrder).toEqual([...DEFAULT_TILE_ORDER])
+    expect(store.hiddenTiles).toEqual([])
+    expect(store.layoutLoaded).toBe(true)
+  })
+
+  it('loadLayout filters out unknown tile IDs from saved order', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        dashboard_layout: {
+          tileOrder: ['calendar-heatmap', 'bogus-tile-id', 'word-count'],
+          hiddenTiles: ['bogus-hidden-id'],
+        },
+      },
+    })
+
+    const store = useDashboardStore()
+    await store.loadLayout()
+
+    // Unknown IDs should be stripped
+    expect(store.tileOrder).not.toContain('bogus-tile-id')
+    expect(store.hiddenTiles).not.toContain('bogus-hidden-id')
+    // Known IDs should be present
+    expect(store.tileOrder).toContain('calendar-heatmap')
+    expect(store.tileOrder).toContain('word-count')
+    expect(store.layoutLoaded).toBe(true)
+  })
+
+  it('loadLayout appends missing tiles not present in saved order', async () => {
+    // Saved layout only has 3 of the 7 tiles
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        dashboard_layout: {
+          tileOrder: ['word-count', 'calendar-heatmap', 'mood-trends'],
+          hiddenTiles: [],
+        },
+      },
+    })
+
+    const store = useDashboardStore()
+    await store.loadLayout()
+
+    // All 7 default tiles should be present
+    expect(store.tileOrder).toHaveLength(DEFAULT_TILE_ORDER.length)
+    // The first 3 should be the saved ones in saved order
+    expect(store.tileOrder[0]).toBe('word-count')
+    expect(store.tileOrder[1]).toBe('calendar-heatmap')
+    expect(store.tileOrder[2]).toBe('mood-trends')
+    // The remaining tiles should have been appended
+    for (const id of DEFAULT_TILE_ORDER) {
+      expect(store.tileOrder).toContain(id)
+    }
+  })
+
+  it('loadLayout handles null tileOrder gracefully', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        dashboard_layout: {
+          tileOrder: null,
+          hiddenTiles: null,
+        },
+      },
+    })
+
+    const store = useDashboardStore()
+    await store.loadLayout()
+
+    // Should fall back to all defaults appended
+    expect(store.tileOrder).toEqual([...DEFAULT_TILE_ORDER])
+    expect(store.hiddenTiles).toEqual([])
+    expect(store.layoutLoaded).toBe(true)
+  })
+
+  it('loadLayout handles empty arrays gracefully', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        dashboard_layout: {
+          tileOrder: [],
+          hiddenTiles: [],
+        },
+      },
+    })
+
+    const store = useDashboardStore()
+    await store.loadLayout()
+
+    // Empty tileOrder means all defaults get appended
+    expect(store.tileOrder).toEqual([...DEFAULT_TILE_ORDER])
+    expect(store.hiddenTiles).toEqual([])
+    expect(store.layoutLoaded).toBe(true)
+  })
+
+  // ── Debounce coalescing ────────────────────────────────────────
+
+  it('rapid mutations coalesce into a single persist call', () => {
+    mockUpdatePreferences.mockResolvedValue({ preferences: {} })
+    const store = useDashboardStore()
+    store.moveTile(store.tileOrder[0], 'down')
+    store.hideTile(DEFAULT_TILE_ORDER[3])
+    store.moveTile(store.tileOrder[2], 'up')
+    // Only the last debounced call should fire
+    vi.advanceTimersByTime(500)
+    expect(mockUpdatePreferences).toHaveBeenCalledTimes(1)
+  })
+
+  // ── editingLayout toggle ───────────────────────────────────────
+
+  it('editingLayout can be toggled', () => {
+    const store = useDashboardStore()
+    expect(store.editingLayout).toBe(false)
+    store.editingLayout = true
+    expect(store.editingLayout).toBe(true)
+    store.editingLayout = false
+    expect(store.editingLayout).toBe(false)
+  })
+
+  // ── tileDefs computed ──────────────────────────────────────────
+
+  it('tileDefs provides a Map keyed by tile ID', () => {
+    const store = useDashboardStore()
+    expect(store.tileDefs.size).toBe(DEFAULT_TILE_ORDER.length)
+    for (const id of DEFAULT_TILE_ORDER) {
+      expect(store.tileDefs.has(id)).toBe(true)
+      expect(store.tileDefs.get(id)!.id).toBe(id)
+    }
   })
 })

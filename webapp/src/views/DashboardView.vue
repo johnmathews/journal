@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Chart } from 'chart.js'
 import { useDashboardStore, rangeToDates } from '@/stores/dashboard'
@@ -8,6 +8,7 @@ import {
   DASHBOARD_RANGES,
   type DashboardBin,
   type DashboardRange,
+  type DashboardTileId,
 } from '@/types/dashboard'
 import type { CalendarDay } from '@/types/dashboard'
 import {
@@ -133,117 +134,139 @@ const showCharts = computed(
   () => store.totalEntriesInRange >= MIN_ENTRIES_FOR_CHARTS,
 )
 
+function isTileVisible(id: DashboardTileId): boolean {
+  return store.visibleTiles.includes(id)
+}
+
+function tileOrder(id: DashboardTileId): number {
+  const idx = store.tileOrder.indexOf(id)
+  return idx >= 0 ? idx : 999
+}
+
+function tileSpan(id: DashboardTileId): string {
+  const def = store.tileDefs.get(id)
+  if (!def || def.span === 2) return '1 / -1' // full-width
+  return 'span 1'
+}
+
 const labels = computed(() => store.bins.map((b) => b.bin_start))
 const entryCountSeries = computed(() => store.bins.map((b) => b.entry_count))
 const wordCountSeries = computed(() => store.bins.map((b) => b.total_words))
 
-// --- Writing + word count charts ---
+// --- Writing frequency chart ---
 
-function renderCharts(): void {
+function renderWritingChart(): void {
   if (!showCharts.value) {
     writingChart?.destroy()
     writingChart = null
-    wordChart?.destroy()
-    wordChart = null
     return
   }
+  if (!writingChartCanvas.value) return
   const colors = getChartColors()
   const violet = '#8b5cf6'
   const translucent = adjustColorOpacity(violet, 0.15)
 
-  if (writingChartCanvas.value) {
-    writingChart?.destroy()
-    writingChart = new Chart(writingChartCanvas.value, {
-      type: 'line',
-      data: {
-        labels: labels.value,
-        datasets: [
-          {
-            label: 'Entries',
-            data: entryCountSeries.value,
-            borderColor: violet,
-            backgroundColor: translucent,
-            fill: true,
-            tension: 0.35,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-            pointBackgroundColor: violet,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: colors.tooltipBgColor.light,
-            titleColor: colors.tooltipTitleColor.light,
-            bodyColor: colors.tooltipBodyColor.light,
-            borderColor: colors.tooltipBorderColor.light,
-          },
+  writingChart?.destroy()
+  writingChart = new Chart(writingChartCanvas.value, {
+    type: 'line',
+    data: {
+      labels: labels.value,
+      datasets: [
+        {
+          label: 'Entries',
+          data: entryCountSeries.value,
+          borderColor: violet,
+          backgroundColor: translucent,
+          fill: true,
+          tension: 0.35,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: violet,
         },
-        scales: {
-          x: {
-            grid: { display: false },
-            ticks: { color: colors.textColor.light, maxRotation: 0 },
-          },
-          y: {
-            beginAtZero: true,
-            grid: { color: colors.gridColor.light },
-            ticks: { color: colors.textColor.light, precision: 0 },
-          },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: colors.tooltipBgColor.light,
+          titleColor: colors.tooltipTitleColor.light,
+          bodyColor: colors.tooltipBodyColor.light,
+          borderColor: colors.tooltipBorderColor.light,
         },
       },
-    })
-  }
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: colors.textColor.light, maxRotation: 0 },
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: colors.gridColor.light },
+          ticks: { color: colors.textColor.light, precision: 0 },
+        },
+      },
+    },
+  })
+}
 
-  if (wordChartCanvas.value) {
+// --- Word count chart ---
+
+function renderWordChart(): void {
+  if (!showCharts.value) {
     wordChart?.destroy()
-    wordChart = new Chart(wordChartCanvas.value, {
-      type: 'line',
-      data: {
-        labels: labels.value,
-        datasets: [
-          {
-            label: 'Words',
-            data: wordCountSeries.value,
-            borderColor: '#0ea5e9',
-            backgroundColor: adjustColorOpacity('#0ea5e9', 0.15),
-            fill: true,
-            tension: 0.35,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-            pointBackgroundColor: '#0ea5e9',
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: colors.tooltipBgColor.light,
-            titleColor: colors.tooltipTitleColor.light,
-            bodyColor: colors.tooltipBodyColor.light,
-            borderColor: colors.tooltipBorderColor.light,
-          },
-        },
-        scales: {
-          x: {
-            grid: { display: false },
-            ticks: { color: colors.textColor.light, maxRotation: 0 },
-          },
-          y: {
-            beginAtZero: true,
-            grid: { color: colors.gridColor.light },
-            ticks: { color: colors.textColor.light },
-          },
-        },
-      },
-    })
+    wordChart = null
+    return
   }
+  if (!wordChartCanvas.value) return
+  const colors = getChartColors()
+
+  wordChart?.destroy()
+  wordChart = new Chart(wordChartCanvas.value, {
+    type: 'line',
+    data: {
+      labels: labels.value,
+      datasets: [
+        {
+          label: 'Words',
+          data: wordCountSeries.value,
+          borderColor: '#0ea5e9',
+          backgroundColor: adjustColorOpacity('#0ea5e9', 0.15),
+          fill: true,
+          tension: 0.35,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: '#0ea5e9',
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: colors.tooltipBgColor.light,
+          titleColor: colors.tooltipTitleColor.light,
+          bodyColor: colors.tooltipBodyColor.light,
+          borderColor: colors.tooltipBorderColor.light,
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: colors.textColor.light, maxRotation: 0 },
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: colors.gridColor.light },
+          ticks: { color: colors.textColor.light },
+        },
+      },
+    },
+  })
 }
 
 // --- Mood chart with variance bands ---
@@ -799,7 +822,10 @@ function renderMoodCorrelationChart(): void {
 
 watch(
   () => store.bins,
-  () => renderCharts(),
+  () => {
+    renderWritingChart()
+    renderWordChart()
+  },
   { deep: false },
 )
 
@@ -830,11 +856,49 @@ watch(
   { deep: false },
 )
 
+// Re-render charts when tiles become visible again (v-if recreates the DOM).
+// nextTick ensures the canvas ref is available after the DOM update.
+watch(
+  () => store.visibleTiles,
+  async (visible, oldVisible) => {
+    await nextTick()
+    // Only re-render charts whose tile just appeared
+    const appeared = visible.filter((id) => !oldVisible?.includes(id))
+    for (const id of appeared) {
+      switch (id) {
+        case 'writing-frequency':
+          renderWritingChart()
+          break
+        case 'word-count':
+          renderWordChart()
+          break
+        case 'entity-distribution':
+          renderEntityChart()
+          break
+        case 'mood-trends':
+          renderMoodChart()
+          break
+        case 'topic-trends':
+          renderEntityTrendsChart()
+          break
+        case 'mood-entity-correlation':
+          renderMoodCorrelationChart()
+          break
+      }
+    }
+  },
+)
+
 // --- Lifecycle ---
 
 onMounted(async () => {
-  await Promise.all([store.loadWritingStats(), store.loadMoodDimensions()])
-  renderCharts()
+  await Promise.all([
+    store.loadWritingStats(),
+    store.loadMoodDimensions(),
+    store.loadLayout(),
+  ])
+  renderWritingChart()
+  renderWordChart()
   const promises: Promise<void>[] = [
     store.loadEntityDistribution(),
     store.loadCalendarHeatmap(),
@@ -937,6 +1001,21 @@ async function onMoodJobSucceeded(): Promise<void> {
       >
         Dashboard
       </h1>
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
+          :class="
+            store.editingLayout
+              ? 'bg-violet-500 text-white border-violet-500'
+              : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600'
+          "
+          data-testid="dashboard-edit-layout-toggle"
+          @click="store.editingLayout = !store.editingLayout"
+        >
+          {{ store.editingLayout ? 'Done editing' : 'Edit layout' }}
+        </button>
+      </div>
     </div>
 
     <!-- Filter bar (sticky so it stays visible while scrolling) -->
@@ -1045,19 +1124,141 @@ async function onMoodJobSucceeded(): Promise<void> {
     </div>
 
     <div v-else>
-      <!-- Heatmap + Entity distribution — side by side, shrink to fit -->
-      <div class="flex flex-wrap gap-6">
+      <!-- Hidden tiles restoration panel -->
+      <div
+        v-if="store.editingLayout && store.hiddenTiles.length > 0"
+        class="mb-4 bg-gray-50 dark:bg-gray-800/50 border border-dashed border-gray-300 dark:border-gray-600 rounded-xl px-5 py-3"
+        data-testid="dashboard-hidden-tiles-panel"
+      >
+        <div class="flex flex-wrap items-center gap-2">
+          <span
+            class="text-xs font-medium text-gray-500 dark:text-gray-400 mr-1"
+            >Hidden charts:</span
+          >
+          <button
+            v-for="id in store.hiddenTiles"
+            :key="id"
+            type="button"
+            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:border-violet-400 dark:hover:border-violet-500 transition-colors"
+            :data-testid="`dashboard-restore-tile-${id}`"
+            @click="store.showTile(id)"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-3 w-3"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                clip-rule="evenodd"
+              />
+            </svg>
+            {{ store.tileDefs.get(id)?.title ?? id }}
+          </button>
+          <button
+            type="button"
+            class="ml-2 text-xs text-violet-500 hover:text-violet-600 dark:text-violet-400 dark:hover:text-violet-300 font-medium"
+            data-testid="dashboard-reset-layout"
+            @click="store.resetLayout()"
+          >
+            Reset all
+          </button>
+        </div>
+      </div>
+
+      <!-- Dashboard tiles grid -->
+      <div
+        class="grid grid-cols-1 xl:grid-cols-2 gap-6"
+        data-testid="dashboard-tiles-grid"
+      >
+        <!-- Calendar Heatmap -->
         <section
-          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4 grow"
+          v-if="isTileVisible('calendar-heatmap')"
+          :style="{
+            order: tileOrder('calendar-heatmap'),
+            gridColumn: tileSpan('calendar-heatmap'),
+          }"
+          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4 relative group"
           data-testid="dashboard-calendar-section"
         >
-          <header class="mb-3">
-            <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-              Writing Consistency
-            </h2>
-            <p class="text-xs text-gray-500 dark:text-gray-400">
-              Words written per day in the selected range.
-            </p>
+          <header class="mb-3 flex items-start justify-between gap-2">
+            <div>
+              <h2
+                class="text-sm font-semibold text-gray-800 dark:text-gray-100"
+              >
+                Writing Consistency
+              </h2>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                Words written per day in the selected range.
+              </p>
+            </div>
+            <div
+              v-if="store.editingLayout"
+              class="flex items-center gap-1 shrink-0"
+            >
+              <button
+                type="button"
+                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                title="Move up"
+                data-testid="tile-move-up-calendar-heatmap"
+                @click="store.moveTile('calendar-heatmap', 'up')"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                title="Move down"
+                data-testid="tile-move-down-calendar-heatmap"
+                @click="store.moveTile('calendar-heatmap', 'down')"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                title="Hide chart"
+                data-testid="tile-hide-calendar-heatmap"
+                @click="store.hideTile('calendar-heatmap')"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
           </header>
 
           <div
@@ -1193,16 +1394,87 @@ async function onMoodJobSucceeded(): Promise<void> {
 
         <!-- Entity Distribution -->
         <section
-          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4 grow"
+          v-if="isTileVisible('entity-distribution')"
+          :style="{
+            order: tileOrder('entity-distribution'),
+            gridColumn: tileSpan('entity-distribution'),
+          }"
+          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4 relative"
           data-testid="dashboard-entity-section"
         >
-          <header class="mb-3">
-            <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-              What I Write About
-            </h2>
-            <p class="text-xs text-gray-500 dark:text-gray-400">
-              Entity mention frequency by type in the selected range.
-            </p>
+          <header class="mb-3 flex items-start justify-between gap-2">
+            <div>
+              <h2
+                class="text-sm font-semibold text-gray-800 dark:text-gray-100"
+              >
+                What I Write About
+              </h2>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                Entity mention frequency by type in the selected range.
+              </p>
+            </div>
+            <div
+              v-if="store.editingLayout"
+              class="flex items-center gap-1 shrink-0"
+            >
+              <button
+                type="button"
+                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                title="Move up"
+                @click="store.moveTile('entity-distribution', 'up')"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                title="Move down"
+                @click="store.moveTile('entity-distribution', 'down')"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                title="Hide chart"
+                @click="store.hideTile('entity-distribution')"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
           </header>
 
           <!-- Entity type tabs -->
@@ -1307,22 +1579,90 @@ async function onMoodJobSucceeded(): Promise<void> {
             </div>
           </div>
         </section>
-      </div>
-      <!-- end heatmap + entity flex row -->
 
-      <!-- Writing frequency + word count -->
-      <div class="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <!-- Writing Frequency -->
         <section
-          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
+          v-if="isTileVisible('writing-frequency')"
+          :style="{
+            order: tileOrder('writing-frequency'),
+            gridColumn: tileSpan('writing-frequency'),
+          }"
+          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4 relative"
           data-testid="dashboard-writing-chart-card"
         >
-          <header class="mb-3">
-            <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-              Writing frequency
-            </h2>
-            <p class="text-xs text-gray-500 dark:text-gray-400">
-              Entries per {{ store.bin }}
-            </p>
+          <header class="mb-3 flex items-start justify-between gap-2">
+            <div>
+              <h2
+                class="text-sm font-semibold text-gray-800 dark:text-gray-100"
+              >
+                Writing frequency
+              </h2>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                Entries per {{ store.bin }}
+              </p>
+            </div>
+            <div
+              v-if="store.editingLayout"
+              class="flex items-center gap-1 shrink-0"
+            >
+              <button
+                type="button"
+                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                title="Move up"
+                @click="store.moveTile('writing-frequency', 'up')"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                title="Move down"
+                @click="store.moveTile('writing-frequency', 'down')"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                title="Hide chart"
+                @click="store.hideTile('writing-frequency')"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
           </header>
           <div class="h-64 relative">
             <canvas
@@ -1331,17 +1671,90 @@ async function onMoodJobSucceeded(): Promise<void> {
             ></canvas>
           </div>
         </section>
+
+        <!-- Word Count -->
         <section
-          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
+          v-if="isTileVisible('word-count')"
+          :style="{
+            order: tileOrder('word-count'),
+            gridColumn: tileSpan('word-count'),
+          }"
+          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4 relative"
           data-testid="dashboard-word-chart-card"
         >
-          <header class="mb-3">
-            <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-              Word count
-            </h2>
-            <p class="text-xs text-gray-500 dark:text-gray-400">
-              Total words per {{ store.bin }}
-            </p>
+          <header class="mb-3 flex items-start justify-between gap-2">
+            <div>
+              <h2
+                class="text-sm font-semibold text-gray-800 dark:text-gray-100"
+              >
+                Word count
+              </h2>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                Total words per {{ store.bin }}
+              </p>
+            </div>
+            <div
+              v-if="store.editingLayout"
+              class="flex items-center gap-1 shrink-0"
+            >
+              <button
+                type="button"
+                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                title="Move up"
+                @click="store.moveTile('word-count', 'up')"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                title="Move down"
+                @click="store.moveTile('word-count', 'down')"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                title="Hide chart"
+                @click="store.hideTile('word-count')"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
           </header>
           <div class="h-64 relative">
             <canvas
@@ -1350,391 +1763,608 @@ async function onMoodJobSucceeded(): Promise<void> {
             ></canvas>
           </div>
         </section>
-      </div>
 
-      <!-- Mood chart with variance bands -->
-      <section
-        v-if="store.moodScoringEnabled"
-        class="mt-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
-        data-testid="dashboard-mood-chart-card"
-      >
-        <header class="mb-3 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-              Mood Trends
-            </h2>
-            <p class="text-xs text-gray-500 dark:text-gray-400">
-              Average score per {{ store.bin }} with min/max variance bands.
-              Click a data point to see contributing entries.
-            </p>
-          </div>
-          <button
-            type="button"
-            class="btn-sm bg-violet-500 hover:bg-violet-600 text-white"
-            data-testid="run-mood-backfill-button"
-            @click="showMoodBackfillModal = true"
+        <!-- Mood Trends -->
+        <section
+          v-if="store.moodScoringEnabled && isTileVisible('mood-trends')"
+          :style="{
+            order: tileOrder('mood-trends'),
+            gridColumn: tileSpan('mood-trends'),
+          }"
+          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4 relative"
+          data-testid="dashboard-mood-chart-card"
+        >
+          <header class="mb-3 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2
+                class="text-sm font-semibold text-gray-800 dark:text-gray-100"
+              >
+                Mood Trends
+              </h2>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                Average score per {{ store.bin }} with min/max variance bands.
+                Click a data point to see contributing entries.
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <div v-if="store.editingLayout" class="flex items-center gap-1">
+                <button
+                  type="button"
+                  class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                  title="Move up"
+                  @click="store.moveTile('mood-trends', 'up')"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                  title="Move down"
+                  @click="store.moveTile('mood-trends', 'down')"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                  title="Hide chart"
+                  @click="store.hideTile('mood-trends')"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fill-rule="evenodd"
+                      d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <button
+                type="button"
+                class="btn-sm bg-violet-500 hover:bg-violet-600 text-white"
+                data-testid="run-mood-backfill-button"
+                @click="showMoodBackfillModal = true"
+              >
+                Run mood backfill
+              </button>
+            </div>
+          </header>
+
+          <!-- Dimension toggles -->
+          <div
+            v-if="store.moodDimensions.length"
+            class="flex flex-wrap gap-2 mb-3"
+            role="group"
+            aria-label="Mood dimensions"
+            data-testid="dashboard-mood-toggles"
           >
-            Run mood backfill
-          </button>
-        </header>
-
-        <!-- Dimension toggles -->
-        <div
-          v-if="store.moodDimensions.length"
-          class="flex flex-wrap gap-2 mb-3"
-          role="group"
-          aria-label="Mood dimensions"
-          data-testid="dashboard-mood-toggles"
-        >
-          <button
-            v-for="(d, i) in store.moodDimensions"
-            :key="d.name"
-            type="button"
-            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
-            :class="
-              store.hiddenMoodDimensions.has(d.name)
-                ? 'bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700/60 opacity-40'
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700/60'
-            "
-            :data-testid="`dashboard-mood-toggle-${d.name}`"
-            :aria-pressed="!store.hiddenMoodDimensions.has(d.name)"
-            @click="toggleDimension(d.name)"
-          >
-            <span
-              class="inline-block w-2 h-2 rounded-full"
-              :style="{
-                backgroundColor: MOOD_LINE_COLORS[i % MOOD_LINE_COLORS.length],
-              }"
-              aria-hidden="true"
-            ></span>
-            {{ d.positive_pole }}
-            <span
-              class="text-gray-400 dark:text-gray-500 font-mono text-[0.65rem]"
-              >{{ d.scale_type === 'bipolar' ? '±1' : '0..1' }}</span
-            >
-          </button>
-        </div>
-
-        <div
-          v-if="store.moodLoading && !store.moodHasLoaded"
-          class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
-          data-testid="dashboard-mood-loading"
-        >
-          Loading mood data…
-        </div>
-
-        <div
-          v-else-if="store.moodError"
-          class="mb-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
-          data-testid="dashboard-mood-error"
-        >
-          {{ store.moodError }}
-        </div>
-
-        <div
-          v-else-if="!store.hasMoodData"
-          class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
-          data-testid="dashboard-mood-empty"
-        >
-          <p class="font-medium text-gray-700 dark:text-gray-200 mb-1">
-            No mood data in this range yet
-          </p>
-          <p class="text-xs">
-            Run
-            <code class="font-mono text-xs">journal backfill-mood</code>
-            to score historical entries, or ingest a new entry with mood scoring
-            enabled.
-          </p>
-        </div>
-
-        <div
-          v-else
-          class="h-72 relative"
-          data-testid="dashboard-mood-chart-container"
-        >
-          <canvas
-            ref="moodChartCanvas"
-            data-testid="dashboard-mood-chart"
-          ></canvas>
-        </div>
-
-        <!-- Drill-down panel -->
-        <div
-          v-if="store.drillPeriod"
-          class="mt-4 border-t border-gray-200 dark:border-gray-700/60 pt-4"
-          data-testid="dashboard-drilldown"
-        >
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-              {{ store.drillDimension }} — {{ formatDate(store.drillPeriod) }}
-            </h3>
             <button
+              v-for="(d, i) in store.moodDimensions"
+              :key="d.name"
               type="button"
-              class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              data-testid="dashboard-drilldown-close"
-              @click="store.clearDrillDown()"
+              class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
+              :class="
+                store.hiddenMoodDimensions.has(d.name)
+                  ? 'bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700/60 opacity-40'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700/60'
+              "
+              :data-testid="`dashboard-mood-toggle-${d.name}`"
+              :aria-pressed="!store.hiddenMoodDimensions.has(d.name)"
+              @click="toggleDimension(d.name)"
             >
-              Close
+              <span
+                class="inline-block w-2 h-2 rounded-full"
+                :style="{
+                  backgroundColor:
+                    MOOD_LINE_COLORS[i % MOOD_LINE_COLORS.length],
+                }"
+                aria-hidden="true"
+              ></span>
+              {{ d.positive_pole }}
+              <span
+                class="text-gray-400 dark:text-gray-500 font-mono text-[0.65rem]"
+                >{{ d.scale_type === 'bipolar' ? '±1' : '0..1' }}</span
+              >
             </button>
           </div>
 
           <div
-            v-if="store.drillLoading"
-            class="py-4 text-center text-gray-500 dark:text-gray-400 text-sm"
+            v-if="store.moodLoading && !store.moodHasLoaded"
+            class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
+            data-testid="dashboard-mood-loading"
           >
-            Loading entries…
+            Loading mood data…
           </div>
 
           <div
-            v-else-if="store.drillError"
-            class="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
+            v-else-if="store.moodError"
+            class="mb-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
+            data-testid="dashboard-mood-error"
           >
-            {{ store.drillError }}
+            {{ store.moodError }}
           </div>
 
           <div
-            v-else-if="store.drillEntries.length === 0"
-            class="py-4 text-center text-gray-500 dark:text-gray-400 text-sm"
+            v-else-if="!store.hasMoodData"
+            class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
+            data-testid="dashboard-mood-empty"
           >
-            No scored entries for this period.
-          </div>
-
-          <div v-else class="overflow-x-auto">
-            <table
-              class="w-full text-sm"
-              data-testid="dashboard-drilldown-table"
-            >
-              <thead>
-                <tr
-                  class="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700/60"
-                >
-                  <th class="pb-2 pr-4 font-medium">Date</th>
-                  <th class="pb-2 pr-4 font-medium">Score</th>
-                  <th class="pb-2 font-medium">Rationale</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="entry in store.drillEntries"
-                  :key="entry.entry_id"
-                  class="border-b border-gray-100 dark:border-gray-700/40 hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer"
-                  @click="navigateToEntry(entry.entry_id)"
-                >
-                  <td
-                    class="py-2 pr-4 whitespace-nowrap text-gray-700 dark:text-gray-200"
-                  >
-                    {{ formatDate(entry.entry_date) }}
-                  </td>
-                  <td
-                    class="py-2 pr-4 whitespace-nowrap font-mono text-xs"
-                    :class="
-                      entry.score >= 0
-                        ? 'text-green-600 dark:text-green-400'
-                        : 'text-red-600 dark:text-red-400'
-                    "
-                  >
-                    {{ formatScore(entry.score) }}
-                  </td>
-                  <td class="py-2 text-gray-600 dark:text-gray-300 text-xs">
-                    {{ entry.rationale || 'No rationale available' }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">
-              Note: Entries scored before the rationale feature will show "No
-              rationale available". Run
-              <code class="font-mono">journal backfill-mood --force</code> to
-              populate rationales for all entries.
+            <p class="font-medium text-gray-700 dark:text-gray-200 mb-1">
+              No mood data in this range yet
+            </p>
+            <p class="text-xs">
+              Run
+              <code class="font-mono text-xs">journal backfill-mood</code>
+              to score historical entries, or ingest a new entry with mood
+              scoring enabled.
             </p>
           </div>
-        </div>
-      </section>
 
-      <!-- Topic Trends -->
-      <section
-        class="mt-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
-        data-testid="dashboard-entity-trends-section"
-      >
-        <header class="mb-3">
-          <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-            Topic Trends
-          </h2>
-          <p class="text-xs text-gray-500 dark:text-gray-400">
-            Entity mentions over time, grouped per {{ store.bin }}.
-          </p>
-        </header>
-
-        <!-- Entity type tabs -->
-        <div
-          class="flex flex-wrap gap-2 mb-4"
-          data-testid="dashboard-entity-trends-tabs"
-        >
-          <button
-            v-for="t in INSIGHTS_ENTITY_TYPES"
-            :key="t"
-            type="button"
-            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
-            :class="
-              store.entityTrendsType === t
-                ? 'bg-violet-500 text-white border-violet-500'
-                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
-            "
-            :data-testid="`dashboard-entity-trends-tab-${t}`"
-            :aria-pressed="store.entityTrendsType === t"
-            @click="onEntityTrendsTypeChange(t)"
+          <div
+            v-else
+            class="h-72 relative"
+            data-testid="dashboard-mood-chart-container"
           >
-            {{ entityTypeLabel(t) }}
-          </button>
-        </div>
+            <canvas
+              ref="moodChartCanvas"
+              data-testid="dashboard-mood-chart"
+            ></canvas>
+          </div>
 
-        <div
-          v-if="store.entityTrendsLoading && !store.entityTrendsHasLoaded"
-          class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
-          data-testid="dashboard-entity-trends-loading"
-        >
-          Loading entity trends…
-        </div>
+          <!-- Drill-down panel -->
+          <div
+            v-if="store.drillPeriod"
+            class="mt-4 border-t border-gray-200 dark:border-gray-700/60 pt-4"
+            data-testid="dashboard-drilldown"
+          >
+            <div class="flex items-center justify-between mb-3">
+              <h3
+                class="text-sm font-semibold text-gray-800 dark:text-gray-100"
+              >
+                {{ store.drillDimension }} — {{ formatDate(store.drillPeriod) }}
+              </h3>
+              <button
+                type="button"
+                class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                data-testid="dashboard-drilldown-close"
+                @click="store.clearDrillDown()"
+              >
+                Close
+              </button>
+            </div>
 
-        <div
-          v-else-if="store.entityTrendsError"
-          class="mb-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
-          data-testid="dashboard-entity-trends-error"
-        >
-          {{ store.entityTrendsError }}
-        </div>
-
-        <div
-          v-else-if="store.entityTrendEntities.length === 0"
-          class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
-          data-testid="dashboard-entity-trends-empty"
-        >
-          No {{ store.entityTrendsType }} entity trends found in this range.
-        </div>
-
-        <div
-          v-else
-          class="h-72 relative"
-          data-testid="dashboard-entity-trends-content"
-        >
-          <canvas
-            ref="entityTrendsChartCanvas"
-            data-testid="dashboard-entity-trends-chart"
-          ></canvas>
-        </div>
-      </section>
-
-      <!-- Mood-Entity Correlation -->
-      <section
-        v-if="store.moodScoringEnabled"
-        class="mt-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
-        data-testid="dashboard-mood-correlation-section"
-      >
-        <header class="mb-3">
-          <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-            Mood by Entity
-          </h2>
-          <p class="text-xs text-gray-500 dark:text-gray-400">
-            Average mood score per entity. Dashed line shows overall average.
-          </p>
-        </header>
-
-        <!-- Dimension selector -->
-        <div class="flex flex-col gap-3 mb-4">
-          <div>
-            <label
-              class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1"
-            >
-              Dimension
-            </label>
             <div
-              class="flex flex-wrap gap-2"
-              data-testid="dashboard-mood-correlation-dimensions"
+              v-if="store.drillLoading"
+              class="py-4 text-center text-gray-500 dark:text-gray-400 text-sm"
+            >
+              Loading entries…
+            </div>
+
+            <div
+              v-else-if="store.drillError"
+              class="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
+            >
+              {{ store.drillError }}
+            </div>
+
+            <div
+              v-else-if="store.drillEntries.length === 0"
+              class="py-4 text-center text-gray-500 dark:text-gray-400 text-sm"
+            >
+              No scored entries for this period.
+            </div>
+
+            <div v-else class="overflow-x-auto">
+              <table
+                class="w-full text-sm"
+                data-testid="dashboard-drilldown-table"
+              >
+                <thead>
+                  <tr
+                    class="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700/60"
+                  >
+                    <th class="pb-2 pr-4 font-medium">Date</th>
+                    <th class="pb-2 pr-4 font-medium">Score</th>
+                    <th class="pb-2 font-medium">Rationale</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="entry in store.drillEntries"
+                    :key="entry.entry_id"
+                    class="border-b border-gray-100 dark:border-gray-700/40 hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer"
+                    @click="navigateToEntry(entry.entry_id)"
+                  >
+                    <td
+                      class="py-2 pr-4 whitespace-nowrap text-gray-700 dark:text-gray-200"
+                    >
+                      {{ formatDate(entry.entry_date) }}
+                    </td>
+                    <td
+                      class="py-2 pr-4 whitespace-nowrap font-mono text-xs"
+                      :class="
+                        entry.score >= 0
+                          ? 'text-green-600 dark:text-green-400'
+                          : 'text-red-600 dark:text-red-400'
+                      "
+                    >
+                      {{ formatScore(entry.score) }}
+                    </td>
+                    <td class="py-2 text-gray-600 dark:text-gray-300 text-xs">
+                      {{ entry.rationale || 'No rationale available' }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">
+                Note: Entries scored before the rationale feature will show "No
+                rationale available". Run
+                <code class="font-mono">journal backfill-mood --force</code> to
+                populate rationales for all entries.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Topic Trends -->
+        <section
+          v-if="isTileVisible('topic-trends')"
+          :style="{
+            order: tileOrder('topic-trends'),
+            gridColumn: tileSpan('topic-trends'),
+          }"
+          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4 relative"
+          data-testid="dashboard-entity-trends-section"
+        >
+          <header class="mb-3 flex items-start justify-between gap-2">
+            <div>
+              <h2
+                class="text-sm font-semibold text-gray-800 dark:text-gray-100"
+              >
+                Topic Trends
+              </h2>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                Entity mentions over time, grouped per {{ store.bin }}.
+              </p>
+            </div>
+            <div
+              v-if="store.editingLayout"
+              class="flex items-center gap-1 shrink-0"
             >
               <button
-                v-for="d in store.moodDimensions"
-                :key="d.name"
                 type="button"
-                class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
-                :class="
-                  store.moodCorrelationDimension === d.name
-                    ? 'bg-violet-500 text-white border-violet-500'
-                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
-                "
-                :data-testid="`dashboard-mood-correlation-dim-${d.name}`"
-                :aria-pressed="store.moodCorrelationDimension === d.name"
-                @click="onMoodCorrelationDimensionChange(d.name)"
+                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                title="Move up"
+                @click="store.moveTile('topic-trends', 'up')"
               >
-                {{ d.positive_pole }}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
               </button>
+              <button
+                type="button"
+                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                title="Move down"
+                @click="store.moveTile('topic-trends', 'down')"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                title="Hide chart"
+                @click="store.hideTile('topic-trends')"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
+          </header>
+
+          <!-- Entity type tabs -->
+          <div
+            class="flex flex-wrap gap-2 mb-4"
+            data-testid="dashboard-entity-trends-tabs"
+          >
+            <button
+              v-for="t in INSIGHTS_ENTITY_TYPES"
+              :key="t"
+              type="button"
+              class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
+              :class="
+                store.entityTrendsType === t
+                  ? 'bg-violet-500 text-white border-violet-500'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
+              "
+              :data-testid="`dashboard-entity-trends-tab-${t}`"
+              :aria-pressed="store.entityTrendsType === t"
+              @click="onEntityTrendsTypeChange(t)"
+            >
+              {{ entityTypeLabel(t) }}
+            </button>
+          </div>
+
+          <div
+            v-if="store.entityTrendsLoading && !store.entityTrendsHasLoaded"
+            class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
+            data-testid="dashboard-entity-trends-loading"
+          >
+            Loading entity trends…
+          </div>
+
+          <div
+            v-else-if="store.entityTrendsError"
+            class="mb-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
+            data-testid="dashboard-entity-trends-error"
+          >
+            {{ store.entityTrendsError }}
+          </div>
+
+          <div
+            v-else-if="store.entityTrendEntities.length === 0"
+            class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
+            data-testid="dashboard-entity-trends-empty"
+          >
+            No {{ store.entityTrendsType }} entity trends found in this range.
+          </div>
+
+          <div
+            v-else
+            class="h-72 relative"
+            data-testid="dashboard-entity-trends-content"
+          >
+            <canvas
+              ref="entityTrendsChartCanvas"
+              data-testid="dashboard-entity-trends-chart"
+            ></canvas>
+          </div>
+        </section>
+
+        <!-- Mood-Entity Correlation -->
+        <section
+          v-if="
+            store.moodScoringEnabled && isTileVisible('mood-entity-correlation')
+          "
+          :style="{
+            order: tileOrder('mood-entity-correlation'),
+            gridColumn: tileSpan('mood-entity-correlation'),
+          }"
+          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4 relative"
+          data-testid="dashboard-mood-correlation-section"
+        >
+          <header class="mb-3 flex items-start justify-between gap-2">
+            <div>
+              <h2
+                class="text-sm font-semibold text-gray-800 dark:text-gray-100"
+              >
+                Mood by Entity
+              </h2>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                Average mood score per entity. Dashed line shows overall
+                average.
+              </p>
+            </div>
+            <div
+              v-if="store.editingLayout"
+              class="flex items-center gap-1 shrink-0"
+            >
+              <button
+                type="button"
+                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                title="Move up"
+                @click="store.moveTile('mood-entity-correlation', 'up')"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                title="Move down"
+                @click="store.moveTile('mood-entity-correlation', 'down')"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                title="Hide chart"
+                @click="store.hideTile('mood-entity-correlation')"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
+          </header>
+
+          <!-- Dimension selector -->
+          <div class="flex flex-col gap-3 mb-4">
+            <div>
+              <label
+                class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1"
+              >
+                Dimension
+              </label>
+              <div
+                class="flex flex-wrap gap-2"
+                data-testid="dashboard-mood-correlation-dimensions"
+              >
+                <button
+                  v-for="d in store.moodDimensions"
+                  :key="d.name"
+                  type="button"
+                  class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
+                  :class="
+                    store.moodCorrelationDimension === d.name
+                      ? 'bg-violet-500 text-white border-violet-500'
+                      : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
+                  "
+                  :data-testid="`dashboard-mood-correlation-dim-${d.name}`"
+                  :aria-pressed="store.moodCorrelationDimension === d.name"
+                  @click="onMoodCorrelationDimensionChange(d.name)"
+                >
+                  {{ d.positive_pole }}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label
+                class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1"
+              >
+                Entity type
+              </label>
+              <div
+                class="flex flex-wrap gap-2"
+                data-testid="dashboard-mood-correlation-types"
+              >
+                <button
+                  v-for="t in INSIGHTS_ENTITY_TYPES"
+                  :key="t"
+                  type="button"
+                  class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
+                  :class="
+                    store.moodCorrelationType === t
+                      ? 'bg-violet-500 text-white border-violet-500'
+                      : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
+                  "
+                  :data-testid="`dashboard-mood-correlation-type-${t}`"
+                  :aria-pressed="store.moodCorrelationType === t"
+                  @click="onMoodCorrelationTypeChange(t)"
+                >
+                  {{ entityTypeLabel(t) }}
+                </button>
+              </div>
             </div>
           </div>
 
-          <div>
-            <label
-              class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1"
-            >
-              Entity type
-            </label>
-            <div
-              class="flex flex-wrap gap-2"
-              data-testid="dashboard-mood-correlation-types"
-            >
-              <button
-                v-for="t in INSIGHTS_ENTITY_TYPES"
-                :key="t"
-                type="button"
-                class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
-                :class="
-                  store.moodCorrelationType === t
-                    ? 'bg-violet-500 text-white border-violet-500'
-                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
-                "
-                :data-testid="`dashboard-mood-correlation-type-${t}`"
-                :aria-pressed="store.moodCorrelationType === t"
-                @click="onMoodCorrelationTypeChange(t)"
-              >
-                {{ entityTypeLabel(t) }}
-              </button>
-            </div>
+          <div
+            v-if="
+              store.moodCorrelationLoading && !store.moodCorrelationHasLoaded
+            "
+            class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
+            data-testid="dashboard-mood-correlation-loading"
+          >
+            Loading mood correlation…
           </div>
-        </div>
 
-        <div
-          v-if="store.moodCorrelationLoading && !store.moodCorrelationHasLoaded"
-          class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
-          data-testid="dashboard-mood-correlation-loading"
-        >
-          Loading mood correlation…
-        </div>
+          <div
+            v-else-if="store.moodCorrelationError"
+            class="mb-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
+            data-testid="dashboard-mood-correlation-error"
+          >
+            {{ store.moodCorrelationError }}
+          </div>
 
-        <div
-          v-else-if="store.moodCorrelationError"
-          class="mb-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
-          data-testid="dashboard-mood-correlation-error"
-        >
-          {{ store.moodCorrelationError }}
-        </div>
+          <div
+            v-else-if="store.moodCorrelationItems.length === 0"
+            class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
+            data-testid="dashboard-mood-correlation-empty"
+          >
+            No mood-entity data for this selection.
+          </div>
 
-        <div
-          v-else-if="store.moodCorrelationItems.length === 0"
-          class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
-          data-testid="dashboard-mood-correlation-empty"
-        >
-          No mood-entity data for this selection.
-        </div>
-
-        <div
-          v-else
-          class="h-80 relative"
-          data-testid="dashboard-mood-correlation-content"
-        >
-          <canvas
-            ref="moodCorrelationChartCanvas"
-            data-testid="dashboard-mood-correlation-chart"
-          ></canvas>
-        </div>
-      </section>
+          <div
+            v-else
+            class="h-80 relative"
+            data-testid="dashboard-mood-correlation-content"
+          >
+            <canvas
+              ref="moodCorrelationChartCanvas"
+              data-testid="dashboard-mood-correlation-chart"
+            ></canvas>
+          </div>
+        </section>
+      </div>
+      <!-- end dashboard tiles grid -->
     </div>
 
     <BatchJobModal

@@ -67,6 +67,11 @@ vi.mock('@/api/jobs', () => ({
   getJob: vi.fn(),
 }))
 
+vi.mock('@/api/preferences', () => ({
+  fetchPreferences: vi.fn().mockResolvedValue({ preferences: {} }),
+  updatePreferences: vi.fn().mockResolvedValue({ preferences: {} }),
+}))
+
 // Stub chartjs-config so the view doesn't try to read real CSS
 // variables in the happy-dom environment (they're empty strings,
 // which makes adjustColorOpacity throw). The view only uses

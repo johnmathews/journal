@@ -11,10 +11,13 @@ import {
   fetchWritingStats,
 } from '@/api/dashboard'
 import { fetchEntityDistribution, fetchMoodDrilldown } from '@/api/insights'
+import { fetchPreferences, updatePreferences } from '@/api/preferences'
 import type {
   CalendarDay,
   DashboardBin,
+  DashboardLayout,
   DashboardRange,
+  DashboardTileId,
   EntityTrendBin,
   MoodDimension,
   MoodEntityCorrelationItem,
@@ -23,6 +26,7 @@ import type {
   WordCountStats,
   WritingFrequencyBin,
 } from '@/types/dashboard'
+import { DEFAULT_TILE_ORDER, DASHBOARD_TILES } from '@/types/dashboard'
 import type {
   EntityDistributionItem,
   InsightsEntityType,
@@ -491,6 +495,94 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
   }
 
+  // ── Tile layout ────────────────────────────────────────────────
+  const tileOrder = ref<DashboardTileId[]>([...DEFAULT_TILE_ORDER])
+  const hiddenTiles = ref<DashboardTileId[]>([])
+  const layoutLoaded = ref(false)
+  const editingLayout = ref(false)
+
+  /** Tiles in display order, excluding hidden ones. */
+  const visibleTiles = computed(() =>
+    tileOrder.value.filter((id) => !hiddenTiles.value.includes(id)),
+  )
+
+  /** Tile definitions keyed by ID for quick lookup. */
+  const tileDefs = computed(() => {
+    const map = new Map<DashboardTileId, (typeof DASHBOARD_TILES)[number]>()
+    for (const t of DASHBOARD_TILES) map.set(t.id, t)
+    return map
+  })
+
+  let _saveTimer: ReturnType<typeof setTimeout> | null = null
+
+  function _persistLayout(): void {
+    if (_saveTimer) clearTimeout(_saveTimer)
+    _saveTimer = setTimeout(() => {
+      const layout: DashboardLayout = {
+        tileOrder: tileOrder.value,
+        hiddenTiles: hiddenTiles.value,
+      }
+      updatePreferences({ dashboard_layout: layout }).catch(() => {
+        // Silent — layout is still in-memory, will retry on next change.
+      })
+    }, 500)
+  }
+
+  async function loadLayout(): Promise<void> {
+    try {
+      const { preferences } = await fetchPreferences()
+      const layout = preferences.dashboard_layout as DashboardLayout | undefined
+      if (layout) {
+        // Validate tile IDs — ignore unknown ones, append any missing tiles
+        const validIds = new Set<DashboardTileId>(DEFAULT_TILE_ORDER)
+        const order = (layout.tileOrder ?? []).filter((id: string) =>
+          validIds.has(id as DashboardTileId),
+        ) as DashboardTileId[]
+        // Append any tiles that exist in defaults but aren't in the saved order
+        for (const id of DEFAULT_TILE_ORDER) {
+          if (!order.includes(id)) order.push(id)
+        }
+        tileOrder.value = order
+        hiddenTiles.value = (layout.hiddenTiles ?? []).filter((id: string) =>
+          validIds.has(id as DashboardTileId),
+        ) as DashboardTileId[]
+      }
+    } catch {
+      // Preferences endpoint not available or no saved layout — use defaults.
+    } finally {
+      layoutLoaded.value = true
+    }
+  }
+
+  function moveTile(id: DashboardTileId, direction: 'up' | 'down'): void {
+    const order = [...tileOrder.value]
+    const idx = order.indexOf(id)
+    if (idx === -1) return
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (targetIdx < 0 || targetIdx >= order.length) return
+    ;[order[idx], order[targetIdx]] = [order[targetIdx], order[idx]]
+    tileOrder.value = order
+    _persistLayout()
+  }
+
+  function hideTile(id: DashboardTileId): void {
+    if (!hiddenTiles.value.includes(id)) {
+      hiddenTiles.value = [...hiddenTiles.value, id]
+      _persistLayout()
+    }
+  }
+
+  function showTile(id: DashboardTileId): void {
+    hiddenTiles.value = hiddenTiles.value.filter((t) => t !== id)
+    _persistLayout()
+  }
+
+  function resetLayout(): void {
+    tileOrder.value = [...DEFAULT_TILE_ORDER]
+    hiddenTiles.value = []
+    _persistLayout()
+  }
+
   function reset(): void {
     range.value = 'all'
     bin.value = 'week'
@@ -537,6 +629,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     wordCountLoading.value = false
     wordCountError.value = null
     wordCountHasLoaded.value = false
+    // Layout is NOT reset here — it persists independently.
   }
 
   return {
@@ -604,6 +697,18 @@ export const useDashboardStore = defineStore('dashboard', () => {
     wordCountError,
     wordCountHasLoaded,
     loadWordCountDistribution,
+    // Tile layout surface
+    tileOrder,
+    hiddenTiles,
+    layoutLoaded,
+    editingLayout,
+    visibleTiles,
+    tileDefs,
+    loadLayout,
+    moveTile,
+    hideTile,
+    showTile,
+    resetLayout,
     reset,
   }
 })

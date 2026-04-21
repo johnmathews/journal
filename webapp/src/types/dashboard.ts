@@ -213,3 +213,51 @@ export interface WordCountDistributionParams {
   to?: string | null
   bucket_size?: number
 }
+
+// --- Dashboard tile layout ---
+
+export type DashboardTileId =
+  | 'calendar-heatmap'
+  | 'entity-distribution'
+  | 'writing-frequency'
+  | 'word-count'
+  | 'mood-trends'
+  | 'topic-trends'
+  | 'mood-entity-correlation'
+
+export interface DashboardTileDef {
+  id: DashboardTileId
+  title: string
+  /** Number of grid columns to span: 1 = half-width, 2 = full-width */
+  span: 1 | 2
+  /** If set, tile is only shown when this condition is true */
+  requiresMoodScoring?: boolean
+}
+
+export const DASHBOARD_TILES: readonly DashboardTileDef[] = [
+  { id: 'calendar-heatmap', title: 'Writing Consistency', span: 1 },
+  { id: 'entity-distribution', title: 'What I Write About', span: 1 },
+  { id: 'writing-frequency', title: 'Writing Frequency', span: 1 },
+  { id: 'word-count', title: 'Word Count', span: 1 },
+  {
+    id: 'mood-trends',
+    title: 'Mood Trends',
+    span: 2,
+    requiresMoodScoring: true,
+  },
+  { id: 'topic-trends', title: 'Topic Trends', span: 2 },
+  {
+    id: 'mood-entity-correlation',
+    title: 'Mood by Entity',
+    span: 2,
+    requiresMoodScoring: true,
+  },
+] as const
+
+export const DEFAULT_TILE_ORDER: readonly DashboardTileId[] =
+  DASHBOARD_TILES.map((t) => t.id)
+
+export interface DashboardLayout {
+  tileOrder: DashboardTileId[]
+  hiddenTiles: DashboardTileId[]
+}
