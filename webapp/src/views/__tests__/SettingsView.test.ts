@@ -60,6 +60,7 @@ function makeSettings(overrides: Partial<ServerSettings> = {}): ServerSettings {
       mood_scorer_model: 'claude-sonnet-4-5',
       journal_author_name: 'John',
     },
+    runtime: [],
     ...overrides,
   }
 }
