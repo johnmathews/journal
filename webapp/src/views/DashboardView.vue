@@ -80,14 +80,14 @@ const moodChartCanvas = ref<HTMLCanvasElement | null>(null)
 const entityChartCanvas = ref<HTMLCanvasElement | null>(null)
 const entityTrendsChartCanvas = ref<HTMLCanvasElement | null>(null)
 const moodCorrelationChartCanvas = ref<HTMLCanvasElement | null>(null)
-const wordDistChartCanvas = ref<HTMLCanvasElement | null>(null)
+
 let writingChart: Chart | null = null
 let wordChart: Chart | null = null
 let moodChart: Chart | null = null
 let entityChart: Chart | null = null
 let entityTrendsChart: Chart | null = null
 let moodCorrelationChart: Chart | null = null
-let wordDistChart: Chart | null = null
+
 let moodChartRenderedOnce = false
 
 const MOOD_LINE_COLORS: readonly string[] = [
@@ -537,11 +537,27 @@ const calendarGrid = computed(() => {
   return { cells, weeks: weekIndex + 1, months }
 })
 
-function heatmapColor(count: number): string {
-  if (count === 0) return '' // handled by class
-  if (count === 1) return 'bg-violet-200 dark:bg-violet-300/40'
-  if (count === 2) return 'bg-violet-400 dark:bg-violet-400/60'
-  return 'bg-violet-600 dark:bg-violet-500/80'
+// Quantile thresholds for word-count heatmap coloring.
+// Uses 25th/50th/75th percentiles of non-zero days so that
+// outlier heavy-writing days stand out clearly.
+const heatmapThresholds = computed(() => {
+  const wordCounts = calendarGrid.value.cells
+    .map((c) => c.total_words)
+    .filter((w) => w > 0)
+    .sort((a, b) => a - b)
+  if (wordCounts.length === 0) return { p25: 1, p50: 2, p75: 3 }
+  const pct = (p: number) =>
+    wordCounts[Math.min(Math.floor(p * wordCounts.length), wordCounts.length - 1)]
+  return { p25: pct(0.25), p50: pct(0.5), p75: pct(0.75) }
+})
+
+function heatmapColor(words: number): string {
+  if (words === 0) return '' // handled by class
+  const { p25, p50, p75 } = heatmapThresholds.value
+  if (words <= p25) return 'bg-violet-200 dark:bg-violet-300/40'
+  if (words <= p50) return 'bg-violet-400 dark:bg-violet-400/60'
+  if (words <= p75) return 'bg-violet-500 dark:bg-violet-500/70'
+  return 'bg-violet-700 dark:bg-violet-400'
 }
 
 function heatmapTooltip(cell: HeatmapCell): string {
@@ -551,12 +567,15 @@ function heatmapTooltip(cell: HeatmapCell): string {
     day: 'numeric',
     year: 'numeric',
   })
-  return `${formatted}: ${cell.entry_count} ${cell.entry_count === 1 ? 'entry' : 'entries'}, ${cell.total_words} words`
+  return `${formatted}: ${cell.total_words.toLocaleString()} words (${cell.entry_count} ${cell.entry_count === 1 ? 'entry' : 'entries'})`
 }
 
 const WEEKDAY_LABELS = ['Mon', '', 'Wed', '', 'Fri', '', 'Sun']
 
 // --- Entity trends chart ---
+
+// Track which entity is "focused" in the Topic Trends legend (null = all full opacity)
+let entityTrendsFocusedIndex: number | null = null
 
 function renderEntityTrendsChart(): void {
   if (!entityTrendsChartCanvas.value) return
@@ -586,25 +605,33 @@ function renderEntityTrendsChart(): void {
     m.set(b.period, b.mention_count)
   }
 
+  const FULL_OPACITY = 0.85
+  const DIM_OPACITY = 0.12
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const datasets: any[] = entities.map((entity, i) => {
     const entityData = byEntity.get(entity)
     const color = MOOD_LINE_COLORS[i % MOOD_LINE_COLORS.length]
+    const isFocused =
+      entityTrendsFocusedIndex === null || entityTrendsFocusedIndex === i
     return {
       label: entity,
       data: periods.map((p) => entityData?.get(p) ?? 0),
-      borderColor: color,
-      backgroundColor: adjustColorOpacity(color, 0.12),
-      fill: false,
-      tension: 0.3,
-      pointRadius: 3,
-      pointHoverRadius: 5,
-      pointBackgroundColor: color,
+      backgroundColor: adjustColorOpacity(
+        color,
+        isFocused ? FULL_OPACITY : DIM_OPACITY,
+      ),
+      borderColor: adjustColorOpacity(
+        color,
+        isFocused ? 1 : DIM_OPACITY,
+      ),
+      borderWidth: 1,
+      borderRadius: 2,
     }
   })
 
   entityTrendsChart = new Chart(entityTrendsChartCanvas.value, {
-    type: 'line',
+    type: 'bar',
     data: { labels: periods, datasets },
     options: {
       responsive: true,
@@ -613,36 +640,48 @@ function renderEntityTrendsChart(): void {
         legend: {
           display: true,
           position: 'bottom',
-          onClick: (_event, legendItem, legend) => {
-            const chart = legend.chart
+          onClick: (_event, legendItem, _legend) => {
             const clickedIndex = legendItem.datasetIndex!
-            const totalDatasets = chart.data.datasets.length
-            const visibleIndices: number[] = []
-            for (let i = 0; i < totalDatasets; i++) {
-              if (chart.isDatasetVisible(i)) visibleIndices.push(i)
-            }
-            if (
-              visibleIndices.length === 1 &&
-              visibleIndices[0] === clickedIndex
-            ) {
-              // Currently isolated → restore all
-              for (let i = 0; i < totalDatasets; i++) {
-                chart.setDatasetVisibility(i, true)
-              }
+            if (entityTrendsFocusedIndex === clickedIndex) {
+              // Already focused on this one → restore all
+              entityTrendsFocusedIndex = null
             } else {
-              // Isolate: show only clicked, hide all others
-              for (let i = 0; i < totalDatasets; i++) {
-                chart.setDatasetVisibility(i, i === clickedIndex)
-              }
+              entityTrendsFocusedIndex = clickedIndex
             }
-            chart.update()
+            // Re-render to apply opacity changes
+            renderEntityTrendsChart()
           },
           labels: {
             color: colors.textColor.light,
             usePointStyle: true,
-            pointStyle: 'circle',
+            pointStyle: 'rectRounded',
             padding: 16,
             font: { size: 11 },
+            generateLabels: (chart) => {
+              return chart.data.datasets.map((ds, i) => {
+                const color = MOOD_LINE_COLORS[i % MOOD_LINE_COLORS.length]
+                const isFocused =
+                  entityTrendsFocusedIndex === null ||
+                  entityTrendsFocusedIndex === i
+                return {
+                  text: ds.label ?? '',
+                  datasetIndex: i,
+                  fillStyle: adjustColorOpacity(
+                    color,
+                    isFocused ? FULL_OPACITY : DIM_OPACITY,
+                  ),
+                  strokeStyle: adjustColorOpacity(
+                    color,
+                    isFocused ? 1 : DIM_OPACITY,
+                  ),
+                  fontColor: isFocused
+                    ? colors.textColor.light
+                    : adjustColorOpacity(colors.textColor.light, 0.35),
+                  hidden: false,
+                  lineWidth: 1,
+                }
+              })
+            },
           },
         },
         tooltip: {
@@ -654,10 +693,12 @@ function renderEntityTrendsChart(): void {
       },
       scales: {
         x: {
+          stacked: true,
           grid: { display: false },
           ticks: { color: colors.textColor.light, maxRotation: 0 },
         },
         y: {
+          stacked: true,
           beginAtZero: true,
           grid: { color: colors.gridColor.light },
           ticks: { color: colors.textColor.light, precision: 0 },
@@ -755,66 +796,6 @@ function renderMoodCorrelationChart(): void {
   })
 }
 
-// --- Word count distribution chart ---
-
-function renderWordDistChart(): void {
-  if (!wordDistChartCanvas.value) return
-  wordDistChart?.destroy()
-
-  const buckets = store.wordCountBuckets
-  if (buckets.length === 0) {
-    wordDistChart = null
-    return
-  }
-
-  const colors = getChartColors()
-  const labels = buckets.map((b) => `${b.range_start}-${b.range_end}`)
-
-  wordDistChart = new Chart(wordDistChartCanvas.value, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: 'Entries',
-          data: buckets.map((b) => b.count),
-          backgroundColor: adjustColorOpacity('#0ea5e9', 0.6),
-          borderColor: '#0ea5e9',
-          borderWidth: 1,
-          borderRadius: 4,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: colors.tooltipBgColor.light,
-          titleColor: colors.tooltipTitleColor.light,
-          bodyColor: colors.tooltipBodyColor.light,
-          borderColor: colors.tooltipBorderColor.light,
-          callbacks: {
-            label: (ctx) => `${ctx.parsed.y} entries`,
-          },
-        },
-      },
-      scales: {
-        x: {
-          grid: { display: false },
-          ticks: { color: colors.textColor.light, maxRotation: 45 },
-        },
-        y: {
-          beginAtZero: true,
-          grid: { color: colors.gridColor.light },
-          ticks: { color: colors.textColor.light, precision: 0 },
-        },
-      },
-    },
-  })
-}
-
 // --- Watchers ---
 
 watch(
@@ -850,12 +831,6 @@ watch(
   { deep: false },
 )
 
-watch(
-  () => store.wordCountBuckets,
-  () => renderWordDistChart(),
-  { deep: false },
-)
-
 // --- Lifecycle ---
 
 onMounted(async () => {
@@ -865,7 +840,6 @@ onMounted(async () => {
     store.loadEntityDistribution(),
     store.loadCalendarHeatmap(),
     store.loadEntityTrends(),
-    store.loadWordCountDistribution(),
   ]
   if (store.moodScoringEnabled) {
     promises.push(store.loadMoodTrends())
@@ -876,7 +850,6 @@ onMounted(async () => {
   renderEntityChart()
   renderEntityTrendsChart()
   renderMoodCorrelationChart()
-  renderWordDistChart()
 })
 
 onBeforeUnmount(() => {
@@ -886,14 +859,12 @@ onBeforeUnmount(() => {
   entityChart?.destroy()
   entityTrendsChart?.destroy()
   moodCorrelationChart?.destroy()
-  wordDistChart?.destroy()
   writingChart = null
   wordChart = null
   moodChart = null
   entityChart = null
   entityTrendsChart = null
   moodCorrelationChart = null
-  wordDistChart = null
 })
 
 // --- Event handlers ---
@@ -905,7 +876,6 @@ async function onRangeChange(r: DashboardRange): Promise<void> {
     store.loadEntityDistribution(),
     store.loadCalendarHeatmap(),
     store.loadEntityTrends(),
-    store.loadWordCountDistribution(),
   ]
   if (store.moodScoringEnabled) {
     promises.push(store.loadMoodTrends({ range: r }))
@@ -1076,18 +1046,17 @@ async function onMoodJobSucceeded(): Promise<void> {
     </div>
 
     <div v-else>
-      <!-- Calendar Heatmap + Entity Distribution -->
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <section
-          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
-          data-testid="dashboard-calendar-section"
-        >
+      <!-- Calendar Heatmap (full width) -->
+      <section
+        class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
+        data-testid="dashboard-calendar-section"
+      >
           <header class="mb-3">
             <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
               Writing Consistency
             </h2>
             <p class="text-xs text-gray-500 dark:text-gray-400">
-              Daily writing activity in the selected range.
+              Words written per day in the selected range.
             </p>
           </header>
 
@@ -1122,8 +1091,8 @@ async function onMoodJobSucceeded(): Promise<void> {
           >
             <!-- Month labels -->
             <div
-              class="flex text-[10px] text-gray-400 dark:text-gray-500 mb-1"
-              :style="{ paddingLeft: '28px' }"
+              class="relative flex text-[11px] text-gray-400 dark:text-gray-500 mb-1"
+              :style="{ paddingLeft: '32px' }"
             >
               <div
                 v-for="(m, mi) in calendarGrid.months"
@@ -1131,7 +1100,7 @@ async function onMoodJobSucceeded(): Promise<void> {
                 class="whitespace-nowrap"
                 :style="{
                   position: 'absolute',
-                  left: `${28 + m.colStart * 16}px`,
+                  left: `${32 + m.colStart * 21}px`,
                 }"
               >
                 {{ m.label }}
@@ -1141,24 +1110,24 @@ async function onMoodJobSucceeded(): Promise<void> {
             <div class="flex gap-0 mt-4" data-testid="dashboard-calendar-grid">
               <!-- Day-of-week labels -->
               <div
-                class="flex flex-col gap-[2px] mr-1 text-[10px] text-gray-400 dark:text-gray-500"
+                class="flex flex-col gap-[3px] mr-1.5 text-[11px] text-gray-400 dark:text-gray-500"
               >
                 <div
                   v-for="(lbl, li) in WEEKDAY_LABELS"
                   :key="li"
-                  class="h-[14px] flex items-center justify-end pr-1"
-                  :style="{ width: '24px' }"
+                  class="h-[18px] flex items-center justify-end pr-1"
+                  :style="{ width: '28px' }"
                 >
                   {{ lbl }}
                 </div>
               </div>
 
               <!-- Week columns -->
-              <div class="flex gap-[2px]">
+              <div class="flex gap-[3px]">
                 <div
                   v-for="w in calendarGrid.weeks"
                   :key="w"
-                  class="flex flex-col gap-[2px]"
+                  class="flex flex-col gap-[3px]"
                 >
                   <template v-for="dow in 7" :key="`${w}-${dow}`">
                     <div
@@ -1168,18 +1137,18 @@ async function onMoodJobSucceeded(): Promise<void> {
                             c.weekIndex === w - 1 && c.dayOfWeek === dow - 1,
                         )
                       "
-                      class="w-[14px] h-[14px] rounded-sm"
+                      class="w-[18px] h-[18px] rounded-sm"
                       :class="[
                         heatmapColor(
                           calendarGrid.cells.find(
                             (c) =>
                               c.weekIndex === w - 1 && c.dayOfWeek === dow - 1,
-                          )!.entry_count,
+                          )!.total_words,
                         ),
                         calendarGrid.cells.find(
                           (c) =>
                             c.weekIndex === w - 1 && c.dayOfWeek === dow - 1,
-                        )!.entry_count === 0
+                        )!.total_words === 0
                           ? 'bg-gray-100 dark:bg-gray-700'
                           : '',
                       ]"
@@ -1193,7 +1162,7 @@ async function onMoodJobSucceeded(): Promise<void> {
                       "
                       :data-testid="`dashboard-calendar-cell-${calendarGrid.cells.find((c) => c.weekIndex === w - 1 && c.dayOfWeek === dow - 1)!.date}`"
                     ></div>
-                    <div v-else class="w-[14px] h-[14px]"></div>
+                    <div v-else class="w-[18px] h-[18px]"></div>
                   </template>
                 </div>
               </div>
@@ -1201,32 +1170,32 @@ async function onMoodJobSucceeded(): Promise<void> {
 
             <!-- Legend -->
             <div
-              class="flex items-center gap-2 mt-3 text-[10px] text-gray-400 dark:text-gray-500"
+              class="flex items-center gap-2 mt-3 text-[11px] text-gray-400 dark:text-gray-500"
               data-testid="dashboard-calendar-legend"
             >
-              <span>Less</span>
+              <span>Fewer words</span>
               <div
-                class="w-[14px] h-[14px] rounded-sm bg-gray-100 dark:bg-gray-700"
+                class="w-[18px] h-[18px] rounded-sm bg-gray-100 dark:bg-gray-700"
               ></div>
               <div
-                class="w-[14px] h-[14px] rounded-sm bg-violet-200 dark:bg-violet-300/40"
+                class="w-[18px] h-[18px] rounded-sm bg-violet-200 dark:bg-violet-300/40"
               ></div>
               <div
-                class="w-[14px] h-[14px] rounded-sm bg-violet-400 dark:bg-violet-400/60"
+                class="w-[18px] h-[18px] rounded-sm bg-violet-400 dark:bg-violet-400/60"
               ></div>
               <div
-                class="w-[14px] h-[14px] rounded-sm bg-violet-600 dark:bg-violet-500/80"
+                class="w-[18px] h-[18px] rounded-sm bg-violet-600 dark:bg-violet-500/80"
               ></div>
-              <span>More</span>
+              <span>More words</span>
             </div>
           </div>
-        </section>
+      </section>
 
-        <!-- Entity Distribution -->
-        <section
-          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
-          data-testid="dashboard-entity-section"
-        >
+      <!-- Entity Distribution -->
+      <section
+        class="mt-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
+        data-testid="dashboard-entity-section"
+      >
           <header class="mb-3">
             <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
               What I Write About
@@ -1337,8 +1306,7 @@ async function onMoodJobSucceeded(): Promise<void> {
               </button>
             </div>
           </div>
-        </section>
-      </div>
+      </section>
 
       <!-- Writing frequency + word count -->
       <div class="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -1766,112 +1734,6 @@ async function onMoodJobSucceeded(): Promise<void> {
         </div>
       </section>
 
-      <!-- Entry Length Distribution -->
-      <section
-        class="mt-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
-        data-testid="dashboard-word-dist-section"
-      >
-        <header class="mb-3">
-          <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-            Entry Length Distribution
-          </h2>
-          <p class="text-xs text-gray-500 dark:text-gray-400">
-            How many entries fall into each word-count range.
-          </p>
-        </header>
-
-        <div
-          v-if="store.wordCountLoading && !store.wordCountHasLoaded"
-          class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
-          data-testid="dashboard-word-dist-loading"
-        >
-          Loading distribution…
-        </div>
-
-        <div
-          v-else-if="store.wordCountError"
-          class="mb-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
-          data-testid="dashboard-word-dist-error"
-        >
-          {{ store.wordCountError }}
-        </div>
-
-        <div
-          v-else-if="store.wordCountBuckets.length === 0"
-          class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
-          data-testid="dashboard-word-dist-empty"
-        >
-          No word count distribution data available.
-        </div>
-
-        <div v-else data-testid="dashboard-word-dist-content">
-          <div class="h-64 relative">
-            <canvas
-              ref="wordDistChartCanvas"
-              data-testid="dashboard-word-dist-chart"
-            ></canvas>
-          </div>
-
-          <div
-            v-if="store.wordCountStats"
-            class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center"
-            data-testid="dashboard-word-dist-stats"
-          >
-            <div>
-              <p
-                class="text-xs text-gray-400 dark:text-gray-500 font-semibold uppercase"
-              >
-                Min
-              </p>
-              <p
-                class="text-sm font-mono text-gray-700 dark:text-gray-200"
-                data-testid="dashboard-word-dist-stat-min"
-              >
-                {{ store.wordCountStats.min.toLocaleString() }}
-              </p>
-            </div>
-            <div>
-              <p
-                class="text-xs text-gray-400 dark:text-gray-500 font-semibold uppercase"
-              >
-                Max
-              </p>
-              <p
-                class="text-sm font-mono text-gray-700 dark:text-gray-200"
-                data-testid="dashboard-word-dist-stat-max"
-              >
-                {{ store.wordCountStats.max.toLocaleString() }}
-              </p>
-            </div>
-            <div>
-              <p
-                class="text-xs text-gray-400 dark:text-gray-500 font-semibold uppercase"
-              >
-                Average
-              </p>
-              <p
-                class="text-sm font-mono text-gray-700 dark:text-gray-200"
-                data-testid="dashboard-word-dist-stat-avg"
-              >
-                {{ Math.round(store.wordCountStats.avg).toLocaleString() }}
-              </p>
-            </div>
-            <div>
-              <p
-                class="text-xs text-gray-400 dark:text-gray-500 font-semibold uppercase"
-              >
-                Median
-              </p>
-              <p
-                class="text-sm font-mono text-gray-700 dark:text-gray-200"
-                data-testid="dashboard-word-dist-stat-median"
-              >
-                {{ store.wordCountStats.median.toLocaleString() }}
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
 
     <BatchJobModal

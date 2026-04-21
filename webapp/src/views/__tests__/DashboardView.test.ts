@@ -34,13 +34,6 @@ vi.mock('@/api/dashboard', () => ({
     overall_avg: 0,
     items: [],
   }),
-  fetchWordCountDistribution: vi.fn().mockResolvedValue({
-    from: null,
-    to: null,
-    bucket_size: 100,
-    buckets: [],
-    stats: { min: 0, max: 0, avg: 0, median: 0, total_entries: 0 },
-  }),
 }))
 
 vi.mock('@/api/insights', () => ({
@@ -173,7 +166,6 @@ import {
   fetchCalendarHeatmap,
   fetchEntityTrends,
   fetchMoodEntityCorrelation,
-  fetchWordCountDistribution,
 } from '@/api/dashboard'
 import { fetchEntityDistribution } from '@/api/insights'
 const mockFetch = vi.mocked(fetchWritingStats)
@@ -181,7 +173,6 @@ const mockEntityDist = vi.mocked(fetchEntityDistribution)
 const mockCalendar = vi.mocked(fetchCalendarHeatmap)
 const mockEntityTrends = vi.mocked(fetchEntityTrends)
 vi.mocked(fetchMoodEntityCorrelation)
-const mockWordDist = vi.mocked(fetchWordCountDistribution)
 
 const router = createRouter({
   history: createWebHistory(),
@@ -1370,102 +1361,3 @@ describe('DashboardView — mood-entity correlation', () => {
   })
 })
 
-describe('DashboardView — word count distribution', () => {
-  beforeEach(() => {
-    setActivePinia(createPinia())
-    vi.clearAllMocks()
-    chartConstructorSpy.mockClear()
-    destroySpy.mockClear()
-  })
-
-  const manyWritingBins = Array.from({ length: 6 }, (_, i) => ({
-    bin_start: `2026-03-${String(i * 7 + 2).padStart(2, '0')}`,
-    entry_count: 1,
-    total_words: 100,
-  }))
-
-  function setupWritingStats() {
-    mockFetch.mockResolvedValue({
-      from: null,
-      to: null,
-      bin: 'week',
-      bins: manyWritingBins,
-    })
-  }
-
-  it('renders word count distribution section when data is present', async () => {
-    setupWritingStats()
-    mockWordDist.mockResolvedValue({
-      from: null,
-      to: null,
-      bucket_size: 100,
-      buckets: [
-        { range_start: 0, range_end: 100, count: 12 },
-        { range_start: 100, range_end: 200, count: 8 },
-      ],
-      stats: { min: 42, max: 980, avg: 350, median: 310, total_entries: 50 },
-    })
-    const wrapper = mountView()
-    await flushPromises()
-    expect(
-      wrapper.find('[data-testid="dashboard-word-dist-section"]').exists(),
-    ).toBe(true)
-    expect(
-      wrapper.find('[data-testid="dashboard-word-dist-content"]').exists(),
-    ).toBe(true)
-  })
-
-  it('shows summary stats when word count data is present', async () => {
-    setupWritingStats()
-    mockWordDist.mockResolvedValue({
-      from: null,
-      to: null,
-      bucket_size: 100,
-      buckets: [{ range_start: 0, range_end: 100, count: 12 }],
-      stats: { min: 42, max: 980, avg: 350, median: 310, total_entries: 50 },
-    })
-    const wrapper = mountView()
-    await flushPromises()
-    expect(
-      wrapper.find('[data-testid="dashboard-word-dist-stats"]').exists(),
-    ).toBe(true)
-    expect(
-      wrapper.find('[data-testid="dashboard-word-dist-stat-min"]').text(),
-    ).toBe('42')
-    expect(
-      wrapper.find('[data-testid="dashboard-word-dist-stat-max"]').text(),
-    ).toBe('980')
-    expect(
-      wrapper.find('[data-testid="dashboard-word-dist-stat-median"]').text(),
-    ).toBe('310')
-  })
-
-  it('shows empty state when word count distribution has no data', async () => {
-    setupWritingStats()
-    mockWordDist.mockResolvedValue({
-      from: null,
-      to: null,
-      bucket_size: 100,
-      buckets: [],
-      stats: { min: 0, max: 0, avg: 0, median: 0, total_entries: 0 },
-    })
-    const wrapper = mountView()
-    await flushPromises()
-    expect(
-      wrapper.find('[data-testid="dashboard-word-dist-empty"]').exists(),
-    ).toBe(true)
-  })
-
-  it('shows error state when word count distribution fails', async () => {
-    setupWritingStats()
-    mockWordDist.mockRejectedValue(new Error('word count fail'))
-    const wrapper = mountView()
-    await flushPromises()
-    expect(
-      wrapper.find('[data-testid="dashboard-word-dist-error"]').exists(),
-    ).toBe(true)
-    expect(
-      wrapper.find('[data-testid="dashboard-word-dist-error"]').text(),
-    ).toContain('word count fail')
-  })
-})
