@@ -2,16 +2,25 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { ApiRequestError } from '@/api/client'
 import {
+  fetchCalendarHeatmap,
+  fetchEntityTrends,
   fetchMoodDimensions,
+  fetchMoodEntityCorrelation,
   fetchMoodTrends,
+  fetchWordCountDistribution,
   fetchWritingStats,
 } from '@/api/dashboard'
 import { fetchEntityDistribution, fetchMoodDrilldown } from '@/api/insights'
 import type {
+  CalendarDay,
   DashboardBin,
   DashboardRange,
+  EntityTrendBin,
   MoodDimension,
+  MoodEntityCorrelationItem,
   MoodTrendBin,
+  WordCountBucket,
+  WordCountStats,
   WritingFrequencyBin,
 } from '@/types/dashboard'
 import type {
@@ -118,6 +127,36 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const entityLoading = ref(false)
   const entityError = ref<string | null>(null)
   const entityHasLoaded = ref(false)
+
+  // Calendar heatmap state
+  const calendarDays = ref<CalendarDay[]>([])
+  const calendarLoading = ref(false)
+  const calendarError = ref<string | null>(null)
+  const calendarHasLoaded = ref(false)
+
+  // Entity trends state — topic/entity mention counts over time
+  const entityTrends = ref<EntityTrendBin[]>([])
+  const entityTrendEntities = ref<string[]>([])
+  const entityTrendsType = ref<InsightsEntityType>('topic')
+  const entityTrendsLoading = ref(false)
+  const entityTrendsError = ref<string | null>(null)
+  const entityTrendsHasLoaded = ref(false)
+
+  // Mood-entity correlation state
+  const moodCorrelationItems = ref<MoodEntityCorrelationItem[]>([])
+  const moodCorrelationOverallAvg = ref(0)
+  const moodCorrelationDimension = ref<string>('agency')
+  const moodCorrelationType = ref<InsightsEntityType>('person')
+  const moodCorrelationLoading = ref(false)
+  const moodCorrelationError = ref<string | null>(null)
+  const moodCorrelationHasLoaded = ref(false)
+
+  // Word count distribution state
+  const wordCountBuckets = ref<WordCountBucket[]>([])
+  const wordCountStats = ref<WordCountStats | null>(null)
+  const wordCountLoading = ref(false)
+  const wordCountError = ref<string | null>(null)
+  const wordCountHasLoaded = ref(false)
 
   const totalEntriesInRange = computed(() =>
     bins.value.reduce((sum, b) => sum + b.entry_count, 0),
@@ -298,6 +337,129 @@ export const useDashboardStore = defineStore('dashboard', () => {
     drillError.value = null
   }
 
+  async function loadCalendarHeatmap(): Promise<void> {
+    calendarLoading.value = true
+    calendarError.value = null
+    try {
+      const { from, to } = rangeToDates(range.value)
+      const response = await fetchCalendarHeatmap({
+        from: from ?? undefined,
+        to: to ?? undefined,
+      })
+      calendarDays.value = response.days
+      calendarHasLoaded.value = true
+    } catch (e) {
+      if (e instanceof ApiRequestError) {
+        calendarError.value = e.message
+      } else if (e instanceof Error) {
+        calendarError.value = e.message
+      } else {
+        calendarError.value = 'Failed to load calendar heatmap'
+      }
+      calendarDays.value = []
+    } finally {
+      calendarLoading.value = false
+    }
+  }
+
+  async function loadEntityTrends(
+    entityType?: InsightsEntityType,
+  ): Promise<void> {
+    if (entityType !== undefined) entityTrendsType.value = entityType
+
+    entityTrendsLoading.value = true
+    entityTrendsError.value = null
+    try {
+      const { from, to } = rangeToDates(range.value)
+      const response = await fetchEntityTrends({
+        bin: bin.value,
+        from: from ?? undefined,
+        to: to ?? undefined,
+        type: entityTrendsType.value,
+        limit: 8,
+      })
+      entityTrends.value = response.bins
+      entityTrendEntities.value = response.entities
+      entityTrendsHasLoaded.value = true
+    } catch (e) {
+      if (e instanceof ApiRequestError) {
+        entityTrendsError.value = e.message
+      } else if (e instanceof Error) {
+        entityTrendsError.value = e.message
+      } else {
+        entityTrendsError.value = 'Failed to load entity trends'
+      }
+      entityTrends.value = []
+      entityTrendEntities.value = []
+    } finally {
+      entityTrendsLoading.value = false
+    }
+  }
+
+  async function loadMoodEntityCorrelation(
+    dimension?: string,
+    type?: InsightsEntityType,
+  ): Promise<void> {
+    if (dimension !== undefined) moodCorrelationDimension.value = dimension
+    if (type !== undefined) moodCorrelationType.value = type
+
+    moodCorrelationLoading.value = true
+    moodCorrelationError.value = null
+    try {
+      const { from, to } = rangeToDates(range.value)
+      const response = await fetchMoodEntityCorrelation({
+        dimension: moodCorrelationDimension.value,
+        from: from ?? undefined,
+        to: to ?? undefined,
+        type: moodCorrelationType.value,
+        limit: 10,
+      })
+      moodCorrelationItems.value = response.items
+      moodCorrelationOverallAvg.value = response.overall_avg
+      moodCorrelationHasLoaded.value = true
+    } catch (e) {
+      if (e instanceof ApiRequestError) {
+        moodCorrelationError.value = e.message
+      } else if (e instanceof Error) {
+        moodCorrelationError.value = e.message
+      } else {
+        moodCorrelationError.value = 'Failed to load mood-entity correlation'
+      }
+      moodCorrelationItems.value = []
+      moodCorrelationOverallAvg.value = 0
+    } finally {
+      moodCorrelationLoading.value = false
+    }
+  }
+
+  async function loadWordCountDistribution(): Promise<void> {
+    wordCountLoading.value = true
+    wordCountError.value = null
+    try {
+      const { from, to } = rangeToDates(range.value)
+      const response = await fetchWordCountDistribution({
+        from: from ?? undefined,
+        to: to ?? undefined,
+        bucket_size: 100,
+      })
+      wordCountBuckets.value = response.buckets
+      wordCountStats.value = response.stats
+      wordCountHasLoaded.value = true
+    } catch (e) {
+      if (e instanceof ApiRequestError) {
+        wordCountError.value = e.message
+      } else if (e instanceof Error) {
+        wordCountError.value = e.message
+      } else {
+        wordCountError.value = 'Failed to load word count distribution'
+      }
+      wordCountBuckets.value = []
+      wordCountStats.value = null
+    } finally {
+      wordCountLoading.value = false
+    }
+  }
+
   async function loadEntityDistribution(
     type?: InsightsEntityType,
   ): Promise<void> {
@@ -353,6 +515,28 @@ export const useDashboardStore = defineStore('dashboard', () => {
     entityLoading.value = false
     entityError.value = null
     entityHasLoaded.value = false
+    calendarDays.value = []
+    calendarLoading.value = false
+    calendarError.value = null
+    calendarHasLoaded.value = false
+    entityTrends.value = []
+    entityTrendEntities.value = []
+    entityTrendsType.value = 'topic'
+    entityTrendsLoading.value = false
+    entityTrendsError.value = null
+    entityTrendsHasLoaded.value = false
+    moodCorrelationItems.value = []
+    moodCorrelationOverallAvg.value = 0
+    moodCorrelationDimension.value = 'agency'
+    moodCorrelationType.value = 'person'
+    moodCorrelationLoading.value = false
+    moodCorrelationError.value = null
+    moodCorrelationHasLoaded.value = false
+    wordCountBuckets.value = []
+    wordCountStats.value = null
+    wordCountLoading.value = false
+    wordCountError.value = null
+    wordCountHasLoaded.value = false
   }
 
   return {
@@ -390,6 +574,36 @@ export const useDashboardStore = defineStore('dashboard', () => {
     entityError,
     entityHasLoaded,
     loadEntityDistribution,
+    // Calendar heatmap surface
+    calendarDays,
+    calendarLoading,
+    calendarError,
+    calendarHasLoaded,
+    loadCalendarHeatmap,
+    // Entity trends surface
+    entityTrends,
+    entityTrendEntities,
+    entityTrendsType,
+    entityTrendsLoading,
+    entityTrendsError,
+    entityTrendsHasLoaded,
+    loadEntityTrends,
+    // Mood-entity correlation surface
+    moodCorrelationItems,
+    moodCorrelationOverallAvg,
+    moodCorrelationDimension,
+    moodCorrelationType,
+    moodCorrelationLoading,
+    moodCorrelationError,
+    moodCorrelationHasLoaded,
+    loadMoodEntityCorrelation,
+    // Word count distribution surface
+    wordCountBuckets,
+    wordCountStats,
+    wordCountLoading,
+    wordCountError,
+    wordCountHasLoaded,
+    loadWordCountDistribution,
     reset,
   }
 })

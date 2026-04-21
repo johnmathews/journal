@@ -9,6 +9,7 @@ import {
   type DashboardBin,
   type DashboardRange,
 } from '@/types/dashboard'
+import type { CalendarDay } from '@/types/dashboard'
 import {
   INSIGHTS_ENTITY_TYPES,
   type InsightsEntityType,
@@ -77,10 +78,16 @@ const writingChartCanvas = ref<HTMLCanvasElement | null>(null)
 const wordChartCanvas = ref<HTMLCanvasElement | null>(null)
 const moodChartCanvas = ref<HTMLCanvasElement | null>(null)
 const entityChartCanvas = ref<HTMLCanvasElement | null>(null)
+const entityTrendsChartCanvas = ref<HTMLCanvasElement | null>(null)
+const moodCorrelationChartCanvas = ref<HTMLCanvasElement | null>(null)
+const wordDistChartCanvas = ref<HTMLCanvasElement | null>(null)
 let writingChart: Chart | null = null
 let wordChart: Chart | null = null
 let moodChart: Chart | null = null
 let entityChart: Chart | null = null
+let entityTrendsChart: Chart | null = null
+let moodCorrelationChart: Chart | null = null
+let wordDistChart: Chart | null = null
 let moodChartRenderedOnce = false
 
 const MOOD_LINE_COLORS: readonly string[] = [
@@ -441,6 +448,342 @@ function renderEntityChart(): void {
   })
 }
 
+// --- Calendar heatmap computed ---
+
+interface HeatmapCell {
+  date: string
+  entry_count: number
+  total_words: number
+  dayOfWeek: number // 0=Mon … 6=Sun
+  weekIndex: number
+}
+
+interface HeatmapMonth {
+  label: string
+  colStart: number
+}
+
+const calendarGrid = computed(() => {
+  const days = store.calendarDays
+  if (days.length === 0)
+    return {
+      cells: [] as HeatmapCell[],
+      weeks: 0,
+      months: [] as HeatmapMonth[],
+    }
+
+  // Build a lookup of date -> day data
+  const lookup = new Map<string, CalendarDay>()
+  for (const d of days) {
+    lookup.set(d.date, d)
+  }
+
+  // Determine the full date range
+  const sortedDates = days.map((d) => d.date).sort()
+  const startDate = new Date(sortedDates[0] + 'T00:00:00')
+  const endDate = new Date(sortedDates[sortedDates.length - 1] + 'T00:00:00')
+
+  // Align start to the Monday of its week
+  const startDay = startDate.getDay() // 0=Sun, 1=Mon, ...
+  const mondayOffset = startDay === 0 ? 6 : startDay - 1
+  startDate.setDate(startDate.getDate() - mondayOffset)
+
+  const cells: HeatmapCell[] = []
+  const months: HeatmapMonth[] = []
+  let weekIndex = 0
+  let lastMonth = -1
+  const cur = new Date(startDate)
+
+  while (cur <= endDate) {
+    const iso = cur.toISOString().slice(0, 10)
+    const jsDay = cur.getDay() // 0=Sun
+    const dayOfWeek = jsDay === 0 ? 6 : jsDay - 1 // 0=Mon … 6=Sun
+
+    // Track month labels
+    if (cur.getMonth() !== lastMonth) {
+      months.push({
+        label: cur.toLocaleDateString('en-US', { month: 'short' }),
+        colStart: weekIndex,
+      })
+      lastMonth = cur.getMonth()
+    }
+
+    const data = lookup.get(iso)
+    cells.push({
+      date: iso,
+      entry_count: data?.entry_count ?? 0,
+      total_words: data?.total_words ?? 0,
+      dayOfWeek,
+      weekIndex,
+    })
+
+    // Advance day
+    cur.setDate(cur.getDate() + 1)
+    // New week when we hit Monday
+    const nextJsDay = cur.getDay()
+    const nextDow = nextJsDay === 0 ? 6 : nextJsDay - 1
+    if (nextDow === 0 && cur <= endDate) {
+      weekIndex++
+    }
+  }
+
+  return { cells, weeks: weekIndex + 1, months }
+})
+
+function heatmapColor(count: number): string {
+  if (count === 0) return '' // handled by class
+  if (count === 1) return 'bg-violet-200 dark:bg-violet-300/40'
+  if (count === 2) return 'bg-violet-400 dark:bg-violet-400/60'
+  return 'bg-violet-600 dark:bg-violet-500/80'
+}
+
+function heatmapTooltip(cell: HeatmapCell): string {
+  const d = new Date(cell.date + 'T00:00:00')
+  const formatted = d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+  return `${formatted}: ${cell.entry_count} ${cell.entry_count === 1 ? 'entry' : 'entries'}, ${cell.total_words} words`
+}
+
+const WEEKDAY_LABELS = ['Mon', '', 'Wed', '', 'Fri', '', 'Sun']
+
+// --- Entity trends chart ---
+
+function renderEntityTrendsChart(): void {
+  if (!entityTrendsChartCanvas.value) return
+  entityTrendsChart?.destroy()
+
+  const entities = store.entityTrendEntities
+  const trendBins = store.entityTrends
+  if (entities.length === 0 || trendBins.length === 0) {
+    entityTrendsChart = null
+    return
+  }
+
+  const colors = getChartColors()
+
+  // Pivot: collect unique periods, build one series per entity
+  const periodSet = new Set<string>()
+  for (const b of trendBins) periodSet.add(b.period)
+  const periods = Array.from(periodSet).sort()
+
+  const byEntity = new Map<string, Map<string, number>>()
+  for (const b of trendBins) {
+    let m = byEntity.get(b.entity)
+    if (!m) {
+      m = new Map()
+      byEntity.set(b.entity, m)
+    }
+    m.set(b.period, b.mention_count)
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const datasets: any[] = entities.map((entity, i) => {
+    const entityData = byEntity.get(entity)
+    const color = MOOD_LINE_COLORS[i % MOOD_LINE_COLORS.length]
+    return {
+      label: entity,
+      data: periods.map((p) => entityData?.get(p) ?? 0),
+      borderColor: color,
+      backgroundColor: adjustColorOpacity(color, 0.12),
+      fill: false,
+      tension: 0.3,
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      pointBackgroundColor: color,
+    }
+  })
+
+  entityTrendsChart = new Chart(entityTrendsChartCanvas.value, {
+    type: 'line',
+    data: { labels: periods, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: 'bottom',
+          labels: {
+            color: colors.textColor.light,
+            usePointStyle: true,
+            pointStyle: 'circle',
+            padding: 16,
+            font: { size: 11 },
+          },
+        },
+        tooltip: {
+          backgroundColor: colors.tooltipBgColor.light,
+          titleColor: colors.tooltipTitleColor.light,
+          bodyColor: colors.tooltipBodyColor.light,
+          borderColor: colors.tooltipBorderColor.light,
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: colors.textColor.light, maxRotation: 0 },
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: colors.gridColor.light },
+          ticks: { color: colors.textColor.light, precision: 0 },
+        },
+      },
+    },
+  })
+}
+
+// --- Mood-entity correlation chart ---
+
+function renderMoodCorrelationChart(): void {
+  if (!moodCorrelationChartCanvas.value) return
+  moodCorrelationChart?.destroy()
+
+  const items = store.moodCorrelationItems
+  if (items.length === 0) {
+    moodCorrelationChart = null
+    return
+  }
+
+  const colors = getChartColors()
+  const overallAvg = store.moodCorrelationOverallAvg
+
+  const barColors = items.map((it) =>
+    it.avg_score >= overallAvg ? '#22c55e' : '#ef4444',
+  )
+
+  moodCorrelationChart = new Chart(moodCorrelationChartCanvas.value, {
+    type: 'bar',
+    data: {
+      labels: items.map((it) => it.entity),
+      datasets: [
+        {
+          label: 'Avg score',
+          data: items.map((it) => it.avg_score),
+          backgroundColor: barColors,
+          borderColor: barColors,
+          borderWidth: 1,
+          borderRadius: 4,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: colors.tooltipBgColor.light,
+          titleColor: colors.tooltipTitleColor.light,
+          bodyColor: colors.tooltipBodyColor.light,
+          borderColor: colors.tooltipBorderColor.light,
+          callbacks: {
+            label: (ctx) => {
+              const item = items[ctx.dataIndex]
+              return `Score: ${item.avg_score.toFixed(3)} (${item.entry_count} entries)`
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { color: colors.gridColor.light },
+          ticks: { color: colors.textColor.light },
+        },
+        y: {
+          grid: { display: false },
+          ticks: { color: colors.textColor.light, font: { size: 11 } },
+        },
+      },
+    },
+    plugins: [
+      {
+        id: 'overallAvgLine',
+        afterDraw(chart) {
+          const xScale = chart.scales.x
+          if (!xScale) return
+          const xPixel = xScale.getPixelForValue(overallAvg)
+          const ctx = chart.ctx
+          const { top, bottom } = chart.chartArea
+          ctx.save()
+          ctx.strokeStyle = '#6366f1'
+          ctx.lineWidth = 2
+          ctx.setLineDash([6, 4])
+          ctx.beginPath()
+          ctx.moveTo(xPixel, top)
+          ctx.lineTo(xPixel, bottom)
+          ctx.stroke()
+          ctx.restore()
+        },
+      },
+    ],
+  })
+}
+
+// --- Word count distribution chart ---
+
+function renderWordDistChart(): void {
+  if (!wordDistChartCanvas.value) return
+  wordDistChart?.destroy()
+
+  const buckets = store.wordCountBuckets
+  if (buckets.length === 0) {
+    wordDistChart = null
+    return
+  }
+
+  const colors = getChartColors()
+  const labels = buckets.map((b) => `${b.range_start}-${b.range_end}`)
+
+  wordDistChart = new Chart(wordDistChartCanvas.value, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Entries',
+          data: buckets.map((b) => b.count),
+          backgroundColor: adjustColorOpacity('#0ea5e9', 0.6),
+          borderColor: '#0ea5e9',
+          borderWidth: 1,
+          borderRadius: 4,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: colors.tooltipBgColor.light,
+          titleColor: colors.tooltipTitleColor.light,
+          bodyColor: colors.tooltipBodyColor.light,
+          borderColor: colors.tooltipBorderColor.light,
+          callbacks: {
+            label: (ctx) => `${ctx.parsed.y} entries`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: colors.textColor.light, maxRotation: 45 },
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: colors.gridColor.light },
+          ticks: { color: colors.textColor.light, precision: 0 },
+        },
+      },
+    },
+  })
+}
+
 // --- Watchers ---
 
 watch(
@@ -464,18 +807,45 @@ watch(
   { deep: false },
 )
 
+watch(
+  () => store.entityTrends,
+  () => renderEntityTrendsChart(),
+  { deep: false },
+)
+
+watch(
+  () => store.moodCorrelationItems,
+  () => renderMoodCorrelationChart(),
+  { deep: false },
+)
+
+watch(
+  () => store.wordCountBuckets,
+  () => renderWordDistChart(),
+  { deep: false },
+)
+
 // --- Lifecycle ---
 
 onMounted(async () => {
   await Promise.all([store.loadWritingStats(), store.loadMoodDimensions()])
   renderCharts()
-  const promises: Promise<void>[] = [store.loadEntityDistribution()]
+  const promises: Promise<void>[] = [
+    store.loadEntityDistribution(),
+    store.loadCalendarHeatmap(),
+    store.loadEntityTrends(),
+    store.loadWordCountDistribution(),
+  ]
   if (store.moodScoringEnabled) {
     promises.push(store.loadMoodTrends())
+    promises.push(store.loadMoodEntityCorrelation())
   }
   await Promise.all(promises)
   renderMoodChart()
   renderEntityChart()
+  renderEntityTrendsChart()
+  renderMoodCorrelationChart()
+  renderWordDistChart()
 })
 
 onBeforeUnmount(() => {
@@ -483,10 +853,16 @@ onBeforeUnmount(() => {
   wordChart?.destroy()
   moodChart?.destroy()
   entityChart?.destroy()
+  entityTrendsChart?.destroy()
+  moodCorrelationChart?.destroy()
+  wordDistChart?.destroy()
   writingChart = null
   wordChart = null
   moodChart = null
   entityChart = null
+  entityTrendsChart = null
+  moodCorrelationChart = null
+  wordDistChart = null
 })
 
 // --- Event handlers ---
@@ -496,16 +872,23 @@ async function onRangeChange(r: DashboardRange): Promise<void> {
   const promises: Promise<void>[] = [
     store.loadWritingStats({ range: r }),
     store.loadEntityDistribution(),
+    store.loadCalendarHeatmap(),
+    store.loadEntityTrends(),
+    store.loadWordCountDistribution(),
   ]
   if (store.moodScoringEnabled) {
     promises.push(store.loadMoodTrends({ range: r }))
+    promises.push(store.loadMoodEntityCorrelation())
   }
   await Promise.all(promises)
 }
 
 async function onBinChange(b: DashboardBin): Promise<void> {
   store.clearDrillDown()
-  const promises: Promise<void>[] = [store.loadWritingStats({ bin: b })]
+  const promises: Promise<void>[] = [
+    store.loadWritingStats({ bin: b }),
+    store.loadEntityTrends(),
+  ]
   if (store.moodScoringEnabled) {
     promises.push(store.loadMoodTrends({ bin: b }))
   }
@@ -518,6 +901,24 @@ function toggleDimension(name: string): void {
 
 async function onEntityTypeChange(type: InsightsEntityType): Promise<void> {
   await store.loadEntityDistribution(type)
+}
+
+async function onEntityTrendsTypeChange(
+  type: InsightsEntityType,
+): Promise<void> {
+  await store.loadEntityTrends(type)
+}
+
+async function onMoodCorrelationDimensionChange(
+  dimension: string,
+): Promise<void> {
+  await store.loadMoodEntityCorrelation(dimension)
+}
+
+async function onMoodCorrelationTypeChange(
+  type: InsightsEntityType,
+): Promise<void> {
+  await store.loadMoodEntityCorrelation(undefined, type)
 }
 
 const showMoodBackfillModal = ref(false)
@@ -644,8 +1045,151 @@ async function onMoodJobSucceeded(): Promise<void> {
     </div>
 
     <div v-else>
+      <!-- Calendar Heatmap -->
+      <section
+        class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
+        data-testid="dashboard-calendar-section"
+      >
+        <header class="mb-3">
+          <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+            Writing Consistency
+          </h2>
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            Daily writing activity in the selected range.
+          </p>
+        </header>
+
+        <div
+          v-if="store.calendarLoading && !store.calendarHasLoaded"
+          class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
+          data-testid="dashboard-calendar-loading"
+        >
+          Loading calendar data…
+        </div>
+
+        <div
+          v-else-if="store.calendarError"
+          class="mb-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
+          data-testid="dashboard-calendar-error"
+        >
+          {{ store.calendarError }}
+        </div>
+
+        <div
+          v-else-if="store.calendarDays.length === 0"
+          class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
+          data-testid="dashboard-calendar-empty"
+        >
+          No calendar data available for this range.
+        </div>
+
+        <div
+          v-else
+          class="overflow-x-auto"
+          data-testid="dashboard-calendar-content"
+        >
+          <!-- Month labels -->
+          <div
+            class="flex text-[10px] text-gray-400 dark:text-gray-500 mb-1"
+            :style="{ paddingLeft: '28px' }"
+          >
+            <div
+              v-for="(m, mi) in calendarGrid.months"
+              :key="mi"
+              class="whitespace-nowrap"
+              :style="{
+                position: 'absolute',
+                left: `${28 + m.colStart * 14}px`,
+              }"
+            >
+              {{ m.label }}
+            </div>
+          </div>
+
+          <div class="flex gap-0 mt-4" data-testid="dashboard-calendar-grid">
+            <!-- Day-of-week labels -->
+            <div
+              class="flex flex-col gap-[2px] mr-1 text-[10px] text-gray-400 dark:text-gray-500"
+            >
+              <div
+                v-for="(lbl, li) in WEEKDAY_LABELS"
+                :key="li"
+                class="h-[12px] flex items-center justify-end pr-1"
+                :style="{ width: '24px' }"
+              >
+                {{ lbl }}
+              </div>
+            </div>
+
+            <!-- Week columns -->
+            <div class="flex gap-[2px]">
+              <div
+                v-for="w in calendarGrid.weeks"
+                :key="w"
+                class="flex flex-col gap-[2px]"
+              >
+                <template v-for="dow in 7" :key="`${w}-${dow}`">
+                  <div
+                    v-if="
+                      calendarGrid.cells.find(
+                        (c) => c.weekIndex === w - 1 && c.dayOfWeek === dow - 1,
+                      )
+                    "
+                    class="w-[12px] h-[12px] rounded-sm"
+                    :class="[
+                      heatmapColor(
+                        calendarGrid.cells.find(
+                          (c) =>
+                            c.weekIndex === w - 1 && c.dayOfWeek === dow - 1,
+                        )!.entry_count,
+                      ),
+                      calendarGrid.cells.find(
+                        (c) => c.weekIndex === w - 1 && c.dayOfWeek === dow - 1,
+                      )!.entry_count === 0
+                        ? 'bg-gray-100 dark:bg-gray-700'
+                        : '',
+                    ]"
+                    :title="
+                      heatmapTooltip(
+                        calendarGrid.cells.find(
+                          (c) =>
+                            c.weekIndex === w - 1 && c.dayOfWeek === dow - 1,
+                        )!,
+                      )
+                    "
+                    :data-testid="`dashboard-calendar-cell-${calendarGrid.cells.find((c) => c.weekIndex === w - 1 && c.dayOfWeek === dow - 1)!.date}`"
+                  ></div>
+                  <div v-else class="w-[12px] h-[12px]"></div>
+                </template>
+              </div>
+            </div>
+          </div>
+
+          <!-- Legend -->
+          <div
+            class="flex items-center gap-2 mt-3 text-[10px] text-gray-400 dark:text-gray-500"
+            data-testid="dashboard-calendar-legend"
+          >
+            <span>Less</span>
+            <div
+              class="w-[12px] h-[12px] rounded-sm bg-gray-100 dark:bg-gray-700"
+            ></div>
+            <div
+              class="w-[12px] h-[12px] rounded-sm bg-violet-200 dark:bg-violet-300/40"
+            ></div>
+            <div
+              class="w-[12px] h-[12px] rounded-sm bg-violet-400 dark:bg-violet-400/60"
+            ></div>
+            <div
+              class="w-[12px] h-[12px] rounded-sm bg-violet-600 dark:bg-violet-500/80"
+            ></div>
+            <span>More</span>
+          </div>
+        </div>
+      </section>
+
       <!-- Writing frequency + word count -->
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div class="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
         <section
           class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
           data-testid="dashboard-writing-chart-card"
@@ -998,6 +1542,298 @@ async function onMoodJobSucceeded(): Promise<void> {
                   : `Show ${hiddenEntityCount} more`
               }}
             </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Topic Trends -->
+      <section
+        class="mt-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
+        data-testid="dashboard-entity-trends-section"
+      >
+        <header class="mb-3">
+          <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+            Topic Trends
+          </h2>
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            Entity mentions over time, grouped per {{ store.bin }}.
+          </p>
+        </header>
+
+        <!-- Entity type tabs -->
+        <div
+          class="flex flex-wrap gap-2 mb-4"
+          data-testid="dashboard-entity-trends-tabs"
+        >
+          <button
+            v-for="t in INSIGHTS_ENTITY_TYPES"
+            :key="t"
+            type="button"
+            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
+            :class="
+              store.entityTrendsType === t
+                ? 'bg-violet-500 text-white border-violet-500'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
+            "
+            :data-testid="`dashboard-entity-trends-tab-${t}`"
+            :aria-pressed="store.entityTrendsType === t"
+            @click="onEntityTrendsTypeChange(t)"
+          >
+            {{ entityTypeLabel(t) }}
+          </button>
+        </div>
+
+        <div
+          v-if="store.entityTrendsLoading && !store.entityTrendsHasLoaded"
+          class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
+          data-testid="dashboard-entity-trends-loading"
+        >
+          Loading entity trends…
+        </div>
+
+        <div
+          v-else-if="store.entityTrendsError"
+          class="mb-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
+          data-testid="dashboard-entity-trends-error"
+        >
+          {{ store.entityTrendsError }}
+        </div>
+
+        <div
+          v-else-if="store.entityTrendEntities.length === 0"
+          class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
+          data-testid="dashboard-entity-trends-empty"
+        >
+          No {{ store.entityTrendsType }} entity trends found in this range.
+        </div>
+
+        <div
+          v-else
+          class="h-72 relative"
+          data-testid="dashboard-entity-trends-content"
+        >
+          <canvas
+            ref="entityTrendsChartCanvas"
+            data-testid="dashboard-entity-trends-chart"
+          ></canvas>
+        </div>
+      </section>
+
+      <!-- Mood-Entity Correlation -->
+      <section
+        v-if="store.moodScoringEnabled"
+        class="mt-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
+        data-testid="dashboard-mood-correlation-section"
+      >
+        <header class="mb-3">
+          <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+            Mood by Entity
+          </h2>
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            Average mood score per entity. Dashed line shows overall average.
+          </p>
+        </header>
+
+        <!-- Dimension selector -->
+        <div class="flex flex-wrap items-center gap-4 mb-4">
+          <div>
+            <label
+              class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1"
+            >
+              Dimension
+            </label>
+            <div
+              class="flex flex-wrap gap-2"
+              data-testid="dashboard-mood-correlation-dimensions"
+            >
+              <button
+                v-for="d in store.moodDimensions"
+                :key="d.name"
+                type="button"
+                class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
+                :class="
+                  store.moodCorrelationDimension === d.name
+                    ? 'bg-violet-500 text-white border-violet-500'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
+                "
+                :data-testid="`dashboard-mood-correlation-dim-${d.name}`"
+                :aria-pressed="store.moodCorrelationDimension === d.name"
+                @click="onMoodCorrelationDimensionChange(d.name)"
+              >
+                {{ d.positive_pole }}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label
+              class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1"
+            >
+              Entity type
+            </label>
+            <div
+              class="flex flex-wrap gap-2"
+              data-testid="dashboard-mood-correlation-types"
+            >
+              <button
+                v-for="t in INSIGHTS_ENTITY_TYPES"
+                :key="t"
+                type="button"
+                class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
+                :class="
+                  store.moodCorrelationType === t
+                    ? 'bg-violet-500 text-white border-violet-500'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
+                "
+                :data-testid="`dashboard-mood-correlation-type-${t}`"
+                :aria-pressed="store.moodCorrelationType === t"
+                @click="onMoodCorrelationTypeChange(t)"
+              >
+                {{ entityTypeLabel(t) }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-if="store.moodCorrelationLoading && !store.moodCorrelationHasLoaded"
+          class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
+          data-testid="dashboard-mood-correlation-loading"
+        >
+          Loading mood correlation…
+        </div>
+
+        <div
+          v-else-if="store.moodCorrelationError"
+          class="mb-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
+          data-testid="dashboard-mood-correlation-error"
+        >
+          {{ store.moodCorrelationError }}
+        </div>
+
+        <div
+          v-else-if="store.moodCorrelationItems.length === 0"
+          class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
+          data-testid="dashboard-mood-correlation-empty"
+        >
+          No mood-entity data for this selection.
+        </div>
+
+        <div
+          v-else
+          class="h-80 relative"
+          data-testid="dashboard-mood-correlation-content"
+        >
+          <canvas
+            ref="moodCorrelationChartCanvas"
+            data-testid="dashboard-mood-correlation-chart"
+          ></canvas>
+        </div>
+      </section>
+
+      <!-- Entry Length Distribution -->
+      <section
+        class="mt-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4"
+        data-testid="dashboard-word-dist-section"
+      >
+        <header class="mb-3">
+          <h2 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+            Entry Length Distribution
+          </h2>
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            How many entries fall into each word-count range.
+          </p>
+        </header>
+
+        <div
+          v-if="store.wordCountLoading && !store.wordCountHasLoaded"
+          class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
+          data-testid="dashboard-word-dist-loading"
+        >
+          Loading distribution…
+        </div>
+
+        <div
+          v-else-if="store.wordCountError"
+          class="mb-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
+          data-testid="dashboard-word-dist-error"
+        >
+          {{ store.wordCountError }}
+        </div>
+
+        <div
+          v-else-if="store.wordCountBuckets.length === 0"
+          class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
+          data-testid="dashboard-word-dist-empty"
+        >
+          No word count distribution data available.
+        </div>
+
+        <div v-else data-testid="dashboard-word-dist-content">
+          <div class="h-64 relative">
+            <canvas
+              ref="wordDistChartCanvas"
+              data-testid="dashboard-word-dist-chart"
+            ></canvas>
+          </div>
+
+          <div
+            v-if="store.wordCountStats"
+            class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center"
+            data-testid="dashboard-word-dist-stats"
+          >
+            <div>
+              <p
+                class="text-xs text-gray-400 dark:text-gray-500 font-semibold uppercase"
+              >
+                Min
+              </p>
+              <p
+                class="text-sm font-mono text-gray-700 dark:text-gray-200"
+                data-testid="dashboard-word-dist-stat-min"
+              >
+                {{ store.wordCountStats.min.toLocaleString() }}
+              </p>
+            </div>
+            <div>
+              <p
+                class="text-xs text-gray-400 dark:text-gray-500 font-semibold uppercase"
+              >
+                Max
+              </p>
+              <p
+                class="text-sm font-mono text-gray-700 dark:text-gray-200"
+                data-testid="dashboard-word-dist-stat-max"
+              >
+                {{ store.wordCountStats.max.toLocaleString() }}
+              </p>
+            </div>
+            <div>
+              <p
+                class="text-xs text-gray-400 dark:text-gray-500 font-semibold uppercase"
+              >
+                Average
+              </p>
+              <p
+                class="text-sm font-mono text-gray-700 dark:text-gray-200"
+                data-testid="dashboard-word-dist-stat-avg"
+              >
+                {{ Math.round(store.wordCountStats.avg).toLocaleString() }}
+              </p>
+            </div>
+            <div>
+              <p
+                class="text-xs text-gray-400 dark:text-gray-500 font-semibold uppercase"
+              >
+                Median
+              </p>
+              <p
+                class="text-sm font-mono text-gray-700 dark:text-gray-200"
+                data-testid="dashboard-word-dist-stat-median"
+              >
+                {{ store.wordCountStats.median.toLocaleString() }}
+              </p>
+            </div>
           </div>
         </div>
       </section>

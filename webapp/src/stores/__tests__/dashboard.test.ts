@@ -6,6 +6,10 @@ vi.mock('@/api/dashboard', () => ({
   fetchWritingStats: vi.fn(),
   fetchMoodDimensions: vi.fn(),
   fetchMoodTrends: vi.fn(),
+  fetchCalendarHeatmap: vi.fn(),
+  fetchEntityTrends: vi.fn(),
+  fetchMoodEntityCorrelation: vi.fn(),
+  fetchWordCountDistribution: vi.fn(),
 }))
 vi.mock('@/api/insights', () => ({
   fetchMoodDrilldown: vi.fn(),
@@ -24,14 +28,22 @@ vi.mock('@/api/client', () => ({
 }))
 
 import {
+  fetchCalendarHeatmap,
+  fetchEntityTrends,
   fetchMoodDimensions,
+  fetchMoodEntityCorrelation,
   fetchMoodTrends,
+  fetchWordCountDistribution,
   fetchWritingStats,
 } from '@/api/dashboard'
 import { ApiRequestError } from '@/api/client'
 const mockFetch = vi.mocked(fetchWritingStats)
 const mockMoodDims = vi.mocked(fetchMoodDimensions)
 const mockMoodTrends = vi.mocked(fetchMoodTrends)
+const mockCalendar = vi.mocked(fetchCalendarHeatmap)
+const mockEntityTrends = vi.mocked(fetchEntityTrends)
+const mockMoodCorrelation = vi.mocked(fetchMoodEntityCorrelation)
+const mockWordDist = vi.mocked(fetchWordCountDistribution)
 
 describe('rangeToDates', () => {
   const now = new Date('2026-04-11T12:00:00Z')
@@ -617,5 +629,385 @@ describe('useDashboardStore — entity distribution', () => {
     expect(store.entityType).toBe('topic')
     expect(store.entityDistribution).toEqual([])
     expect(store.entityHasLoaded).toBe(false)
+  })
+})
+
+describe('useDashboardStore — calendar heatmap', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  it('initial calendar state is empty', () => {
+    const store = useDashboardStore()
+    expect(store.calendarDays).toEqual([])
+    expect(store.calendarLoading).toBe(false)
+    expect(store.calendarError).toBeNull()
+    expect(store.calendarHasLoaded).toBe(false)
+  })
+
+  it('loadCalendarHeatmap populates state on success', async () => {
+    mockCalendar.mockResolvedValue({
+      from: '2026-01-11',
+      to: '2026-04-11',
+      days: [
+        { date: '2026-01-15', entry_count: 2, total_words: 400 },
+        { date: '2026-02-03', entry_count: 1, total_words: 150 },
+      ],
+    })
+    const store = useDashboardStore()
+    await store.loadCalendarHeatmap()
+    expect(store.calendarDays).toHaveLength(2)
+    expect(store.calendarHasLoaded).toBe(true)
+    expect(store.calendarLoading).toBe(false)
+    expect(store.calendarError).toBeNull()
+  })
+
+  it('loadCalendarHeatmap surfaces ApiRequestError verbatim', async () => {
+    mockCalendar.mockRejectedValue(
+      new ApiRequestError(400, 'invalid_range', 'Bad date range'),
+    )
+    const store = useDashboardStore()
+    await store.loadCalendarHeatmap()
+    expect(store.calendarError).toBe('Bad date range')
+    expect(store.calendarDays).toEqual([])
+  })
+
+  it('loadCalendarHeatmap surfaces plain Error messages', async () => {
+    mockCalendar.mockRejectedValue(new Error('network down'))
+    const store = useDashboardStore()
+    await store.loadCalendarHeatmap()
+    expect(store.calendarError).toBe('network down')
+  })
+
+  it('loadCalendarHeatmap handles non-Error throw', async () => {
+    mockCalendar.mockRejectedValue('kaboom')
+    const store = useDashboardStore()
+    await store.loadCalendarHeatmap()
+    expect(store.calendarError).toBe('Failed to load calendar heatmap')
+  })
+
+  it('reset clears calendar state', async () => {
+    mockCalendar.mockResolvedValue({
+      from: '2026-01-11',
+      to: '2026-04-11',
+      days: [{ date: '2026-01-15', entry_count: 1, total_words: 100 }],
+    })
+    const store = useDashboardStore()
+    await store.loadCalendarHeatmap()
+    expect(store.calendarHasLoaded).toBe(true)
+
+    store.reset()
+    expect(store.calendarDays).toEqual([])
+    expect(store.calendarHasLoaded).toBe(false)
+    expect(store.calendarError).toBeNull()
+  })
+})
+
+describe('useDashboardStore — entity trends', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  it('initial entity trends state is empty', () => {
+    const store = useDashboardStore()
+    expect(store.entityTrends).toEqual([])
+    expect(store.entityTrendEntities).toEqual([])
+    expect(store.entityTrendsType).toBe('topic')
+    expect(store.entityTrendsLoading).toBe(false)
+    expect(store.entityTrendsError).toBeNull()
+    expect(store.entityTrendsHasLoaded).toBe(false)
+  })
+
+  it('loadEntityTrends populates state on success', async () => {
+    mockEntityTrends.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      entity_type: 'topic',
+      entities: ['meditation', 'running'],
+      bins: [
+        { period: '2026-03-02', entity: 'meditation', mention_count: 5 },
+        { period: '2026-03-02', entity: 'running', mention_count: 3 },
+      ],
+    })
+    const store = useDashboardStore()
+    await store.loadEntityTrends('topic')
+    expect(store.entityTrends).toHaveLength(2)
+    expect(store.entityTrendEntities).toEqual(['meditation', 'running'])
+    expect(store.entityTrendsType).toBe('topic')
+    expect(store.entityTrendsHasLoaded).toBe(true)
+    expect(store.entityTrendsLoading).toBe(false)
+    expect(store.entityTrendsError).toBeNull()
+  })
+
+  it('loadEntityTrends surfaces ApiRequestError verbatim', async () => {
+    mockEntityTrends.mockRejectedValue(
+      new ApiRequestError(400, 'invalid_type', 'bad entity type'),
+    )
+    const store = useDashboardStore()
+    await store.loadEntityTrends()
+    expect(store.entityTrendsError).toBe('bad entity type')
+    expect(store.entityTrends).toEqual([])
+    expect(store.entityTrendEntities).toEqual([])
+  })
+
+  it('loadEntityTrends surfaces plain Error messages', async () => {
+    mockEntityTrends.mockRejectedValue(new Error('net fail'))
+    const store = useDashboardStore()
+    await store.loadEntityTrends()
+    expect(store.entityTrendsError).toBe('net fail')
+  })
+
+  it('loadEntityTrends handles non-Error throw', async () => {
+    mockEntityTrends.mockRejectedValue(null)
+    const store = useDashboardStore()
+    await store.loadEntityTrends()
+    expect(store.entityTrendsError).toBe('Failed to load entity trends')
+  })
+
+  it('loadEntityTrends without explicit type uses current', async () => {
+    mockEntityTrends.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      entity_type: 'activity',
+      entities: [],
+      bins: [],
+    })
+    const store = useDashboardStore()
+    store.entityTrendsType = 'activity'
+    await store.loadEntityTrends()
+    expect(store.entityTrendsType).toBe('activity')
+  })
+
+  it('reset clears entity trends state', async () => {
+    mockEntityTrends.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      entity_type: 'topic',
+      entities: ['x'],
+      bins: [{ period: '2026-03-02', entity: 'x', mention_count: 1 }],
+    })
+    const store = useDashboardStore()
+    await store.loadEntityTrends()
+    expect(store.entityTrendsHasLoaded).toBe(true)
+
+    store.reset()
+    expect(store.entityTrends).toEqual([])
+    expect(store.entityTrendEntities).toEqual([])
+    expect(store.entityTrendsType).toBe('topic')
+    expect(store.entityTrendsHasLoaded).toBe(false)
+  })
+})
+
+describe('useDashboardStore — mood-entity correlation', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  it('initial mood correlation state is empty', () => {
+    const store = useDashboardStore()
+    expect(store.moodCorrelationItems).toEqual([])
+    expect(store.moodCorrelationOverallAvg).toBe(0)
+    expect(store.moodCorrelationDimension).toBe('agency')
+    expect(store.moodCorrelationType).toBe('person')
+    expect(store.moodCorrelationLoading).toBe(false)
+    expect(store.moodCorrelationError).toBeNull()
+    expect(store.moodCorrelationHasLoaded).toBe(false)
+  })
+
+  it('loadMoodEntityCorrelation populates state on success', async () => {
+    mockMoodCorrelation.mockResolvedValue({
+      dimension: 'agency',
+      from: null,
+      to: null,
+      entity_type: 'person',
+      overall_avg: 0.45,
+      items: [
+        {
+          entity: 'Alice',
+          entity_type: 'person',
+          avg_score: 0.6,
+          entry_count: 5,
+        },
+        {
+          entity: 'Bob',
+          entity_type: 'person',
+          avg_score: 0.3,
+          entry_count: 3,
+        },
+      ],
+    })
+    const store = useDashboardStore()
+    await store.loadMoodEntityCorrelation('agency', 'person')
+    expect(store.moodCorrelationItems).toHaveLength(2)
+    expect(store.moodCorrelationOverallAvg).toBe(0.45)
+    expect(store.moodCorrelationDimension).toBe('agency')
+    expect(store.moodCorrelationType).toBe('person')
+    expect(store.moodCorrelationHasLoaded).toBe(true)
+    expect(store.moodCorrelationLoading).toBe(false)
+    expect(store.moodCorrelationError).toBeNull()
+  })
+
+  it('loadMoodEntityCorrelation surfaces ApiRequestError verbatim', async () => {
+    mockMoodCorrelation.mockRejectedValue(
+      new ApiRequestError(400, 'invalid_dim', 'bad dimension'),
+    )
+    const store = useDashboardStore()
+    await store.loadMoodEntityCorrelation()
+    expect(store.moodCorrelationError).toBe('bad dimension')
+    expect(store.moodCorrelationItems).toEqual([])
+    expect(store.moodCorrelationOverallAvg).toBe(0)
+  })
+
+  it('loadMoodEntityCorrelation surfaces plain Error messages', async () => {
+    mockMoodCorrelation.mockRejectedValue(new Error('net fail'))
+    const store = useDashboardStore()
+    await store.loadMoodEntityCorrelation()
+    expect(store.moodCorrelationError).toBe('net fail')
+  })
+
+  it('loadMoodEntityCorrelation handles non-Error throw', async () => {
+    mockMoodCorrelation.mockRejectedValue(null)
+    const store = useDashboardStore()
+    await store.loadMoodEntityCorrelation()
+    expect(store.moodCorrelationError).toBe(
+      'Failed to load mood-entity correlation',
+    )
+  })
+
+  it('loadMoodEntityCorrelation uses current dimension when not specified', async () => {
+    mockMoodCorrelation.mockResolvedValue({
+      dimension: 'joy_sadness',
+      from: null,
+      to: null,
+      entity_type: 'person',
+      overall_avg: 0.5,
+      items: [],
+    })
+    const store = useDashboardStore()
+    store.moodCorrelationDimension = 'joy_sadness'
+    await store.loadMoodEntityCorrelation()
+    expect(store.moodCorrelationDimension).toBe('joy_sadness')
+  })
+
+  it('reset clears mood correlation state', async () => {
+    mockMoodCorrelation.mockResolvedValue({
+      dimension: 'agency',
+      from: null,
+      to: null,
+      entity_type: 'person',
+      overall_avg: 0.5,
+      items: [
+        {
+          entity: 'Alice',
+          entity_type: 'person',
+          avg_score: 0.6,
+          entry_count: 5,
+        },
+      ],
+    })
+    const store = useDashboardStore()
+    await store.loadMoodEntityCorrelation()
+    expect(store.moodCorrelationHasLoaded).toBe(true)
+
+    store.reset()
+    expect(store.moodCorrelationItems).toEqual([])
+    expect(store.moodCorrelationOverallAvg).toBe(0)
+    expect(store.moodCorrelationDimension).toBe('agency')
+    expect(store.moodCorrelationType).toBe('person')
+    expect(store.moodCorrelationHasLoaded).toBe(false)
+  })
+})
+
+describe('useDashboardStore — word count distribution', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  it('initial word count distribution state is empty', () => {
+    const store = useDashboardStore()
+    expect(store.wordCountBuckets).toEqual([])
+    expect(store.wordCountStats).toBeNull()
+    expect(store.wordCountLoading).toBe(false)
+    expect(store.wordCountError).toBeNull()
+    expect(store.wordCountHasLoaded).toBe(false)
+  })
+
+  it('loadWordCountDistribution populates state on success', async () => {
+    mockWordDist.mockResolvedValue({
+      from: null,
+      to: null,
+      bucket_size: 100,
+      buckets: [
+        { range_start: 0, range_end: 100, count: 12 },
+        { range_start: 100, range_end: 200, count: 8 },
+      ],
+      stats: { min: 42, max: 980, avg: 350, median: 310, total_entries: 50 },
+    })
+    const store = useDashboardStore()
+    await store.loadWordCountDistribution()
+    expect(store.wordCountBuckets).toHaveLength(2)
+    expect(store.wordCountStats).toEqual({
+      min: 42,
+      max: 980,
+      avg: 350,
+      median: 310,
+      total_entries: 50,
+    })
+    expect(store.wordCountHasLoaded).toBe(true)
+    expect(store.wordCountLoading).toBe(false)
+    expect(store.wordCountError).toBeNull()
+  })
+
+  it('loadWordCountDistribution surfaces ApiRequestError verbatim', async () => {
+    mockWordDist.mockRejectedValue(
+      new ApiRequestError(400, 'invalid_bucket', 'Bad bucket size'),
+    )
+    const store = useDashboardStore()
+    await store.loadWordCountDistribution()
+    expect(store.wordCountError).toBe('Bad bucket size')
+    expect(store.wordCountBuckets).toEqual([])
+    expect(store.wordCountStats).toBeNull()
+  })
+
+  it('loadWordCountDistribution surfaces plain Error messages', async () => {
+    mockWordDist.mockRejectedValue(new Error('network down'))
+    const store = useDashboardStore()
+    await store.loadWordCountDistribution()
+    expect(store.wordCountError).toBe('network down')
+  })
+
+  it('loadWordCountDistribution handles non-Error throw', async () => {
+    mockWordDist.mockRejectedValue('kaboom')
+    const store = useDashboardStore()
+    await store.loadWordCountDistribution()
+    expect(store.wordCountError).toBe(
+      'Failed to load word count distribution',
+    )
+  })
+
+  it('reset clears word count distribution state', async () => {
+    mockWordDist.mockResolvedValue({
+      from: null,
+      to: null,
+      bucket_size: 100,
+      buckets: [{ range_start: 0, range_end: 100, count: 5 }],
+      stats: { min: 10, max: 90, avg: 50, median: 45, total_entries: 5 },
+    })
+    const store = useDashboardStore()
+    await store.loadWordCountDistribution()
+    expect(store.wordCountHasLoaded).toBe(true)
+
+    store.reset()
+    expect(store.wordCountBuckets).toEqual([])
+    expect(store.wordCountStats).toBeNull()
+    expect(store.wordCountHasLoaded).toBe(false)
+    expect(store.wordCountError).toBeNull()
   })
 })

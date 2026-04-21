@@ -13,6 +13,34 @@ vi.mock('@/api/dashboard', () => ({
     bin: 'week',
     bins: [],
   }),
+  fetchCalendarHeatmap: vi.fn().mockResolvedValue({
+    from: '2026-01-11',
+    to: '2026-04-11',
+    days: [],
+  }),
+  fetchEntityTrends: vi.fn().mockResolvedValue({
+    from: null,
+    to: null,
+    bin: 'week',
+    entity_type: 'topic',
+    entities: [],
+    bins: [],
+  }),
+  fetchMoodEntityCorrelation: vi.fn().mockResolvedValue({
+    dimension: 'agency',
+    from: null,
+    to: null,
+    entity_type: 'person',
+    overall_avg: 0,
+    items: [],
+  }),
+  fetchWordCountDistribution: vi.fn().mockResolvedValue({
+    from: null,
+    to: null,
+    bucket_size: 100,
+    buckets: [],
+    stats: { min: 0, max: 0, avg: 0, median: 0, total_entries: 0 },
+  }),
 }))
 
 vi.mock('@/api/insights', () => ({
@@ -125,7 +153,11 @@ vi.mock('chart.js', () => {
     // Every chartjs-config.ts named import needs to exist so the
     // side-effect import doesn't throw. These are all registry
     // classes — the stubs just need to be non-undefined.
+    BarController: class {},
+    BarElement: class {},
     CategoryScale: class {},
+    DoughnutController: class {},
+    ArcElement: class {},
     Filler: class {},
     Legend: class {},
     LinearScale: class {},
@@ -136,10 +168,20 @@ vi.mock('chart.js', () => {
   }
 })
 
-import { fetchWritingStats } from '@/api/dashboard'
+import {
+  fetchWritingStats,
+  fetchCalendarHeatmap,
+  fetchEntityTrends,
+  fetchMoodEntityCorrelation,
+  fetchWordCountDistribution,
+} from '@/api/dashboard'
 import { fetchEntityDistribution } from '@/api/insights'
 const mockFetch = vi.mocked(fetchWritingStats)
 const mockEntityDist = vi.mocked(fetchEntityDistribution)
+const mockCalendar = vi.mocked(fetchCalendarHeatmap)
+const mockEntityTrends = vi.mocked(fetchEntityTrends)
+const mockMoodCorrelation = vi.mocked(fetchMoodEntityCorrelation)
+const mockWordDist = vi.mocked(fetchWordCountDistribution)
 
 const router = createRouter({
   history: createWebHistory(),
@@ -946,5 +988,488 @@ describe('DashboardView — entity distribution', () => {
     expect(
       wrapper.find('[data-testid="dashboard-entity-error"]').exists(),
     ).toBe(true)
+  })
+})
+
+describe('DashboardView — calendar heatmap', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    chartConstructorSpy.mockClear()
+    destroySpy.mockClear()
+  })
+
+  const manyWritingBins = Array.from({ length: 6 }, (_, i) => ({
+    bin_start: `2026-03-${String(i * 7 + 2).padStart(2, '0')}`,
+    entry_count: 1,
+    total_words: 100,
+  }))
+
+  function setupWritingStats() {
+    mockFetch.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: manyWritingBins,
+    })
+  }
+
+  it('renders the calendar section when data is present', async () => {
+    setupWritingStats()
+    mockCalendar.mockResolvedValue({
+      from: '2026-01-11',
+      to: '2026-04-11',
+      days: [
+        { date: '2026-03-02', entry_count: 2, total_words: 400 },
+        { date: '2026-03-09', entry_count: 1, total_words: 150 },
+      ],
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="dashboard-calendar-section"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="dashboard-calendar-content"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="dashboard-calendar-legend"]').exists(),
+    ).toBe(true)
+  })
+
+  it('shows empty state when calendar has no data', async () => {
+    setupWritingStats()
+    mockCalendar.mockResolvedValue({
+      from: '2026-01-11',
+      to: '2026-04-11',
+      days: [],
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="dashboard-calendar-empty"]').exists(),
+    ).toBe(true)
+  })
+
+  it('shows error state when calendar fails', async () => {
+    setupWritingStats()
+    mockCalendar.mockRejectedValue(new Error('calendar fail'))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="dashboard-calendar-error"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="dashboard-calendar-error"]').text(),
+    ).toContain('calendar fail')
+  })
+})
+
+describe('DashboardView — entity trends', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    chartConstructorSpy.mockClear()
+    destroySpy.mockClear()
+  })
+
+  const manyWritingBins = Array.from({ length: 6 }, (_, i) => ({
+    bin_start: `2026-03-${String(i * 7 + 2).padStart(2, '0')}`,
+    entry_count: 1,
+    total_words: 100,
+  }))
+
+  function setupWritingStats() {
+    mockFetch.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: manyWritingBins,
+    })
+  }
+
+  it('renders the entity trends section with entity type tabs', async () => {
+    setupWritingStats()
+    mockEntityTrends.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      entity_type: 'topic',
+      entities: ['meditation', 'running'],
+      bins: [
+        { period: '2026-03-02', entity: 'meditation', mention_count: 5 },
+        { period: '2026-03-02', entity: 'running', mention_count: 3 },
+      ],
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="dashboard-entity-trends-section"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="dashboard-entity-trends-content"]').exists(),
+    ).toBe(true)
+    // Has entity type tabs
+    for (const type of ['topic', 'activity', 'place', 'person']) {
+      expect(
+        wrapper
+          .find(`[data-testid="dashboard-entity-trends-tab-${type}"]`)
+          .exists(),
+      ).toBe(true)
+    }
+  })
+
+  it('shows empty state when entity trends has no data', async () => {
+    setupWritingStats()
+    mockEntityTrends.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      entity_type: 'topic',
+      entities: [],
+      bins: [],
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="dashboard-entity-trends-empty"]').exists(),
+    ).toBe(true)
+  })
+
+  it('shows error state when entity trends fails', async () => {
+    setupWritingStats()
+    mockEntityTrends.mockRejectedValue(new Error('trends fail'))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="dashboard-entity-trends-error"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="dashboard-entity-trends-error"]').text(),
+    ).toContain('trends fail')
+  })
+
+  it('clicking an entity trends tab triggers reload', async () => {
+    setupWritingStats()
+    const wrapper = mountView()
+    await flushPromises()
+    mockEntityTrends.mockClear()
+
+    mockEntityTrends.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      entity_type: 'activity',
+      entities: [],
+      bins: [],
+    })
+    await wrapper
+      .find('[data-testid="dashboard-entity-trends-tab-activity"]')
+      .trigger('click')
+    await flushPromises()
+
+    expect(mockEntityTrends).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('DashboardView — mood-entity correlation', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    chartConstructorSpy.mockClear()
+    destroySpy.mockClear()
+  })
+
+  const fakeDimensions = [
+    {
+      name: 'joy_sadness',
+      positive_pole: 'joy',
+      negative_pole: 'sadness',
+      scale_type: 'bipolar' as const,
+      score_min: -1.0,
+      score_max: 1.0,
+      notes: '...',
+    },
+    {
+      name: 'agency',
+      positive_pole: 'agency',
+      negative_pole: 'apathy',
+      scale_type: 'unipolar' as const,
+      score_min: 0.0,
+      score_max: 1.0,
+      notes: '...',
+    },
+  ]
+
+  const manyWritingBins = Array.from({ length: 6 }, (_, i) => ({
+    bin_start: `2026-03-${String(i * 7 + 2).padStart(2, '0')}`,
+    entry_count: 1,
+    total_words: 100,
+  }))
+
+  async function setupWithMoodAndCorrelation() {
+    const {
+      fetchWritingStats,
+      fetchMoodDimensions,
+      fetchMoodTrends,
+      fetchMoodEntityCorrelation,
+    } = await import('@/api/dashboard')
+    vi.mocked(fetchWritingStats).mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: manyWritingBins,
+    })
+    vi.mocked(fetchMoodDimensions).mockResolvedValue({
+      dimensions: fakeDimensions,
+    })
+    vi.mocked(fetchMoodTrends).mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: [
+        {
+          period: '2026-03-02',
+          dimension: 'agency',
+          avg_score: 0.7,
+          entry_count: 3,
+          score_min: 0.5,
+          score_max: 0.9,
+        },
+      ],
+    })
+    vi.mocked(fetchMoodEntityCorrelation).mockResolvedValue({
+      dimension: 'agency',
+      from: null,
+      to: null,
+      entity_type: 'person',
+      overall_avg: 0.45,
+      items: [
+        {
+          entity: 'Alice',
+          entity_type: 'person',
+          avg_score: 0.6,
+          entry_count: 5,
+        },
+        {
+          entity: 'Bob',
+          entity_type: 'person',
+          avg_score: 0.3,
+          entry_count: 3,
+        },
+      ],
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    return wrapper
+  }
+
+  it('renders mood correlation section when mood scoring is enabled and data is present', async () => {
+    const wrapper = await setupWithMoodAndCorrelation()
+    expect(
+      wrapper
+        .find('[data-testid="dashboard-mood-correlation-section"]')
+        .exists(),
+    ).toBe(true)
+    expect(
+      wrapper
+        .find('[data-testid="dashboard-mood-correlation-content"]')
+        .exists(),
+    ).toBe(true)
+  })
+
+  it('hides mood correlation section when mood scoring is disabled', async () => {
+    const { fetchWritingStats, fetchMoodDimensions } =
+      await import('@/api/dashboard')
+    vi.mocked(fetchWritingStats).mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: manyWritingBins,
+    })
+    vi.mocked(fetchMoodDimensions).mockResolvedValue({ dimensions: [] })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(
+      wrapper
+        .find('[data-testid="dashboard-mood-correlation-section"]')
+        .exists(),
+    ).toBe(false)
+  })
+
+  it('shows empty state when mood correlation returns no items', async () => {
+    const {
+      fetchWritingStats,
+      fetchMoodDimensions,
+      fetchMoodTrends,
+      fetchMoodEntityCorrelation,
+    } = await import('@/api/dashboard')
+    vi.mocked(fetchWritingStats).mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: manyWritingBins,
+    })
+    vi.mocked(fetchMoodDimensions).mockResolvedValue({
+      dimensions: fakeDimensions,
+    })
+    vi.mocked(fetchMoodTrends).mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: [],
+    })
+    vi.mocked(fetchMoodEntityCorrelation).mockResolvedValue({
+      dimension: 'agency',
+      from: null,
+      to: null,
+      entity_type: 'person',
+      overall_avg: 0,
+      items: [],
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(
+      wrapper
+        .find('[data-testid="dashboard-mood-correlation-empty"]')
+        .exists(),
+    ).toBe(true)
+  })
+
+  it('shows error state when mood correlation fails', async () => {
+    const {
+      fetchWritingStats,
+      fetchMoodDimensions,
+      fetchMoodTrends,
+      fetchMoodEntityCorrelation,
+    } = await import('@/api/dashboard')
+    vi.mocked(fetchWritingStats).mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: manyWritingBins,
+    })
+    vi.mocked(fetchMoodDimensions).mockResolvedValue({
+      dimensions: fakeDimensions,
+    })
+    vi.mocked(fetchMoodTrends).mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: [],
+    })
+    vi.mocked(fetchMoodEntityCorrelation).mockRejectedValue(
+      new Error('correlation fail'),
+    )
+    const wrapper = mountView()
+    await flushPromises()
+    expect(
+      wrapper
+        .find('[data-testid="dashboard-mood-correlation-error"]')
+        .exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="dashboard-mood-correlation-error"]').text(),
+    ).toContain('correlation fail')
+  })
+})
+
+describe('DashboardView — word count distribution', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    chartConstructorSpy.mockClear()
+    destroySpy.mockClear()
+  })
+
+  const manyWritingBins = Array.from({ length: 6 }, (_, i) => ({
+    bin_start: `2026-03-${String(i * 7 + 2).padStart(2, '0')}`,
+    entry_count: 1,
+    total_words: 100,
+  }))
+
+  function setupWritingStats() {
+    mockFetch.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: manyWritingBins,
+    })
+  }
+
+  it('renders word count distribution section when data is present', async () => {
+    setupWritingStats()
+    mockWordDist.mockResolvedValue({
+      from: null,
+      to: null,
+      bucket_size: 100,
+      buckets: [
+        { range_start: 0, range_end: 100, count: 12 },
+        { range_start: 100, range_end: 200, count: 8 },
+      ],
+      stats: { min: 42, max: 980, avg: 350, median: 310, total_entries: 50 },
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="dashboard-word-dist-section"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="dashboard-word-dist-content"]').exists(),
+    ).toBe(true)
+  })
+
+  it('shows summary stats when word count data is present', async () => {
+    setupWritingStats()
+    mockWordDist.mockResolvedValue({
+      from: null,
+      to: null,
+      bucket_size: 100,
+      buckets: [{ range_start: 0, range_end: 100, count: 12 }],
+      stats: { min: 42, max: 980, avg: 350, median: 310, total_entries: 50 },
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="dashboard-word-dist-stats"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="dashboard-word-dist-stat-min"]').text(),
+    ).toBe('42')
+    expect(
+      wrapper.find('[data-testid="dashboard-word-dist-stat-max"]').text(),
+    ).toBe('980')
+    expect(
+      wrapper.find('[data-testid="dashboard-word-dist-stat-median"]').text(),
+    ).toBe('310')
+  })
+
+  it('shows empty state when word count distribution has no data', async () => {
+    setupWritingStats()
+    mockWordDist.mockResolvedValue({
+      from: null,
+      to: null,
+      bucket_size: 100,
+      buckets: [],
+      stats: { min: 0, max: 0, avg: 0, median: 0, total_entries: 0 },
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="dashboard-word-dist-empty"]').exists(),
+    ).toBe(true)
+  })
+
+  it('shows error state when word count distribution fails', async () => {
+    setupWritingStats()
+    mockWordDist.mockRejectedValue(new Error('word count fail'))
+    const wrapper = mountView()
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="dashboard-word-dist-error"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="dashboard-word-dist-error"]').text(),
+    ).toContain('word count fail')
   })
 })

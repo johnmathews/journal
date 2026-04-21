@@ -113,3 +113,103 @@ export interface MoodTrendsParams {
   to?: string | null
   dimension?: string | null
 }
+
+// --- Calendar Heatmap ---
+
+export interface CalendarDay {
+  date: string
+  entry_count: number
+  total_words: number
+}
+
+export interface CalendarHeatmapResponse {
+  from: string
+  to: string
+  days: CalendarDay[]
+}
+
+export interface CalendarHeatmapParams {
+  from?: string | null
+  to?: string | null
+}
+
+// --- Entity Trends ---
+
+export interface EntityTrendBin {
+  period: string
+  entity: string
+  mention_count: number
+}
+
+export interface EntityTrendsResponse {
+  from: string | null
+  to: string | null
+  bin: DashboardBin
+  entity_type: string
+  entities: string[]
+  bins: EntityTrendBin[]
+}
+
+export interface EntityTrendsParams {
+  bin?: DashboardBin
+  from?: string | null
+  to?: string | null
+  type?: string
+  limit?: number
+}
+
+// --- Mood-Entity Correlation ---
+
+export interface MoodEntityCorrelationItem {
+  entity: string
+  entity_type: string
+  avg_score: number
+  entry_count: number
+}
+
+export interface MoodEntityCorrelationResponse {
+  dimension: string
+  from: string | null
+  to: string | null
+  entity_type: string
+  overall_avg: number
+  items: MoodEntityCorrelationItem[]
+}
+
+export interface MoodEntityCorrelationParams {
+  dimension?: string
+  from?: string | null
+  to?: string | null
+  type?: string
+  limit?: number
+}
+
+// --- Word Count Distribution ---
+
+export interface WordCountBucket {
+  range_start: number
+  range_end: number
+  count: number
+}
+
+export interface WordCountStats {
+  min: number
+  max: number
+  avg: number
+  median: number
+  total_entries: number
+}
+
+export interface WordCountDistributionResponse {
+  from: string | null
+  to: string | null
+  bucket_size: number
+  buckets: WordCountBucket[]
+  stats: WordCountStats
+}
+
+export interface WordCountDistributionParams {
+  from?: string | null
+  to?: string | null
+  bucket_size?: number
+}

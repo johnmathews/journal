@@ -1,7 +1,15 @@
 import type {
+  CalendarHeatmapParams,
+  CalendarHeatmapResponse,
+  EntityTrendsParams,
+  EntityTrendsResponse,
   MoodDimensionsResponse,
+  MoodEntityCorrelationParams,
+  MoodEntityCorrelationResponse,
   MoodTrendsParams,
   MoodTrendsResponse,
+  WordCountDistributionParams,
+  WordCountDistributionResponse,
   WritingStatsParams,
   WritingStatsResponse,
 } from '@/types/dashboard'
@@ -75,4 +83,74 @@ export function fetchMoodTrends(
     dimension: params.dimension,
   })
   return apiFetch<MoodTrendsResponse>(`/api/dashboard/mood-trends${query}`)
+}
+
+/**
+ * Fetch a day-by-day calendar heatmap of writing activity.
+ * Each day has an entry count and total word count.
+ */
+export function fetchCalendarHeatmap(
+  params: CalendarHeatmapParams = {},
+): Promise<CalendarHeatmapResponse> {
+  const query = buildQuery({
+    from: params.from,
+    to: params.to,
+  })
+  return apiFetch<CalendarHeatmapResponse>(
+    `/api/dashboard/calendar-heatmap${query}`,
+  )
+}
+
+/**
+ * Fetch entity mention counts over time, bucketed by the
+ * dashboard bin width. Returns one line per entity.
+ */
+export function fetchEntityTrends(
+  params: EntityTrendsParams = {},
+): Promise<EntityTrendsResponse> {
+  const query = buildQuery({
+    bin: params.bin,
+    from: params.from,
+    to: params.to,
+    type: params.type,
+    limit: params.limit,
+  })
+  return apiFetch<EntityTrendsResponse>(`/api/dashboard/entity-trends${query}`)
+}
+
+/**
+ * Fetch average mood score per entity, with an overall
+ * average for comparison. Powers the horizontal bar chart.
+ */
+export function fetchMoodEntityCorrelation(
+  params: MoodEntityCorrelationParams = {},
+): Promise<MoodEntityCorrelationResponse> {
+  const query = buildQuery({
+    dimension: params.dimension,
+    from: params.from,
+    to: params.to,
+    type: params.type,
+    limit: params.limit,
+  })
+  return apiFetch<MoodEntityCorrelationResponse>(
+    `/api/dashboard/mood-entity-correlation${query}`,
+  )
+}
+
+/**
+ * Fetch a histogram of entry word counts. Each bucket covers
+ * `bucket_size` words and includes a count of entries in that
+ * range plus summary statistics.
+ */
+export function fetchWordCountDistribution(
+  params: WordCountDistributionParams = {},
+): Promise<WordCountDistributionResponse> {
+  const query = buildQuery({
+    from: params.from,
+    to: params.to,
+    bucket_size: params.bucket_size,
+  })
+  return apiFetch<WordCountDistributionResponse>(
+    `/api/dashboard/word-count-distribution${query}`,
+  )
 }
