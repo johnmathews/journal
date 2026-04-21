@@ -6,6 +6,7 @@ import {
   fetchMoodTrends,
   fetchWritingStats,
 } from '@/api/dashboard'
+import { fetchMoodDrilldown } from '@/api/insights'
 import type {
   DashboardBin,
   DashboardRange,
@@ -13,6 +14,7 @@ import type {
   MoodTrendBin,
   WritingFrequencyBin,
 } from '@/types/dashboard'
+import type { MoodDrilldownEntry } from '@/types/insights'
 
 /**
  * Convert a `DashboardRange` into a concrete `{from, to}` pair
@@ -95,6 +97,14 @@ export const useDashboardStore = defineStore('dashboard', () => {
   // of result. Used to distinguish "still loading" from "loaded
   // but the server has no mood data".
   const moodHasLoaded = ref(false)
+
+  // Drill-down state — same shape as the insights store so the
+  // mood chart click handler and drill-down panel can be shared.
+  const drillPeriod = ref<string | null>(null)
+  const drillDimension = ref<string | null>(null)
+  const drillEntries = ref<MoodDrilldownEntry[]>([])
+  const drillLoading = ref(false)
+  const drillError = ref<string | null>(null)
 
   const totalEntriesInRange = computed(() =>
     bins.value.reduce((sum, b) => sum + b.entry_count, 0),
@@ -214,6 +224,67 @@ export const useDashboardStore = defineStore('dashboard', () => {
     hiddenMoodDimensions.value = new Set(allNames.filter((n) => n !== name))
   }
 
+  function periodEndDate(periodStart: string, binSize: DashboardBin): string {
+    const d = new Date(periodStart + 'T12:00:00')
+    switch (binSize) {
+      case 'week':
+        d.setDate(d.getDate() + 6)
+        break
+      case 'month':
+        d.setMonth(d.getMonth() + 1)
+        d.setDate(d.getDate() - 1)
+        break
+      case 'quarter':
+        d.setMonth(d.getMonth() + 3)
+        d.setDate(d.getDate() - 1)
+        break
+      case 'year':
+        d.setFullYear(d.getFullYear() + 1)
+        d.setDate(d.getDate() - 1)
+        break
+    }
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+
+  async function loadDrillDown(
+    period: string,
+    dimension: string,
+  ): Promise<void> {
+    drillPeriod.value = period
+    drillDimension.value = dimension
+    drillLoading.value = true
+    drillError.value = null
+    try {
+      const response = await fetchMoodDrilldown({
+        dimension,
+        from: period,
+        to: periodEndDate(period, bin.value),
+      })
+      drillEntries.value = response.entries
+    } catch (e) {
+      if (e instanceof ApiRequestError) {
+        drillError.value = e.message
+      } else if (e instanceof Error) {
+        drillError.value = e.message
+      } else {
+        drillError.value = 'Failed to load drill-down data'
+      }
+      drillEntries.value = []
+    } finally {
+      drillLoading.value = false
+    }
+  }
+
+  function clearDrillDown(): void {
+    drillPeriod.value = null
+    drillDimension.value = null
+    drillEntries.value = []
+    drillError.value = null
+  }
+
   function reset(): void {
     range.value = 'last_3_months'
     bin.value = 'week'
@@ -228,6 +299,11 @@ export const useDashboardStore = defineStore('dashboard', () => {
     moodLoading.value = false
     moodError.value = null
     moodHasLoaded.value = false
+    drillPeriod.value = null
+    drillDimension.value = null
+    drillEntries.value = []
+    drillLoading.value = false
+    drillError.value = null
   }
 
   return {
@@ -251,6 +327,13 @@ export const useDashboardStore = defineStore('dashboard', () => {
     loadMoodDimensions,
     loadMoodTrends,
     toggleMoodDimension,
+    drillPeriod,
+    drillDimension,
+    drillEntries,
+    drillLoading,
+    drillError,
+    loadDrillDown,
+    clearDrillDown,
     reset,
   }
 })

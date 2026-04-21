@@ -7,6 +7,9 @@ vi.mock('@/api/dashboard', () => ({
   fetchMoodDimensions: vi.fn(),
   fetchMoodTrends: vi.fn(),
 }))
+vi.mock('@/api/insights', () => ({
+  fetchMoodDrilldown: vi.fn(),
+}))
 vi.mock('@/api/client', () => ({
   ApiRequestError: class extends Error {
     constructor(
@@ -394,5 +397,37 @@ describe('useDashboardStore — mood surface', () => {
     expect(store.bin).toBe('month')
     const call = mockMoodTrends.mock.calls[0][0]
     expect(call?.bin).toBe('month')
+  })
+
+  it('loadDrillDown populates drill-down state', async () => {
+    const { fetchMoodDrilldown } = await import('@/api/insights')
+    vi.mocked(fetchMoodDrilldown).mockResolvedValue({
+      entries: [
+        {
+          entry_id: 1,
+          entry_date: '2026-03-02',
+          score: 0.5,
+          confidence: 0.9,
+          rationale: 'Happy day',
+        },
+      ],
+    })
+    const store = useDashboardStore()
+    await store.loadDrillDown('2026-03-02', 'joy_sadness')
+    expect(store.drillPeriod).toBe('2026-03-02')
+    expect(store.drillDimension).toBe('joy_sadness')
+    expect(store.drillEntries).toHaveLength(1)
+    expect(store.drillLoading).toBe(false)
+    expect(store.drillError).toBeNull()
+  })
+
+  it('clearDrillDown resets drill-down state', async () => {
+    const store = useDashboardStore()
+    store.drillPeriod = '2026-03-02'
+    store.drillDimension = 'joy_sadness'
+    store.clearDrillDown()
+    expect(store.drillPeriod).toBeNull()
+    expect(store.drillDimension).toBeNull()
+    expect(store.drillEntries).toEqual([])
   })
 })

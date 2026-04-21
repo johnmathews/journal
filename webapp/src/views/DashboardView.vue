@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { Chart } from 'chart.js'
 import { useDashboardStore } from '@/stores/dashboard'
 import {
@@ -19,6 +20,24 @@ import BatchJobModal from '@/components/BatchJobModal.vue'
 void getChartColors
 
 const store = useDashboardStore()
+const router = useRouter()
+
+function formatDate(iso: string): string {
+  const d = new Date(iso + 'T00:00:00')
+  return d.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function formatScore(score: number): string {
+  return score >= 0 ? `+${score.toFixed(2)}` : score.toFixed(2)
+}
+
+function navigateToEntry(entryId: number): void {
+  router.push({ name: 'entry-detail', params: { id: String(entryId) } })
+}
 
 // Minimum corpus threshold for showing the charts. Below this
 // number of entries in the active range we show an explicit
@@ -298,6 +317,18 @@ function renderMoodChart(): void {
       responsive: true,
       maintainAspectRatio: false,
       animation: moodChartRenderedOnce ? false : undefined,
+      onClick: (_event, elements, chart) => {
+        if (elements.length === 0) return
+        const el = elements[0]
+        const dsLabel = chart.data.datasets[el.datasetIndex].label as string
+        const period = chart.data.labels?.[el.index] as string
+        if (!period || !dsLabel) return
+        if (store.drillPeriod === period && store.drillDimension === dsLabel) {
+          store.clearDrillDown()
+        } else {
+          store.loadDrillDown(period, dsLabel)
+        }
+      },
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -664,6 +695,89 @@ async function onMoodJobSucceeded(): Promise<void> {
             ref="moodChartCanvas"
             data-testid="dashboard-mood-chart"
           ></canvas>
+        </div>
+
+        <!-- Drill-down panel -->
+        <div
+          v-if="store.drillPeriod"
+          class="mt-4 border-t border-gray-200 dark:border-gray-700/60 pt-4"
+          data-testid="dashboard-drilldown"
+        >
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+              {{ store.drillDimension }} — {{ formatDate(store.drillPeriod) }}
+            </h3>
+            <button
+              type="button"
+              class="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              data-testid="dashboard-drilldown-close"
+              @click="store.clearDrillDown()"
+            >
+              Close
+            </button>
+          </div>
+
+          <div
+            v-if="store.drillLoading"
+            class="py-4 text-center text-gray-500 dark:text-gray-400 text-sm"
+          >
+            Loading entries…
+          </div>
+
+          <div
+            v-else-if="store.drillError"
+            class="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
+          >
+            {{ store.drillError }}
+          </div>
+
+          <div
+            v-else-if="store.drillEntries.length === 0"
+            class="py-4 text-center text-gray-500 dark:text-gray-400 text-sm"
+          >
+            No scored entries for this period.
+          </div>
+
+          <div v-else class="overflow-x-auto">
+            <table class="w-full text-sm" data-testid="dashboard-drilldown-table">
+              <thead>
+                <tr
+                  class="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700/60"
+                >
+                  <th class="pb-2 pr-4 font-medium">Date</th>
+                  <th class="pb-2 pr-4 font-medium">Score</th>
+                  <th class="pb-2 font-medium">Rationale</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="entry in store.drillEntries"
+                  :key="entry.entry_id"
+                  class="border-b border-gray-100 dark:border-gray-700/40 hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer"
+                  @click="navigateToEntry(entry.entry_id)"
+                >
+                  <td
+                    class="py-2 pr-4 whitespace-nowrap text-gray-700 dark:text-gray-200"
+                  >
+                    {{ formatDate(entry.entry_date) }}
+                  </td>
+                  <td
+                    class="py-2 pr-4 whitespace-nowrap font-mono text-xs"
+                    :class="
+                      entry.score >= 0
+                        ? 'text-green-600 dark:text-green-400'
+                        : 'text-red-600 dark:text-red-400'
+                    "
+                  >
+                    {{ formatScore(entry.score) }}
+                  </td>
+                  <td class="py-2 text-gray-600 dark:text-gray-300 text-xs">
+                    {{ entry.rationale || 'No rationale available' }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
     </div>
