@@ -110,17 +110,19 @@ watch(
 // Toggle for the live diff highlighting. Defaults to on.
 const showDiff = ref(true)
 
-// OCR uncertainty ("Review") toggle. Highlights the words that the
-// OCR model flagged as uncertain at ingestion time, overlaid on the
-// Original OCR panel only. Defaults to off — the toggle is disabled
-// in the template when the current entry has no uncertain spans
-// recorded (old entries, or clean pages), so users don't waste a
-// click on an inert control.
+// Uncertainty ("Review") toggle. Highlights the words that the OCR or
+// transcription model flagged as uncertain at ingestion time, overlaid
+// on the original-text panel. Defaults to off.
 const showReview = ref(false)
 const uncertainSpans = computed<UncertainSpan[]>(
   () => store.currentEntry?.uncertain_spans ?? [],
 )
 const hasUncertainSpans = computed(() => uncertainSpans.value.length > 0)
+
+const isVoiceEntry = computed(() => {
+  const st = store.currentEntry?.source_type
+  return st === 'voice' || st === 'imported_audio_file'
+})
 
 // Uncertain region navigation (floating bar).
 const currentUncertainIdx = ref(0)
@@ -826,14 +828,18 @@ onBeforeUnmount(() => {
               Show diff
             </label>
             <!--
-            Review toggle: overlays OCR uncertainty highlights on the
-            Original OCR panel. Always clickable — when no uncertain
+            Review toggle: overlays uncertainty highlights on the
+            original-text panel. Always clickable — when no uncertain
             spans exist, toggling it on shows an info banner instead
             of silently doing nothing.
           -->
             <label
               class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 cursor-pointer select-none"
-              title="Highlight words the OCR model flagged as uncertain"
+              :title="
+                isVoiceEntry
+                  ? 'Highlight words the transcription model flagged as uncertain'
+                  : 'Highlight words the OCR model flagged as uncertain'
+              "
               data-testid="review-toggle-label"
             >
               <input
@@ -958,8 +964,12 @@ onBeforeUnmount(() => {
           class="mb-4 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40 rounded-lg px-4 py-3 text-sm"
           data-testid="review-no-spans-banner"
         >
-          No uncertain words or phrases were detected in this entry. The OCR
-          model was confident about every word on this page.
+          No uncertain words or phrases were detected in this entry.
+          {{
+            isVoiceEntry
+              ? 'The transcription model was confident about every word.'
+              : 'The OCR model was confident about every word on this page.'
+          }}
         </div>
 
         <!-- Floating uncertain region navigation bar -->
@@ -1009,7 +1019,7 @@ onBeforeUnmount(() => {
             <h2
               class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3"
             >
-              Original OCR
+              {{ isVoiceEntry ? 'Original Transcription' : 'Original OCR' }}
             </h2>
             <!--
             Original text: read-only, renders highlighted HTML from the diff.
