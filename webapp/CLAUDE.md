@@ -56,6 +56,13 @@ The pre-push hook and CI enforce minimum test coverage (configured in `vitest.co
 
 When adding new components or store actions, add corresponding tests to stay above these thresholds.
 
+## Commit, Push, and CI
+
+After committing, always push and watch GitHub Actions CI (`gh run watch`). If CI fails, read the
+logs, fix the issue, run the full test suite locally, commit, push, and watch again. Do not
+consider work done until CI is green. When fixing bugs, always write a failing test first that
+reproduces the issue, then fix the code to make it pass.
+
 ## Backend
 
 The webapp connects to journal-server's REST API at /api/*. During development, Vite proxies these requests to localhost:8400 where the journal-server runs.
