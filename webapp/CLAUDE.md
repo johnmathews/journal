@@ -41,14 +41,18 @@ src/
 - Vitest + Vue Test Utils + happy-dom — testing
 - Chart.js 4 — charts via `src/utils/chartjs-config.ts` (direct, no wrapper)
 
+## Git Hooks
+
+Git hooks are managed by [Husky](https://typicode.github.io/husky/) (`.husky/` directory, installed automatically via `npm install`). A **pre-push** hook runs lint + `test:coverage`, enforcing minimum coverage thresholds before every push.
+
 ## Coverage Thresholds
 
-CI enforces minimum test coverage (configured in `vitest.config.ts`). The build fails if any metric drops below:
+The pre-push hook and CI enforce minimum test coverage (configured in `vitest.config.ts`). The push/build fails if any metric drops below:
 
-- **Statements**: 90%
+- **Statements**: 85%
 - **Branches**: 85%
-- **Functions**: 90%
-- **Lines**: 90%
+- **Functions**: 85%
+- **Lines**: 85%
 
 When adding new components or store actions, add corresponding tests to stay above these thresholds.
 

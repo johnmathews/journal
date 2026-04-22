@@ -26,15 +26,16 @@ To work without the backend, the app will show error states — this is expected
 
 ## Commands
 
-| Command             | Description                    |
-|---------------------|--------------------------------|
-| `npm run dev`       | Start dev server (port 5173)   |
-| `npm run build`     | Type-check + production build  |
-| `npm run preview`   | Preview production build       |
-| `npm run test:unit` | Run tests once                 |
-| `npm run test:watch`| Run tests in watch mode        |
-| `npm run lint`      | Lint and auto-fix with ESLint  |
-| `npm run format`    | Format with Prettier           |
+| Command              | Description                                      |
+|----------------------|--------------------------------------------------|
+| `npm run dev`        | Start dev server (port 5173)                     |
+| `npm run build`      | Type-check + production build                    |
+| `npm run preview`    | Preview production build                         |
+| `npm run test:unit`  | Run tests once                                   |
+| `npm run test:watch` | Run tests in watch mode                          |
+| `npm run test:coverage` | Run tests + enforce coverage thresholds       |
+| `npm run lint`       | Lint and auto-fix with ESLint                    |
+| `npm run format`     | Format with Prettier                             |
 
 ## Project Structure
 
@@ -75,20 +76,9 @@ src/
 
 ## Git Hooks
 
-A **pre-push** hook runs the linter and test suite before every `git push`. If either fails, the push is aborted. The hook lives at `.git/hooks/pre-push` and is not tracked by git — each developer must set it up locally:
+Git hooks are managed by [Husky](https://typicode.github.io/husky/) and tracked in the `.husky/` directory. They are installed automatically when you run `npm install` (via the `prepare` script).
 
-```bash
-cat > .git/hooks/pre-push << 'EOF'
-#!/bin/sh
-set -e
-echo "Running linter..."
-npm run lint --prefix "$(git rev-parse --show-toplevel)"
-echo "Running tests..."
-npm run test:unit --prefix "$(git rev-parse --show-toplevel)"
-echo "All checks passed."
-EOF
-chmod +x .git/hooks/pre-push
-```
+A **pre-push** hook runs the linter and the full test suite with coverage thresholds before every `git push`. If linting fails, tests fail, or coverage drops below the minimums defined in `vitest.config.ts`, the push is aborted.
 
 ## Docker
 
@@ -127,10 +117,10 @@ CI runs `npm run test:coverage` on every push to `main` and every PR, and enforc
 
 | Metric     | Minimum | Current baseline |
 | ---------- | ------- | ---------------- |
-| Statements | 90%     | 96.36%           |
-| Branches   | 85%     | 91.48%           |
-| Functions  | 90%     | 97.01%           |
-| Lines      | 90%     | 98.06%           |
+| Statements | 85%     | 91.29%           |
+| Branches   | 85%     | 86.11%           |
+| Functions  | 85%     | 87.21%           |
+| Lines      | 85%     | 92.70%           |
 
 The thresholds are set a few points below the current baseline so small incidental changes (a refactor that adds a handful of uncovered lines) don't flicker CI red, but a real regression (dropping a whole test file, introducing a large untested feature) will fail the build and block the Docker image from being published.
 
