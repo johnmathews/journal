@@ -93,7 +93,7 @@ async function startRecording() {
     recorder.start()
     isRecording.value = true
     recordingDuration.value = 0
-    wakeLock.request()
+    await wakeLock.request()
     durationTimer.value = setInterval(() => {
       recordingDuration.value++
     }, 1000)
