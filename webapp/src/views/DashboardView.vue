@@ -1127,12 +1127,12 @@ async function onMoodJobSucceeded(): Promise<void> {
       <!-- Hidden tiles restoration panel -->
       <div
         v-if="store.editingLayout && store.hiddenTiles.length > 0"
-        class="mb-4 bg-gray-50 dark:bg-gray-800/50 border border-dashed border-gray-300 dark:border-gray-600 rounded-xl px-5 py-3"
+        class="mb-4 bg-amber-50 dark:bg-amber-900/20 border border-dashed border-amber-300 dark:border-amber-600/50 rounded-xl px-5 py-3"
         data-testid="dashboard-hidden-tiles-panel"
       >
         <div class="flex flex-wrap items-center gap-2">
           <span
-            class="text-xs font-medium text-gray-500 dark:text-gray-400 mr-1"
+            class="text-xs font-medium text-amber-700 dark:text-amber-400 mr-1"
             >Hidden charts:</span
           >
           <button
