@@ -74,8 +74,12 @@ function jobLabel(type: JobType): string {
       return 'Mood backfill'
     case 'ingest_images':
       return 'Image ingestion'
+    case 'ingest_audio':
+      return 'Audio ingestion'
     case 'mood_score_entry':
       return 'Mood scoring'
+    case 'reprocess_embeddings':
+      return 'Reprocess embeddings'
     default:
       return type
   }
@@ -174,9 +178,11 @@ function nextPage() {
       >
         <option value="">All types</option>
         <option value="entity_extraction">Entity extraction</option>
+        <option value="ingest_audio">Audio ingestion</option>
+        <option value="ingest_images">Image ingestion</option>
         <option value="mood_backfill">Mood backfill</option>
         <option value="mood_score_entry">Mood scoring</option>
-        <option value="ingest_images">Image ingestion</option>
+        <option value="reprocess_embeddings">Reprocess embeddings</option>
       </select>
 
       <button
