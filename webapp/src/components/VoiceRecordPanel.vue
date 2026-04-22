@@ -2,6 +2,7 @@
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useEntriesStore } from '@/stores/entries'
 import { useJobsStore } from '@/stores/jobs'
+import { useWakeLock } from '@/composables/useWakeLock'
 import { isTerminal } from '@/types/job'
 
 const props = defineProps<{ entryDate: string }>()
@@ -11,6 +12,7 @@ const emit = defineEmits<{
 
 const entriesStore = useEntriesStore()
 const jobsStore = useJobsStore()
+const wakeLock = useWakeLock()
 
 // Recording state
 const isUnmounted = ref(false)
@@ -91,6 +93,7 @@ async function startRecording() {
     recorder.start()
     isRecording.value = true
     recordingDuration.value = 0
+    wakeLock.request()
     durationTimer.value = setInterval(() => {
       recordingDuration.value++
     }, 1000)
@@ -110,6 +113,7 @@ function stopRecording() {
     clearInterval(durationTimer.value)
     durationTimer.value = null
   }
+  wakeLock.release()
 }
 
 function removeRecording(index: number) {
