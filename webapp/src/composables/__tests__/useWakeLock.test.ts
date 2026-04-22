@@ -2,10 +2,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { effectScope } from 'vue'
 import { useWakeLock } from '../useWakeLock'
 
-function createMockSentinel() {
+interface MockSentinel extends WakeLockSentinel {
+  released: boolean
+}
+
+function createMockSentinel(): MockSentinel {
   const listeners: Record<string, ((...args: unknown[]) => void)[]> = {}
-  return {
+  const sentinel = {
     released: false,
+    type: 'screen' as const,
     addEventListener(event: string, cb: (...args: unknown[]) => void) {
       listeners[event] = listeners[event] || []
       listeners[event].push(cb)
@@ -15,7 +20,15 @@ function createMockSentinel() {
       this.released = true
       listeners['release']?.forEach((cb) => cb())
     },
-  } as unknown as WakeLockSentinel
+    onrelease: null,
+    dispatchEvent: vi.fn(),
+  }
+  return sentinel
+}
+
+function deleteWakeLock() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  delete (navigator as any).wakeLock
 }
 
 describe('useWakeLock', () => {
@@ -34,8 +47,7 @@ describe('useWakeLock', () => {
 
   afterEach(() => {
     scope.stop()
-    // Clean up the mock — delete so 'wakeLock' in navigator is false
-    delete (navigator as Record<string, unknown>).wakeLock
+    deleteWakeLock()
   })
 
   it('reports isSupported when wakeLock API exists', () => {
@@ -47,7 +59,7 @@ describe('useWakeLock', () => {
   })
 
   it('reports not supported when wakeLock API is missing', () => {
-    delete (navigator as Record<string, unknown>).wakeLock
+    deleteWakeLock()
     let result: ReturnType<typeof useWakeLock>
     scope.run(() => {
       result = useWakeLock()
@@ -169,7 +181,7 @@ describe('useWakeLock', () => {
   })
 
   it('does nothing on request() when API is not supported', async () => {
-    delete (navigator as Record<string, unknown>).wakeLock
+    deleteWakeLock()
 
     let result: ReturnType<typeof useWakeLock>
     scope.run(() => {
