@@ -1,0 +1,7 @@
+echo "Running linter..."
+npm run lint
+
+echo "Running tests with coverage thresholds..."
+npm run test:coverage
+
+echo "All checks passed."
