@@ -144,9 +144,7 @@ function tileOrder(id: DashboardTileId): number {
 }
 
 function tileSpan(id: DashboardTileId): string {
-  const def = store.tileDefs.get(id)
-  if (!def || def.span === 2) return '1 / -1' // full-width
-  return 'span 1'
+  return store.getTileSpan(id) === 2 ? '1 / -1' : 'span 1'
 }
 
 const labels = computed(() => store.bins.map((b) => b.bin_start))
@@ -1240,6 +1238,42 @@ async function onMoodJobSucceeded(): Promise<void> {
               </button>
               <button
                 type="button"
+                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                :title="
+                  store.getTileSpan('calendar-heatmap') === 1
+                    ? 'Full width'
+                    : 'Half width'
+                "
+                data-testid="tile-width-calendar-heatmap"
+                @click="
+                  store.setTileWidth(
+                    'calendar-heatmap',
+                    store.getTileSpan('calendar-heatmap') === 1 ? 2 : 1,
+                  )
+                "
+              >
+                <svg
+                  v-if="store.getTileSpan('calendar-heatmap') === 2"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <rect x="2" y="7" width="7" height="6" rx="1" />
+                  <rect x="11" y="7" width="7" height="6" rx="1" />
+                </svg>
+                <svg
+                  v-else
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <rect x="2" y="7" width="16" height="6" rx="1" />
+                </svg>
+              </button>
+              <button
+                type="button"
                 class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                 title="Hide chart"
                 data-testid="tile-hide-calendar-heatmap"
@@ -1457,6 +1491,42 @@ async function onMoodJobSucceeded(): Promise<void> {
               </button>
               <button
                 type="button"
+                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                :title="
+                  store.getTileSpan('entity-distribution') === 1
+                    ? 'Full width'
+                    : 'Half width'
+                "
+                data-testid="tile-width-entity-distribution"
+                @click="
+                  store.setTileWidth(
+                    'entity-distribution',
+                    store.getTileSpan('entity-distribution') === 1 ? 2 : 1,
+                  )
+                "
+              >
+                <svg
+                  v-if="store.getTileSpan('entity-distribution') === 2"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <rect x="2" y="7" width="7" height="6" rx="1" />
+                  <rect x="11" y="7" width="7" height="6" rx="1" />
+                </svg>
+                <svg
+                  v-else
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <rect x="2" y="7" width="16" height="6" rx="1" />
+                </svg>
+              </button>
+              <button
+                type="button"
                 class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                 title="Hide chart"
                 @click="store.hideTile('entity-distribution')"
@@ -1645,6 +1715,42 @@ async function onMoodJobSucceeded(): Promise<void> {
               </button>
               <button
                 type="button"
+                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                :title="
+                  store.getTileSpan('writing-frequency') === 1
+                    ? 'Full width'
+                    : 'Half width'
+                "
+                data-testid="tile-width-writing-frequency"
+                @click="
+                  store.setTileWidth(
+                    'writing-frequency',
+                    store.getTileSpan('writing-frequency') === 1 ? 2 : 1,
+                  )
+                "
+              >
+                <svg
+                  v-if="store.getTileSpan('writing-frequency') === 2"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <rect x="2" y="7" width="7" height="6" rx="1" />
+                  <rect x="11" y="7" width="7" height="6" rx="1" />
+                </svg>
+                <svg
+                  v-else
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <rect x="2" y="7" width="16" height="6" rx="1" />
+                </svg>
+              </button>
+              <button
+                type="button"
                 class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                 title="Hide chart"
                 @click="store.hideTile('writing-frequency')"
@@ -1737,6 +1843,42 @@ async function onMoodJobSucceeded(): Promise<void> {
               </button>
               <button
                 type="button"
+                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                :title="
+                  store.getTileSpan('word-count') === 1
+                    ? 'Full width'
+                    : 'Half width'
+                "
+                data-testid="tile-width-word-count"
+                @click="
+                  store.setTileWidth(
+                    'word-count',
+                    store.getTileSpan('word-count') === 1 ? 2 : 1,
+                  )
+                "
+              >
+                <svg
+                  v-if="store.getTileSpan('word-count') === 2"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <rect x="2" y="7" width="7" height="6" rx="1" />
+                  <rect x="11" y="7" width="7" height="6" rx="1" />
+                </svg>
+                <svg
+                  v-else
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <rect x="2" y="7" width="16" height="6" rx="1" />
+                </svg>
+              </button>
+              <button
+                type="button"
                 class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                 title="Hide chart"
                 @click="store.hideTile('word-count')"
@@ -1824,6 +1966,42 @@ async function onMoodJobSucceeded(): Promise<void> {
                       d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
                       clip-rule="evenodd"
                     />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                  :title="
+                    store.getTileSpan('mood-trends') === 1
+                      ? 'Full width'
+                      : 'Half width'
+                  "
+                  data-testid="tile-width-mood-trends"
+                  @click="
+                    store.setTileWidth(
+                      'mood-trends',
+                      store.getTileSpan('mood-trends') === 1 ? 2 : 1,
+                    )
+                  "
+                >
+                  <svg
+                    v-if="store.getTileSpan('mood-trends') === 2"
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <rect x="2" y="7" width="7" height="6" rx="1" />
+                    <rect x="11" y="7" width="7" height="6" rx="1" />
+                  </svg>
+                  <svg
+                    v-else
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <rect x="2" y="7" width="16" height="6" rx="1" />
                   </svg>
                 </button>
                 <button
@@ -2098,6 +2276,42 @@ async function onMoodJobSucceeded(): Promise<void> {
               </button>
               <button
                 type="button"
+                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                :title="
+                  store.getTileSpan('topic-trends') === 1
+                    ? 'Full width'
+                    : 'Half width'
+                "
+                data-testid="tile-width-topic-trends"
+                @click="
+                  store.setTileWidth(
+                    'topic-trends',
+                    store.getTileSpan('topic-trends') === 1 ? 2 : 1,
+                  )
+                "
+              >
+                <svg
+                  v-if="store.getTileSpan('topic-trends') === 2"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <rect x="2" y="7" width="7" height="6" rx="1" />
+                  <rect x="11" y="7" width="7" height="6" rx="1" />
+                </svg>
+                <svg
+                  v-else
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <rect x="2" y="7" width="16" height="6" rx="1" />
+                </svg>
+              </button>
+              <button
+                type="button"
                 class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                 title="Hide chart"
                 @click="store.hideTile('topic-trends')"
@@ -2241,6 +2455,42 @@ async function onMoodJobSucceeded(): Promise<void> {
                     d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
                     clip-rule="evenodd"
                   />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                :title="
+                  store.getTileSpan('mood-entity-correlation') === 1
+                    ? 'Full width'
+                    : 'Half width'
+                "
+                data-testid="tile-width-mood-entity-correlation"
+                @click="
+                  store.setTileWidth(
+                    'mood-entity-correlation',
+                    store.getTileSpan('mood-entity-correlation') === 1 ? 2 : 1,
+                  )
+                "
+              >
+                <svg
+                  v-if="store.getTileSpan('mood-entity-correlation') === 2"
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <rect x="2" y="7" width="7" height="6" rx="1" />
+                  <rect x="11" y="7" width="7" height="6" rx="1" />
+                </svg>
+                <svg
+                  v-else
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <rect x="2" y="7" width="16" height="6" rx="1" />
                 </svg>
               </button>
               <button

@@ -257,7 +257,10 @@ export const DASHBOARD_TILES: readonly DashboardTileDef[] = [
 export const DEFAULT_TILE_ORDER: readonly DashboardTileId[] =
   DASHBOARD_TILES.map((t) => t.id)
 
+export type TileSpan = 1 | 2
+
 export interface DashboardLayout {
   tileOrder: DashboardTileId[]
   hiddenTiles: DashboardTileId[]
+  tileWidths?: Partial<Record<DashboardTileId, TileSpan>>
 }

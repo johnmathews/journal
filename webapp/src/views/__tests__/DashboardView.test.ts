@@ -173,6 +173,7 @@ import {
   fetchMoodEntityCorrelation,
 } from '@/api/dashboard'
 import { fetchEntityDistribution } from '@/api/insights'
+import { useDashboardStore } from '@/stores/dashboard'
 const mockFetch = vi.mocked(fetchWritingStats)
 const mockEntityDist = vi.mocked(fetchEntityDistribution)
 const mockCalendar = vi.mocked(fetchCalendarHeatmap)
@@ -1615,5 +1616,80 @@ describe('DashboardView — tile layout editing', () => {
     expect(
       wrapper.find('[data-testid="dashboard-writing-chart-card"]').exists(),
     ).toBe(false)
+  })
+
+  it('shows width toggle buttons in edit mode', async () => {
+    setupMocks()
+    const wrapper = mountView()
+    await flushPromises()
+
+    // No width buttons before edit mode
+    expect(
+      wrapper.find('[data-testid="tile-width-writing-frequency"]').exists(),
+    ).toBe(false)
+
+    // Enter edit mode
+    await wrapper
+      .find('[data-testid="dashboard-edit-layout-toggle"]')
+      .trigger('click')
+
+    // Width button should now be visible
+    expect(
+      wrapper.find('[data-testid="tile-width-writing-frequency"]').exists(),
+    ).toBe(true)
+  })
+
+  it('clicking width toggle changes tile span', async () => {
+    setupMocks()
+    const wrapper = mountView()
+    await flushPromises()
+
+    const store = useDashboardStore()
+
+    // writing-frequency defaults to span 1 (half width)
+    expect(store.getTileSpan('writing-frequency')).toBe(1)
+
+    // Enter edit mode
+    await wrapper
+      .find('[data-testid="dashboard-edit-layout-toggle"]')
+      .trigger('click')
+
+    // Click width toggle → should set to full width (span 2)
+    await wrapper
+      .find('[data-testid="tile-width-writing-frequency"]')
+      .trigger('click')
+    expect(store.getTileSpan('writing-frequency')).toBe(2)
+
+    // Click again → should toggle back to half width (span 1)
+    await wrapper
+      .find('[data-testid="tile-width-writing-frequency"]')
+      .trigger('click')
+    expect(store.getTileSpan('writing-frequency')).toBe(1)
+  })
+
+  it('width toggle button title reflects the target state', async () => {
+    setupMocks()
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Enter edit mode
+    await wrapper
+      .find('[data-testid="dashboard-edit-layout-toggle"]')
+      .trigger('click')
+
+    // writing-frequency is half-width by default → button should offer "Full width"
+    const btn = wrapper.find('[data-testid="tile-width-writing-frequency"]')
+    expect(btn.attributes('title')).toBe('Full width')
+
+    // Click to expand
+    await btn.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    // Now it's full-width → button should offer "Half width"
+    expect(
+      wrapper
+        .find('[data-testid="tile-width-writing-frequency"]')
+        .attributes('title'),
+    ).toBe('Half width')
   })
 })

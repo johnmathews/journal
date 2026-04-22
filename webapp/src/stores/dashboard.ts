@@ -22,6 +22,7 @@ import type {
   MoodDimension,
   MoodEntityCorrelationItem,
   MoodTrendBin,
+  TileSpan,
   WordCountBucket,
   WordCountStats,
   WritingFrequencyBin,
@@ -498,6 +499,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   // ── Tile layout ────────────────────────────────────────────────
   const tileOrder = ref<DashboardTileId[]>([...DEFAULT_TILE_ORDER])
   const hiddenTiles = ref<DashboardTileId[]>([])
+  const tileWidths = ref<Partial<Record<DashboardTileId, TileSpan>>>({})
   const layoutLoaded = ref(false)
   const editingLayout = ref(false)
 
@@ -521,6 +523,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
       const layout: DashboardLayout = {
         tileOrder: tileOrder.value,
         hiddenTiles: hiddenTiles.value,
+        tileWidths: tileWidths.value,
       }
       updatePreferences({ dashboard_layout: layout }).catch(() => {
         // Silent — layout is still in-memory, will retry on next change.
@@ -546,6 +549,18 @@ export const useDashboardStore = defineStore('dashboard', () => {
         hiddenTiles.value = (layout.hiddenTiles ?? []).filter((id: string) =>
           validIds.has(id as DashboardTileId),
         ) as DashboardTileId[]
+        // Restore tile width overrides, filtering to valid IDs and values
+        const savedWidths = layout.tileWidths ?? {}
+        const restored: Partial<Record<DashboardTileId, TileSpan>> = {}
+        for (const [id, span] of Object.entries(savedWidths)) {
+          if (
+            validIds.has(id as DashboardTileId) &&
+            (span === 1 || span === 2)
+          ) {
+            restored[id as DashboardTileId] = span
+          }
+        }
+        tileWidths.value = restored
       }
     } catch {
       // Preferences endpoint not available or no saved layout — use defaults.
@@ -580,6 +595,21 @@ export const useDashboardStore = defineStore('dashboard', () => {
   function resetLayout(): void {
     tileOrder.value = [...DEFAULT_TILE_ORDER]
     hiddenTiles.value = []
+    tileWidths.value = {}
+    _persistLayout()
+  }
+
+  /** Get the effective span for a tile: user override or definition default. */
+  function getTileSpan(id: DashboardTileId): TileSpan {
+    const override = tileWidths.value[id]
+    if (override !== undefined) return override
+    const def = tileDefs.value.get(id)
+    return def?.span ?? 2
+  }
+
+  /** Set a tile's width override and persist. */
+  function setTileWidth(id: DashboardTileId, span: TileSpan): void {
+    tileWidths.value = { ...tileWidths.value, [id]: span }
     _persistLayout()
   }
 
@@ -700,6 +730,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     // Tile layout surface
     tileOrder,
     hiddenTiles,
+    tileWidths,
     layoutLoaded,
     editingLayout,
     visibleTiles,
@@ -709,6 +740,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
     hideTile,
     showTile,
     resetLayout,
+    getTileSpan,
+    setTileWidth,
     reset,
   }
 })

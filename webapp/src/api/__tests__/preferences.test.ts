@@ -24,7 +24,9 @@ describe('preferences API', () => {
   })
 
   it('updatePreferences calls PATCH /api/users/me/preferences', async () => {
-    const changes = { dashboard_layout: { tileOrder: ['word-count'], hiddenTiles: [] } }
+    const changes = {
+      dashboard_layout: { tileOrder: ['word-count'], hiddenTiles: [] },
+    }
     const payload = { preferences: changes }
     mockApiFetch.mockResolvedValue(payload)
 

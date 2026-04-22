@@ -42,7 +42,7 @@ import {
 } from '@/api/dashboard'
 import { fetchPreferences, updatePreferences } from '@/api/preferences'
 import { ApiRequestError } from '@/api/client'
-import { DEFAULT_TILE_ORDER } from '@/types/dashboard'
+import { DEFAULT_TILE_ORDER, DASHBOARD_TILES } from '@/types/dashboard'
 import type { DashboardTileId } from '@/types/dashboard'
 const mockFetchPreferences = vi.mocked(fetchPreferences)
 const mockUpdatePreferences = vi.mocked(updatePreferences)
@@ -1419,5 +1419,144 @@ describe('useDashboardStore — tile layout', () => {
       expect(store.tileDefs.has(id)).toBe(true)
       expect(store.tileDefs.get(id)!.id).toBe(id)
     }
+  })
+
+  // ── tileWidths / getTileSpan / setTileWidth ────────────────────
+
+  it('tileWidths defaults to empty object', () => {
+    const store = useDashboardStore()
+    expect(store.tileWidths).toEqual({})
+  })
+
+  it('getTileSpan returns the definition default when no override exists', () => {
+    const store = useDashboardStore()
+    for (const tile of DASHBOARD_TILES) {
+      expect(store.getTileSpan(tile.id)).toBe(tile.span)
+    }
+  })
+
+  it('setTileWidth sets an override and getTileSpan returns it', () => {
+    const store = useDashboardStore()
+    // calendar-heatmap defaults to span 1
+    expect(store.getTileSpan('calendar-heatmap')).toBe(1)
+    store.setTileWidth('calendar-heatmap', 2)
+    expect(store.getTileSpan('calendar-heatmap')).toBe(2)
+  })
+
+  it('setTileWidth can shrink a full-width tile to half', () => {
+    const store = useDashboardStore()
+    // topic-trends defaults to span 2
+    expect(store.getTileSpan('topic-trends')).toBe(2)
+    store.setTileWidth('topic-trends', 1)
+    expect(store.getTileSpan('topic-trends')).toBe(1)
+  })
+
+  it('setTileWidth triggers a debounced persist call', () => {
+    mockUpdatePreferences.mockResolvedValue({ preferences: {} })
+    const store = useDashboardStore()
+    store.setTileWidth('calendar-heatmap', 2)
+    expect(mockUpdatePreferences).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(500)
+    expect(mockUpdatePreferences).toHaveBeenCalledTimes(1)
+    expect(mockUpdatePreferences).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dashboard_layout: expect.objectContaining({
+          tileWidths: { 'calendar-heatmap': 2 },
+        }),
+      }),
+    )
+  })
+
+  it('persist includes tileWidths alongside tileOrder and hiddenTiles', () => {
+    mockUpdatePreferences.mockResolvedValue({ preferences: {} })
+    const store = useDashboardStore()
+    store.setTileWidth('word-count', 2)
+    vi.advanceTimersByTime(500)
+    expect(mockUpdatePreferences).toHaveBeenCalledWith({
+      dashboard_layout: {
+        tileOrder: store.tileOrder,
+        hiddenTiles: store.hiddenTiles,
+        tileWidths: { 'word-count': 2 },
+      },
+    })
+  })
+
+  it('resetLayout clears tileWidths', () => {
+    const store = useDashboardStore()
+    store.setTileWidth('calendar-heatmap', 2)
+    store.setTileWidth('topic-trends', 1)
+    expect(Object.keys(store.tileWidths).length).toBe(2)
+
+    store.resetLayout()
+    expect(store.tileWidths).toEqual({})
+  })
+
+  it('store.reset() does NOT reset tileWidths', () => {
+    const store = useDashboardStore()
+    store.setTileWidth('calendar-heatmap', 2)
+    const widthsBefore = { ...store.tileWidths }
+
+    store.reset()
+    expect(store.tileWidths).toEqual(widthsBefore)
+  })
+
+  it('loadLayout restores saved tileWidths', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        dashboard_layout: {
+          tileOrder: [...DEFAULT_TILE_ORDER],
+          hiddenTiles: [],
+          tileWidths: { 'calendar-heatmap': 2, 'topic-trends': 1 },
+        },
+      },
+    })
+
+    const store = useDashboardStore()
+    await store.loadLayout()
+
+    expect(store.tileWidths).toEqual({
+      'calendar-heatmap': 2,
+      'topic-trends': 1,
+    })
+    expect(store.getTileSpan('calendar-heatmap')).toBe(2)
+    expect(store.getTileSpan('topic-trends')).toBe(1)
+  })
+
+  it('loadLayout ignores invalid tileWidths entries', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        dashboard_layout: {
+          tileOrder: [...DEFAULT_TILE_ORDER],
+          hiddenTiles: [],
+          tileWidths: {
+            'calendar-heatmap': 2,
+            'bogus-tile': 1,
+            'word-count': 3,
+          },
+        },
+      },
+    })
+
+    const store = useDashboardStore()
+    await store.loadLayout()
+
+    // Only valid ID + valid span kept
+    expect(store.tileWidths).toEqual({ 'calendar-heatmap': 2 })
+  })
+
+  it('loadLayout handles missing tileWidths gracefully', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        dashboard_layout: {
+          tileOrder: [...DEFAULT_TILE_ORDER],
+          hiddenTiles: [],
+        },
+      },
+    })
+
+    const store = useDashboardStore()
+    await store.loadLayout()
+
+    expect(store.tileWidths).toEqual({})
   })
 })
