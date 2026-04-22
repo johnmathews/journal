@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useElementSize } from '@vueuse/core'
 import { useRouter } from 'vue-router'
 import { Chart } from 'chart.js'
 import { useDashboardStore, rangeToDates } from '@/stores/dashboard'
@@ -60,6 +61,16 @@ function rangeLabel(r: DashboardRange): string {
 function binLabel(b: DashboardBin): string {
   return b.charAt(0).toUpperCase() + b.slice(1)
 }
+
+/** Human-readable range phrase for chart descriptions, e.g. "over the last 6 months". */
+const rangePhrase = computed<string>(() => {
+  const r = store.range
+  if (r === 'last_1_month') return 'over the last month'
+  if (r === 'last_3_months') return 'over the last 3 months'
+  if (r === 'last_6_months') return 'over the last 6 months'
+  if (r === 'last_1_year') return 'over the last year'
+  return 'across all time'
+})
 
 function entityTypeLabel(t: InsightsEntityType): string {
   const labels: Record<InsightsEntityType, string> = {
@@ -471,6 +482,71 @@ function renderEntityChart(): void {
 
 // --- Calendar heatmap computed ---
 
+const calendarContainerRef = ref<HTMLElement | null>(null)
+const { width: calendarContainerWidth } = useElementSize(calendarContainerRef)
+
+/** Pixel constants for the heatmap grid layout. */
+const HEATMAP_CELL_SIZE = 18
+const HEATMAP_GAP = 3
+const HEATMAP_COL_WIDTH = HEATMAP_CELL_SIZE + HEATMAP_GAP // 21px
+const HEATMAP_DAY_LABEL_WIDTH = 32 // left-side day-of-week labels
+
+/**
+ * The date range the calendar heatmap should display and fetch.
+ * Expands backward from today to fill the available tile width,
+ * with the selected range as a minimum bound.
+ */
+const heatmapDateRange = computed<{ from: string | null; to: string | null }>(
+  () => {
+    const now = new Date()
+    const to = now.toISOString().slice(0, 10)
+    const { from: rangeFrom } = rangeToDates(store.range)
+
+    const cw = calendarContainerWidth.value
+    if (cw <= 0) {
+      // Container not measured yet — use the selected range as fallback
+      return { from: rangeFrom, to: rangeFrom ? to : null }
+    }
+
+    const maxWeeks = Math.floor(
+      (cw - HEATMAP_DAY_LABEL_WIDTH) / HEATMAP_COL_WIDTH,
+    )
+    const expandedStart = new Date(now)
+    expandedStart.setDate(expandedStart.getDate() - maxWeeks * 7)
+
+    // For "all time" or when the expanded range already covers the
+    // selected range, use the expanded start. Otherwise use whichever
+    // goes further back.
+    let finalStart = expandedStart
+    if (rangeFrom) {
+      const rangeStart = new Date(rangeFrom + 'T00:00:00')
+      if (rangeStart < expandedStart) finalStart = rangeStart
+    }
+
+    return { from: finalStart.toISOString().slice(0, 10), to }
+  },
+)
+
+/** Human-readable span of the visible heatmap, e.g. "14 months". */
+const heatmapSpanLabel = computed<string>(() => {
+  const { from, to } = heatmapDateRange.value
+  if (!from || !to) return ''
+  const ms =
+    new Date(to + 'T00:00:00').getTime() -
+    new Date(from + 'T00:00:00').getTime()
+  const days = Math.round(ms / (24 * 60 * 60 * 1000))
+  if (days >= 365 * 2) {
+    const y = Math.round(days / 365)
+    return `${y} years`
+  }
+  if (days >= 60) {
+    const m = Math.round(days / 30.44)
+    return `${m} months`
+  }
+  const w = Math.max(1, Math.round(days / 7))
+  return w === 1 ? '1 week' : `${w} weeks`
+})
+
 interface HeatmapCell {
   date: string
   entry_count: number
@@ -499,16 +575,15 @@ const calendarGrid = computed(() => {
     lookup.set(d.date, d)
   }
 
-  // Use the selected range for grid boundaries so the chart always
-  // spans the full period (e.g. 3 full months for "Last 3 months"),
-  // falling back to data bounds for "All time" or when range is null.
-  const { from: rangeFrom, to: rangeTo } = rangeToDates(store.range)
+  // Use heatmapDateRange for grid boundaries — it already accounts
+  // for container width expansion and selected-range minimum.
+  const { from: heatFrom, to: heatTo } = heatmapDateRange.value
   const sortedDates = days.map((d) => d.date).sort()
-  const startDate = rangeFrom
-    ? new Date(rangeFrom + 'T00:00:00')
+  const startDate = heatFrom
+    ? new Date(heatFrom + 'T00:00:00')
     : new Date(sortedDates[0] + 'T00:00:00')
-  const endDate = rangeTo
-    ? new Date(rangeTo + 'T00:00:00')
+  const endDate = heatTo
+    ? new Date(heatTo + 'T00:00:00')
     : new Date(sortedDates[sortedDates.length - 1] + 'T00:00:00')
 
   // Align start to the Monday of its week
@@ -897,9 +972,10 @@ onMounted(async () => {
   ])
   renderWritingChart()
   renderWordChart()
+  const { from: heatFrom, to: heatTo } = heatmapDateRange.value
   const promises: Promise<void>[] = [
     store.loadEntityDistribution(),
-    store.loadCalendarHeatmap(),
+    store.loadCalendarHeatmap({ from: heatFrom, to: heatTo }),
     store.loadEntityTrends(),
   ]
   if (store.moodScoringEnabled) {
@@ -928,6 +1004,16 @@ onBeforeUnmount(() => {
   moodCorrelationChart = null
 })
 
+// Re-fetch calendar data when the visible date range changes (range
+// selector change or container resize crossing a 21px boundary).
+watch(
+  () => `${heatmapDateRange.value.from}|${heatmapDateRange.value.to}`,
+  () => {
+    const { from, to } = heatmapDateRange.value
+    store.loadCalendarHeatmap({ from, to })
+  },
+)
+
 // --- Event handlers ---
 
 async function onRangeChange(r: DashboardRange): Promise<void> {
@@ -935,7 +1021,6 @@ async function onRangeChange(r: DashboardRange): Promise<void> {
   const promises: Promise<void>[] = [
     store.loadWritingStats({ range: r }),
     store.loadEntityDistribution(),
-    store.loadCalendarHeatmap(),
     store.loadEntityTrends(),
   ]
   if (store.moodScoringEnabled) {
@@ -1174,6 +1259,7 @@ async function onMoodJobSucceeded(): Promise<void> {
         <!-- Calendar Heatmap -->
         <section
           v-if="isTileVisible('calendar-heatmap')"
+          ref="calendarContainerRef"
           :style="{
             order: tileOrder('calendar-heatmap'),
             gridColumn: tileSpan('calendar-heatmap'),
@@ -1189,7 +1275,9 @@ async function onMoodJobSucceeded(): Promise<void> {
                 Writing Consistency
               </h2>
               <p class="text-xs text-gray-500 dark:text-gray-400">
-                Words written per day in the selected range.
+                Daily word count{{
+                  heatmapSpanLabel ? ` over the last ${heatmapSpanLabel}` : ''
+                }}.
               </p>
             </div>
             <div
@@ -1321,7 +1409,7 @@ async function onMoodJobSucceeded(): Promise<void> {
 
           <div
             v-else
-            class="overflow-x-auto"
+            class="overflow-hidden"
             data-testid="dashboard-calendar-content"
           >
             <!-- Month labels -->
@@ -1444,7 +1532,7 @@ async function onMoodJobSucceeded(): Promise<void> {
                 What I Write About
               </h2>
               <p class="text-xs text-gray-500 dark:text-gray-400">
-                Entity mention frequency by type in the selected range.
+                Entity mention frequency by type {{ rangePhrase }}.
               </p>
             </div>
             <div
@@ -1668,7 +1756,7 @@ async function onMoodJobSucceeded(): Promise<void> {
                 Writing frequency
               </h2>
               <p class="text-xs text-gray-500 dark:text-gray-400">
-                Entries per {{ store.bin }}
+                Entries per {{ store.bin }} {{ rangePhrase }}.
               </p>
             </div>
             <div
@@ -1796,7 +1884,7 @@ async function onMoodJobSucceeded(): Promise<void> {
                 Word count
               </h2>
               <p class="text-xs text-gray-500 dark:text-gray-400">
-                Total words per {{ store.bin }}
+                Total words per {{ store.bin }} {{ rangePhrase }}.
               </p>
             </div>
             <div
@@ -1924,8 +2012,9 @@ async function onMoodJobSucceeded(): Promise<void> {
                 Mood Trends
               </h2>
               <p class="text-xs text-gray-500 dark:text-gray-400">
-                Average score per {{ store.bin }} with min/max variance bands.
-                Click a data point to see contributing entries.
+                Average score per {{ store.bin }} {{ rangePhrase }}, with
+                min/max variance bands. Click a data point to see contributing
+                entries.
               </p>
             </div>
             <div class="flex items-center gap-2">
@@ -2229,7 +2318,7 @@ async function onMoodJobSucceeded(): Promise<void> {
                 Topic Trends
               </h2>
               <p class="text-xs text-gray-500 dark:text-gray-400">
-                Entity mentions over time, grouped per {{ store.bin }}.
+                Entity mentions {{ rangePhrase }}, grouped per {{ store.bin }}.
               </p>
             </div>
             <div
@@ -2411,8 +2500,8 @@ async function onMoodJobSucceeded(): Promise<void> {
                 Mood by Entity
               </h2>
               <p class="text-xs text-gray-500 dark:text-gray-400">
-                Average mood score per entity. Dashed line shows overall
-                average.
+                Average mood score per entity {{ rangePhrase }}. Dashed line
+                shows overall average.
               </p>
             </div>
             <div

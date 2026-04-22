@@ -342,14 +342,16 @@ export const useDashboardStore = defineStore('dashboard', () => {
     drillError.value = null
   }
 
-  async function loadCalendarHeatmap(): Promise<void> {
+  async function loadCalendarHeatmap(opts?: {
+    from?: string | null
+    to?: string | null
+  }): Promise<void> {
     calendarLoading.value = true
     calendarError.value = null
     try {
-      const { from, to } = rangeToDates(range.value)
       const response = await fetchCalendarHeatmap({
-        from: from ?? undefined,
-        to: to ?? undefined,
+        from: opts?.from ?? undefined,
+        to: opts?.to ?? undefined,
       })
       calendarDays.value = response.days
       calendarHasLoaded.value = true
