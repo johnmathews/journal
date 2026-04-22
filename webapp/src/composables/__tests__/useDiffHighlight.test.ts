@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { ref, nextTick } from 'vue'
+import DiffMatchPatch from 'diff-match-patch'
 import {
   applyUncertainOverlay,
   diffToSegments,
   mapUncertainToCorrected,
+  mapSpansViaDiff,
   segmentsToHtml,
   useDiffHighlight,
   type HighlightSegment,
@@ -547,5 +549,93 @@ describe('mapUncertainToCorrected', () => {
       [{ char_start: 4, char_end: 8 }], // "word"
     )
     expect(spans.length).toBe(3)
+  })
+})
+
+describe('mapSpansViaDiff', () => {
+  function makeDiffs(original: string, corrected: string) {
+    const dmp = new DiffMatchPatch()
+    const diffs = dmp.diff_main(original, corrected)
+    dmp.diff_cleanupSemantic(diffs)
+    return diffs
+  }
+
+  it('maps spans 1:1 when texts are identical', () => {
+    const text = 'hello Ritsya goodbye'
+    const diffs = makeDiffs(text, text)
+    const spans = mapSpansViaDiff(diffs, [{ char_start: 6, char_end: 12 }])
+    expect(spans).toEqual([{ char_start: 6, char_end: 12 }])
+  })
+
+  it('does NOT produce false positives on repeated words', () => {
+    // "word" at position 4 is uncertain. The corrected text has "word"
+    // appearing 3 times, but only the one at position 4 should be mapped.
+    const original = 'the word appears once'
+    const corrected = 'the word word appears word'
+    const diffs = makeDiffs(original, corrected)
+    const spans = mapSpansViaDiff(diffs, [{ char_start: 4, char_end: 8 }])
+    // Should map to exactly 1 span — the "word" at position 4 in corrected
+    expect(spans).toHaveLength(1)
+    expect(corrected.slice(spans[0].char_start, spans[0].char_end)).toBe('word')
+  })
+
+  it('maps partially-corrected span to the surviving portion', () => {
+    const original = 'hello Ritsya goodbye'
+    const corrected = 'hello Ritsa goodbye'
+    const diffs = makeDiffs(original, corrected)
+    const spans = mapSpansViaDiff(diffs, [{ char_start: 6, char_end: 12 }])
+    // "Ritsya" → "Ritsa": the common prefix "Rits" is EQUAL, so the mapped
+    // span covers "Ritsa" — the user sees the uncertain region even after
+    // partial correction.
+    expect(spans).toHaveLength(1)
+    expect(corrected.slice(spans[0].char_start, spans[0].char_end)).toBe(
+      'Ritsa',
+    )
+  })
+
+  it('maps completely replaced span to the replacement region', () => {
+    const original = 'hello Ritsya goodbye'
+    const corrected = 'hello Jones goodbye'
+    const diffs = makeDiffs(original, corrected)
+    const spans = mapSpansViaDiff(diffs, [{ char_start: 6, char_end: 12 }])
+    // "Ritsya" → "Jones": the DELETE collapses start to position 6,
+    // end maps through the next EQUAL to position 11. The mapped span
+    // covers "Jones" — useful during review to show the replacement.
+    expect(spans).toHaveLength(1)
+    expect(corrected.slice(spans[0].char_start, spans[0].char_end)).toBe(
+      'Jones',
+    )
+  })
+
+  it('drops spans when text is deleted without replacement', () => {
+    const original = 'hello Ritsya goodbye'
+    const corrected = 'hello  goodbye'
+    const diffs = makeDiffs(original, corrected)
+    const spans = mapSpansViaDiff(diffs, [{ char_start: 6, char_end: 12 }])
+    // "Ritsya" deleted with no replacement — span collapses to zero width
+    expect(spans).toEqual([])
+  })
+
+  it('adjusts span positions when earlier text was edited', () => {
+    // "XX" inserted before the uncertain span shifts it right by 2
+    const original = 'aaa bbb ccc'
+    const corrected = 'aaaXX bbb ccc'
+    const diffs = makeDiffs(original, corrected)
+    const spans = mapSpansViaDiff(diffs, [{ char_start: 4, char_end: 7 }]) // "bbb"
+    expect(spans).toHaveLength(1)
+    expect(corrected.slice(spans[0].char_start, spans[0].char_end)).toBe('bbb')
+  })
+
+  it('returns empty for empty inputs', () => {
+    const diffs = makeDiffs('', 'hello')
+    expect(mapSpansViaDiff(diffs, [])).toEqual([])
+  })
+
+  it('handles span at end of text', () => {
+    const original = 'start end'
+    const corrected = 'start end'
+    const diffs = makeDiffs(original, corrected)
+    const spans = mapSpansViaDiff(diffs, [{ char_start: 6, char_end: 9 }]) // "end"
+    expect(spans).toEqual([{ char_start: 6, char_end: 9 }])
   })
 })

@@ -191,6 +191,10 @@ export function applyUncertainOverlay(
  * corrected that region, the regex won't match — which is correct (it's
  * been fixed). For short spans (< 3 chars), surrounding context is included
  * in the pattern to avoid false positives.
+ *
+ * @deprecated Use {@link mapSpansViaDiff} instead — it uses the diff
+ * alignment for positionally-accurate mapping without false positives
+ * on repeated words.
  */
 export function mapUncertainToCorrected(
   rawText: string,
@@ -250,6 +254,93 @@ export function mapUncertainToCorrected(
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Map uncertain spans from original-text coordinates to corrected-text
+ * coordinates using the diff alignment. Each original character position
+ * is mapped through the diff's EQUAL/DELETE/INSERT operations to its
+ * corresponding corrected-text position.
+ *
+ * - EQUAL regions: 1:1 positional mapping (offset adjusted for prior
+ *   insertions/deletions).
+ * - DELETE regions: original characters collapse to the corrected
+ *   position where the deletion occurred — a span covering only
+ *   deleted text maps to zero width and is dropped.
+ * - INSERT regions: no original characters; only the corrected-side
+ *   cursor advances.
+ *
+ * This avoids the false-positive problem of regex-based matching where
+ * common words/phrases would be highlighted at every occurrence in the
+ * corrected text rather than just at the position corresponding to the
+ * original uncertain span.
+ */
+export function mapSpansViaDiff(
+  diffs: Diff[],
+  spans: UncertainSpan[],
+): UncertainSpan[] {
+  if (spans.length === 0) return []
+
+  // Build a list of original-side ranges with their corrected-side start
+  // offsets. INSERT segments don't consume original positions, so they
+  // only advance corrPos and don't produce an entry.
+  const ranges: Array<{
+    origStart: number
+    origEnd: number
+    corrStart: number
+    isEqual: boolean
+  }> = []
+  let origPos = 0
+  let corrPos = 0
+
+  for (const [op, text] of diffs) {
+    if (op === 0) {
+      ranges.push({
+        origStart: origPos,
+        origEnd: origPos + text.length,
+        corrStart: corrPos,
+        isEqual: true,
+      })
+      origPos += text.length
+      corrPos += text.length
+    } else if (op === -1) {
+      ranges.push({
+        origStart: origPos,
+        origEnd: origPos + text.length,
+        corrStart: corrPos,
+        isEqual: false,
+      })
+      origPos += text.length
+    } else {
+      // INSERT: only corrected-side cursor advances
+      corrPos += text.length
+    }
+  }
+
+  // Sentinel so lookups at the very end of text resolve correctly
+  const totalCorrLen = corrPos
+
+  function mapOffset(offset: number): number {
+    for (const r of ranges) {
+      if (offset < r.origEnd) {
+        return r.isEqual
+          ? r.corrStart + (offset - r.origStart)
+          : r.corrStart // DELETE: collapses to a point
+      }
+      if (offset === r.origEnd && offset === r.origStart) continue
+    }
+    return totalCorrLen
+  }
+
+  const result: UncertainSpan[] = []
+  for (const span of spans) {
+    const start = mapOffset(span.char_start)
+    const end = mapOffset(span.char_end)
+    if (start < end) {
+      result.push({ char_start: start, char_end: end })
+    }
+  }
+  return result
 }
 
 /**
@@ -327,13 +418,9 @@ export function diffToSegments(
     }
   }
 
-  // Map uncertain spans to corrected text positions via regex matching.
-  // Spans that the user already corrected won't match — expected.
-  const correctedSpans = mapUncertainToCorrected(
-    safeOriginal,
-    safeCorrected,
-    uncertainSpans,
-  )
+  // Map uncertain spans to corrected text positions using the diff
+  // alignment — positionally accurate, no false positives on repeated words.
+  const correctedSpans = mapSpansViaDiff(diffs, uncertainSpans)
 
   return {
     originalSegments: applyUncertainOverlay(originalSegments, uncertainSpans),
@@ -393,11 +480,11 @@ export function useDiffHighlight(
         [{ kind: 'equal' as const, text: originalText }],
         spans,
       )
-      const correctedSpans = mapUncertainToCorrected(
-        originalText,
-        correctedText,
-        spans,
-      )
+      // Compute diff just for positional mapping of uncertain spans
+      const dmp = new DiffMatchPatch()
+      const diffs = dmp.diff_main(originalText, correctedText)
+      dmp.diff_cleanupSemantic(diffs)
+      const correctedSpans = mapSpansViaDiff(diffs, spans)
       const correctedSegments = applyUncertainOverlay(
         [{ kind: 'equal' as const, text: correctedText }],
         correctedSpans,
