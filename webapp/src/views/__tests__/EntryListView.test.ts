@@ -494,12 +494,106 @@ describe('Column visibility', () => {
     expect(localStorage.getItem('journal-entry-columns')).toBeNull()
   })
 
+  it('handles corrupted localStorage gracefully', async () => {
+    localStorage.setItem('journal-entry-columns', 'not valid json')
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    // Should fall back to defaults — all default-visible columns shown
+    expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="sort-date"]').exists()).toBe(true)
+  })
+
+  it('loads saved visibility from localStorage on mount', async () => {
+    localStorage.setItem(
+      'journal-entry-columns',
+      JSON.stringify({
+        entry_date: true,
+        source_type: false,
+        created_at: true,
+        uncertain_span_count: true,
+        word_count: true,
+        page_count: true,
+        chunk_count: true,
+      }),
+    )
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    // Source hidden, chunks shown (overridden from default)
+    expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="sort-chunks"]').exists()).toBe(true)
+  })
+
   it('chunks column is hidden by default', async () => {
     const wrapper = mountComponent()
     await new Promise((r) => setTimeout(r, 50))
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('[data-testid="sort-chunks"]').exists()).toBe(false)
+  })
+})
+
+describe('Source type label mapping', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia())
+    localStorage.removeItem('journal-entry-columns')
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          entry_date: '2026-03-22',
+          source_type: 'text_entry',
+          page_count: 0,
+          word_count: 100,
+          chunk_count: 1,
+          created_at: '2026-03-23T10:30:00Z',
+          uncertain_span_count: 0,
+          doubts_verified: false,
+        },
+        {
+          id: 2,
+          entry_date: '2026-03-21',
+          source_type: 'imported_text_file',
+          page_count: 0,
+          word_count: 200,
+          chunk_count: 2,
+          created_at: '2026-03-21T15:00:00Z',
+          uncertain_span_count: 0,
+          doubts_verified: false,
+        },
+        {
+          id: 3,
+          entry_date: '2026-03-20',
+          source_type: 'imported_audio_file',
+          page_count: 0,
+          word_count: 150,
+          chunk_count: 1,
+          created_at: '2026-03-20T12:00:00Z',
+          uncertain_span_count: 0,
+          doubts_verified: false,
+        },
+      ],
+      total: 3,
+      limit: 20,
+      offset: 0,
+    })
+  })
+
+  it('maps all source types to readable labels', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    const cells = wrapper.findAll('[data-testid="source-cell"]')
+    expect(cells.length).toBe(3)
+    // Date desc: id=1 first, id=2 second, id=3 third
+    expect(cells[0].text()).toBe('Text')
+    expect(cells[1].text()).toBe('File')
+    expect(cells[2].text()).toBe('Audio (file)')
   })
 })
 

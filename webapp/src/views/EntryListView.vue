@@ -99,15 +99,10 @@ function resetColumns() {
 
 // Close column menu on outside click
 function onDocumentClick(e: MouseEvent) {
-  const btn = document.querySelector('[data-testid="columns-button"]')
-  const menu = document.querySelector('[data-testid="columns-menu"]')
-  if (
-    showColumnMenu.value &&
-    btn &&
-    !btn.contains(e.target as Node) &&
-    menu &&
-    !menu.contains(e.target as Node)
-  ) {
+  if (!showColumnMenu.value) return
+  const target = e.target as Node
+  const container = document.querySelector('[data-testid="columns-button"]')?.parentElement
+  if (container && !container.contains(target)) {
     showColumnMenu.value = false
   }
 }

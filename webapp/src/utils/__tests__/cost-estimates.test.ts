@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   ocrCostPerPage,
+  ocrCostPer1000Words,
   transcriptionCostPerMinute,
+  audioCostPer1000Words,
   chunkingCostPerEntry,
   moodScoringCostPerEntry,
   entityExtractionCostPerEntry,
@@ -82,6 +84,59 @@ describe('cost-estimates', () => {
       expect(
         entityExtractionCostPerEntry('claude-opus-4-6', 'unknown'),
       ).toBeNull()
+    })
+  })
+
+  describe('ocrCostPer1000Words', () => {
+    it('scales page cost by words-per-page factor', () => {
+      const perPage = ocrCostPerPage('gemini-2.5-pro')!
+      const per1k = ocrCostPer1000Words('gemini-2.5-pro')!
+      // 1000 / 300 words per page ≈ 3.333 pages
+      expect(per1k).toBeCloseTo(perPage * (1000 / 300), 4)
+    })
+
+    it('returns null for unknown model', () => {
+      expect(ocrCostPer1000Words('unknown')).toBeNull()
+    })
+  })
+
+  describe('audioCostPer1000Words', () => {
+    it('computes transcription-only cost without formatting', () => {
+      const cost = audioCostPer1000Words('gpt-4o-transcribe', false, null)!
+      // 1000/150 minutes * $0.006/min ≈ $0.04
+      expect(cost).toBeCloseTo(0.04, 2)
+    })
+
+    it('adds formatting cost when enabled', () => {
+      const withoutFormatting = audioCostPer1000Words(
+        'gpt-4o-transcribe',
+        false,
+        null,
+      )!
+      const withFormatting = audioCostPer1000Words(
+        'gpt-4o-transcribe',
+        true,
+        'claude-haiku-4-5',
+      )!
+      expect(withFormatting).toBeGreaterThan(withoutFormatting)
+    })
+
+    it('returns transcription-only cost when formatting model is unknown', () => {
+      const cost = audioCostPer1000Words(
+        'gpt-4o-transcribe',
+        true,
+        'unknown-model',
+      )!
+      const baseOnly = audioCostPer1000Words(
+        'gpt-4o-transcribe',
+        false,
+        null,
+      )!
+      expect(cost).toBeCloseTo(baseOnly, 4)
+    })
+
+    it('returns null for unknown transcription model', () => {
+      expect(audioCostPer1000Words('unknown', false, null)).toBeNull()
     })
   })
 
