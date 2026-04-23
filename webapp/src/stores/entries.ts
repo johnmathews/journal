@@ -80,6 +80,7 @@ export const useEntriesStore = defineStore('entries', () => {
   ): Promise<{
     extractionJobId?: string
     reprocessJobId?: string
+    moodJobId?: string
   }> {
     loading.value = true
     error.value = null
@@ -89,6 +90,7 @@ export const useEntriesStore = defineStore('entries', () => {
       return {
         extractionJobId: resp.entity_extraction_job_id,
         reprocessJobId: resp.reprocess_job_id,
+        moodJobId: resp.mood_job_id,
       }
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to save entry'

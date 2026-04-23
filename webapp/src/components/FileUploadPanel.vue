@@ -169,10 +169,17 @@ async function submitImages() {
     )
     jobId.value = result.job_id
     emit('submitted', result.job_id)
-    jobsStore.trackJob(result.job_id, 'ingest_images', {
-      entry_date: props.entryDate,
-      page_count: imageFiles.value.length,
-    })
+    const groupId = crypto.randomUUID()
+    jobsStore.createGroup(groupId, 'Entry created — all processing complete')
+    jobsStore.trackJob(
+      result.job_id,
+      'ingest_images',
+      {
+        entry_date: props.entryDate,
+        page_count: imageFiles.value.length,
+      },
+      groupId,
+    )
   } catch {
     submitError.value = entriesStore.createError || 'Failed to upload images'
   }
@@ -181,6 +188,23 @@ async function submitImages() {
 async function submitText() {
   if (!textFile.value) return
   const result = await entriesStore.importFile(textFile.value, props.entryDate)
+  // Track background jobs in a group for batched notifications
+  const hasJobs = result.mood_job_id || result.entity_extraction_job_id
+  if (hasJobs) {
+    const groupId = crypto.randomUUID()
+    jobsStore.createGroup(groupId, 'Entry created — all processing complete')
+    if (result.mood_job_id) {
+      jobsStore.trackJob(result.mood_job_id, 'mood_score_entry', {}, groupId)
+    }
+    if (result.entity_extraction_job_id) {
+      jobsStore.trackJob(
+        result.entity_extraction_job_id,
+        'entity_extraction',
+        {},
+        groupId,
+      )
+    }
+  }
   emit('created', result.entry.id)
 }
 

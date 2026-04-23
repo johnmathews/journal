@@ -19,22 +19,61 @@ const recentlyCompleted = ref<Map<string, ReturnType<typeof setTimeout>>>(
   new Map(),
 )
 
+function startDismissTimer(id: string) {
+  if (recentlyCompleted.value.has(id)) return
+  const timer = setTimeout(() => {
+    recentlyCompleted.value.delete(id)
+    jobsStore.clearJob(id)
+  }, 8000)
+  recentlyCompleted.value.set(id, timer)
+}
+
+// Track which groups have already fired their summary toast so we
+// don't re-fire when later jobs in the same group are processed.
+const firedGroups = new Set<string>()
+
 function onJobComplete(jobId: string) {
   const job = jobsStore.jobs[jobId]
-  if (job) {
+  if (!job) return
+
+  const groupId = jobsStore.getGroupId(jobId)
+
+  if (groupId) {
+    // --- Grouped job ---
+    // Failures surface immediately so the user can act on them.
+    if (job.status === 'failed') {
+      toast.error(
+        `${jobLabel(job.type)} failed: ${job.error_message || 'unknown error'}`,
+      )
+    }
+
+    // Check whether every job in the group is now terminal.
+    if (jobsStore.isGroupComplete(groupId) && !firedGroups.has(groupId)) {
+      firedGroups.add(groupId)
+      if (jobsStore.isGroupAllSucceeded(groupId)) {
+        const group = jobsStore.getGroup(groupId)
+        toast.success(group?.label ?? 'All jobs completed')
+      }
+      // Start dismiss timers for every job in the group.
+      const group = jobsStore.getGroup(groupId)
+      if (group) {
+        for (const id of group.jobIds) {
+          startDismissTimer(id)
+        }
+      }
+    }
+    // If the group isn't complete yet, don't dismiss — the jobs stay
+    // visible in the dropdown until the whole group finishes.
+  } else {
+    // --- Ungrouped job (legacy / batch-modal behaviour) ---
     const label = jobLabel(job.type)
     if (job.status === 'succeeded') {
       toast.success(`${label} completed successfully`)
     } else if (job.status === 'failed') {
       toast.error(`${label} failed: ${job.error_message || 'unknown error'}`)
     }
+    startDismissTimer(jobId)
   }
-
-  const timer = setTimeout(() => {
-    recentlyCompleted.value.delete(jobId)
-    jobsStore.clearJob(jobId)
-  }, 8000)
-  recentlyCompleted.value.set(jobId, timer)
 }
 
 // Watch all jobs for terminal transitions
@@ -76,6 +115,8 @@ function jobLabel(type: JobType): string {
       return 'Mood backfill'
     case 'ingest_images':
       return 'Image ingestion'
+    case 'ingest_audio':
+      return 'Audio ingestion'
     case 'mood_score_entry':
       return 'Mood scoring'
     case 'reprocess_embeddings':

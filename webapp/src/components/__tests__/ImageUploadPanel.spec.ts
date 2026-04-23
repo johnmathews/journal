@@ -322,10 +322,12 @@ describe('ImageUploadPanel', () => {
     await uploadBtn!.trigger('click')
     await flushPromises()
 
-    expect(trackSpy).toHaveBeenCalledWith('job-track', 'ingest_images', {
-      entry_date: '2026-04-12',
-      page_count: 1,
-    })
+    expect(trackSpy).toHaveBeenCalledWith(
+      'job-track',
+      'ingest_images',
+      { entry_date: '2026-04-12', page_count: 1 },
+      expect.any(String), // groupId
+    )
   })
 
   it('resets form when OK button is clicked', async () => {

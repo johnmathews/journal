@@ -79,11 +79,18 @@ async function submit() {
     const result = await entriesStore.uploadImages(files.value, props.entryDate)
     jobId.value = result.job_id
     emit('submitted', result.job_id)
-    // Register with the jobs store — it handles polling and notifications
-    jobsStore.trackJob(result.job_id, 'ingest_images', {
-      entry_date: props.entryDate,
-      page_count: files.value.length,
-    })
+    // Group the ingestion job so follow-up jobs are batched into one notification
+    const groupId = crypto.randomUUID()
+    jobsStore.createGroup(groupId, 'Entry created — all processing complete')
+    jobsStore.trackJob(
+      result.job_id,
+      'ingest_images',
+      {
+        entry_date: props.entryDate,
+        page_count: files.value.length,
+      },
+      groupId,
+    )
   } catch {
     submitError.value = entriesStore.createError || 'Failed to upload images'
   }

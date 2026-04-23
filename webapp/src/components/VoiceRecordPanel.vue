@@ -154,10 +154,20 @@ async function submit() {
     const result = await entriesStore.uploadAudio(blobs, props.entryDate)
     jobId.value = result.job_id
     emit('submitted', result.job_id)
-    jobsStore.trackJob(result.job_id, 'ingest_audio', {
-      entry_date: props.entryDate,
-      recording_count: recordings.value.length,
-    })
+    // Group the ingestion job so that follow-up jobs (mood scoring,
+    // entity extraction) discovered when it completes are batched
+    // into a single notification.
+    const groupId = crypto.randomUUID()
+    jobsStore.createGroup(groupId, 'Entry created — all processing complete')
+    jobsStore.trackJob(
+      result.job_id,
+      'ingest_audio',
+      {
+        entry_date: props.entryDate,
+        recording_count: recordings.value.length,
+      },
+      groupId,
+    )
   } catch {
     submitError.value =
       entriesStore.createError || 'Failed to upload recordings'

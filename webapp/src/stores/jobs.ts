@@ -50,6 +50,17 @@ function makePlaceholder(
   }
 }
 
+/** Maps server-side follow-up key names to frontend JobType values. */
+const FOLLOW_UP_TYPE_MAP: Record<string, JobType> = {
+  mood_scoring: 'mood_score_entry',
+  entity_extraction: 'entity_extraction',
+}
+
+export interface JobGroupInfo {
+  label: string
+  jobIds: Set<string>
+}
+
 export const useJobsStore = defineStore('jobs', () => {
   // Reactive map of job id -> Job. A plain object keyed by id keeps the
   // reactivity simple: Vue/Pinia track property adds and deletes on a
@@ -68,6 +79,13 @@ export const useJobsStore = defineStore('jobs', () => {
   const pollTimers = new Map<string, ReturnType<typeof setTimeout>>()
   const inFlight = new Set<string>()
   const errorCounts = new Map<string, number>()
+
+  // --- Job grouping ---
+  // Groups batch related jobs (e.g. ingestion + mood scoring + entity
+  // extraction) so the notification UI can show one summary toast
+  // instead of one per job.
+  const jobToGroup = new Map<string, string>()
+  const groupInfo = new Map<string, JobGroupInfo>()
 
   // --- Getters ---
 
@@ -104,10 +122,21 @@ export const useJobsStore = defineStore('jobs', () => {
   /**
    * Remove a job from the store entirely. Cancels any in-flight poll
    * so we don't keep touching state after the component has discarded
-   * it.
+   * it. Also cleans up group membership.
    */
   function clearJob(jobId: string) {
     stopPolling(jobId)
+    const gId = jobToGroup.get(jobId)
+    if (gId) {
+      jobToGroup.delete(jobId)
+      const group = groupInfo.get(gId)
+      if (group) {
+        group.jobIds.delete(jobId)
+        if (group.jobIds.size === 0) {
+          groupInfo.delete(gId)
+        }
+      }
+    }
     delete jobs.value[jobId]
   }
 
@@ -161,6 +190,23 @@ export const useJobsStore = defineStore('jobs', () => {
         // Natural termination: no further scheduling, clean up bookkeeping.
         inFlight.delete(jobId)
         stopPolling(jobId)
+
+        // If this job is in a group and the server returned follow-up
+        // job IDs in its result, track them in the same group so the
+        // notification UI batches everything into one toast.
+        const parentGroupId = jobToGroup.get(jobId)
+        const followUps = fresh.result?.follow_up_jobs as
+          | Record<string, string>
+          | undefined
+        if (parentGroupId && followUps) {
+          for (const [key, followUpId] of Object.entries(followUps)) {
+            const followUpType = FOLLOW_UP_TYPE_MAP[key]
+            if (followUpType && followUpId && !jobs.value[followUpId]) {
+              trackJob(followUpId, followUpType, {}, parentGroupId)
+            }
+          }
+        }
+
         // A completed job may have triggered follow-up jobs server-side
         // (e.g., entity extraction after image ingestion). Re-hydrate so
         // the notification bell discovers them.
@@ -244,14 +290,65 @@ export const useJobsStore = defineStore('jobs', () => {
    * as a side-effect of a PATCH) and start polling it. The store
    * creates a placeholder row so the notification UI can render
    * immediately, then replaces it with real data on the first poll.
+   *
+   * If `groupId` is provided the job is added to that group so the
+   * notification UI can batch all related jobs into a single toast.
    */
   function trackJob(
     jobId: string,
     type: JobType,
     params: Record<string, unknown> = {},
+    groupId?: string,
   ): void {
     upsertJob(makePlaceholder(jobId, type, params))
+    if (groupId) {
+      jobToGroup.set(jobId, groupId)
+      const group = groupInfo.get(groupId)
+      if (group) {
+        group.jobIds.add(jobId)
+      }
+    }
     void pollJob(jobId)
+  }
+
+  /**
+   * Create a named group. Call this before `trackJob(..., groupId)` so
+   * the group label is available when the notification fires.
+   */
+  function createGroup(id: string, label: string): void {
+    groupInfo.set(id, { label, jobIds: new Set() })
+  }
+
+  /** Return the group ID a job belongs to, if any. */
+  function getGroupId(jobId: string): string | undefined {
+    return jobToGroup.get(jobId)
+  }
+
+  /** Return the group metadata for a given group ID. */
+  function getGroup(groupId: string): JobGroupInfo | undefined {
+    return groupInfo.get(groupId)
+  }
+
+  /** True when every job in the group has reached a terminal status. */
+  function isGroupComplete(groupId: string): boolean {
+    const group = groupInfo.get(groupId)
+    if (!group || group.jobIds.size === 0) return false
+    for (const id of group.jobIds) {
+      const job = jobs.value[id]
+      if (!job || !isTerminal(job.status)) return false
+    }
+    return true
+  }
+
+  /** True when every job in the group succeeded. */
+  function isGroupAllSucceeded(groupId: string): boolean {
+    const group = groupInfo.get(groupId)
+    if (!group || group.jobIds.size === 0) return false
+    for (const id of group.jobIds) {
+      const job = jobs.value[id]
+      if (!job || job.status !== 'succeeded') return false
+    }
+    return true
   }
 
   /**
@@ -288,6 +385,11 @@ export const useJobsStore = defineStore('jobs', () => {
     startEntityExtraction,
     startMoodBackfill,
     trackJob,
+    createGroup,
+    getGroupId,
+    getGroup,
+    isGroupComplete,
+    isGroupAllSucceeded,
     fetchJob,
     pollJob,
     stopPolling,

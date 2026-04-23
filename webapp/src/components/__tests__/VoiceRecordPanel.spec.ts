@@ -200,6 +200,7 @@ describe('VoiceRecordPanel', () => {
       'test-job-123',
       'ingest_audio',
       expect.objectContaining({ recording_count: 1 }),
+      expect.any(String), // groupId
     )
 
     // Should show processing state

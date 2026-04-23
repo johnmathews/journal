@@ -474,7 +474,7 @@ describe('useEntriesStore', () => {
       // Capture creating state mid-call via the store
       const s = useEntriesStore()
       creatingDuringCall = s.creating
-      return Promise.resolve({ entry, mood_job_id: null })
+      return Promise.resolve({ entry, mood_job_id: null, entity_extraction_job_id: null })
     })
 
     const store = useEntriesStore()
@@ -506,6 +506,7 @@ describe('useEntriesStore', () => {
         uncertain_spans: [],
       },
       mood_job_id: 'mood-1',
+      entity_extraction_job_id: null,
     }
     mockIngestText.mockResolvedValue(response)
 
@@ -557,6 +558,7 @@ describe('useEntriesStore', () => {
         uncertain_spans: [],
       },
       mood_job_id: null,
+      entity_extraction_job_id: null,
     }
     mockIngestFile.mockResolvedValue(response)
 

@@ -432,4 +432,146 @@ describe('jobs store', () => {
     expect(store.getJobById('entity-1')).toBeDefined()
     expect(store.getJobById('entity-1')?.status).toBe('running')
   })
+
+  // --- Job grouping ---
+
+  it('createGroup + trackJob with groupId registers the job in the group', () => {
+    const store = useJobsStore()
+    store.createGroup('g1', 'Entry created — all processing complete')
+
+    store.trackJob('j1', 'ingest_audio', {}, 'g1')
+    store.trackJob('j2', 'mood_score_entry', {}, 'g1')
+
+    expect(store.getGroupId('j1')).toBe('g1')
+    expect(store.getGroupId('j2')).toBe('g1')
+    const group = store.getGroup('g1')
+    expect(group?.label).toBe('Entry created — all processing complete')
+    expect(group?.jobIds.has('j1')).toBe(true)
+    expect(group?.jobIds.has('j2')).toBe(true)
+  })
+
+  it('trackJob without groupId does not register in any group', () => {
+    const store = useJobsStore()
+    store.trackJob('j1', 'entity_extraction', {})
+    expect(store.getGroupId('j1')).toBeUndefined()
+  })
+
+  it('isGroupComplete returns false until all group jobs are terminal', async () => {
+    const { getJob } = await import('@/api/jobs')
+    vi.mocked(getJob).mockImplementation(() => new Promise<Job>(() => {}))
+
+    const store = useJobsStore()
+    store.createGroup('g1', 'test')
+    store.trackJob('j1', 'ingest_audio', {}, 'g1')
+    store.trackJob('j2', 'mood_score_entry', {}, 'g1')
+
+    expect(store.isGroupComplete('g1')).toBe(false)
+
+    // Manually set j1 to succeeded
+    store.jobs['j1'] = makeJob({ id: 'j1', status: 'succeeded' })
+    expect(store.isGroupComplete('g1')).toBe(false)
+
+    // Now set j2 to succeeded
+    store.jobs['j2'] = makeJob({ id: 'j2', status: 'succeeded' })
+    expect(store.isGroupComplete('g1')).toBe(true)
+  })
+
+  it('isGroupAllSucceeded returns false when any job failed', async () => {
+    const { getJob } = await import('@/api/jobs')
+    vi.mocked(getJob).mockImplementation(() => new Promise<Job>(() => {}))
+
+    const store = useJobsStore()
+    store.createGroup('g1', 'test')
+    store.trackJob('j1', 'entity_extraction', {}, 'g1')
+    store.trackJob('j2', 'mood_score_entry', {}, 'g1')
+
+    store.jobs['j1'] = makeJob({ id: 'j1', status: 'succeeded' })
+    store.jobs['j2'] = makeJob({
+      id: 'j2',
+      status: 'failed',
+      error_message: 'boom',
+    })
+
+    expect(store.isGroupComplete('g1')).toBe(true)
+    expect(store.isGroupAllSucceeded('g1')).toBe(false)
+  })
+
+  it('clearJob removes the job from its group and cleans up empty groups', async () => {
+    const { getJob } = await import('@/api/jobs')
+    vi.mocked(getJob).mockImplementation(() => new Promise<Job>(() => {}))
+
+    const store = useJobsStore()
+    store.createGroup('g1', 'test')
+    store.trackJob('j1', 'entity_extraction', {}, 'g1')
+
+    expect(store.getGroup('g1')?.jobIds.has('j1')).toBe(true)
+
+    store.clearJob('j1')
+
+    expect(store.getGroupId('j1')).toBeUndefined()
+    // Group is empty and should be cleaned up
+    expect(store.getGroup('g1')).toBeUndefined()
+  })
+
+  it('pollJob assigns follow-up jobs to the parent group when result contains follow_up_jobs', async () => {
+    const { getJob, listJobs } = await import('@/api/jobs')
+
+    // All getJob calls return never-resolving promises initially.
+    // We'll override for the explicit pollJob call below.
+    vi.mocked(getJob).mockImplementation(() => new Promise<Job>(() => {}))
+    vi.mocked(listJobs).mockResolvedValue({
+      items: [],
+      total: 0,
+      limit: 50,
+      offset: 0,
+    })
+
+    const store = useJobsStore()
+    store.createGroup('g1', 'Entry created — all processing complete')
+
+    // Register parent in the group via trackJob. The fire-and-forget
+    // poll inside trackJob will hang on getJob (never resolves) — that's
+    // fine, we just need the group membership set up.
+    store.trackJob('parent', 'ingest_audio', {}, 'g1')
+
+    // Override parent to running so it looks like a live job.
+    store.jobs['parent'] = makeJob({
+      id: 'parent',
+      status: 'running',
+      type: 'ingest_audio',
+    })
+
+    // Stop the trackJob-initiated poll and clear inFlight so our
+    // explicit pollJob below can proceed.
+    store.stopPolling('parent')
+
+    // Now set up getJob to return terminal state with follow-up IDs
+    // for the next call, then hang for follow-up polls.
+    vi.mocked(getJob)
+      .mockResolvedValueOnce(
+        makeJob({
+          id: 'parent',
+          status: 'succeeded',
+          type: 'ingest_audio',
+          result: {
+            follow_up_jobs: {
+              mood_scoring: 'mood-1',
+              entity_extraction: 'entity-1',
+            },
+          },
+        }),
+      )
+      .mockImplementation(() => new Promise<Job>(() => {}))
+
+    await store.pollJob('parent')
+
+    // Follow-up jobs should be tracked in the same group
+    expect(store.getJobById('mood-1')).toBeDefined()
+    expect(store.getJobById('mood-1')?.type).toBe('mood_score_entry')
+    expect(store.getGroupId('mood-1')).toBe('g1')
+
+    expect(store.getJobById('entity-1')).toBeDefined()
+    expect(store.getJobById('entity-1')?.type).toBe('entity_extraction')
+    expect(store.getGroupId('entity-1')).toBe('g1')
+  })
 })

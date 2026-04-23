@@ -75,6 +75,7 @@ describe('FileImportPanel', () => {
         uncertain_spans: [],
       },
       mood_job_id: null,
+      entity_extraction_job_id: null,
     })
 
     // Simulate file selection by directly setting the component's internal state
@@ -123,6 +124,7 @@ describe('FileImportPanel', () => {
         uncertain_spans: [],
       },
       mood_job_id: null,
+      entity_extraction_job_id: null,
     })
 
     const file = new File(['content'], 'notes.txt', { type: 'text/plain' })

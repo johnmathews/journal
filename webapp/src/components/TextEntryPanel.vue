@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useEntriesStore } from '@/stores/entries'
+import { useJobsStore } from '@/stores/jobs'
 
 const props = defineProps<{ entryDate: string }>()
 const emit = defineEmits<{ created: [entryId: number] }>()
 
 const entriesStore = useEntriesStore()
+const jobsStore = useJobsStore()
 const text = ref('')
 
 const wordCount = computed(() => {
@@ -16,6 +18,23 @@ const wordCount = computed(() => {
 async function submit() {
   if (!text.value.trim()) return
   const result = await entriesStore.createTextEntry(text.value, props.entryDate)
+  // Track background jobs in a group for batched notifications
+  const hasJobs = result.mood_job_id || result.entity_extraction_job_id
+  if (hasJobs) {
+    const groupId = crypto.randomUUID()
+    jobsStore.createGroup(groupId, 'Entry created — all processing complete')
+    if (result.mood_job_id) {
+      jobsStore.trackJob(result.mood_job_id, 'mood_score_entry', {}, groupId)
+    }
+    if (result.entity_extraction_job_id) {
+      jobsStore.trackJob(
+        result.entity_extraction_job_id,
+        'entity_extraction',
+        {},
+        groupId,
+      )
+    }
+  }
   emit('created', result.entry.id)
 }
 </script>

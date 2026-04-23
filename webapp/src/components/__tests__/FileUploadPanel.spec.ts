@@ -357,10 +357,12 @@ describe('FileUploadPanel', () => {
     await uploadBtn!.trigger('click')
     await flushPromises()
 
-    expect(trackSpy).toHaveBeenCalledWith('job-track', 'ingest_images', {
-      entry_date: '2026-04-12',
-      page_count: 1,
-    })
+    expect(trackSpy).toHaveBeenCalledWith(
+      'job-track',
+      'ingest_images',
+      { entry_date: '2026-04-12', page_count: 1 },
+      expect.any(String), // groupId
+    )
   })
 
   it('auto-dismisses when job completes', async () => {
@@ -495,6 +497,7 @@ describe('FileUploadPanel', () => {
         uncertain_spans: [],
       },
       mood_job_id: null,
+      entity_extraction_job_id: null,
     })
 
     const file = new File(['# My journal entry'], 'entry.md', {
@@ -531,6 +534,7 @@ describe('FileUploadPanel', () => {
         uncertain_spans: [],
       },
       mood_job_id: null,
+      entity_extraction_job_id: null,
     })
 
     const file = new File(['content'], 'notes.txt', { type: 'text/plain' })

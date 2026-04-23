@@ -476,10 +476,8 @@ async function save() {
   saveError.value = null
   try {
     const entryId = store.currentEntry.id
-    const { extractionJobId, reprocessJobId } = await store.saveEntryText(
-      entryId,
-      editedText.value,
-    )
+    const { extractionJobId, reprocessJobId, moodJobId } =
+      await store.saveEntryText(entryId, editedText.value)
     // Invalidate cached chunks/tokens — the background re-embedding
     // job will re-chunk and re-embed. The next overlay-mode flip
     // will refetch fresh data.
@@ -487,18 +485,32 @@ async function save() {
     tokens.value = null
     overlayError.value = null
 
+    // Group all background jobs so the notification UI shows one
+    // summary toast instead of one per job.
+    const hasJobs = reprocessJobId || extractionJobId || moodJobId
+    const groupId = hasJobs ? crypto.randomUUID() : undefined
+    if (groupId) {
+      jobsStore.createGroup(groupId, 'Entry updated — all processing complete')
+    }
+
     // Track background jobs. The notification UI shows progress;
     // when entity extraction finishes we reload entity chips.
     selectedEntityId.value = null
     if (reprocessJobId) {
-      jobsStore.trackJob(reprocessJobId, 'reprocess_embeddings', {
-        entry_id: entryId,
-      })
+      jobsStore.trackJob(
+        reprocessJobId,
+        'reprocess_embeddings',
+        { entry_id: entryId },
+        groupId,
+      )
     }
     if (extractionJobId) {
-      jobsStore.trackJob(extractionJobId, 'entity_extraction', {
-        entry_id: entryId,
-      })
+      jobsStore.trackJob(
+        extractionJobId,
+        'entity_extraction',
+        { entry_id: entryId },
+        groupId,
+      )
       const unwatch = watch(
         () => jobsStore.getJobById(extractionJobId),
         (job) => {
@@ -507,6 +519,14 @@ async function save() {
             loadEntryEntities(entryId)
           }
         },
+      )
+    }
+    if (moodJobId) {
+      jobsStore.trackJob(
+        moodJobId,
+        'mood_score_entry',
+        { entry_id: entryId },
+        groupId,
       )
     }
     toast.success('Saved. Background jobs running.')

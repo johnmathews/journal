@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import TextEntryPanel from '../TextEntryPanel.vue'
 import { useEntriesStore } from '@/stores/entries'
+import { useJobsStore } from '@/stores/jobs'
 
 describe('TextEntryPanel', () => {
   beforeEach(() => {
@@ -94,6 +95,7 @@ describe('TextEntryPanel', () => {
         uncertain_spans: [],
       },
       mood_job_id: null,
+      entity_extraction_job_id: null,
     })
 
     await wrapper.find('textarea').setValue('Hello world')
@@ -125,6 +127,7 @@ describe('TextEntryPanel', () => {
         uncertain_spans: [],
       },
       mood_job_id: null,
+      entity_extraction_job_id: null,
     })
 
     await wrapper.find('textarea').setValue('test')
@@ -132,6 +135,90 @@ describe('TextEntryPanel', () => {
     await flushPromises()
 
     expect(wrapper.emitted('created')).toEqual([[99]])
+  })
+
+  it('tracks mood and entity extraction jobs in a group after submit', async () => {
+    const wrapper = mount(TextEntryPanel, {
+      props: { entryDate: '2026-04-12' },
+    })
+    const store = useEntriesStore()
+    const jobsStore = useJobsStore()
+    vi.spyOn(store, 'createTextEntry').mockResolvedValue({
+      entry: {
+        id: 50,
+        entry_date: '2026-04-12',
+        source_type: 'text_entry',
+        raw_text: 'test',
+        final_text: 'test',
+        page_count: 1,
+        word_count: 1,
+        chunk_count: 1,
+        language: 'en',
+        created_at: '',
+        updated_at: '',
+        doubts_verified: false,
+        uncertain_spans: [],
+      },
+      mood_job_id: 'mood-123',
+      entity_extraction_job_id: 'entity-456',
+    })
+    const trackSpy = vi.spyOn(jobsStore, 'trackJob')
+    const groupSpy = vi.spyOn(jobsStore, 'createGroup')
+
+    await wrapper.find('textarea').setValue('Hello')
+    await wrapper.find('button').trigger('click')
+    await flushPromises()
+
+    expect(groupSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      'Entry created — all processing complete',
+    )
+    expect(trackSpy).toHaveBeenCalledWith(
+      'mood-123',
+      'mood_score_entry',
+      {},
+      expect.any(String),
+    )
+    expect(trackSpy).toHaveBeenCalledWith(
+      'entity-456',
+      'entity_extraction',
+      {},
+      expect.any(String),
+    )
+  })
+
+  it('does not create group when no job IDs are returned', async () => {
+    const wrapper = mount(TextEntryPanel, {
+      props: { entryDate: '2026-04-12' },
+    })
+    const store = useEntriesStore()
+    const jobsStore = useJobsStore()
+    vi.spyOn(store, 'createTextEntry').mockResolvedValue({
+      entry: {
+        id: 51,
+        entry_date: '2026-04-12',
+        source_type: 'text_entry',
+        raw_text: 'test',
+        final_text: 'test',
+        page_count: 1,
+        word_count: 1,
+        chunk_count: 1,
+        language: 'en',
+        created_at: '',
+        updated_at: '',
+        doubts_verified: false,
+        uncertain_spans: [],
+      },
+      mood_job_id: null,
+      entity_extraction_job_id: null,
+    })
+    const groupSpy = vi.spyOn(jobsStore, 'createGroup')
+
+    await wrapper.find('textarea').setValue('Hello')
+    await wrapper.find('button').trigger('click')
+    await flushPromises()
+
+    expect(groupSpy).not.toHaveBeenCalled()
   })
 
   it('counts words correctly for multi-space input', async () => {

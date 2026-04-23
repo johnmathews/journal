@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import AppNotifications from '../AppNotifications.vue'
 import { useJobsStore } from '@/stores/jobs'
+import { useToast } from '@/composables/useToast'
 import type { Job, JobType } from '@/types/job'
 
 vi.mock('@/api/entities', () => ({
@@ -30,6 +31,9 @@ function makeJob(overrides: Partial<Job> & { id: string; type: JobType }): Job {
   }
 }
 
+// Shared module-level toasts ref — same instance AppNotifications uses.
+const toast = useToast()
+
 describe('AppNotifications', () => {
   let pinia: ReturnType<typeof createPinia>
 
@@ -37,6 +41,8 @@ describe('AppNotifications', () => {
     vi.useFakeTimers()
     pinia = createPinia()
     setActivePinia(pinia)
+    // Clear module-level toasts from prior tests
+    toast.toasts.value = []
   })
 
   afterEach(() => {
@@ -127,7 +133,9 @@ describe('AppNotifications', () => {
     ['entity_extraction', 'Entity extraction'],
     ['mood_backfill', 'Mood backfill'],
     ['ingest_images', 'Image ingestion'],
+    ['ingest_audio', 'Audio ingestion'],
     ['mood_score_entry', 'Mood scoring'],
+    ['reprocess_embeddings', 'Re-embedding'],
   ] as [JobType, string][])(
     'shows correct label for %s',
     async (type, expected) => {
@@ -241,6 +249,163 @@ describe('AppNotifications', () => {
     await flushPromises()
 
     expect(store.jobs['j1']).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  // --- Grouped notifications ---
+  // useToast() shares a module-level toasts ref across all callers,
+  // so we read that ref to verify which toasts were shown.
+
+  function toastMessages() {
+    return toast.toasts.value.map((t) => ({ message: t.message, type: t.type }))
+  }
+
+  it('shows one summary toast when all grouped jobs succeed', async () => {
+    const store = useJobsStore()
+    store.createGroup('g1', 'Entry created — all processing complete')
+    store.trackJob('j1', 'ingest_audio', {}, 'g1')
+    store.trackJob('j2', 'mood_score_entry', {}, 'g1')
+    store.trackJob('j3', 'entity_extraction', {}, 'g1')
+    // Set all to running
+    store.jobs['j1'] = makeJob({
+      id: 'j1',
+      type: 'ingest_audio',
+      status: 'running',
+    })
+    store.jobs['j2'] = makeJob({
+      id: 'j2',
+      type: 'mood_score_entry',
+      status: 'running',
+    })
+    store.jobs['j3'] = makeJob({
+      id: 'j3',
+      type: 'entity_extraction',
+      status: 'running',
+    })
+
+    const wrapper = mount(AppNotifications, { global: { plugins: [pinia] } })
+
+    // Job 1 succeeds — group not complete, no toast
+    store.jobs['j1'] = makeJob({
+      id: 'j1',
+      type: 'ingest_audio',
+      status: 'succeeded',
+    })
+    vi.advanceTimersByTime(600)
+    await flushPromises()
+    expect(toastMessages().filter((t) => t.type === 'success')).toHaveLength(0)
+
+    // Job 2 succeeds — still not complete
+    store.jobs['j2'] = makeJob({
+      id: 'j2',
+      type: 'mood_score_entry',
+      status: 'succeeded',
+    })
+    vi.advanceTimersByTime(600)
+    await flushPromises()
+    expect(toastMessages().filter((t) => t.type === 'success')).toHaveLength(0)
+
+    // Job 3 succeeds — group complete, ONE summary toast
+    store.jobs['j3'] = makeJob({
+      id: 'j3',
+      type: 'entity_extraction',
+      status: 'succeeded',
+    })
+    vi.advanceTimersByTime(600)
+    await flushPromises()
+    const successes = toastMessages().filter((t) => t.type === 'success')
+    expect(successes).toHaveLength(1)
+    expect(successes[0].message).toBe('Entry created — all processing complete')
+
+    wrapper.unmount()
+  })
+
+  it('shows individual error toast immediately for grouped failed job', async () => {
+    const store = useJobsStore()
+    store.createGroup('g1', 'Entry created — all processing complete')
+    store.trackJob('j1', 'ingest_audio', {}, 'g1')
+    store.trackJob('j2', 'mood_score_entry', {}, 'g1')
+    store.jobs['j1'] = makeJob({
+      id: 'j1',
+      type: 'ingest_audio',
+      status: 'running',
+    })
+    store.jobs['j2'] = makeJob({
+      id: 'j2',
+      type: 'mood_score_entry',
+      status: 'running',
+    })
+
+    const wrapper = mount(AppNotifications, { global: { plugins: [pinia] } })
+
+    // Job 1 fails — error toast fires immediately
+    store.jobs['j1'] = makeJob({
+      id: 'j1',
+      type: 'ingest_audio',
+      status: 'failed',
+      error_message: 'API error',
+    })
+    vi.advanceTimersByTime(600)
+    await flushPromises()
+    const errors = toastMessages().filter((t) => t.type === 'error')
+    expect(errors).toHaveLength(1)
+    expect(errors[0].message).toBe('Audio ingestion failed: API error')
+    // No success toast (group not complete)
+    expect(toastMessages().filter((t) => t.type === 'success')).toHaveLength(0)
+
+    // Job 2 succeeds — group complete but has failure, NO summary toast
+    store.jobs['j2'] = makeJob({
+      id: 'j2',
+      type: 'mood_score_entry',
+      status: 'succeeded',
+    })
+    vi.advanceTimersByTime(600)
+    await flushPromises()
+    expect(toastMessages().filter((t) => t.type === 'success')).toHaveLength(0)
+
+    wrapper.unmount()
+  })
+
+  it('ungrouped failed job shows individual error toast', async () => {
+    const store = useJobsStore()
+    const wrapper = mountWith(
+      makeJob({ id: 'j1', type: 'reprocess_embeddings', status: 'running' }),
+    )
+
+    store.jobs['j1'] = makeJob({
+      id: 'j1',
+      type: 'reprocess_embeddings',
+      status: 'failed',
+      error_message: 'timeout',
+    })
+    vi.advanceTimersByTime(600)
+    await flushPromises()
+    const errors = toastMessages().filter((t) => t.type === 'error')
+    expect(errors).toHaveLength(1)
+    expect(errors[0].message).toBe('Re-embedding failed: timeout')
+
+    wrapper.unmount()
+  })
+
+  it('ungrouped jobs still show individual toasts', async () => {
+    const store = useJobsStore()
+    const wrapper = mountWith(
+      makeJob({ id: 'j1', type: 'entity_extraction', status: 'running' }),
+    )
+
+    store.jobs['j1'] = makeJob({
+      id: 'j1',
+      type: 'entity_extraction',
+      status: 'succeeded',
+    })
+    vi.advanceTimersByTime(600)
+    await flushPromises()
+    const successes = toastMessages().filter((t) => t.type === 'success')
+    expect(successes).toHaveLength(1)
+    expect(successes[0].message).toBe(
+      'Entity extraction completed successfully',
+    )
+
     wrapper.unmount()
   })
 })

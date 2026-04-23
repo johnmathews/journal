@@ -9,6 +9,7 @@ export interface IngestTextRequest {
 export interface IngestTextResponse {
   entry: EntryDetail
   mood_job_id: string | null
+  entity_extraction_job_id: string | null
 }
 
 export interface IngestImagesResponse {
