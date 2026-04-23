@@ -321,7 +321,7 @@ describe('useSettingsStore', () => {
     settings.pricing = [
       {
         model: 'unknown-model',
-        category: 'other',
+        category: 'other' as 'llm',
         input_cost_per_mtok: null,
         output_cost_per_mtok: null,
         cost_per_minute: null,

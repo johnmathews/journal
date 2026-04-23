@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useEntitiesStore } from '../entities'
+import type { Entity } from '@/types/entity'
 
 vi.mock('@/api/entities', () => ({
   fetchEntities: vi.fn(),
@@ -549,7 +550,7 @@ describe('entities store', () => {
     it('handles response with no survivor (null)', async () => {
       const { mergeEntities: mergeEntitiesApi } = await import('@/api/entities')
       vi.mocked(mergeEntitiesApi).mockResolvedValue({
-        survivor: null as unknown as undefined,
+        survivor: null as unknown as Entity,
         absorbed_ids: [2],
         mentions_reassigned: 0,
         relationships_reassigned: 0,
