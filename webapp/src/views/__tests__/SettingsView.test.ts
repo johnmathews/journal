@@ -240,9 +240,9 @@ describe('SettingsView', () => {
     const section = wrapper.find('[data-testid="settings-section"]')
     expect(section.exists()).toBe(true)
     // OCR ingestion section
-    expect(
-      wrapper.find('[data-testid="section-ocr-ingestion"]').exists(),
-    ).toBe(true)
+    expect(wrapper.find('[data-testid="section-ocr-ingestion"]').exists()).toBe(
+      true,
+    )
     // Audio ingestion section
     expect(
       wrapper.find('[data-testid="section-audio-ingestion"]').exists(),
@@ -265,9 +265,9 @@ describe('SettingsView', () => {
 
   it('displays cost badges per 1k words for ingestion', async () => {
     const wrapper = await mountView()
-    expect(
-      wrapper.find('[data-testid="ocr-ingestion-cost"]').text(),
-    ).toContain('/1k words')
+    expect(wrapper.find('[data-testid="ocr-ingestion-cost"]').text()).toContain(
+      '/1k words',
+    )
     expect(
       wrapper.find('[data-testid="audio-ingestion-cost"]').text(),
     ).toContain('/1k words')

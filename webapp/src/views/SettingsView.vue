@@ -6,9 +6,7 @@ import { useJobsStore } from '@/stores/jobs'
 import { useToast } from '@/composables/useToast'
 import { triggerEntityExtraction } from '@/api/entities'
 import {
-  ocrCostPerPage,
   ocrCostPer1000Words,
-  transcriptionCostPerMinute,
   audioCostPer1000Words,
   chunkingCostPerEntry,
   moodScoringCostPerEntry,
@@ -112,16 +110,6 @@ const statusColor = computed(() => {
     default:
       return 'text-red-600 dark:text-red-400'
   }
-})
-
-const ocrCost = computed(() => {
-  if (!store.settings) return null
-  return ocrCostPerPage(store.settings.ocr.model)
-})
-
-const transcriptionCost = computed(() => {
-  if (!store.settings) return null
-  return transcriptionCostPerMinute(store.settings.transcription.model)
 })
 
 const chunkingCost = computed(() => {
@@ -494,12 +482,15 @@ function runtimeSettingValue(key: string): boolean | string | undefined {
                     <input
                       type="checkbox"
                       class="form-checkbox rounded text-violet-500"
-                      :checked="runtimeSettingValue('transcript_formatting') === true"
+                      :checked="
+                        runtimeSettingValue('transcript_formatting') === true
+                      "
                       data-testid="transcript-formatting-toggle"
                       @change="
                         store.updateRuntime({
-                          transcript_formatting:
-                            !runtimeSettingValue('transcript_formatting'),
+                          transcript_formatting: !runtimeSettingValue(
+                            'transcript_formatting',
+                          ),
                         })
                       "
                     />

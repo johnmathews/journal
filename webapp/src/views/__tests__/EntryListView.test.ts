@@ -454,9 +454,7 @@ describe('Column visibility', () => {
 
     // Open menu and uncheck source
     await wrapper.find('[data-testid="columns-button"]').trigger('click')
-    await wrapper
-      .find('[data-testid="col-toggle-source_type"]')
-      .setValue(false)
+    await wrapper.find('[data-testid="col-toggle-source_type"]').setValue(false)
 
     expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(false)
   })
@@ -464,9 +462,7 @@ describe('Column visibility', () => {
   it('persists column visibility to localStorage', async () => {
     const wrapper = mountComponent()
     await wrapper.find('[data-testid="columns-button"]').trigger('click')
-    await wrapper
-      .find('[data-testid="col-toggle-source_type"]')
-      .setValue(false)
+    await wrapper.find('[data-testid="col-toggle-source_type"]').setValue(false)
 
     const stored = JSON.parse(
       localStorage.getItem('journal-entry-columns') ?? '{}',

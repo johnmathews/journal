@@ -323,9 +323,7 @@ export function mapSpansViaDiff(
   function mapOffset(offset: number): number {
     for (const r of ranges) {
       if (offset < r.origEnd) {
-        return r.isEqual
-          ? r.corrStart + (offset - r.origStart)
-          : r.corrStart // DELETE: collapses to a point
+        return r.isEqual ? r.corrStart + (offset - r.origStart) : r.corrStart // DELETE: collapses to a point
       }
       if (offset === r.origEnd && offset === r.origStart) continue
     }
