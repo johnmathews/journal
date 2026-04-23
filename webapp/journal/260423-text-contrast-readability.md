@@ -1,4 +1,4 @@
-# Text Contrast & Readability Overhaul
+# Settings UX & Text Contrast Overhaul
 
 **Date:** 2026-04-23
 
@@ -45,3 +45,26 @@ and `src/App.vue`. Plus minor formatting cleanup in `src/stores/settings.ts`,
 - Targeting WCAG AAA (7:1) rather than just AA (4.5:1) because the app uses
   `text-xs` (12px) extensively, where bare-minimum AA contrast is visually strained.
 - Documented the typography system in `docs/architecture.md`.
+- API pricing dates stepped back one shade (`text-gray-500 dark:text-gray-400`) from the
+  price text (`text-gray-600 dark:text-gray-300`) to maintain column differentiation — same
+  shade for everything made the table blur together.
+
+## Additional UX fixes on /settings
+
+### Paragraph formatting toggle
+
+Replaced the checkbox + "Enabled"/"Disabled" label in the Audio Ingestion section with a
+toggle switch matching the Runtime Settings section. The unchecked checkbox next to "Disabled"
+read like a double negative. Toggle switches are self-explanatory: violet = on, gray = off.
+
+### Pushover credential masking
+
+When credentials are saved server-side, the input fields showed empty (the server correctly
+doesn't return secrets). This contradicted the green "Credentials are valid" message. Now
+shows `••••••••••••••••••••••••••••••` as a placeholder when credentials exist. Clicking
+into a field clears the mask for editing; blurring without entering anything restores it.
+
+## CI/CD
+
+Added `workflow_dispatch` trigger to CI workflows in both journal-webapp and journal-server,
+enabling manual CI runs from the GitHub Actions tab.
