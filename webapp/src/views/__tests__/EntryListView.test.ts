@@ -708,6 +708,14 @@ describe('Edit mode', () => {
     expect(toggle.text()).toBe('Edit')
   })
 
+  it('entering edit mode auto-opens the column menu', async () => {
+    const wrapper = mountComponent()
+
+    expect(wrapper.find('[data-testid="columns-menu"]').exists()).toBe(false)
+    await wrapper.find('[data-testid="edit-mode-toggle"]').trigger('click')
+    expect(wrapper.find('[data-testid="columns-menu"]').exists()).toBe(true)
+  })
+
   it('shows drag handles in column menu only when in edit mode', async () => {
     const wrapper = mountComponent()
 
@@ -715,7 +723,7 @@ describe('Edit mode', () => {
     await wrapper.find('[data-testid="columns-button"]').trigger('click')
     expect(wrapper.findAll('[data-testid="drag-handle"]').length).toBe(0)
 
-    // Enter edit mode
+    // Enter edit mode (also keeps menu open)
     await wrapper.find('[data-testid="edit-mode-toggle"]').trigger('click')
     expect(
       wrapper.findAll('[data-testid="drag-handle"]').length,

@@ -202,6 +202,13 @@ const visibleOrderedColumns = computed(() =>
 // Edit mode — enables column reordering in the menu
 const editMode = ref(false)
 
+function toggleEditMode() {
+  editMode.value = !editMode.value
+  if (editMode.value) {
+    showColumnMenu.value = true
+  }
+}
+
 // Drag-and-drop state for column reordering
 const dragIndex = ref<number | null>(null)
 const dragOverIndex = ref<number | null>(null)
@@ -416,7 +423,7 @@ function cellTestId(col: ColumnDef): string | undefined {
               : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
           "
           data-testid="edit-mode-toggle"
-          @click="editMode = !editMode"
+          @click="toggleEditMode"
         >
           <svg
             class="w-4 h-4"
