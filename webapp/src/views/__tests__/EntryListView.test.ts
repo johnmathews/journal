@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
@@ -47,6 +47,14 @@ vi.mock('@/api/entries', () => ({
   updateEntryText: vi.fn(),
 }))
 
+const mockFetchPreferences = vi.fn().mockResolvedValue({ preferences: {} })
+const mockUpdatePreferences = vi.fn().mockResolvedValue({ preferences: {} })
+
+vi.mock('@/api/preferences', () => ({
+  fetchPreferences: (...args: unknown[]) => mockFetchPreferences(...args),
+  updatePreferences: (...args: unknown[]) => mockUpdatePreferences(...args),
+}))
+
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -67,15 +75,11 @@ function mountComponent() {
   })
 }
 
-function cleanupStorage() {
-  localStorage.removeItem('journal-entry-columns')
-  localStorage.removeItem('journal-entry-column-order')
-}
-
 describe('EntryListView', () => {
   beforeEach(async () => {
     setActivePinia(createPinia())
-    cleanupStorage()
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+    mockUpdatePreferences.mockClear()
     // Restore the default mock before each test (pagination tests override it)
     const { fetchEntries } = await import('@/api/entries')
     vi.mocked(fetchEntries).mockResolvedValue({
@@ -98,7 +102,6 @@ describe('EntryListView', () => {
       offset: 0,
     })
   })
-  afterEach(cleanupStorage)
 
   it('renders the heading', () => {
     const wrapper = mountComponent()
@@ -284,7 +287,7 @@ describe('EntryListView', () => {
 describe('Source type column', () => {
   beforeEach(async () => {
     setActivePinia(createPinia())
-    cleanupStorage()
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
     const { fetchEntries } = await import('@/api/entries')
     vi.mocked(fetchEntries).mockResolvedValue({
       items: [
@@ -301,7 +304,6 @@ describe('Source type column', () => {
       offset: 0,
     })
   })
-  afterEach(cleanupStorage)
 
   it('displays human-readable source labels', async () => {
     const wrapper = mountComponent()
@@ -319,7 +321,8 @@ describe('Source type column', () => {
 describe('Column visibility', () => {
   beforeEach(async () => {
     setActivePinia(createPinia())
-    cleanupStorage()
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+    mockUpdatePreferences.mockClear()
     const { fetchEntries } = await import('@/api/entries')
     vi.mocked(fetchEntries).mockResolvedValue({
       items: [mockEntry()],
@@ -328,7 +331,6 @@ describe('Column visibility', () => {
       offset: 0,
     })
   })
-  afterEach(cleanupStorage)
 
   it('shows the Columns button', () => {
     const wrapper = mountComponent()
@@ -358,44 +360,68 @@ describe('Column visibility', () => {
     expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(false)
   })
 
-  it('persists column visibility to localStorage', async () => {
+  it('persists column changes to server via preferences API', async () => {
     const wrapper = mountComponent()
     await wrapper.find('[data-testid="columns-button"]').trigger('click')
     await wrapper.find('[data-testid="col-toggle-source_type"]').setValue(false)
 
-    const stored = JSON.parse(
-      localStorage.getItem('journal-entry-columns') ?? '{}',
+    // The debounced save fires after 500ms
+    await new Promise((r) => setTimeout(r, 600))
+    expect(mockUpdatePreferences).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entry_list_columns: expect.objectContaining({
+          visibility: expect.objectContaining({ source_type: false }),
+          order: expect.any(Array),
+        }),
+      }),
     )
-    expect(stored.source_type).toBe(false)
   })
 
-  it('restores defaults on reset', async () => {
-    // Pre-set custom visibility and order
-    localStorage.setItem(
-      'journal-entry-columns',
-      JSON.stringify({ source_type: false, chunk_count: true }),
-    )
-    localStorage.setItem(
-      'journal-entry-column-order',
-      JSON.stringify([
-        'word_count',
-        'entry_date',
-        'source_type',
-        'created_at',
-        'uncertain_span_count',
-        'page_count',
-        'chunk_count',
-        'language',
-        'updated_at',
-        'entity_mention_count',
-      ]),
-    )
-
+  it('loads saved visibility from server preferences on mount', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        entry_list_columns: {
+          visibility: {
+            source_type: false,
+            chunk_count: true,
+          },
+          order: undefined,
+        },
+      },
+    })
     const wrapper = mountComponent()
     await new Promise((r) => setTimeout(r, 50))
     await wrapper.vm.$nextTick()
 
-    // Source should be hidden based on localStorage
+    // Source hidden, chunks shown (overridden from default)
+    expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="sort-chunks"]').exists()).toBe(true)
+  })
+
+  it('falls back to defaults when preferences fetch fails', async () => {
+    mockFetchPreferences.mockRejectedValue(new Error('Network error'))
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    // Should show all default-visible columns
+    expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="sort-date"]').exists()).toBe(true)
+  })
+
+  it('restores defaults on reset', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        entry_list_columns: {
+          visibility: { source_type: false, chunk_count: true },
+        },
+      },
+    })
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    // Source should be hidden based on saved preferences
     expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(false)
 
     // Open menu and click reset
@@ -405,41 +431,7 @@ describe('Column visibility', () => {
 
     // Source back, chunks hidden (default)
     expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(true)
-    expect(localStorage.getItem('journal-entry-columns')).toBeNull()
-    expect(localStorage.getItem('journal-entry-column-order')).toBeNull()
-  })
-
-  it('handles corrupted localStorage gracefully', async () => {
-    localStorage.setItem('journal-entry-columns', 'not valid json')
-    const wrapper = mountComponent()
-    await new Promise((r) => setTimeout(r, 50))
-    await wrapper.vm.$nextTick()
-
-    // Should fall back to defaults — all default-visible columns shown
-    expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="sort-date"]').exists()).toBe(true)
-  })
-
-  it('loads saved visibility from localStorage on mount', async () => {
-    localStorage.setItem(
-      'journal-entry-columns',
-      JSON.stringify({
-        entry_date: true,
-        source_type: false,
-        created_at: true,
-        uncertain_span_count: true,
-        word_count: true,
-        page_count: true,
-        chunk_count: true,
-      }),
-    )
-    const wrapper = mountComponent()
-    await new Promise((r) => setTimeout(r, 50))
-    await wrapper.vm.$nextTick()
-
-    // Source hidden, chunks shown (overridden from default)
-    expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="sort-chunks"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="sort-chunks"]').exists()).toBe(false)
   })
 
   it('chunks column is hidden by default', async () => {
@@ -482,7 +474,7 @@ describe('Column visibility', () => {
 describe('Source type label mapping', () => {
   beforeEach(async () => {
     setActivePinia(createPinia())
-    cleanupStorage()
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
     const { fetchEntries } = await import('@/api/entries')
     vi.mocked(fetchEntries).mockResolvedValue({
       items: [
@@ -514,7 +506,6 @@ describe('Source type label mapping', () => {
       offset: 0,
     })
   })
-  afterEach(cleanupStorage)
 
   it('maps all source types to readable labels', async () => {
     const wrapper = mountComponent()
@@ -531,9 +522,8 @@ describe('Source type label mapping', () => {
 })
 
 describe('OCR Doubts column', () => {
-  afterEach(cleanupStorage)
-
   it('renders uncertain_span_count with color coding', async () => {
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
     const { fetchEntries } = await import('@/api/entries')
     ;(fetchEntries as ReturnType<typeof vi.fn>).mockResolvedValue({
       items: [
@@ -583,7 +573,6 @@ describe('OCR Doubts column', () => {
 describe('New columns rendering', () => {
   beforeEach(async () => {
     setActivePinia(createPinia())
-    cleanupStorage()
     const { fetchEntries } = await import('@/api/entries')
     vi.mocked(fetchEntries).mockResolvedValue({
       items: [
@@ -599,75 +588,41 @@ describe('New columns rendering', () => {
       offset: 0,
     })
   })
-  afterEach(cleanupStorage)
 
   it('renders language column in uppercase when visible', async () => {
-    // Enable the language column
-    localStorage.setItem(
-      'journal-entry-columns',
-      JSON.stringify({
-        entry_date: true,
-        source_type: true,
-        created_at: true,
-        uncertain_span_count: true,
-        word_count: true,
-        page_count: true,
-        chunk_count: false,
-        language: true,
-        updated_at: false,
-        entity_mention_count: false,
-      }),
-    )
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        entry_list_columns: { visibility: { language: true } },
+      },
+    })
     const wrapper = mountComponent()
     await new Promise((r) => setTimeout(r, 50))
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('[data-testid="sort-language"]').exists()).toBe(true)
-    // Check that the cell contains the uppercase language
     expect(wrapper.text()).toContain('NL')
   })
 
   it('renders modified column with formatted datetime when visible', async () => {
-    localStorage.setItem(
-      'journal-entry-columns',
-      JSON.stringify({
-        entry_date: true,
-        source_type: true,
-        created_at: true,
-        uncertain_span_count: true,
-        word_count: true,
-        page_count: true,
-        chunk_count: false,
-        language: false,
-        updated_at: true,
-        entity_mention_count: false,
-      }),
-    )
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        entry_list_columns: { visibility: { updated_at: true } },
+      },
+    })
     const wrapper = mountComponent()
     await new Promise((r) => setTimeout(r, 50))
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('[data-testid="sort-modified"]').exists()).toBe(true)
-    // Should contain formatted date
     expect(wrapper.text()).toContain('24 Mar')
   })
 
   it('renders entities column with count when visible', async () => {
-    localStorage.setItem(
-      'journal-entry-columns',
-      JSON.stringify({
-        entry_date: true,
-        source_type: true,
-        created_at: true,
-        uncertain_span_count: true,
-        word_count: true,
-        page_count: true,
-        chunk_count: false,
-        language: false,
-        updated_at: false,
-        entity_mention_count: true,
-      }),
-    )
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        entry_list_columns: { visibility: { entity_mention_count: true } },
+      },
+    })
     const wrapper = mountComponent()
     await new Promise((r) => setTimeout(r, 50))
     await wrapper.vm.$nextTick()
@@ -677,10 +632,10 @@ describe('New columns rendering', () => {
   })
 })
 
-describe('Edit mode', () => {
+describe('Column menu drag handles', () => {
   beforeEach(async () => {
     setActivePinia(createPinia())
-    cleanupStorage()
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
     const { fetchEntries } = await import('@/api/entries')
     vi.mocked(fetchEntries).mockResolvedValue({
       items: [mockEntry()],
@@ -689,71 +644,47 @@ describe('Edit mode', () => {
       offset: 0,
     })
   })
-  afterEach(cleanupStorage)
 
-  it('shows edit mode toggle button', () => {
+  it('always shows drag handles in column menu', async () => {
     const wrapper = mountComponent()
-    expect(wrapper.find('[data-testid="edit-mode-toggle"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="edit-mode-toggle"]').text()).toBe('Edit')
-  })
-
-  it('toggles edit mode on button click', async () => {
-    const wrapper = mountComponent()
-    const toggle = wrapper.find('[data-testid="edit-mode-toggle"]')
-
-    await toggle.trigger('click')
-    expect(toggle.text()).toBe('Done')
-
-    await toggle.trigger('click')
-    expect(toggle.text()).toBe('Edit')
-  })
-
-  it('entering edit mode auto-opens the column menu', async () => {
-    const wrapper = mountComponent()
-
-    expect(wrapper.find('[data-testid="columns-menu"]').exists()).toBe(false)
-    await wrapper.find('[data-testid="edit-mode-toggle"]').trigger('click')
-    expect(wrapper.find('[data-testid="columns-menu"]').exists()).toBe(true)
-  })
-
-  it('shows drag handles in column menu only when in edit mode', async () => {
-    const wrapper = mountComponent()
-
-    // Open column menu — no drag handles yet
     await wrapper.find('[data-testid="columns-button"]').trigger('click')
-    expect(wrapper.findAll('[data-testid="drag-handle"]').length).toBe(0)
 
-    // Enter edit mode (also keeps menu open)
-    await wrapper.find('[data-testid="edit-mode-toggle"]').trigger('click')
     expect(
       wrapper.findAll('[data-testid="drag-handle"]').length,
     ).toBeGreaterThan(0)
-
-    // Exit edit mode
-    await wrapper.find('[data-testid="edit-mode-toggle"]').trigger('click')
-    expect(wrapper.findAll('[data-testid="drag-handle"]').length).toBe(0)
   })
 
-  it('menu items are draggable only in edit mode', async () => {
+  it('menu items are always draggable', async () => {
     const wrapper = mountComponent()
     await wrapper.find('[data-testid="columns-button"]').trigger('click')
 
     const firstItem = wrapper.find('[data-testid="col-item-entry_date"]')
-    expect(firstItem.attributes('draggable')).toBe('false')
+    expect(firstItem.attributes('draggable')).toBe('true')
+  })
 
-    await wrapper.find('[data-testid="edit-mode-toggle"]').trigger('click')
-    expect(
-      wrapper
-        .find('[data-testid="col-item-entry_date"]')
-        .attributes('draggable'),
-    ).toBe('true')
+  it('no-op drag handles do not crash', async () => {
+    const wrapper = mountComponent()
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+
+    const firstItem = wrapper.find('[data-testid="col-item-entry_date"]')
+    // Trigger dragend without a prior dragstart — the handlers should be safe
+    await firstItem.trigger('dragend')
+
+    // Drop on same index — should be a no-op
+    await firstItem.trigger('dragstart')
+    await firstItem.trigger('drop')
+    await firstItem.trigger('dragend')
+
+    // Component should still be functional
+    expect(wrapper.find('[data-testid="columns-menu"]').exists()).toBe(true)
   })
 })
 
 describe('Column order', () => {
   beforeEach(async () => {
     setActivePinia(createPinia())
-    cleanupStorage()
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+    mockUpdatePreferences.mockClear()
     const { fetchEntries } = await import('@/api/entries')
     vi.mocked(fetchEntries).mockResolvedValue({
       items: [mockEntry()],
@@ -762,7 +693,6 @@ describe('Column order', () => {
       offset: 0,
     })
   })
-  afterEach(cleanupStorage)
 
   it('renders columns in default order', async () => {
     const wrapper = mountComponent()
@@ -776,23 +706,25 @@ describe('Column order', () => {
     expect(headers[2].text()).toContain('Ingested')
   })
 
-  it('loads saved column order from localStorage', async () => {
-    // Set order with Source first
-    localStorage.setItem(
-      'journal-entry-column-order',
-      JSON.stringify([
-        'source_type',
-        'entry_date',
-        'created_at',
-        'uncertain_span_count',
-        'word_count',
-        'page_count',
-        'chunk_count',
-        'language',
-        'updated_at',
-        'entity_mention_count',
-      ]),
-    )
+  it('loads saved column order from server preferences', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        entry_list_columns: {
+          order: [
+            'source_type',
+            'entry_date',
+            'created_at',
+            'uncertain_span_count',
+            'word_count',
+            'page_count',
+            'chunk_count',
+            'language',
+            'updated_at',
+            'entity_mention_count',
+          ],
+        },
+      },
+    })
 
     const wrapper = mountComponent()
     await new Promise((r) => setTimeout(r, 50))
@@ -803,8 +735,8 @@ describe('Column order', () => {
     expect(headers[1].text()).toContain('Date')
   })
 
-  it('handles corrupted column order localStorage gracefully', async () => {
-    localStorage.setItem('journal-entry-column-order', 'not valid json')
+  it('falls back to defaults when preferences fetch fails', async () => {
+    mockFetchPreferences.mockRejectedValue(new Error('Network error'))
     const wrapper = mountComponent()
     await new Promise((r) => setTimeout(r, 50))
     await wrapper.vm.$nextTick()
@@ -815,21 +747,25 @@ describe('Column order', () => {
   })
 
   it('adds missing columns to the end when new columns are added', async () => {
-    // Simulate an old order that doesn't include the new columns
-    localStorage.setItem(
-      'journal-entry-column-order',
-      JSON.stringify([
-        'entry_date',
-        'source_type',
-        'created_at',
-        'uncertain_span_count',
-        'word_count',
-        'page_count',
-        'chunk_count',
-      ]),
-    )
+    // Simulate an old saved order that doesn't include the new columns
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        entry_list_columns: {
+          order: [
+            'entry_date',
+            'source_type',
+            'created_at',
+            'uncertain_span_count',
+            'word_count',
+            'page_count',
+            'chunk_count',
+          ],
+        },
+      },
+    })
 
     const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
     await wrapper.find('[data-testid="columns-button"]').trigger('click')
 
     // The menu should still include all columns
@@ -844,22 +780,26 @@ describe('Column order', () => {
     ).toBe(true)
   })
 
-  it('reset restores default column order', async () => {
-    localStorage.setItem(
-      'journal-entry-column-order',
-      JSON.stringify([
-        'word_count',
-        'entry_date',
-        'source_type',
-        'created_at',
-        'uncertain_span_count',
-        'page_count',
-        'chunk_count',
-        'language',
-        'updated_at',
-        'entity_mention_count',
-      ]),
-    )
+  it('reset restores default column order and persists to server', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        entry_list_columns: {
+          visibility: { source_type: false },
+          order: [
+            'word_count',
+            'entry_date',
+            'source_type',
+            'created_at',
+            'uncertain_span_count',
+            'page_count',
+            'chunk_count',
+            'language',
+            'updated_at',
+            'entity_mention_count',
+          ],
+        },
+      },
+    })
 
     const wrapper = mountComponent()
     await new Promise((r) => setTimeout(r, 50))
@@ -877,6 +817,9 @@ describe('Column order', () => {
     // Date should be back to first
     headers = wrapper.findAll('th')
     expect(headers[0].text()).toContain('Date')
-    expect(localStorage.getItem('journal-entry-column-order')).toBeNull()
+
+    // Reset should persist defaults to server
+    await new Promise((r) => setTimeout(r, 600))
+    expect(mockUpdatePreferences).toHaveBeenCalled()
   })
 })

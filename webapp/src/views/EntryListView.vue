@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEntriesStore } from '@/stores/entries'
+import { fetchPreferences, updatePreferences } from '@/api/preferences'
 import type { EntrySummary } from '@/types/entry'
 
 const router = useRouter()
@@ -144,52 +145,64 @@ const ALIGN_CLASSES: Record<string, string> = {
   right: 'text-right',
 }
 
-// Column visibility
-const STORAGE_KEY = 'journal-entry-columns'
+// Column visibility and order — persisted to server via user preferences
+const DEFAULT_VISIBILITY = Object.fromEntries(
+  COLUMNS.map((c) => [c.key, c.defaultVisible]),
+)
+const DEFAULT_ORDER = COLUMNS.map((c) => c.key)
 
-function loadColumnVisibility(): Record<string, boolean> {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) return JSON.parse(stored)
-  } catch {
-    // Corrupted storage — fall through to defaults
-  }
-  return Object.fromEntries(COLUMNS.map((c) => [c.key, c.defaultVisible]))
-}
-
-const columnVisibility = ref<Record<string, boolean>>(loadColumnVisibility())
+const columnVisibility = ref<Record<string, boolean>>({ ...DEFAULT_VISIBILITY })
+const columnOrder = ref<string[]>([...DEFAULT_ORDER])
 const showColumnMenu = ref(false)
 
 function isVisible(key: string): boolean {
   return columnVisibility.value[key] ?? true
 }
 
-function toggleColumn(key: string) {
-  columnVisibility.value[key] = !columnVisibility.value[key]
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(columnVisibility.value))
+// Debounced save to server
+let _saveTimer: ReturnType<typeof setTimeout> | null = null
+
+function _persistColumnPrefs(): void {
+  if (_saveTimer) clearTimeout(_saveTimer)
+  _saveTimer = setTimeout(() => {
+    updatePreferences({
+      entry_list_columns: {
+        visibility: columnVisibility.value,
+        order: columnOrder.value,
+      },
+    }).catch(() => {
+      // Silent — prefs are still in-memory, will retry on next change.
+    })
+  }, 500)
 }
 
-// Column order
-const ORDER_STORAGE_KEY = 'journal-entry-column-order'
-const DEFAULT_ORDER = COLUMNS.map((c) => c.key)
-
-function loadColumnOrder(): string[] {
+async function loadColumnPrefs(): Promise<void> {
   try {
-    const stored = localStorage.getItem(ORDER_STORAGE_KEY)
-    if (stored) {
-      const order = JSON.parse(stored) as string[]
-      const validKeys = new Set(DEFAULT_ORDER)
-      const filtered = order.filter((k) => validKeys.has(k))
-      const missing = DEFAULT_ORDER.filter((k) => !filtered.includes(k))
-      return [...filtered, ...missing]
+    const { preferences } = await fetchPreferences()
+    const prefs = preferences.entry_list_columns as
+      | { visibility?: Record<string, boolean>; order?: string[] }
+      | undefined
+    if (prefs) {
+      if (prefs.visibility) {
+        // Merge with defaults so new columns get their default visibility
+        columnVisibility.value = { ...DEFAULT_VISIBILITY, ...prefs.visibility }
+      }
+      if (prefs.order) {
+        const validKeys = new Set(DEFAULT_ORDER)
+        const filtered = prefs.order.filter((k: string) => validKeys.has(k))
+        const missing = DEFAULT_ORDER.filter((k) => !filtered.includes(k))
+        columnOrder.value = [...filtered, ...missing]
+      }
     }
   } catch {
-    // Corrupted storage — fall through to defaults
+    // Preferences endpoint not available — use defaults.
   }
-  return [...DEFAULT_ORDER]
 }
 
-const columnOrder = ref<string[]>(loadColumnOrder())
+function toggleColumn(key: string) {
+  columnVisibility.value[key] = !columnVisibility.value[key]
+  _persistColumnPrefs()
+}
 
 const orderedColumns = computed(() =>
   columnOrder.value.map((key) => COLUMN_MAP[key]).filter(Boolean),
@@ -198,16 +211,6 @@ const orderedColumns = computed(() =>
 const visibleOrderedColumns = computed(() =>
   orderedColumns.value.filter((col) => isVisible(col.key)),
 )
-
-// Edit mode — enables column reordering in the menu
-const editMode = ref(false)
-
-function toggleEditMode() {
-  editMode.value = !editMode.value
-  if (editMode.value) {
-    showColumnMenu.value = true
-  }
-}
 
 // Drag-and-drop state for column reordering
 const dragIndex = ref<number | null>(null)
@@ -235,7 +238,7 @@ function onDrop(e: DragEvent, index: number) {
   const [moved] = order.splice(dragIndex.value, 1)
   order.splice(index, 0, moved)
   columnOrder.value = order
-  localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(order))
+  _persistColumnPrefs()
   dragIndex.value = null
   dragOverIndex.value = null
 }
@@ -246,12 +249,9 @@ function onDragEnd() {
 }
 
 function resetColumns() {
-  columnVisibility.value = Object.fromEntries(
-    COLUMNS.map((c) => [c.key, c.defaultVisible]),
-  )
+  columnVisibility.value = { ...DEFAULT_VISIBILITY }
   columnOrder.value = [...DEFAULT_ORDER]
-  localStorage.removeItem(STORAGE_KEY)
-  localStorage.removeItem(ORDER_STORAGE_KEY)
+  _persistColumnPrefs()
 }
 
 // Close column menu on outside click
@@ -288,6 +288,7 @@ const sortedEntries = computed(() => {
 
 onMounted(() => {
   store.loadEntries({ limit: rows.value, offset: 0 })
+  loadColumnPrefs()
 })
 
 const currentPage = computed(() => Math.floor(first.value / rows.value) + 1)
@@ -414,39 +415,7 @@ function cellTestId(col: ColumnDef): string | undefined {
           {{ store.total }} entries
         </div>
 
-        <!-- Edit mode toggle -->
-        <button
-          class="btn px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5"
-          :class="
-            editMode
-              ? 'bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-500/40'
-              : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-          "
-          data-testid="edit-mode-toggle"
-          @click="toggleEditMode"
-        >
-          <svg
-            class="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-            />
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-            />
-          </svg>
-          {{ editMode ? 'Done' : 'Edit' }}
-        </button>
-
-        <!-- Column visibility menu -->
+        <!-- Column visibility and order menu -->
         <div class="relative">
           <button
             class="btn bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5"
@@ -479,22 +448,20 @@ function cellTestId(col: ColumnDef): string | undefined {
               class="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
               :class="{
                 'border-t-2 border-violet-400':
-                  editMode &&
                   dragOverIndex === index &&
                   dragIndex !== null &&
                   dragIndex !== index,
-                'opacity-50': editMode && dragIndex === index,
+                'opacity-50': dragIndex === index,
               }"
-              :draggable="editMode"
+              draggable="true"
               :data-testid="`col-item-${col.key}`"
               @dragstart="onDragStart($event, index)"
               @dragover="onDragOver($event, index)"
               @drop="onDrop($event, index)"
               @dragend="onDragEnd"
             >
-              <!-- Drag handle — only in edit mode -->
+              <!-- Drag handle for column reordering -->
               <svg
-                v-if="editMode"
                 class="w-4 h-4 text-gray-400 cursor-grab shrink-0"
                 data-testid="drag-handle"
                 fill="currentColor"
