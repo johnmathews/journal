@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEntriesStore } from '@/stores/entries'
 import type { EntrySummary } from '@/types/entry'
@@ -13,6 +13,7 @@ const first = ref(0)
 // Sorting state — default: date descending
 type SortKey =
   | 'entry_date'
+  | 'source_type'
   | 'page_count'
   | 'word_count'
   | 'chunk_count'
@@ -34,6 +35,88 @@ function sortIndicator(key: SortKey): string {
   if (sortKey.value !== key) return ''
   return sortAsc.value ? ' \u25B2' : ' \u25BC'
 }
+
+// Source type labels
+const SOURCE_LABELS: Record<string, string> = {
+  photo: 'OCR',
+  voice: 'Audio',
+  text_entry: 'Text',
+  imported_text_file: 'File',
+  imported_audio_file: 'Audio (file)',
+}
+
+function sourceLabel(sourceType: string): string {
+  return SOURCE_LABELS[sourceType] ?? sourceType
+}
+
+// Column visibility
+interface ColumnDef {
+  key: string
+  label: string
+  defaultVisible: boolean
+}
+
+const COLUMNS: ColumnDef[] = [
+  { key: 'entry_date', label: 'Date', defaultVisible: true },
+  { key: 'source_type', label: 'Source', defaultVisible: true },
+  { key: 'created_at', label: 'Ingested', defaultVisible: true },
+  { key: 'uncertain_span_count', label: 'Doubts', defaultVisible: true },
+  { key: 'word_count', label: 'Words', defaultVisible: true },
+  { key: 'page_count', label: 'Pages', defaultVisible: true },
+  { key: 'chunk_count', label: 'Chunks', defaultVisible: false },
+]
+
+const STORAGE_KEY = 'journal-entry-columns'
+
+function loadColumnVisibility(): Record<string, boolean> {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored) return JSON.parse(stored)
+  } catch {
+    // Corrupted storage — fall through to defaults
+  }
+  return Object.fromEntries(COLUMNS.map((c) => [c.key, c.defaultVisible]))
+}
+
+const columnVisibility = ref<Record<string, boolean>>(loadColumnVisibility())
+const showColumnMenu = ref(false)
+
+function isVisible(key: string): boolean {
+  return columnVisibility.value[key] ?? true
+}
+
+function toggleColumn(key: string) {
+  columnVisibility.value[key] = !columnVisibility.value[key]
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(columnVisibility.value))
+}
+
+function resetColumns() {
+  columnVisibility.value = Object.fromEntries(
+    COLUMNS.map((c) => [c.key, c.defaultVisible]),
+  )
+  localStorage.removeItem(STORAGE_KEY)
+}
+
+// Close column menu on outside click
+function onDocumentClick(e: MouseEvent) {
+  const btn = document.querySelector('[data-testid="columns-button"]')
+  const menu = document.querySelector('[data-testid="columns-menu"]')
+  if (
+    showColumnMenu.value &&
+    btn &&
+    !btn.contains(e.target as Node) &&
+    menu &&
+    !menu.contains(e.target as Node)
+  ) {
+    showColumnMenu.value = false
+  }
+}
+onMounted(() => {
+  document.addEventListener('click', onDocumentClick)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', onDocumentClick)
+})
 
 const sortedEntries = computed(() => {
   const entries = [...store.entries]
@@ -125,6 +208,62 @@ function doubtsColor(count: number): string {
         >
           {{ store.total }} entries
         </div>
+
+        <!-- Column visibility menu -->
+        <div class="relative">
+          <button
+            class="btn bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5"
+            data-testid="columns-button"
+            @click="showColumnMenu = !showColumnMenu"
+          >
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M9 4h6m-6 4h6m-6 4h6m-6 4h6M4 4v16m16-16v16"
+              />
+            </svg>
+            Columns
+          </button>
+          <div
+            v-if="showColumnMenu"
+            class="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-lg z-40 py-1"
+            data-testid="columns-menu"
+          >
+            <label
+              v-for="col in COLUMNS"
+              :key="col.key"
+              class="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                :checked="isVisible(col.key)"
+                class="form-checkbox rounded text-violet-500"
+                :data-testid="`col-toggle-${col.key}`"
+                @change="toggleColumn(col.key)"
+              />
+              {{ col.label }}
+            </label>
+            <div
+              class="border-t border-gray-200 dark:border-gray-700/60 mt-1 pt-1"
+            >
+              <button
+                class="w-full text-left px-3 py-1.5 text-sm text-violet-600 dark:text-violet-400 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                data-testid="columns-reset"
+                @click="resetColumns"
+              >
+                Reset to defaults
+              </button>
+            </div>
+          </div>
+        </div>
+
         <RouterLink
           to="/entries/new"
           class="btn bg-violet-500 hover:bg-violet-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
@@ -186,8 +325,7 @@ function doubtsColor(count: number): string {
         No journal entries found.
       </div>
 
-      <!-- Table: columns ordered by importance for small screens -->
-      <!-- Date | Ingested | OCR Doubts | Words | Pages (hidden <sm) | Chunks (hidden <sm) -->
+      <!-- Entry table with user-configurable column visibility -->
       <div v-else class="overflow-x-auto">
         <table class="table-auto w-full dark:text-gray-300">
           <thead
@@ -195,6 +333,7 @@ function doubtsColor(count: number): string {
           >
             <tr>
               <th
+                v-if="isVisible('entry_date')"
                 class="px-4 py-3 whitespace-nowrap text-left cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
                 data-testid="sort-date"
                 @click="toggleSort('entry_date')"
@@ -202,6 +341,15 @@ function doubtsColor(count: number): string {
                 Date{{ sortIndicator('entry_date') }}
               </th>
               <th
+                v-if="isVisible('source_type')"
+                class="px-4 py-3 whitespace-nowrap text-left cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+                data-testid="sort-source"
+                @click="toggleSort('source_type')"
+              >
+                Source{{ sortIndicator('source_type') }}
+              </th>
+              <th
+                v-if="isVisible('created_at')"
                 class="px-4 py-3 whitespace-nowrap text-left cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
                 data-testid="sort-ingested"
                 @click="toggleSort('created_at')"
@@ -209,13 +357,15 @@ function doubtsColor(count: number): string {
                 Ingested{{ sortIndicator('created_at') }}
               </th>
               <th
+                v-if="isVisible('uncertain_span_count')"
                 class="px-4 py-3 whitespace-nowrap text-center cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
                 data-testid="sort-doubts"
                 @click="toggleSort('uncertain_span_count')"
               >
-                OCR Doubts{{ sortIndicator('uncertain_span_count') }}
+                Doubts{{ sortIndicator('uncertain_span_count') }}
               </th>
               <th
+                v-if="isVisible('word_count')"
                 class="px-4 py-3 whitespace-nowrap text-right cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
                 data-testid="sort-words"
                 @click="toggleSort('word_count')"
@@ -223,14 +373,16 @@ function doubtsColor(count: number): string {
                 Words{{ sortIndicator('word_count') }}
               </th>
               <th
-                class="hidden sm:table-cell px-4 py-3 whitespace-nowrap text-center cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+                v-if="isVisible('page_count')"
+                class="px-4 py-3 whitespace-nowrap text-center cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
                 data-testid="sort-pages"
                 @click="toggleSort('page_count')"
               >
                 Pages{{ sortIndicator('page_count') }}
               </th>
               <th
-                class="hidden sm:table-cell px-4 py-3 whitespace-nowrap text-right cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+                v-if="isVisible('chunk_count')"
+                class="px-4 py-3 whitespace-nowrap text-right cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
                 data-testid="sort-chunks"
                 @click="toggleSort('chunk_count')"
               >
@@ -249,32 +401,47 @@ function doubtsColor(count: number): string {
               @click="onRowClick(entry.id)"
             >
               <td
+                v-if="isVisible('entry_date')"
                 class="px-4 py-3 whitespace-nowrap text-gray-800 dark:text-gray-100 font-medium"
               >
                 {{ formatDate(entry.entry_date) }}
               </td>
               <td
+                v-if="isVisible('source_type')"
+                class="px-4 py-3 whitespace-nowrap text-gray-500 dark:text-gray-400"
+                data-testid="source-cell"
+              >
+                {{ sourceLabel(entry.source_type) }}
+              </td>
+              <td
+                v-if="isVisible('created_at')"
                 class="px-4 py-3 whitespace-nowrap text-gray-500 dark:text-gray-400"
               >
                 {{ formatDateTime(entry.created_at) }}
               </td>
               <td
+                v-if="isVisible('uncertain_span_count')"
                 class="px-4 py-3 whitespace-nowrap text-center font-medium"
                 :class="doubtsColor(entry.uncertain_span_count)"
                 data-testid="doubts-cell"
               >
                 {{ entry.uncertain_span_count }}
               </td>
-              <td class="px-4 py-3 whitespace-nowrap text-right">
+              <td
+                v-if="isVisible('word_count')"
+                class="px-4 py-3 whitespace-nowrap text-right"
+              >
                 {{ entry.word_count.toLocaleString() }}
               </td>
               <td
-                class="hidden sm:table-cell px-4 py-3 whitespace-nowrap text-center"
+                v-if="isVisible('page_count')"
+                class="px-4 py-3 whitespace-nowrap text-center"
               >
                 {{ entry.page_count }}
               </td>
               <td
-                class="hidden sm:table-cell px-4 py-3 whitespace-nowrap text-right"
+                v-if="isVisible('chunk_count')"
+                class="px-4 py-3 whitespace-nowrap text-right"
               >
                 {{ entry.chunk_count }}
               </td>

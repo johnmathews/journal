@@ -111,6 +111,42 @@ export function entityExtractionCostPerEntry(
   return llmCost + dedupCost
 }
 
+// Per-1000-words normalization constants
+const WORDS_PER_PAGE = 300 // handwritten journal page, ~300 words typical
+const WORDS_PER_MINUTE_SPEAKING = 150 // average speaking rate
+// Formatting LLM call: ~1.4 tokens/word input, similar output length + paragraph breaks
+const FORMATTING_INPUT_TOKENS_PER_1K_WORDS = 1400
+const FORMATTING_OUTPUT_TOKENS_PER_1K_WORDS = 1500
+
+/** OCR cost per 1000 words. Returns null if model is unknown. */
+export function ocrCostPer1000Words(model: string): number | null {
+  const perPage = ocrCostPerPage(model)
+  if (perPage === null) return null
+  return perPage * (1000 / WORDS_PER_PAGE)
+}
+
+/** Audio ingestion cost per 1000 words (transcription + optional formatting). */
+export function audioCostPer1000Words(
+  transcriptionModel: string,
+  formattingEnabled: boolean,
+  formattingModel: string | null,
+): number | null {
+  const perMinute = transcriptionCostPerMinute(transcriptionModel)
+  if (perMinute === null) return null
+  const transcriptionCost = perMinute * (1000 / WORDS_PER_MINUTE_SPEAKING)
+
+  if (!formattingEnabled || !formattingModel) return transcriptionCost
+
+  const pricing = MODEL_PRICING[formattingModel]
+  if (!pricing) return transcriptionCost // unknown model — show transcription only
+  const formattingCost = tokenCost(
+    FORMATTING_INPUT_TOKENS_PER_1K_WORDS,
+    FORMATTING_OUTPUT_TOKENS_PER_1K_WORDS,
+    pricing,
+  )
+  return transcriptionCost + formattingCost
+}
+
 /** Format a dollar cost as a human-readable string. */
 export function formatCost(cost: number | null): string {
   if (cost === null) return '—'

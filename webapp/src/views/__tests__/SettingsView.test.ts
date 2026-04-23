@@ -45,6 +45,7 @@ function makeSettings(overrides: Partial<ServerSettings> = {}): ServerSettings {
   return {
     ocr: { provider: 'gemini', model: 'gemini-3-pro' },
     transcription: { model: 'gpt-4o-transcribe' },
+    transcript_formatting: { model: 'claude-haiku-4-5' },
     embedding: { model: 'text-embedding-3-large', dimensions: 1024 },
     chunking: {
       strategy: 'semantic',
@@ -238,10 +239,14 @@ describe('SettingsView', () => {
     const wrapper = await mountView()
     const section = wrapper.find('[data-testid="settings-section"]')
     expect(section.exists()).toBe(true)
-    // Ingestion section
-    expect(wrapper.find('[data-testid="section-ingestion"]').exists()).toBe(
-      true,
-    )
+    // OCR ingestion section
+    expect(
+      wrapper.find('[data-testid="section-ocr-ingestion"]').exists(),
+    ).toBe(true)
+    // Audio ingestion section
+    expect(
+      wrapper.find('[data-testid="section-audio-ingestion"]').exists(),
+    ).toBe(true)
     // Chunking section
     const chunking = wrapper.find('[data-testid="section-chunking"]')
     expect(chunking.exists()).toBe(true)
@@ -258,11 +263,14 @@ describe('SettingsView', () => {
     expect(entity.text()).toContain('0.88')
   })
 
-  it('displays cost badges', async () => {
+  it('displays cost badges per 1k words for ingestion', async () => {
     const wrapper = await mountView()
-    expect(wrapper.find('[data-testid="ingestion-cost"]').text()).toContain(
-      '/page',
-    )
+    expect(
+      wrapper.find('[data-testid="ocr-ingestion-cost"]').text(),
+    ).toContain('/1k words')
+    expect(
+      wrapper.find('[data-testid="audio-ingestion-cost"]').text(),
+    ).toContain('/1k words')
     expect(wrapper.find('[data-testid="chunking-cost"]').text()).toContain(
       '/entry',
     )

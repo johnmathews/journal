@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
@@ -351,6 +351,159 @@ describe('EntryListView', () => {
     expect(mock).toHaveBeenCalledWith(
       expect.objectContaining({ limit: 50, offset: 0 }),
     )
+  })
+})
+
+describe('Source type column', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia())
+    localStorage.removeItem('journal-entry-columns')
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          entry_date: '2026-03-22',
+          source_type: 'photo',
+          page_count: 2,
+          word_count: 347,
+          chunk_count: 5,
+          created_at: '2026-03-23T10:30:00Z',
+          uncertain_span_count: 0,
+          doubts_verified: false,
+        },
+        {
+          id: 2,
+          entry_date: '2026-03-21',
+          source_type: 'voice',
+          page_count: 0,
+          word_count: 120,
+          chunk_count: 2,
+          created_at: '2026-03-21T15:00:00Z',
+          uncertain_span_count: 0,
+          doubts_verified: false,
+        },
+      ],
+      total: 2,
+      limit: 20,
+      offset: 0,
+    })
+  })
+
+  it('displays human-readable source labels', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    const cells = wrapper.findAll('[data-testid="source-cell"]')
+    expect(cells.length).toBe(2)
+    // Default sort is date desc: id=1 (photo) first, id=2 (voice) second
+    expect(cells[0].text()).toBe('OCR')
+    expect(cells[1].text()).toBe('Audio')
+  })
+})
+
+describe('Column visibility', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia())
+    localStorage.removeItem('journal-entry-columns')
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          entry_date: '2026-03-22',
+          source_type: 'photo',
+          page_count: 2,
+          word_count: 347,
+          chunk_count: 5,
+          created_at: '2026-03-23T10:30:00Z',
+          uncertain_span_count: 0,
+          doubts_verified: false,
+        },
+      ],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    })
+  })
+  afterEach(() => {
+    localStorage.removeItem('journal-entry-columns')
+  })
+
+  it('shows the Columns button', () => {
+    const wrapper = mountComponent()
+    expect(wrapper.find('[data-testid="columns-button"]').exists()).toBe(true)
+  })
+
+  it('toggles the column menu on button click', async () => {
+    const wrapper = mountComponent()
+    expect(wrapper.find('[data-testid="columns-menu"]').exists()).toBe(false)
+
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    expect(wrapper.find('[data-testid="columns-menu"]').exists()).toBe(true)
+  })
+
+  it('hides a column when its checkbox is unchecked', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    // Source column should be visible by default
+    expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(true)
+
+    // Open menu and uncheck source
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    await wrapper
+      .find('[data-testid="col-toggle-source_type"]')
+      .setValue(false)
+
+    expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(false)
+  })
+
+  it('persists column visibility to localStorage', async () => {
+    const wrapper = mountComponent()
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    await wrapper
+      .find('[data-testid="col-toggle-source_type"]')
+      .setValue(false)
+
+    const stored = JSON.parse(
+      localStorage.getItem('journal-entry-columns') ?? '{}',
+    )
+    expect(stored.source_type).toBe(false)
+  })
+
+  it('restores defaults on reset', async () => {
+    // Pre-set custom visibility
+    localStorage.setItem(
+      'journal-entry-columns',
+      JSON.stringify({ source_type: false, chunk_count: true }),
+    )
+
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    // Source should be hidden based on localStorage
+    expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(false)
+
+    // Open menu and click reset
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    await wrapper.find('[data-testid="columns-reset"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    // Source back, chunks hidden (default)
+    expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(true)
+    expect(localStorage.getItem('journal-entry-columns')).toBeNull()
+  })
+
+  it('chunks column is hidden by default', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="sort-chunks"]').exists()).toBe(false)
   })
 })
 

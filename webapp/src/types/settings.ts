@@ -6,6 +6,9 @@ export interface ServerSettings {
   transcription: {
     model: string
   }
+  transcript_formatting: {
+    model: string
+  }
   embedding: {
     model: string
     dimensions: number

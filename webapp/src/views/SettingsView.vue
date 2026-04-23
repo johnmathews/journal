@@ -7,7 +7,9 @@ import { useToast } from '@/composables/useToast'
 import { triggerEntityExtraction } from '@/api/entities'
 import {
   ocrCostPerPage,
+  ocrCostPer1000Words,
   transcriptionCostPerMinute,
+  audioCostPer1000Words,
   chunkingCostPerEntry,
   moodScoringCostPerEntry,
   entityExtractionCostPerEntry,
@@ -139,6 +141,27 @@ const entityCost = computed(() => {
     store.settings.embedding.model,
   )
 })
+
+const ocrCostPerK = computed(() => {
+  if (!store.settings) return null
+  return ocrCostPer1000Words(store.settings.ocr.model)
+})
+
+const audioCostPerK = computed(() => {
+  if (!store.settings) return null
+  const formattingEnabled =
+    (store.settings.runtime.find((s) => s.key === 'transcript_formatting')
+      ?.value as boolean) ?? false
+  return audioCostPer1000Words(
+    store.settings.transcription.model,
+    formattingEnabled,
+    formattingEnabled ? store.settings.transcript_formatting.model : null,
+  )
+})
+
+function runtimeSettingValue(key: string): boolean | string | undefined {
+  return store.settings?.runtime.find((s) => s.key === key)?.value
+}
 </script>
 
 <template>
@@ -322,7 +345,9 @@ const entityCost = computed(() => {
           class="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs space-y-4"
         >
           <div
-            v-for="setting in store.settings.runtime"
+            v-for="setting in store.settings.runtime.filter(
+              (s) => s.key !== 'transcript_formatting',
+            )"
             :key="setting.key"
             class="flex items-center justify-between"
             :data-testid="`runtime-${setting.key}`"
@@ -393,22 +418,22 @@ const entityCost = computed(() => {
         </h2>
 
         <div class="space-y-4">
-          <!-- 1. Ingestion (OCR + Transcription) -->
+          <!-- 1a. OCR Ingestion -->
           <div
             class="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs"
-            data-testid="section-ingestion"
+            data-testid="section-ocr-ingestion"
           >
             <div class="flex items-center justify-between mb-3">
               <h3
                 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider"
               >
-                1. Ingestion
+                1a. OCR Ingestion
               </h3>
               <span
                 class="text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full"
-                data-testid="ingestion-cost"
+                data-testid="ocr-ingestion-cost"
               >
-                {{ formatCost(ocrCost) }}/page
+                {{ formatCost(ocrCostPerK) }}/1k words
               </span>
             </div>
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
@@ -430,6 +455,28 @@ const entityCost = computed(() => {
                   {{ store.settings.ocr.model }}
                 </dd>
               </div>
+            </dl>
+          </div>
+
+          <!-- 1b. Audio Ingestion -->
+          <div
+            class="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs"
+            data-testid="section-audio-ingestion"
+          >
+            <div class="flex items-center justify-between mb-3">
+              <h3
+                class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider"
+              >
+                1b. Audio Ingestion
+              </h3>
+              <span
+                class="text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full"
+                data-testid="audio-ingestion-cost"
+              >
+                {{ formatCost(audioCostPerK) }}/1k words
+              </span>
+            </div>
+            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
               <div class="flex justify-between sm:block">
                 <dt class="text-gray-500 dark:text-gray-400">
                   Transcription Model
@@ -440,14 +487,39 @@ const entityCost = computed(() => {
               </div>
               <div class="flex justify-between sm:block">
                 <dt class="text-gray-500 dark:text-gray-400">
-                  Transcription Cost
+                  Paragraph Formatting
                 </dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
-                  {{
-                    transcriptionCost !== null
-                      ? `$${transcriptionCost}/min`
-                      : '—'
-                  }}
+                  <label class="inline-flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      class="form-checkbox rounded text-violet-500"
+                      :checked="runtimeSettingValue('transcript_formatting') === true"
+                      data-testid="transcript-formatting-toggle"
+                      @change="
+                        store.updateRuntime({
+                          transcript_formatting:
+                            !runtimeSettingValue('transcript_formatting'),
+                        })
+                      "
+                    />
+                    <span class="text-sm">{{
+                      runtimeSettingValue('transcript_formatting')
+                        ? 'Enabled'
+                        : 'Disabled'
+                    }}</span>
+                  </label>
+                </dd>
+              </div>
+              <div
+                v-if="runtimeSettingValue('transcript_formatting')"
+                class="flex justify-between sm:block"
+              >
+                <dt class="text-gray-500 dark:text-gray-400">
+                  Formatting Model
+                </dt>
+                <dd class="font-medium text-gray-900 dark:text-gray-100">
+                  {{ store.settings.transcript_formatting.model }}
                 </dd>
               </div>
             </dl>
