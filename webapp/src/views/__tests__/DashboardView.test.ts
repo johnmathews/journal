@@ -363,10 +363,10 @@ describe('DashboardView', () => {
     })
     const wrapper = mountView()
     await flushPromises()
-    // Default: all + week.
+    // Default: last_3_months + week.
     expect(
       wrapper
-        .find('[data-testid="dashboard-range-all"]')
+        .find('[data-testid="dashboard-range-last_3_months"]')
         .attributes('aria-pressed'),
     ).toBe('true')
     expect(

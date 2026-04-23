@@ -74,6 +74,27 @@ describe('search API', () => {
     expect(url).not.toContain('end_date')
   })
 
+  it('sends URL without query string when all params are empty', async () => {
+    mockApiFetch.mockResolvedValue({
+      query: '',
+      mode: 'keyword',
+      limit: 10,
+      offset: 0,
+      items: [],
+    })
+
+    await searchEntries({
+      q: '',
+      mode: undefined,
+      start_date: undefined,
+      end_date: undefined,
+    })
+
+    const url = mockApiFetch.mock.calls[0][0] as string
+    expect(url).toBe('/api/search')
+    expect(url).not.toContain('?')
+  })
+
   it('returns the response body unchanged', async () => {
     const payload = {
       query: 'vienna',

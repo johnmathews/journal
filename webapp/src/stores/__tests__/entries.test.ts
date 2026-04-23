@@ -6,6 +6,7 @@ vi.mock('@/api/entries', () => ({
   fetchEntries: vi.fn(),
   fetchEntry: vi.fn(),
   updateEntryText: vi.fn(),
+  updateEntryDate: vi.fn(),
   deleteEntry: vi.fn(),
   verifyDoubts: vi.fn(),
   ingestText: vi.fn(),
@@ -18,6 +19,7 @@ import {
   fetchEntries,
   fetchEntry,
   updateEntryText,
+  updateEntryDate,
   deleteEntry,
   verifyDoubts,
   ingestText,
@@ -28,6 +30,7 @@ import {
 const mockFetchEntries = vi.mocked(fetchEntries)
 const mockFetchEntry = vi.mocked(fetchEntry)
 const mockUpdateEntryText = vi.mocked(updateEntryText)
+const mockUpdateEntryDate = vi.mocked(updateEntryDate)
 const mockDeleteEntry = vi.mocked(deleteEntry)
 const mockVerifyDoubts = vi.mocked(verifyDoubts)
 const mockIngestText = vi.mocked(ingestText)
@@ -241,6 +244,53 @@ describe('useEntriesStore', () => {
     await store.loadEntries()
 
     expect(store.hasEntries).toBe(true)
+  })
+
+  // --- updateDate ---
+
+  it('updateDate updates currentEntry on success', async () => {
+    const updated = {
+      id: 1,
+      entry_date: '2026-02-15',
+      source_type: 'photo' as const,
+      raw_text: 'raw',
+      final_text: 'final',
+      page_count: 1,
+      word_count: 10,
+      chunk_count: 2,
+      language: 'en',
+      created_at: '',
+      uncertain_span_count: 0,
+      updated_at: '',
+      doubts_verified: false,
+      uncertain_spans: [],
+    }
+    mockUpdateEntryDate.mockResolvedValue(updated)
+
+    const store = useEntriesStore()
+    await store.updateDate(1, '2026-02-15')
+
+    expect(mockUpdateEntryDate).toHaveBeenCalledWith(1, '2026-02-15')
+    expect(store.currentEntry?.entry_date).toBe('2026-02-15')
+    expect(store.loading).toBe(false)
+    expect(store.error).toBeNull()
+  })
+
+  it('updateDate sets error and rethrows on failure', async () => {
+    mockUpdateEntryDate.mockRejectedValue(new Error('Invalid date'))
+
+    const store = useEntriesStore()
+    await expect(store.updateDate(1, 'bad')).rejects.toThrow('Invalid date')
+    expect(store.error).toBe('Invalid date')
+    expect(store.loading).toBe(false)
+  })
+
+  it('updateDate falls back to generic message for non-Error', async () => {
+    mockUpdateEntryDate.mockRejectedValue('boom')
+
+    const store = useEntriesStore()
+    await expect(store.updateDate(1, '2026-01-01')).rejects.toBe('boom')
+    expect(store.error).toBe('Failed to update date')
   })
 
   it('deleteEntry removes the entry from the list and decrements total', async () => {

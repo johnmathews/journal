@@ -161,6 +161,21 @@ describe('entities store', () => {
     expect(store.detailLoading).toBe(false)
   })
 
+  it('totalPages falls back to 50 when limit is 0', () => {
+    const store = useEntitiesStore()
+    store.total = 100
+    store.currentParams = { limit: 0, offset: 0 }
+    // limit || 50 → 50, so 100/50 = 2
+    expect(store.totalPages).toBe(2)
+  })
+
+  it('currentPage falls back to defaults when offset and limit are 0', () => {
+    const store = useEntitiesStore()
+    store.currentParams = { limit: 0, offset: 0 }
+    // (offset||0)/(limit||50) + 1 → 0/50 + 1 = 1
+    expect(store.currentPage).toBe(1)
+  })
+
   it('clearCurrent resets current entity state', async () => {
     const store = useEntitiesStore()
     store.currentEntity = {
@@ -392,6 +407,16 @@ describe('entities store', () => {
       await expect(store.removeEntity(1)).rejects.toThrow('forbidden')
       expect(store.error).toBe('forbidden')
     })
+
+    it('falls back to generic message for non-Error rejection', async () => {
+      const { deleteEntity } = await import('@/api/entities')
+      vi.mocked(deleteEntity).mockRejectedValue('string rejection')
+
+      const store = useEntitiesStore()
+
+      await expect(store.removeEntity(1)).rejects.toBe('string rejection')
+      expect(store.error).toBe('Failed to delete entity')
+    })
   })
 
   describe('mergeEntities', () => {
@@ -510,6 +535,57 @@ describe('entities store', () => {
       await expect(store.mergeEntities(1, [2])).rejects.toThrow('merge failed')
       expect(store.error).toBe('merge failed')
     })
+
+    it('falls back to generic message for non-Error rejection', async () => {
+      const { mergeEntities: mergeEntitiesApi } = await import('@/api/entities')
+      vi.mocked(mergeEntitiesApi).mockRejectedValue(42)
+
+      const store = useEntitiesStore()
+
+      await expect(store.mergeEntities(1, [2])).rejects.toBe(42)
+      expect(store.error).toBe('Failed to merge entities')
+    })
+
+    it('handles response with no survivor (null)', async () => {
+      const { mergeEntities: mergeEntitiesApi } = await import('@/api/entities')
+      vi.mocked(mergeEntitiesApi).mockResolvedValue({
+        survivor: null as unknown as undefined,
+        absorbed_ids: [2],
+        mentions_reassigned: 0,
+        relationships_reassigned: 0,
+        aliases_added: 0,
+      })
+
+      const store = useEntitiesStore()
+      store.entities = [
+        {
+          id: 1,
+          entity_type: 'person',
+          canonical_name: 'Survivor',
+          aliases: [],
+          mention_count: 3,
+          first_seen: '',
+          last_seen: '',
+        },
+        {
+          id: 2,
+          entity_type: 'person',
+          canonical_name: 'Absorbed',
+          aliases: [],
+          mention_count: 1,
+          first_seen: '',
+          last_seen: '',
+        },
+      ]
+      store.total = 2
+
+      const result = await store.mergeEntities(1, [2])
+
+      // Absorbed removed, survivor left untouched since result.survivor is falsy
+      expect(store.entities).toHaveLength(1)
+      expect(store.entities[0].canonical_name).toBe('Survivor')
+      expect(result.survivor).toBeNull()
+    })
   })
 
   describe('loadMergeCandidates', () => {
@@ -563,6 +639,17 @@ describe('entities store', () => {
       await store.loadMergeCandidates()
 
       expect(store.error).toBe('timeout')
+      expect(store.mergeCandidatesLoading).toBe(false)
+    })
+
+    it('falls back to generic message for non-Error rejection', async () => {
+      const { fetchMergeCandidates } = await import('@/api/entities')
+      vi.mocked(fetchMergeCandidates).mockRejectedValue({ code: 500 })
+
+      const store = useEntitiesStore()
+      await store.loadMergeCandidates()
+
+      expect(store.error).toBe('Failed to load merge candidates')
       expect(store.mergeCandidatesLoading).toBe(false)
     })
   })

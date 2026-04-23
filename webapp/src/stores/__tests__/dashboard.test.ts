@@ -89,9 +89,9 @@ describe('useDashboardStore', () => {
     vi.clearAllMocks()
   })
 
-  it('initial state is all + week, nothing loaded', () => {
+  it('initial state is last_3_months + week, nothing loaded', () => {
     const store = useDashboardStore()
-    expect(store.range).toBe('all')
+    expect(store.range).toBe('last_3_months')
     expect(store.bin).toBe('week')
     expect(store.bins).toEqual([])
     expect(store.hasLoaded).toBe(false)

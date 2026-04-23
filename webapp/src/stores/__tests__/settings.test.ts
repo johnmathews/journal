@@ -247,6 +247,111 @@ describe('useSettingsStore', () => {
     expect(store.settings!.pricing![0].input_cost_per_mtok).toBe(6.0)
   })
 
+  it('updateRuntime does not crash when settings is null', async () => {
+    const updatedRuntime = [
+      {
+        key: 'preprocess_images',
+        type: 'bool',
+        label: 'Image Preprocessing',
+        description: 'Auto-rotate, crop, downscale, enhance.',
+        value: false,
+      },
+    ]
+    mockUpdateRuntimeSettings.mockResolvedValue({
+      updated: ['preprocess_images'],
+      settings: updatedRuntime,
+    })
+
+    const store = useSettingsStore()
+    // settings.value is null by default — exercise the `if (settings.value)` false branch
+    await store.updateRuntime({ preprocess_images: false })
+
+    expect(mockUpdateRuntimeSettings).toHaveBeenCalledWith({
+      preprocess_images: false,
+    })
+    // settings remains null — the store did not try to spread into null
+    expect(store.settings).toBeNull()
+    expect(store.updating).toBe(false)
+  })
+
+  it('updatePricing does not crash when settings is null', async () => {
+    mockUpdatePricing.mockResolvedValue({
+      updated: ['claude-opus-4-6'],
+      pricing: [],
+    })
+
+    const store = useSettingsStore()
+    // settings.value is null — exercise the `if (settings.value)` false branch
+    await store.updatePricing({
+      'claude-opus-4-6': { input_cost_per_mtok: 7.0 },
+    })
+
+    expect(mockUpdatePricing).toHaveBeenCalledWith({
+      'claude-opus-4-6': { input_cost_per_mtok: 7.0 },
+    })
+    expect(store.settings).toBeNull()
+    expect(store.updating).toBe(false)
+  })
+
+  it('pricingConfig falls back to 0 when output_cost_per_mtok is null', async () => {
+    const settings = makeSettings()
+    settings.pricing = [
+      {
+        model: 'custom-model',
+        category: 'llm',
+        input_cost_per_mtok: 2.0,
+        output_cost_per_mtok: null,
+        cost_per_minute: null,
+        last_verified: '2026-05-01',
+      },
+    ]
+    mockFetchSettings.mockResolvedValue(settings)
+    mockFetchHealth.mockResolvedValue(makeHealth())
+
+    const store = useSettingsStore()
+    await store.load()
+
+    const config = store.pricingConfig
+    expect(config.models['custom-model'].input).toBe(2.0)
+    expect(config.models['custom-model'].output).toBe(0)
+  })
+
+  it('pricingConfig skips entries with no input_cost_per_mtok and non-transcription category', async () => {
+    const settings = makeSettings()
+    settings.pricing = [
+      {
+        model: 'unknown-model',
+        category: 'other',
+        input_cost_per_mtok: null,
+        output_cost_per_mtok: null,
+        cost_per_minute: null,
+        last_verified: '2026-05-01',
+      },
+    ]
+    mockFetchSettings.mockResolvedValue(settings)
+    mockFetchHealth.mockResolvedValue(makeHealth())
+
+    const store = useSettingsStore()
+    await store.load()
+
+    const config = store.pricingConfig
+    // The entry should be skipped entirely — unknown-model should not appear
+    expect(config.models['unknown-model']).toBeUndefined()
+  })
+
+  it('pricingConfig returns defaults when pricing is an empty array', async () => {
+    const settings = makeSettings()
+    settings.pricing = []
+    mockFetchSettings.mockResolvedValue(settings)
+    mockFetchHealth.mockResolvedValue(makeHealth())
+
+    const store = useSettingsStore()
+    await store.load()
+
+    const { DEFAULT_PRICING } = await import('@/utils/cost-estimates')
+    expect(store.pricingConfig).toEqual(DEFAULT_PRICING)
+  })
+
   it('updateRuntime patches settings and refreshes runtime array', async () => {
     mockFetchSettings.mockResolvedValue(makeSettings())
     mockFetchHealth.mockResolvedValue(makeHealth())
