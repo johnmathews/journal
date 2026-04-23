@@ -18,7 +18,6 @@ import {
 } from '@/types/insights'
 import { getChartColors } from '@/utils/chartjs-config'
 import { adjustColorOpacity } from '@/utils/mosaic'
-import BatchJobModal from '@/components/BatchJobModal.vue'
 
 // Prevent tree-shaking of Chart.js registration side-effect.
 void getChartColors
@@ -1067,13 +1066,6 @@ async function onMoodCorrelationTypeChange(
 ): Promise<void> {
   await store.loadMoodEntityCorrelation(undefined, type)
 }
-
-const showMoodBackfillModal = ref(false)
-
-async function onMoodJobSucceeded(): Promise<void> {
-  await store.loadMoodTrends()
-  renderMoodChart()
-}
 </script>
 
 <template>
@@ -2113,14 +2105,6 @@ async function onMoodJobSucceeded(): Promise<void> {
                   </svg>
                 </button>
               </div>
-              <button
-                type="button"
-                class="btn-sm bg-violet-500 hover:bg-violet-600 text-white"
-                data-testid="run-mood-backfill-button"
-                @click="showMoodBackfillModal = true"
-              >
-                Run mood backfill
-              </button>
             </div>
           </header>
 
@@ -2705,12 +2689,5 @@ async function onMoodJobSucceeded(): Promise<void> {
       </div>
       <!-- end dashboard tiles grid -->
     </div>
-
-    <BatchJobModal
-      v-model="showMoodBackfillModal"
-      title="Run mood backfill"
-      job-kind="mood_backfill"
-      @job-succeeded="onMoodJobSucceeded"
-    />
   </div>
 </template>

@@ -3,8 +3,10 @@ import { onMounted, computed, ref } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import { useAuthStore } from '@/stores/auth'
 import { useJobsStore } from '@/stores/jobs'
+import { useDashboardStore } from '@/stores/dashboard'
 import { useToast } from '@/composables/useToast'
 import { triggerEntityExtraction } from '@/api/entities'
+import BatchJobModal from '@/components/BatchJobModal.vue'
 import {
   ocrCostPer1000Words,
   audioCostPer1000Words,
@@ -150,6 +152,19 @@ const audioCostPerK = computed(() => {
 function runtimeSettingValue(key: string): boolean | string | undefined {
   return store.settings?.runtime.find((s) => s.key === key)?.value
 }
+
+const showMoodBackfillModal = ref(false)
+const showEntityExtractionModal = ref(false)
+
+const dashboardStore = useDashboardStore()
+
+async function onMoodJobSucceeded(): Promise<void> {
+  await dashboardStore.loadMoodTrends()
+}
+
+const moodScoringEnabled = computed(
+  () => store.settings?.features.mood_scoring ?? false,
+)
 </script>
 
 <template>
@@ -398,6 +413,83 @@ function runtimeSettingValue(key: string): boolean | string | undefined {
           </div>
         </div>
       </section>
+
+      <!-- Background Jobs -->
+      <section class="mb-8 mt-8" data-testid="background-jobs-section">
+        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
+          Background Jobs
+        </h2>
+        <div class="space-y-4">
+          <!-- Mood Backfill -->
+          <div
+            class="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs"
+            data-testid="job-mood-backfill"
+          >
+            <div class="flex items-center justify-between">
+              <div class="flex-1 min-w-0 mr-4">
+                <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Mood Backfill
+                </p>
+                <p class="text-xs text-gray-400 dark:text-gray-500">
+                  Score entries for mood dimensions. Run on new entries or
+                  re-score existing ones.
+                </p>
+              </div>
+              <button
+                type="button"
+                class="btn-sm bg-violet-500 hover:bg-violet-600 text-white"
+                :disabled="!moodScoringEnabled"
+                :title="
+                  moodScoringEnabled
+                    ? 'Run mood backfill'
+                    : 'Mood scoring is disabled'
+                "
+                data-testid="run-mood-backfill-button"
+                @click="showMoodBackfillModal = true"
+              >
+                Run
+              </button>
+            </div>
+          </div>
+
+          <!-- Entity Extraction -->
+          <div
+            class="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs"
+            data-testid="job-entity-extraction"
+          >
+            <div class="flex items-center justify-between">
+              <div class="flex-1 min-w-0 mr-4">
+                <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Entity Extraction
+                </p>
+                <p class="text-xs text-gray-400 dark:text-gray-500">
+                  Extract people, places, and other entities from entries.
+                </p>
+              </div>
+              <button
+                type="button"
+                class="btn-sm bg-violet-500 hover:bg-violet-600 text-white"
+                data-testid="run-entity-extraction-button"
+                @click="showEntityExtractionModal = true"
+              >
+                Run
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <BatchJobModal
+        v-model="showMoodBackfillModal"
+        title="Run mood backfill"
+        job-kind="mood_backfill"
+        @job-succeeded="onMoodJobSucceeded"
+      />
+      <BatchJobModal
+        v-model="showEntityExtractionModal"
+        title="Run entity extraction"
+        job-kind="entity_extraction"
+      />
 
       <!-- Settings Section -->
       <section v-if="store.settings" data-testid="settings-section">

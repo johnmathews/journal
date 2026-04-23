@@ -24,6 +24,23 @@ vi.mock('@/api/entities', () => ({
     mockTriggerEntityExtraction(...args),
 }))
 
+vi.mock('@/api/jobs', () => ({
+  triggerMoodBackfill: vi.fn(),
+  getJob: vi.fn(),
+  listJobs: vi.fn().mockResolvedValue({ jobs: [], total: 0 }),
+}))
+
+vi.mock('@/api/dashboard', () => ({
+  fetchWritingStats: vi.fn().mockResolvedValue({ bins: [] }),
+  fetchMoodDimensions: vi.fn().mockResolvedValue({ dimensions: [] }),
+  fetchMoodTrends: vi.fn().mockResolvedValue({ bins: [] }),
+  fetchCalendarHeatmap: vi.fn().mockResolvedValue({ days: [] }),
+  fetchEntityTrends: vi.fn().mockResolvedValue({ entities: [], bins: [] }),
+  fetchMoodEntityCorrelation: vi
+    .fn()
+    .mockResolvedValue({ items: [], overall_avg: 0 }),
+}))
+
 vi.mock('@/api/client', () => ({
   apiFetch: vi.fn(),
   ApiRequestError: class ApiRequestError extends Error {
@@ -562,5 +579,77 @@ describe('SettingsView', () => {
     expect(mockUpdateRuntimeSettings).toHaveBeenCalledWith({
       ocr_provider: 'gemini',
     })
+  })
+
+  // --- Background Jobs ---
+
+  it('renders the background jobs section', async () => {
+    const wrapper = await mountView()
+    expect(
+      wrapper.find('[data-testid="background-jobs-section"]').exists(),
+    ).toBe(true)
+  })
+
+  it('renders mood backfill and entity extraction job cards', async () => {
+    const wrapper = await mountView()
+    expect(wrapper.find('[data-testid="job-mood-backfill"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('[data-testid="job-entity-extraction"]').exists()).toBe(
+      true,
+    )
+  })
+
+  it('mood backfill Run button is enabled when mood scoring is on', async () => {
+    const wrapper = await mountView(
+      makeSettings({
+        features: {
+          mood_scoring: true,
+          mood_scorer_model: 'claude-sonnet-4-5',
+          journal_author_name: 'John',
+        },
+      }),
+    )
+    const btn = wrapper.find('[data-testid="run-mood-backfill-button"]')
+    expect(btn.exists()).toBe(true)
+    expect((btn.element as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('mood backfill Run button is disabled when mood scoring is off', async () => {
+    const wrapper = await mountView(
+      makeSettings({
+        features: {
+          mood_scoring: false,
+          mood_scorer_model: 'claude-sonnet-4-5',
+          journal_author_name: 'John',
+        },
+      }),
+    )
+    const btn = wrapper.find('[data-testid="run-mood-backfill-button"]')
+    expect((btn.element as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('clicking mood backfill Run opens the batch modal', async () => {
+    const wrapper = await mountView()
+    await wrapper
+      .find('[data-testid="run-mood-backfill-button"]')
+      .trigger('click')
+    await flushPromises()
+    expect(
+      document.body.querySelector('[data-testid="batch-modal-configure"]'),
+    ).not.toBeNull()
+    document.body.innerHTML = ''
+  })
+
+  it('clicking entity extraction Run opens the batch modal', async () => {
+    const wrapper = await mountView()
+    await wrapper
+      .find('[data-testid="run-entity-extraction-button"]')
+      .trigger('click')
+    await flushPromises()
+    expect(
+      document.body.querySelector('[data-testid="batch-modal-configure"]'),
+    ).not.toBeNull()
+    document.body.innerHTML = ''
   })
 })
