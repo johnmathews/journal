@@ -1186,7 +1186,7 @@ const moodScoringEnabled = computed(
                       <template v-else>
                         <span>${{ entry.cost_per_minute }}/min</span>
                       </template>
-                      <span class="text-gray-600 dark:text-gray-300">{{
+                      <span class="text-gray-500 dark:text-gray-400">{{
                         entry.last_verified
                       }}</span>
                       <button
