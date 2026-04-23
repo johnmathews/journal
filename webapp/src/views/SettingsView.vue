@@ -11,9 +11,11 @@ import NotificationsSettings from '@/components/NotificationsSettings.vue'
 import {
   ocrCostPer1000Words,
   audioCostPer1000Words,
-  chunkingCostPerEntry,
-  moodScoringCostPerEntry,
-  entityExtractionCostPerEntry,
+  chunkingCostPer1000Words,
+  moodScoringCostPer1000Words,
+  entityExtractionCostPer1000Words,
+  totalIngestionCostPer1000Words,
+  totalEditCostPer1000Words,
   formatCost,
 } from '@/utils/cost-estimates'
 
@@ -115,22 +117,52 @@ const statusColor = computed(() => {
   }
 })
 
-const chunkingCost = computed(() => {
+const chunkingCostPerK = computed(() => {
   if (!store.settings) return null
-  return chunkingCostPerEntry(store.settings.embedding.model)
+  return chunkingCostPer1000Words(store.settings.embedding.model)
 })
 
-const moodCost = computed(() => {
+const moodCostPerK = computed(() => {
   if (!store.settings) return null
-  return moodScoringCostPerEntry(store.settings.features.mood_scorer_model)
+  return moodScoringCostPer1000Words(store.settings.features.mood_scorer_model)
 })
 
-const entityCost = computed(() => {
+const entityCostPerK = computed(() => {
   if (!store.settings) return null
-  return entityExtractionCostPerEntry(
+  return entityExtractionCostPer1000Words(
     store.settings.entity_extraction.model,
     store.settings.embedding.model,
   )
+})
+
+const ingestionTotal = computed(() => {
+  if (!store.settings) return null
+  const moodModel = store.settings.features.mood_scoring
+    ? store.settings.features.mood_scorer_model
+    : null
+  return totalIngestionCostPer1000Words(
+    store.settings.ocr.model,
+    store.settings.embedding.model,
+    moodModel,
+    store.settings.entity_extraction.model,
+  )
+})
+
+const editTotal = computed(() => {
+  if (!store.settings) return null
+  const moodModel = store.settings.features.mood_scoring
+    ? store.settings.features.mood_scorer_model
+    : null
+  return totalEditCostPer1000Words(
+    store.settings.embedding.model,
+    moodModel,
+    store.settings.entity_extraction.model,
+  )
+})
+
+const grandTotal = computed(() => {
+  if (ingestionTotal.value === null || editTotal.value === null) return null
+  return ingestionTotal.value + editTotal.value
 })
 
 const ocrCostPerK = computed(() => {
@@ -627,7 +659,7 @@ const moodScoringEnabled = computed(
                 class="text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full"
                 data-testid="chunking-cost"
               >
-                {{ formatCost(chunkingCost) }}/entry
+                {{ formatCost(chunkingCostPerK) }}/1k words
               </span>
             </div>
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
@@ -718,7 +750,7 @@ const moodScoringEnabled = computed(
                 class="text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full"
                 data-testid="mood-cost"
               >
-                {{ formatCost(moodCost) }}/entry
+                {{ formatCost(moodCostPerK) }}/1k words
               </span>
               <span
                 v-else
@@ -761,7 +793,7 @@ const moodScoringEnabled = computed(
                 class="text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full"
                 data-testid="entity-cost"
               >
-                {{ formatCost(entityCost) }}/entry
+                {{ formatCost(entityCostPerK) }}/1k words
               </span>
             </div>
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
@@ -848,6 +880,106 @@ const moodScoringEnabled = computed(
                 </dd>
               </div>
             </dl>
+          </div>
+
+          <!-- Total Estimated Cost -->
+          <div
+            class="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs"
+            data-testid="section-total-cost"
+          >
+            <h3
+              class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-3"
+            >
+              Estimated Cost per 1,000 Words
+            </h3>
+            <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">
+              Assumes OCR ingestion followed by one text edit.
+            </p>
+            <div class="space-y-3 text-sm">
+              <!-- Ingestion subtotal -->
+              <div>
+                <div
+                  class="flex justify-between text-gray-500 dark:text-gray-400 mb-1"
+                >
+                  <span class="font-medium text-gray-700 dark:text-gray-300"
+                    >Ingestion</span
+                  >
+                  <span
+                    class="font-medium text-gray-900 dark:text-gray-100"
+                    data-testid="ingestion-subtotal"
+                    >{{ formatCost(ingestionTotal) }}</span
+                  >
+                </div>
+                <div class="ml-3 space-y-0.5 text-xs text-gray-400 dark:text-gray-500">
+                  <div class="flex justify-between">
+                    <span>OCR</span>
+                    <span>{{ formatCost(ocrCostPerK) }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span>Chunking & Embedding</span>
+                    <span>{{ formatCost(chunkingCostPerK) }}</span>
+                  </div>
+                  <div
+                    v-if="store.settings.features.mood_scoring"
+                    class="flex justify-between"
+                  >
+                    <span>Mood Scoring</span>
+                    <span>{{ formatCost(moodCostPerK) }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span>Entity Extraction</span>
+                    <span>{{ formatCost(entityCostPerK) }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Edit subtotal -->
+              <div>
+                <div
+                  class="flex justify-between text-gray-500 dark:text-gray-400 mb-1"
+                >
+                  <span class="font-medium text-gray-700 dark:text-gray-300"
+                    >First Edit</span
+                  >
+                  <span
+                    class="font-medium text-gray-900 dark:text-gray-100"
+                    data-testid="edit-subtotal"
+                    >{{ formatCost(editTotal) }}</span
+                  >
+                </div>
+                <div class="ml-3 space-y-0.5 text-xs text-gray-400 dark:text-gray-500">
+                  <div class="flex justify-between">
+                    <span>Chunking & Embedding</span>
+                    <span>{{ formatCost(chunkingCostPerK) }}</span>
+                  </div>
+                  <div
+                    v-if="store.settings.features.mood_scoring"
+                    class="flex justify-between"
+                  >
+                    <span>Mood Scoring</span>
+                    <span>{{ formatCost(moodCostPerK) }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span>Entity Extraction</span>
+                    <span>{{ formatCost(entityCostPerK) }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Grand total -->
+              <div
+                class="flex justify-between pt-2 border-t border-gray-200 dark:border-gray-700"
+              >
+                <span class="font-semibold text-gray-800 dark:text-gray-200"
+                  >Total</span
+                >
+                <span
+                  class="font-semibold text-gray-900 dark:text-gray-100"
+                  data-testid="grand-total"
+                  >{{ formatCost(grandTotal) }}</span
+                >
+              </div>
+            </div>
           </div>
 
           <!-- Re-extract prompt -->

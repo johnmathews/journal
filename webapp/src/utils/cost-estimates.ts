@@ -40,6 +40,7 @@ const OCR_INPUT_TOKENS_PER_PAGE = 2100 // ~1600 image + ~500 system prompt
 const OCR_OUTPUT_TOKENS_PER_PAGE = 800
 
 // Token assumptions for enrichment (per ~500 word entry)
+const WORDS_PER_ENTRY = 500
 const MOOD_INPUT_TOKENS = 1750
 const MOOD_OUTPUT_TOKENS = 200
 const ENTITY_INPUT_TOKENS = 1550
@@ -145,6 +146,60 @@ export function audioCostPer1000Words(
     pricing,
   )
   return transcriptionCost + formattingCost
+}
+
+/** Chunking + embedding cost per 1000 words. Returns null if model is unknown. */
+export function chunkingCostPer1000Words(embeddingModel: string): number | null {
+  const perEntry = chunkingCostPerEntry(embeddingModel)
+  if (perEntry === null) return null
+  return perEntry * (1000 / WORDS_PER_ENTRY)
+}
+
+/** Mood scoring cost per 1000 words. Returns null if model is unknown. */
+export function moodScoringCostPer1000Words(model: string): number | null {
+  const perEntry = moodScoringCostPerEntry(model)
+  if (perEntry === null) return null
+  return perEntry * (1000 / WORDS_PER_ENTRY)
+}
+
+/** Entity extraction cost per 1000 words. Returns null if model is unknown. */
+export function entityExtractionCostPer1000Words(
+  extractionModel: string,
+  embeddingModel: string,
+): number | null {
+  const perEntry = entityExtractionCostPerEntry(extractionModel, embeddingModel)
+  if (perEntry === null) return null
+  return perEntry * (1000 / WORDS_PER_ENTRY)
+}
+
+/** Total ingestion cost per 1000 words (OCR + chunking + mood + entities). */
+export function totalIngestionCostPer1000Words(
+  ocrModel: string,
+  embeddingModel: string,
+  moodModel: string | null,
+  entityModel: string,
+): number | null {
+  const ocr = ocrCostPer1000Words(ocrModel)
+  const chunking = chunkingCostPer1000Words(embeddingModel)
+  const entity = entityExtractionCostPer1000Words(entityModel, embeddingModel)
+  if (ocr === null || chunking === null || entity === null) return null
+  const mood = moodModel ? moodScoringCostPer1000Words(moodModel) : 0
+  if (mood === null) return null
+  return ocr + chunking + mood + entity
+}
+
+/** Total edit cost per 1000 words (re-chunking + mood + entities, no OCR). */
+export function totalEditCostPer1000Words(
+  embeddingModel: string,
+  moodModel: string | null,
+  entityModel: string,
+): number | null {
+  const chunking = chunkingCostPer1000Words(embeddingModel)
+  const entity = entityExtractionCostPer1000Words(entityModel, embeddingModel)
+  if (chunking === null || entity === null) return null
+  const mood = moodModel ? moodScoringCostPer1000Words(moodModel) : 0
+  if (mood === null) return null
+  return chunking + mood + entity
 }
 
 /** Format a dollar cost as a human-readable string. */

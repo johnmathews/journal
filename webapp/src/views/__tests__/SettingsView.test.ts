@@ -301,11 +301,13 @@ describe('SettingsView', () => {
       wrapper.find('[data-testid="audio-ingestion-cost"]').text(),
     ).toContain('/1k words')
     expect(wrapper.find('[data-testid="chunking-cost"]').text()).toContain(
-      '/entry',
+      '/1k words',
     )
-    expect(wrapper.find('[data-testid="mood-cost"]').text()).toContain('/entry')
+    expect(wrapper.find('[data-testid="mood-cost"]').text()).toContain(
+      '/1k words',
+    )
     expect(wrapper.find('[data-testid="entity-cost"]').text()).toContain(
-      '/entry',
+      '/1k words',
     )
   })
 

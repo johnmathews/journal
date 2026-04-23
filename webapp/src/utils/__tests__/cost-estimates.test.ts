@@ -5,8 +5,13 @@ import {
   transcriptionCostPerMinute,
   audioCostPer1000Words,
   chunkingCostPerEntry,
+  chunkingCostPer1000Words,
   moodScoringCostPerEntry,
+  moodScoringCostPer1000Words,
   entityExtractionCostPerEntry,
+  entityExtractionCostPer1000Words,
+  totalIngestionCostPer1000Words,
+  totalEditCostPer1000Words,
   formatCost,
 } from '../cost-estimates'
 
@@ -133,6 +138,127 @@ describe('cost-estimates', () => {
 
     it('returns null for unknown transcription model', () => {
       expect(audioCostPer1000Words('unknown', false, null)).toBeNull()
+    })
+  })
+
+  describe('chunkingCostPer1000Words', () => {
+    it('scales per-entry cost by 1000/500', () => {
+      const perEntry = chunkingCostPerEntry('text-embedding-3-large')!
+      const per1k = chunkingCostPer1000Words('text-embedding-3-large')!
+      expect(per1k).toBeCloseTo(perEntry * 2, 6)
+    })
+
+    it('returns null for unknown model', () => {
+      expect(chunkingCostPer1000Words('unknown')).toBeNull()
+    })
+  })
+
+  describe('moodScoringCostPer1000Words', () => {
+    it('scales per-entry cost by 1000/500', () => {
+      const perEntry = moodScoringCostPerEntry('claude-sonnet-4-5')!
+      const per1k = moodScoringCostPer1000Words('claude-sonnet-4-5')!
+      expect(per1k).toBeCloseTo(perEntry * 2, 5)
+    })
+
+    it('returns null for unknown model', () => {
+      expect(moodScoringCostPer1000Words('unknown')).toBeNull()
+    })
+  })
+
+  describe('entityExtractionCostPer1000Words', () => {
+    it('scales per-entry cost by 1000/500', () => {
+      const perEntry = entityExtractionCostPerEntry(
+        'claude-sonnet-4-5',
+        'text-embedding-3-large',
+      )!
+      const per1k = entityExtractionCostPer1000Words(
+        'claude-sonnet-4-5',
+        'text-embedding-3-large',
+      )!
+      expect(per1k).toBeCloseTo(perEntry * 2, 5)
+    })
+
+    it('returns null for unknown model', () => {
+      expect(
+        entityExtractionCostPer1000Words('unknown', 'text-embedding-3-large'),
+      ).toBeNull()
+    })
+  })
+
+  describe('totalIngestionCostPer1000Words', () => {
+    it('sums OCR + chunking + mood + entity costs', () => {
+      const ocr = ocrCostPer1000Words('gemini-2.5-pro')!
+      const chunking = chunkingCostPer1000Words('text-embedding-3-large')!
+      const mood = moodScoringCostPer1000Words('claude-sonnet-4-5')!
+      const entity = entityExtractionCostPer1000Words(
+        'claude-sonnet-4-5',
+        'text-embedding-3-large',
+      )!
+      const total = totalIngestionCostPer1000Words(
+        'gemini-2.5-pro',
+        'text-embedding-3-large',
+        'claude-sonnet-4-5',
+        'claude-sonnet-4-5',
+      )!
+      expect(total).toBeCloseTo(ocr + chunking + mood + entity, 5)
+    })
+
+    it('excludes mood when model is null', () => {
+      const ocr = ocrCostPer1000Words('gemini-2.5-pro')!
+      const chunking = chunkingCostPer1000Words('text-embedding-3-large')!
+      const entity = entityExtractionCostPer1000Words(
+        'claude-sonnet-4-5',
+        'text-embedding-3-large',
+      )!
+      const total = totalIngestionCostPer1000Words(
+        'gemini-2.5-pro',
+        'text-embedding-3-large',
+        null,
+        'claude-sonnet-4-5',
+      )!
+      expect(total).toBeCloseTo(ocr + chunking + entity, 5)
+    })
+
+    it('returns null if any required model is unknown', () => {
+      expect(
+        totalIngestionCostPer1000Words(
+          'unknown',
+          'text-embedding-3-large',
+          'claude-sonnet-4-5',
+          'claude-sonnet-4-5',
+        ),
+      ).toBeNull()
+    })
+  })
+
+  describe('totalEditCostPer1000Words', () => {
+    it('sums chunking + mood + entity costs (no OCR)', () => {
+      const chunking = chunkingCostPer1000Words('text-embedding-3-large')!
+      const mood = moodScoringCostPer1000Words('claude-sonnet-4-5')!
+      const entity = entityExtractionCostPer1000Words(
+        'claude-sonnet-4-5',
+        'text-embedding-3-large',
+      )!
+      const total = totalEditCostPer1000Words(
+        'text-embedding-3-large',
+        'claude-sonnet-4-5',
+        'claude-sonnet-4-5',
+      )!
+      expect(total).toBeCloseTo(chunking + mood + entity, 5)
+    })
+
+    it('excludes mood when model is null', () => {
+      const chunking = chunkingCostPer1000Words('text-embedding-3-large')!
+      const entity = entityExtractionCostPer1000Words(
+        'claude-sonnet-4-5',
+        'text-embedding-3-large',
+      )!
+      const total = totalEditCostPer1000Words(
+        'text-embedding-3-large',
+        null,
+        'claude-sonnet-4-5',
+      )!
+      expect(total).toBeCloseTo(chunking + entity, 5)
     })
   })
 
