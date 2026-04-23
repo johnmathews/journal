@@ -90,6 +90,8 @@ function resultSummary(
       )
     }
     if (parts.length > 0) return parts.join(', ')
+    // Fallback for old-format results (pre-enrichment: {"entry_id": N})
+    if (result.entry_id != null) return `Entry #${result.entry_id}`
   }
   // Default: show all scalar values
   for (const [k, v] of Object.entries(result)) {
@@ -251,10 +253,15 @@ function entryId(job: Job): number | null {
 }
 
 /** Get visible result entries, filtering out keys shown elsewhere */
+/** Falls back to unfiltered entries when filtering would leave nothing
+ *  (e.g. old-format ingestion results with only entry_id). */
 function visibleResultEntries(
   result: Record<string, unknown>,
 ): [string, unknown][] {
-  return Object.entries(result).filter(([k]) => !HIDDEN_RESULT_KEYS.has(k))
+  const filtered = Object.entries(result).filter(
+    ([k]) => !HIDDEN_RESULT_KEYS.has(k),
+  )
+  return filtered.length > 0 ? filtered : Object.entries(result)
 }
 
 function prevPage() {

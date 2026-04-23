@@ -523,4 +523,37 @@ describe('JobHistoryView', () => {
     // Second data row should have "3 recordings"
     expect(rows[2].text()).toContain('3 recordings')
   })
+
+  it('shows "Entry #N" summary for old-format ingestion results', async () => {
+    const wrapper = await mountView([
+      makeJob({
+        type: 'ingest_audio',
+        status: 'succeeded',
+        result: { entry_id: 75 },
+      }),
+    ])
+    // Should show "Entry #75" not raw JSON
+    expect(wrapper.text()).toContain('Entry #75')
+    expect(wrapper.text()).not.toContain('{"entry_id":75}')
+  })
+
+  it('shows entry_id in expanded details when it is the only field', async () => {
+    const wrapper = await mountView([
+      makeJob({
+        type: 'ingest_audio',
+        status: 'succeeded',
+        result: { entry_id: 75 },
+      }),
+    ])
+    await wrapper
+      .find('[data-testid="job-details-toggle-j-1"]')
+      .trigger('click')
+    await flushPromises()
+
+    const details = wrapper.find('[data-testid="expanded-details"]')
+    expect(details.exists()).toBe(true)
+    // Should fall back to showing entry_id since it's the only field
+    expect(details.text()).toContain('Entry Id')
+    expect(details.text()).toContain('75')
+  })
 })
