@@ -6,11 +6,12 @@ import JobHistoryView from '../JobHistoryView.vue'
 import type { Job } from '@/types/job'
 
 const mockListJobs = vi.fn()
+const mockGetJob = vi.fn()
 
 vi.mock('@/api/jobs', () => ({
   listJobs: (...args: unknown[]) => mockListJobs(...args),
+  getJob: (...args: unknown[]) => mockGetJob(...args),
   triggerMoodBackfill: vi.fn(),
-  getJob: vi.fn(),
 }))
 
 function makeJob(overrides: Partial<Job> = {}): Job {
@@ -34,7 +35,15 @@ function makeJob(overrides: Partial<Job> = {}): Job {
 function makeRouter() {
   return createRouter({
     history: createMemoryHistory(),
-    routes: [{ path: '/jobs', name: 'job-history', component: JobHistoryView }],
+    routes: [
+      { path: '/jobs', name: 'job-history', component: JobHistoryView },
+      {
+        path: '/entries/:id',
+        name: 'entry-detail',
+        component: { template: '<div />' },
+        props: true,
+      },
+    ],
   })
 }
 
@@ -106,9 +115,42 @@ describe('JobHistoryView', () => {
     expect(texts).toContain('running')
   })
 
-  it('shows params summary', async () => {
+  it('shows entry link for jobs with entry_id in params', async () => {
     const wrapper = await mountView([makeJob({ params: { entry_id: 42 } })])
-    expect(wrapper.text()).toContain('entry 42')
+    const link = wrapper.find('[data-testid="entry-link"]')
+    expect(link.exists()).toBe(true)
+    expect(link.text()).toBe('#42')
+  })
+
+  it('shows entry link for jobs with entry_id in result', async () => {
+    const wrapper = await mountView([
+      makeJob({
+        params: {},
+        result: { entry_id: 99, word_count: 50 },
+        type: 'ingest_images',
+      }),
+    ])
+    const link = wrapper.find('[data-testid="entry-link"]')
+    expect(link.exists()).toBe(true)
+    expect(link.text()).toBe('#99')
+  })
+
+  it('shows dash when no entry_id present', async () => {
+    const wrapper = await mountView([
+      makeJob({ params: {}, result: { scored: 5 }, type: 'mood_backfill' }),
+    ])
+    const row = wrapper.find('[data-testid="job-row-j-1"]')
+    const cells = row.findAll('td')
+    // Entry column is the 3rd cell (index 2)
+    expect(cells[2].text()).toBe('-')
+  })
+
+  it('shows params summary without entry_id', async () => {
+    const wrapper = await mountView([
+      makeJob({ params: { entry_id: 42, stale_only: true, mode: 'force' } }),
+    ])
+    expect(wrapper.text()).toContain('stale only')
+    expect(wrapper.text()).toContain('force')
   })
 
   it('shows duration for completed jobs', async () => {
@@ -219,12 +261,53 @@ describe('JobHistoryView', () => {
     expect(wrapper.text()).toContain('Entities Created: 5')
   })
 
+  it('shows ingestion result summary with word and chunk counts', async () => {
+    const wrapper = await mountView([
+      makeJob({
+        type: 'ingest_images',
+        status: 'succeeded',
+        result: {
+          entry_id: 10,
+          word_count: 250,
+          chunk_count: 5,
+          page_count: 3,
+          entry_date: '2026-04-13',
+          source_type: 'photo',
+          follow_up_jobs: {},
+        },
+      }),
+    ])
+    expect(wrapper.text()).toContain('250 words')
+    expect(wrapper.text()).toContain('5 chunks')
+    expect(wrapper.text()).toContain('3 pages')
+  })
+
+  it('shows audio ingestion with recording count', async () => {
+    const wrapper = await mountView([
+      makeJob({
+        type: 'ingest_audio',
+        status: 'succeeded',
+        result: {
+          entry_id: 11,
+          word_count: 120,
+          chunk_count: 2,
+          recording_count: 1,
+          entry_date: '2026-04-14',
+          source_type: 'voice',
+          follow_up_jobs: {},
+        },
+      }),
+    ])
+    expect(wrapper.text()).toContain('120 words')
+    expect(wrapper.text()).toContain('1 recording')
+  })
+
   it('shows dash for params with no recognized fields', async () => {
     const wrapper = await mountView([makeJob({ params: {} })])
     const row = wrapper.find('[data-testid="job-row-j-1"]')
-    // The params column should show '-'
     const cells = row.findAll('td')
-    expect(cells[2].text()).toBe('-')
+    // Params column is index 3 now (Type, Status, Entry, Params)
+    expect(cells[3].text()).toBe('-')
   })
 
   it('shows dash for duration when no timestamps', async () => {
@@ -233,7 +316,8 @@ describe('JobHistoryView', () => {
     ])
     const row = wrapper.find('[data-testid="job-row-j-1"]')
     const cells = row.findAll('td')
-    expect(cells[4].text()).toBe('-')
+    // Duration column is index 5 (Type, Status, Entry, Params, Created, Duration)
+    expect(cells[5].text()).toBe('-')
   })
 
   it('shows stale_only and mode params', async () => {
@@ -264,8 +348,179 @@ describe('JobHistoryView', () => {
     expect(wrapper.text()).toContain('Image ingestion')
   })
 
+  it('renders type badges with color classes', async () => {
+    const wrapper = await mountView([
+      makeJob({ id: 'j1', type: 'entity_extraction' }),
+      makeJob({ id: 'j2', type: 'ingest_images' }),
+      makeJob({ id: 'j3', type: 'mood_backfill' }),
+    ])
+    const typeBadges = wrapper.findAll('[data-testid="type-badge"]')
+    expect(typeBadges.length).toBe(3)
+    // Entity extraction should have blue classes
+    expect(typeBadges[0].classes()).toContain('bg-blue-100')
+    // Image ingestion should have teal classes
+    expect(typeBadges[1].classes()).toContain('bg-teal-100')
+    // Mood backfill should have amber classes
+    expect(typeBadges[2].classes()).toContain('bg-amber-100')
+  })
+
+  it('shows relative time next to absolute time', async () => {
+    const wrapper = await mountView([makeJob()])
+    const relTime = wrapper.find('[data-testid="relative-time"]')
+    expect(relTime.exists()).toBe(true)
+    // Should contain some relative time text (e.g., "Xd ago", "Xmo ago")
+    expect(relTime.text()).toMatch(/ago|just now/)
+  })
+
   it('does not show pagination when total fits one page', async () => {
     const wrapper = await mountView([makeJob()], 5)
     expect(wrapper.find('[data-testid="prev-page"]').exists()).toBe(false)
+  })
+
+  it('expands details and hides internal keys', async () => {
+    const wrapper = await mountView([
+      makeJob({
+        type: 'ingest_images',
+        status: 'succeeded',
+        result: {
+          entry_id: 10,
+          word_count: 250,
+          chunk_count: 5,
+          page_count: 3,
+          entry_date: '2026-04-13',
+          source_type: 'photo',
+          follow_up_jobs: {},
+        },
+      }),
+    ])
+    // Click to expand
+    await wrapper
+      .find('[data-testid="job-details-toggle-j-1"]')
+      .trigger('click')
+    await flushPromises()
+
+    const details = wrapper.find('[data-testid="expanded-details"]')
+    expect(details.exists()).toBe(true)
+
+    // Should show word_count, chunk_count, page_count
+    expect(details.text()).toContain('Word Count')
+    expect(details.text()).toContain('Chunk Count')
+    expect(details.text()).toContain('Page Count')
+
+    // Should NOT show hidden keys
+    expect(details.text()).not.toContain('Entry Id')
+    expect(details.text()).not.toContain('Follow Up Jobs')
+    expect(details.text()).not.toContain('Entry Date')
+    expect(details.text()).not.toContain('Source Type')
+  })
+
+  it('expanded details uses normal text size (no text-xs)', async () => {
+    const wrapper = await mountView([
+      makeJob({
+        status: 'succeeded',
+        result: { entities_created: 5 },
+      }),
+    ])
+    await wrapper
+      .find('[data-testid="job-details-toggle-j-1"]')
+      .trigger('click')
+    await flushPromises()
+
+    const details = wrapper.find('[data-testid="expanded-details"]')
+    expect(details.exists()).toBe(true)
+    // Should NOT have text-xs class (inherits text-sm from table)
+    expect(details.classes()).not.toContain('text-xs')
+  })
+
+  it('fetches follow-up job statuses on expand', async () => {
+    mockGetJob.mockImplementation((jobId: string) => {
+      if (jobId === 'mood-123') {
+        return Promise.resolve(
+          makeJob({
+            id: 'mood-123',
+            type: 'mood_score_entry',
+            status: 'succeeded',
+          }),
+        )
+      }
+      if (jobId === 'entity-456') {
+        return Promise.resolve(
+          makeJob({
+            id: 'entity-456',
+            type: 'entity_extraction',
+            status: 'running',
+          }),
+        )
+      }
+      return Promise.reject(new Error('not found'))
+    })
+
+    const wrapper = await mountView([
+      makeJob({
+        type: 'ingest_images',
+        status: 'succeeded',
+        result: {
+          entry_id: 10,
+          word_count: 250,
+          chunk_count: 5,
+          page_count: 3,
+          follow_up_jobs: {
+            mood_scoring: 'mood-123',
+            entity_extraction: 'entity-456',
+          },
+        },
+      }),
+    ])
+
+    // Expand details
+    await wrapper
+      .find('[data-testid="job-details-toggle-j-1"]')
+      .trigger('click')
+    await flushPromises()
+
+    // Should have called getJob for both follow-ups
+    expect(mockGetJob).toHaveBeenCalledWith('mood-123')
+    expect(mockGetJob).toHaveBeenCalledWith('entity-456')
+
+    // Should show follow-up badges
+    const followUps = wrapper.find('[data-testid="follow-up-jobs"]')
+    expect(followUps.exists()).toBe(true)
+    const badges = followUps.findAll('[data-testid="follow-up-badge"]')
+    expect(badges.length).toBe(2)
+  })
+
+  it('pluralizes page_count and recording_count correctly', async () => {
+    const wrapper = await mountView([
+      makeJob({
+        id: 'j-single',
+        type: 'ingest_images',
+        status: 'succeeded',
+        result: {
+          entry_id: 1,
+          word_count: 50,
+          chunk_count: 1,
+          page_count: 1,
+          follow_up_jobs: {},
+        },
+      }),
+      makeJob({
+        id: 'j-multi',
+        type: 'ingest_audio',
+        status: 'succeeded',
+        result: {
+          entry_id: 2,
+          word_count: 100,
+          chunk_count: 2,
+          recording_count: 3,
+          follow_up_jobs: {},
+        },
+      }),
+    ])
+    const rows = wrapper.findAll('tr')
+    // First data row (index 1, skipping header) should have "1 page"
+    expect(rows[1].text()).toContain('1 page')
+    expect(rows[1].text()).not.toContain('1 pages')
+    // Second data row should have "3 recordings"
+    expect(rows[2].text()).toContain('3 recordings')
   })
 })
