@@ -11,6 +11,26 @@ const toast = useToast()
 const showToken = ref(false)
 const showKey = ref(false)
 
+const CREDENTIAL_MASK = '••••••••••••••••••••••••••••••'
+const editingToken = ref(false)
+const editingKey = ref(false)
+
+function onTokenFocus() {
+  editingToken.value = true
+}
+
+function onTokenBlur() {
+  if (!store.apiToken) editingToken.value = false
+}
+
+function onKeyFocus() {
+  editingKey.value = true
+}
+
+function onKeyBlur() {
+  if (!store.userKey) editingKey.value = false
+}
+
 onMounted(() => store.load())
 
 async function handleSendTest() {
@@ -70,8 +90,14 @@ const adminTopics = () => store.topics.filter((t) => t.group === 'admin')
               v-model="store.apiToken"
               :type="showToken ? 'text' : 'password'"
               class="form-input w-full pr-10 text-sm"
-              placeholder="Enter your Pushover app API token"
+              :placeholder="
+                store.credentialsSaved && !editingToken
+                  ? CREDENTIAL_MASK
+                  : 'Enter your Pushover app API token'
+              "
               data-testid="pushover-token-input"
+              @focus="onTokenFocus"
+              @blur="onTokenBlur"
             />
             <button
               type="button"
@@ -128,8 +154,14 @@ const adminTopics = () => store.topics.filter((t) => t.group === 'admin')
               v-model="store.userKey"
               :type="showKey ? 'text' : 'password'"
               class="form-input w-full pr-10 text-sm"
-              placeholder="Enter your Pushover user key"
+              :placeholder="
+                store.credentialsSaved && !editingKey
+                  ? CREDENTIAL_MASK
+                  : 'Enter your Pushover user key'
+              "
               data-testid="pushover-key-input"
+              @focus="onKeyFocus"
+              @blur="onKeyBlur"
             />
             <button
               type="button"
