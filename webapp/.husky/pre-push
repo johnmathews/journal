@@ -4,4 +4,7 @@ npm run lint
 echo "Running tests with coverage thresholds..."
 npm run test:coverage
 
+echo "Type-checking and building..."
+npm run build
+
 echo "All checks passed."
