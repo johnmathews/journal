@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fetchSettings, fetchHealth } from '../settings'
+import { fetchSettings, fetchHealth, updateRuntimeSettings } from '../settings'
 
 vi.mock('../client', () => ({
   apiFetch: vi.fn(),
@@ -40,5 +40,23 @@ describe('settings API', () => {
 
     expect(mockApiFetch).toHaveBeenCalledWith('/api/health')
     expect(result).toEqual(payload)
+  })
+
+  it('updateRuntimeSettings sends PATCH with changes', async () => {
+    const response = {
+      updated: ['transcript_formatting'],
+      settings: [],
+    }
+    mockApiFetch.mockResolvedValue(response)
+
+    const result = await updateRuntimeSettings({
+      transcript_formatting: true,
+    })
+
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/settings/runtime', {
+      method: 'PATCH',
+      body: JSON.stringify({ transcript_formatting: true }),
+    })
+    expect(result).toEqual(response)
   })
 })

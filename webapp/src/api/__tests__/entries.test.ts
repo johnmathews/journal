@@ -2,9 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   fetchEntries,
   fetchEntry,
+  fetchEntryChunks,
+  fetchEntryTokens,
   updateEntryText,
   deleteEntry,
   fetchStats,
+  ingestText,
+  ingestAudio,
 } from '../entries'
 
 vi.mock('../client', () => ({
@@ -94,5 +98,47 @@ describe('entries API', () => {
     expect(mockApiFetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/stats?'),
     )
+  })
+
+  it('fetchEntryChunks calls correct endpoint', async () => {
+    mockApiFetch.mockResolvedValue({ chunks: [] })
+    await fetchEntryChunks(5)
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/entries/5/chunks')
+  })
+
+  it('fetchEntryTokens calls correct endpoint', async () => {
+    mockApiFetch.mockResolvedValue({ tokens: [] })
+    await fetchEntryTokens(3)
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/entries/3/tokens')
+  })
+
+  it('ingestText sends POST with body', async () => {
+    mockApiFetch.mockResolvedValue({ entry_id: 1 })
+    await ingestText({ text: 'hello', entry_date: '2026-01-01' })
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/entries/ingest/text', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'hello', entry_date: '2026-01-01' }),
+    })
+  })
+
+  it('ingestAudio sends FormData with recordings', async () => {
+    mockApiFetch.mockResolvedValue({ job_id: 'j1', status: 'queued' })
+    const blob = new Blob(['audio'], { type: 'audio/webm' })
+    await ingestAudio([blob], '2026-04-01')
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      '/api/entries/ingest/audio',
+      expect.objectContaining({ method: 'POST' }),
+    )
+    const body = mockApiFetch.mock.calls[0][1]?.body as FormData
+    expect(body.get('entry_date')).toBe('2026-04-01')
+    expect(body.get('audio')).toBeTruthy()
+  })
+
+  it('ingestAudio works without entryDate', async () => {
+    mockApiFetch.mockResolvedValue({ job_id: 'j2', status: 'queued' })
+    const blob = new Blob(['audio'], { type: 'audio/mp4' })
+    await ingestAudio([blob])
+    const body = mockApiFetch.mock.calls[0][1]?.body as FormData
+    expect(body.get('entry_date')).toBeNull()
   })
 })

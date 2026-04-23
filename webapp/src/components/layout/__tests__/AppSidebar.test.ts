@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
-import { createPinia } from 'pinia'
+import { createPinia, setActivePinia } from 'pinia'
 import AppSidebar from '../AppSidebar.vue'
+import { useAuthStore } from '@/stores/auth'
 
 /**
  * Stub `window.matchMedia` so the default-sidebar-expanded check
@@ -58,6 +59,11 @@ function makeRouter() {
       {
         path: '/jobs',
         name: 'job-history',
+        component: { template: '<div />' },
+      },
+      {
+        path: '/admin',
+        name: 'admin',
         component: { template: '<div />' },
       },
     ],
@@ -312,6 +318,31 @@ describe('AppSidebar', () => {
     const wrapper = await mountSidebar()
     const link = wrapper.find('[data-testid="sidebar-insights-link"]')
     expect(link.exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('hides the Admin link for non-admin users', async () => {
+    const wrapper = await mountSidebar()
+    expect(wrapper.text()).not.toContain('Admin')
+    wrapper.unmount()
+  })
+
+  it('shows the Admin link for admin users', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const authStore = useAuthStore()
+    authStore.$patch({ user: { id: 1, display_name: 'A', is_admin: true } })
+
+    const router = makeRouter()
+    await router.push('/')
+    await router.isReady()
+    const wrapper = mount(AppSidebar, {
+      props: { sidebarOpen: true },
+      attachTo: document.body,
+      global: { plugins: [router, pinia] },
+    })
+
+    expect(wrapper.text()).toContain('Admin')
     wrapper.unmount()
   })
 })
