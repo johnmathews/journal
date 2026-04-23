@@ -6,12 +6,14 @@ import type { HealthResponse, ServerSettings } from '@/types/settings'
 const mockFetchSettings = vi.fn()
 const mockFetchHealth = vi.fn()
 const mockUpdateRuntimeSettings = vi.fn()
+const mockUpdatePricing = vi.fn()
 
 vi.mock('@/api/settings', () => ({
   fetchSettings: (...args: unknown[]) => mockFetchSettings(...args),
   fetchHealth: (...args: unknown[]) => mockFetchHealth(...args),
   updateRuntimeSettings: (...args: unknown[]) =>
     mockUpdateRuntimeSettings(...args),
+  updatePricing: (...args: unknown[]) => mockUpdatePricing(...args),
 }))
 
 function makeSettings(): ServerSettings {
@@ -163,6 +165,86 @@ describe('useSettingsStore', () => {
     resolve!(makeSettings())
     await p
     expect(store.loading).toBe(false)
+  })
+
+  it('pricingConfig returns defaults when no pricing data', () => {
+    const store = useSettingsStore()
+    const config = store.pricingConfig
+    expect(config.models['claude-opus-4-6']).toBeDefined()
+    expect(config.transcription['gpt-4o-transcribe']).toBe(0.006)
+  })
+
+  it('pricingConfig merges server pricing over defaults', async () => {
+    const settings = makeSettings()
+    settings.pricing = [
+      {
+        model: 'claude-opus-4-6',
+        category: 'llm',
+        input_cost_per_mtok: 6.0,
+        output_cost_per_mtok: 30.0,
+        cost_per_minute: null,
+        last_verified: '2026-05-01',
+      },
+      {
+        model: 'gpt-4o-transcribe',
+        category: 'transcription',
+        input_cost_per_mtok: null,
+        output_cost_per_mtok: null,
+        cost_per_minute: 0.008,
+        last_verified: '2026-05-01',
+      },
+    ]
+    mockFetchSettings.mockResolvedValue(settings)
+    mockFetchHealth.mockResolvedValue(makeHealth())
+
+    const store = useSettingsStore()
+    await store.load()
+
+    const config = store.pricingConfig
+    expect(config.models['claude-opus-4-6'].input).toBe(6.0)
+    expect(config.models['claude-opus-4-6'].output).toBe(30.0)
+    expect(config.transcription['gpt-4o-transcribe']).toBe(0.008)
+    // Non-overridden models keep defaults
+    expect(config.models['gemini-2.5-pro'].input).toBe(1.25)
+  })
+
+  it('updatePricing patches pricing in settings', async () => {
+    const settings = makeSettings()
+    settings.pricing = [
+      {
+        model: 'claude-opus-4-6',
+        category: 'llm',
+        input_cost_per_mtok: 5.0,
+        output_cost_per_mtok: 25.0,
+        cost_per_minute: null,
+        last_verified: '2026-04-23',
+      },
+    ]
+    mockFetchSettings.mockResolvedValue(settings)
+    mockFetchHealth.mockResolvedValue(makeHealth())
+
+    const updatedPricing = [
+      {
+        model: 'claude-opus-4-6',
+        category: 'llm',
+        input_cost_per_mtok: 6.0,
+        output_cost_per_mtok: 30.0,
+        cost_per_minute: null,
+        last_verified: '2026-05-01',
+      },
+    ]
+    mockUpdatePricing.mockResolvedValue({
+      updated: ['claude-opus-4-6'],
+      pricing: updatedPricing,
+    })
+
+    const store = useSettingsStore()
+    await store.load()
+    await store.updatePricing({
+      'claude-opus-4-6': { input_cost_per_mtok: 6.0 },
+    })
+
+    expect(store.settings!.pricing![0].input_cost_per_mtok).toBe(6.0)
   })
 
   it('updateRuntime patches settings and refreshes runtime array', async () => {

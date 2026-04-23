@@ -125,14 +125,19 @@ const isDualPass = computed(() => {
   return runtimeSettingValue('ocr_dual_pass') === true
 })
 
+const p = computed(() => store.pricingConfig)
+
 const chunkingCostPerK = computed(() => {
   if (!store.settings) return null
-  return chunkingCostPer1000Words(store.settings.embedding.model)
+  return chunkingCostPer1000Words(store.settings.embedding.model, p.value)
 })
 
 const moodCostPerK = computed(() => {
   if (!store.settings) return null
-  return moodScoringCostPer1000Words(store.settings.features.mood_scorer_model)
+  return moodScoringCostPer1000Words(
+    store.settings.features.mood_scorer_model,
+    p.value,
+  )
 })
 
 const entityCostPerK = computed(() => {
@@ -140,6 +145,7 @@ const entityCostPerK = computed(() => {
   return entityExtractionCostPer1000Words(
     store.settings.entity_extraction.model,
     store.settings.embedding.model,
+    p.value,
   )
 })
 
@@ -154,6 +160,7 @@ const imageIngestionTotal = computed(() => {
     moodModel,
     store.settings.entity_extraction.model,
     isDualPass.value ? DUAL_PASS_MODELS.secondary : undefined,
+    p.value,
   )
 })
 
@@ -172,6 +179,7 @@ const audioIngestionTotal = computed(() => {
     store.settings.embedding.model,
     moodModel,
     store.settings.entity_extraction.model,
+    p.value,
   )
 })
 
@@ -184,6 +192,7 @@ const editTotal = computed(() => {
     store.settings.embedding.model,
     moodModel,
     store.settings.entity_extraction.model,
+    p.value,
   )
 })
 
@@ -199,8 +208,8 @@ const audioGrandTotal = computed(() => {
 
 const ocrCostPerK = computed(() => {
   if (!store.settings) return null
-  if (isDualPass.value) return ocrDualPassCostPer1000Words()
-  return ocrCostPer1000Words(store.settings.ocr.model)
+  if (isDualPass.value) return ocrDualPassCostPer1000Words(p.value)
+  return ocrCostPer1000Words(store.settings.ocr.model, p.value)
 })
 
 const audioCostPerK = computed(() => {
@@ -212,6 +221,7 @@ const audioCostPerK = computed(() => {
     store.settings.transcription.model,
     formattingEnabled,
     formattingEnabled ? store.settings.transcript_formatting.model : null,
+    p.value,
   )
 })
 
@@ -221,6 +231,57 @@ function runtimeSettingValue(key: string): boolean | string | undefined {
 
 const showMoodBackfillModal = ref(false)
 const showEntityExtractionModal = ref(false)
+
+// Pricing editor state
+const editingPricingModel = ref<string | null>(null)
+const pricingInputCost = ref('')
+const pricingOutputCost = ref('')
+const pricingMinuteCost = ref('')
+const pricingSaving = ref(false)
+
+function startEditingPricing(entry: {
+  model: string
+  category: string
+  input_cost_per_mtok: number | null
+  output_cost_per_mtok: number | null
+  cost_per_minute: number | null
+}) {
+  editingPricingModel.value = entry.model
+  pricingInputCost.value =
+    entry.input_cost_per_mtok != null ? String(entry.input_cost_per_mtok) : ''
+  pricingOutputCost.value =
+    entry.output_cost_per_mtok != null
+      ? String(entry.output_cost_per_mtok)
+      : ''
+  pricingMinuteCost.value =
+    entry.cost_per_minute != null ? String(entry.cost_per_minute) : ''
+}
+
+function cancelEditingPricing() {
+  editingPricingModel.value = null
+}
+
+async function savePricing(model: string, category: string) {
+  pricingSaving.value = true
+  try {
+    const changes: Record<string, number | string> = {
+      last_verified: new Date().toISOString().slice(0, 10),
+    }
+    if (category === 'transcription') {
+      changes.cost_per_minute = parseFloat(pricingMinuteCost.value)
+    } else {
+      changes.input_cost_per_mtok = parseFloat(pricingInputCost.value)
+      changes.output_cost_per_mtok = parseFloat(pricingOutputCost.value)
+    }
+    await store.updatePricing({ [model]: changes })
+    editingPricingModel.value = null
+    toast.success('Pricing updated')
+  } catch {
+    toast.error('Failed to update pricing')
+  } finally {
+    pricingSaving.value = false
+  }
+}
 
 const dashboardStore = useDashboardStore()
 
@@ -1068,6 +1129,130 @@ const moodScoringEnabled = computed(
                 </div>
               </div>
             </div>
+          </div>
+
+          <!-- API Pricing -->
+          <div
+            class="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs"
+            data-testid="section-api-pricing"
+          >
+            <h3
+              class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1"
+            >
+              API Pricing
+            </h3>
+            <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">
+              Update when providers change their rates. Costs above recalculate
+              automatically.
+            </p>
+
+            <template
+              v-for="category in ['llm', 'embedding', 'transcription']"
+              :key="category"
+            >
+              <h4
+                class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mt-3 mb-2"
+              >
+                {{
+                  category === 'llm'
+                    ? 'LLM Models'
+                    : category === 'embedding'
+                      ? 'Embedding Models'
+                      : 'Transcription Models'
+                }}
+              </h4>
+              <div class="space-y-1">
+                <template
+                  v-for="entry in (store.settings.pricing ?? []).filter(
+                    (e) => e.category === category,
+                  )"
+                  :key="entry.model"
+                >
+                  <div
+                    v-if="editingPricingModel !== entry.model"
+                    class="flex items-center justify-between text-sm py-1 group"
+                  >
+                    <span
+                      class="font-medium text-gray-900 dark:text-gray-100 min-w-0 truncate"
+                      >{{ entry.model }}</span
+                    >
+                    <div
+                      class="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 shrink-0"
+                    >
+                      <template v-if="category !== 'transcription'">
+                        <span
+                          >${{ entry.input_cost_per_mtok }}/MTok in</span
+                        >
+                        <span
+                          >${{ entry.output_cost_per_mtok }}/MTok out</span
+                        >
+                      </template>
+                      <template v-else>
+                        <span>${{ entry.cost_per_minute }}/min</span>
+                      </template>
+                      <span class="text-gray-300 dark:text-gray-600">{{
+                        entry.last_verified
+                      }}</span>
+                      <button
+                        class="text-violet-500 hover:text-violet-600 dark:hover:text-violet-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                        @click="startEditingPricing(entry)"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  </div>
+                  <div
+                    v-else
+                    class="flex items-center gap-2 text-sm py-1"
+                  >
+                    <span
+                      class="font-medium text-gray-900 dark:text-gray-100 min-w-0 truncate shrink-0"
+                      >{{ entry.model }}</span
+                    >
+                    <div class="flex items-center gap-2 ml-auto shrink-0">
+                      <template v-if="category !== 'transcription'">
+                        <input
+                          v-model="pricingInputCost"
+                          type="number"
+                          step="0.01"
+                          class="form-input text-xs py-0.5 px-1.5 w-20"
+                          placeholder="Input"
+                        />
+                        <input
+                          v-model="pricingOutputCost"
+                          type="number"
+                          step="0.01"
+                          class="form-input text-xs py-0.5 px-1.5 w-20"
+                          placeholder="Output"
+                        />
+                      </template>
+                      <template v-else>
+                        <input
+                          v-model="pricingMinuteCost"
+                          type="number"
+                          step="0.001"
+                          class="form-input text-xs py-0.5 px-1.5 w-24"
+                          placeholder="$/min"
+                        />
+                      </template>
+                      <button
+                        class="text-xs text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 disabled:opacity-50"
+                        :disabled="pricingSaving"
+                        @click="savePricing(entry.model, entry.category)"
+                      >
+                        {{ pricingSaving ? 'Saving...' : 'Save' }}
+                      </button>
+                      <button
+                        class="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                        @click="cancelEditingPricing"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </template>
           </div>
 
           <!-- Re-extract prompt -->

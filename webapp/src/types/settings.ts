@@ -32,6 +32,16 @@ export interface ServerSettings {
     journal_author_name: string
   }
   runtime: RuntimeSetting[]
+  pricing?: PricingEntry[]
+}
+
+export interface PricingEntry {
+  model: string
+  category: 'llm' | 'embedding' | 'transcription'
+  input_cost_per_mtok: number | null
+  output_cost_per_mtok: number | null
+  cost_per_minute: number | null
+  last_verified: string
 }
 
 export interface RuntimeSetting {

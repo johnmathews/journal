@@ -666,4 +666,80 @@ describe('SettingsView', () => {
     ).not.toBeNull()
     document.body.innerHTML = ''
   })
+
+  // --- API Pricing ---
+
+  it('renders API pricing section when pricing data is available', async () => {
+    const wrapper = await mountView(
+      makeSettings({
+        pricing: [
+          {
+            model: 'claude-opus-4-6',
+            category: 'llm',
+            input_cost_per_mtok: 5.0,
+            output_cost_per_mtok: 25.0,
+            cost_per_minute: null,
+            last_verified: '2026-04-23',
+          },
+          {
+            model: 'text-embedding-3-large',
+            category: 'embedding',
+            input_cost_per_mtok: 0.13,
+            output_cost_per_mtok: 0,
+            cost_per_minute: null,
+            last_verified: '2026-04-23',
+          },
+          {
+            model: 'gpt-4o-transcribe',
+            category: 'transcription',
+            input_cost_per_mtok: null,
+            output_cost_per_mtok: null,
+            cost_per_minute: 0.006,
+            last_verified: '2026-04-23',
+          },
+        ],
+      }),
+    )
+    const section = wrapper.find('[data-testid="section-api-pricing"]')
+    expect(section.exists()).toBe(true)
+    expect(section.text()).toContain('claude-opus-4-6')
+    expect(section.text()).toContain('$5/MTok in')
+    expect(section.text()).toContain('$0.006/min')
+  })
+
+  it('shows edit inputs when clicking Edit on a pricing entry', async () => {
+    const wrapper = await mountView(
+      makeSettings({
+        pricing: [
+          {
+            model: 'claude-opus-4-6',
+            category: 'llm',
+            input_cost_per_mtok: 5.0,
+            output_cost_per_mtok: 25.0,
+            cost_per_minute: null,
+            last_verified: '2026-04-23',
+          },
+        ],
+      }),
+    )
+    const section = wrapper.find('[data-testid="section-api-pricing"]')
+    const editBtn = section.findAll('button').find((b) => b.text() === 'Edit')
+    expect(editBtn).toBeDefined()
+    await editBtn!.trigger('click')
+    await flushPromises()
+
+    // Should now show Save and Cancel buttons
+    expect(section.text()).toContain('Save')
+    expect(section.text()).toContain('Cancel')
+
+    // Click Cancel
+    const cancelBtn = section
+      .findAll('button')
+      .find((b) => b.text() === 'Cancel')
+    await cancelBtn!.trigger('click')
+    await flushPromises()
+
+    // Should be back to display mode
+    expect(section.text()).toContain('Edit')
+  })
 })
