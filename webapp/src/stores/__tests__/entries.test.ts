@@ -474,7 +474,11 @@ describe('useEntriesStore', () => {
       // Capture creating state mid-call via the store
       const s = useEntriesStore()
       creatingDuringCall = s.creating
-      return Promise.resolve({ entry, mood_job_id: null, entity_extraction_job_id: null })
+      return Promise.resolve({
+        entry,
+        mood_job_id: null,
+        entity_extraction_job_id: null,
+      })
     })
 
     const store = useEntriesStore()

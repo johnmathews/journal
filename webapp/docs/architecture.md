@@ -99,6 +99,7 @@ Reusable Composition API functions encapsulating reactive logic.
 ### Stores (`src/stores/`)
 Pinia stores for server state management.
 
+- **jobs** — Background job polling and notification grouping. Tracks jobs via a reactive `jobs` record keyed by job ID. `trackJob(id, type, params, groupId?)` creates a placeholder and starts a 1-second poll loop. `createGroup(id, label)` registers a named group; jobs assigned to the same group produce a single summary toast (via `AppNotifications`) when all succeed, instead of one toast per job. When a parent ingestion job completes with `result.follow_up_jobs`, follow-up jobs are automatically tracked in the parent's group. Errors surface immediately regardless of group membership. Also exposes `startEntityExtraction`, `startMoodBackfill` (for batch modals), and `hydrateActiveJobs` (discovers server-side jobs on app startup).
 - **entries** — Entry list, current entry, pagination, loading/error states, CRUD actions
 - **entities** — Entity list, current entity, mentions and relationships (entity tracking)
 - **search** — Full-text search state: query, mode, date range, result items, `hasRun` flag so the view can distinguish "no results" from "not yet searched". Exposes a `runSearch(partial)` action that accepts per-call overrides (useful for pagination) and surfaces server error messages from `ApiRequestError` directly.
