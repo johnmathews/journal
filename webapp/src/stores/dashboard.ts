@@ -1,6 +1,6 @@
-import { computed, ref } from 'vue'
-import { defineStore } from 'pinia'
-import { ApiRequestError } from '@/api/client'
+import { computed, ref } from "vue";
+import { defineStore } from "pinia";
+import { ApiRequestError } from "@/api/client";
 import {
   fetchCalendarHeatmap,
   fetchEntityTrends,
@@ -9,9 +9,9 @@ import {
   fetchMoodTrends,
   fetchWordCountDistribution,
   fetchWritingStats,
-} from '@/api/dashboard'
-import { fetchEntityDistribution, fetchMoodDrilldown } from '@/api/insights'
-import { fetchPreferences, updatePreferences } from '@/api/preferences'
+} from "@/api/dashboard";
+import { fetchEntityDistribution, fetchMoodDrilldown } from "@/api/insights";
+import { fetchPreferences, updatePreferences } from "@/api/preferences";
 import type {
   CalendarDay,
   DashboardBin,
@@ -26,13 +26,13 @@ import type {
   WordCountBucket,
   WordCountStats,
   WritingFrequencyBin,
-} from '@/types/dashboard'
-import { DEFAULT_TILE_ORDER, DASHBOARD_TILES } from '@/types/dashboard'
+} from "@/types/dashboard";
+import { DEFAULT_TILE_ORDER, DASHBOARD_TILES } from "@/types/dashboard";
 import type {
   EntityDistributionItem,
   InsightsEntityType,
   MoodDrilldownEntry,
-} from '@/types/insights'
+} from "@/types/insights";
 
 /**
  * Convert a `DashboardRange` into a concrete `{from, to}` pair
@@ -48,26 +48,26 @@ export function rangeToDates(
   range: DashboardRange,
   now: Date = new Date(),
 ): { from: string | null; to: string | null } {
-  if (range === 'all') {
-    return { from: null, to: null }
+  if (range === "all") {
+    return { from: null, to: null };
   }
-  const to = now.toISOString().slice(0, 10)
-  const from = new Date(now)
+  const to = now.toISOString().slice(0, 10);
+  const from = new Date(now);
   switch (range) {
-    case 'last_1_month':
-      from.setMonth(from.getMonth() - 1)
-      break
-    case 'last_3_months':
-      from.setMonth(from.getMonth() - 3)
-      break
-    case 'last_6_months':
-      from.setMonth(from.getMonth() - 6)
-      break
-    case 'last_1_year':
-      from.setFullYear(from.getFullYear() - 1)
-      break
+    case "last_1_month":
+      from.setMonth(from.getMonth() - 1);
+      break;
+    case "last_3_months":
+      from.setMonth(from.getMonth() - 3);
+      break;
+    case "last_6_months":
+      from.setMonth(from.getMonth() - 6);
+      break;
+    case "last_1_year":
+      from.setFullYear(from.getFullYear() - 1);
+      break;
   }
-  return { from: from.toISOString().slice(0, 10), to }
+  return { from: from.toISOString().slice(0, 10), to };
 }
 
 /**
@@ -84,16 +84,16 @@ export function rangeToDates(
  * `ApiRequestError.message` directly so the server's
  * `invalid_bin` / 400 message is visible.
  */
-export const useDashboardStore = defineStore('dashboard', () => {
-  const range = ref<DashboardRange>('all')
-  const bin = ref<DashboardBin>('week')
-  const bins = ref<WritingFrequencyBin[]>([])
-  const loading = ref(false)
-  const error = ref<string | null>(null)
+export const useDashboardStore = defineStore("dashboard", () => {
+  const range = ref<DashboardRange>("last_3_months");
+  const bin = ref<DashboardBin>("week");
+  const bins = ref<WritingFrequencyBin[]>([]);
+  const loading = ref(false);
+  const error = ref<string | null>(null);
   // True once the store has successfully loaded at least once.
   // Lets the view distinguish "still loading on first mount"
   // from "loaded but the corpus is empty".
-  const hasLoaded = ref(false)
+  const hasLoaded = ref(false);
 
   // Mood chart state — independent of writing stats. The view
   // fires `loadMoodData` alongside `loadWritingStats` when they
@@ -101,103 +101,103 @@ export const useDashboardStore = defineStore('dashboard', () => {
   // series). `moodDimensions` is loaded lazily on first view
   // mount and cached for the session; `moodBins` is refreshed
   // on every range/bin change.
-  const moodDimensions = ref<MoodDimension[]>([])
-  const moodBins = ref<MoodTrendBin[]>([])
+  const moodDimensions = ref<MoodDimension[]>([]);
+  const moodBins = ref<MoodTrendBin[]>([]);
   // Dimensions the user has toggled OFF in the chart UI. Stored
   // as a Set<string> so flipping a toggle is O(1). Not
   // persisted across sessions — defaults to isolating agency.
-  const hiddenMoodDimensions = ref<Set<string>>(new Set())
-  const DEFAULT_ISOLATED_MOOD = 'agency'
-  let moodDefaultsApplied = false
-  const moodLoading = ref(false)
-  const moodError = ref<string | null>(null)
+  const hiddenMoodDimensions = ref<Set<string>>(new Set());
+  const DEFAULT_ISOLATED_MOOD = "agency";
+  let moodDefaultsApplied = false;
+  const moodLoading = ref(false);
+  const moodError = ref<string | null>(null);
   // True once at least one mood load has completed, regardless
   // of result. Used to distinguish "still loading" from "loaded
   // but the server has no mood data".
-  const moodHasLoaded = ref(false)
+  const moodHasLoaded = ref(false);
 
   // Drill-down state — same shape as the insights store so the
   // mood chart click handler and drill-down panel can be shared.
-  const drillPeriod = ref<string | null>(null)
-  const drillDimension = ref<string | null>(null)
-  const drillEntries = ref<MoodDrilldownEntry[]>([])
-  const drillLoading = ref(false)
-  const drillError = ref<string | null>(null)
+  const drillPeriod = ref<string | null>(null);
+  const drillDimension = ref<string | null>(null);
+  const drillEntries = ref<MoodDrilldownEntry[]>([]);
+  const drillLoading = ref(false);
+  const drillError = ref<string | null>(null);
 
   // Entity distribution state — powers the "what I write about"
   // doughnut chart. `entityType` selects which entity category
   // to display (topic, person, place, etc.).
-  const entityType = ref<InsightsEntityType>('topic')
-  const entityDistribution = ref<EntityDistributionItem[]>([])
-  const entityLoading = ref(false)
-  const entityError = ref<string | null>(null)
-  const entityHasLoaded = ref(false)
+  const entityType = ref<InsightsEntityType>("topic");
+  const entityDistribution = ref<EntityDistributionItem[]>([]);
+  const entityLoading = ref(false);
+  const entityError = ref<string | null>(null);
+  const entityHasLoaded = ref(false);
 
   // Calendar heatmap state
-  const calendarDays = ref<CalendarDay[]>([])
-  const calendarLoading = ref(false)
-  const calendarError = ref<string | null>(null)
-  const calendarHasLoaded = ref(false)
+  const calendarDays = ref<CalendarDay[]>([]);
+  const calendarLoading = ref(false);
+  const calendarError = ref<string | null>(null);
+  const calendarHasLoaded = ref(false);
 
   // Entity trends state — topic/entity mention counts over time
-  const entityTrends = ref<EntityTrendBin[]>([])
-  const entityTrendEntities = ref<string[]>([])
-  const entityTrendsType = ref<InsightsEntityType>('topic')
-  const entityTrendsLoading = ref(false)
-  const entityTrendsError = ref<string | null>(null)
-  const entityTrendsHasLoaded = ref(false)
+  const entityTrends = ref<EntityTrendBin[]>([]);
+  const entityTrendEntities = ref<string[]>([]);
+  const entityTrendsType = ref<InsightsEntityType>("topic");
+  const entityTrendsLoading = ref(false);
+  const entityTrendsError = ref<string | null>(null);
+  const entityTrendsHasLoaded = ref(false);
 
   // Mood-entity correlation state
-  const moodCorrelationItems = ref<MoodEntityCorrelationItem[]>([])
-  const moodCorrelationOverallAvg = ref(0)
-  const moodCorrelationDimension = ref<string>('agency')
-  const moodCorrelationType = ref<InsightsEntityType>('person')
-  const moodCorrelationLoading = ref(false)
-  const moodCorrelationError = ref<string | null>(null)
-  const moodCorrelationHasLoaded = ref(false)
+  const moodCorrelationItems = ref<MoodEntityCorrelationItem[]>([]);
+  const moodCorrelationOverallAvg = ref(0);
+  const moodCorrelationDimension = ref<string>("agency");
+  const moodCorrelationType = ref<InsightsEntityType>("person");
+  const moodCorrelationLoading = ref(false);
+  const moodCorrelationError = ref<string | null>(null);
+  const moodCorrelationHasLoaded = ref(false);
 
   // Word count distribution state
-  const wordCountBuckets = ref<WordCountBucket[]>([])
-  const wordCountStats = ref<WordCountStats | null>(null)
-  const wordCountLoading = ref(false)
-  const wordCountError = ref<string | null>(null)
-  const wordCountHasLoaded = ref(false)
+  const wordCountBuckets = ref<WordCountBucket[]>([]);
+  const wordCountStats = ref<WordCountStats | null>(null);
+  const wordCountLoading = ref(false);
+  const wordCountError = ref<string | null>(null);
+  const wordCountHasLoaded = ref(false);
 
   const totalEntriesInRange = computed(() =>
     bins.value.reduce((sum, b) => sum + b.entry_count, 0),
-  )
+  );
 
-  const hasMoodData = computed(() => moodBins.value.length > 0)
-  const moodScoringEnabled = computed(() => moodDimensions.value.length > 0)
+  const hasMoodData = computed(() => moodBins.value.length > 0);
+  const moodScoringEnabled = computed(() => moodDimensions.value.length > 0);
 
   async function loadWritingStats(
     overrides: { range?: DashboardRange; bin?: DashboardBin } = {},
   ): Promise<void> {
-    if (overrides.range !== undefined) range.value = overrides.range
-    if (overrides.bin !== undefined) bin.value = overrides.bin
+    if (overrides.range !== undefined) range.value = overrides.range;
+    if (overrides.bin !== undefined) bin.value = overrides.bin;
 
-    loading.value = true
-    error.value = null
+    loading.value = true;
+    error.value = null;
     try {
-      const { from, to } = rangeToDates(range.value)
+      const { from, to } = rangeToDates(range.value);
       const response = await fetchWritingStats({
         bin: bin.value,
         from: from ?? undefined,
         to: to ?? undefined,
-      })
-      bins.value = response.bins
-      hasLoaded.value = true
+      });
+      bins.value = response.bins;
+      hasLoaded.value = true;
     } catch (e) {
       if (e instanceof ApiRequestError) {
-        error.value = e.message
+        error.value = e.message;
       } else if (e instanceof Error) {
-        error.value = e.message
+        error.value = e.message;
       } else {
-        error.value = 'Failed to load dashboard data'
+        error.value = "Failed to load dashboard data";
       }
-      bins.value = []
+      bins.value = [];
     } finally {
-      loading.value = false
+      loading.value = false;
     }
   }
 
@@ -210,15 +210,15 @@ export const useDashboardStore = defineStore('dashboard', () => {
    */
   async function loadMoodDimensions(): Promise<void> {
     try {
-      const response = await fetchMoodDimensions()
-      moodDimensions.value = response.dimensions
+      const response = await fetchMoodDimensions();
+      moodDimensions.value = response.dimensions;
       if (!moodDefaultsApplied && response.dimensions.length > 0) {
         hiddenMoodDimensions.value = new Set(
           response.dimensions
             .map((d) => d.name)
             .filter((n) => n !== DEFAULT_ISOLATED_MOOD),
-        )
-        moodDefaultsApplied = true
+        );
+        moodDefaultsApplied = true;
       }
     } catch {
       // Swallow — if the dimensions load fails, the view shows
@@ -226,38 +226,38 @@ export const useDashboardStore = defineStore('dashboard', () => {
       // of a loud error. The separate `moodError` below only
       // fires on mood-trends failures so the writing chart is
       // unaffected by mood-pipeline hiccups.
-      moodDimensions.value = []
+      moodDimensions.value = [];
     }
   }
 
   async function loadMoodTrends(
     overrides: { range?: DashboardRange; bin?: DashboardBin } = {},
   ): Promise<void> {
-    if (overrides.range !== undefined) range.value = overrides.range
-    if (overrides.bin !== undefined) bin.value = overrides.bin
+    if (overrides.range !== undefined) range.value = overrides.range;
+    if (overrides.bin !== undefined) bin.value = overrides.bin;
 
-    moodLoading.value = true
-    moodError.value = null
+    moodLoading.value = true;
+    moodError.value = null;
     try {
-      const { from, to } = rangeToDates(range.value)
+      const { from, to } = rangeToDates(range.value);
       const response = await fetchMoodTrends({
         bin: bin.value,
         from: from ?? undefined,
         to: to ?? undefined,
-      })
-      moodBins.value = response.bins
-      moodHasLoaded.value = true
+      });
+      moodBins.value = response.bins;
+      moodHasLoaded.value = true;
     } catch (e) {
       if (e instanceof ApiRequestError) {
-        moodError.value = e.message
+        moodError.value = e.message;
       } else if (e instanceof Error) {
-        moodError.value = e.message
+        moodError.value = e.message;
       } else {
-        moodError.value = 'Failed to load mood data'
+        moodError.value = "Failed to load mood data";
       }
-      moodBins.value = []
+      moodBins.value = [];
     } finally {
-      moodLoading.value = false
+      moodLoading.value = false;
     }
   }
 
@@ -268,138 +268,138 @@ export const useDashboardStore = defineStore('dashboard', () => {
    * to the new one.
    */
   function toggleMoodDimension(name: string): void {
-    const allNames = moodDimensions.value.map((d) => d.name)
-    const hidden = hiddenMoodDimensions.value
+    const allNames = moodDimensions.value.map((d) => d.name);
+    const hidden = hiddenMoodDimensions.value;
 
     // Currently isolated on this exact dimension → restore all
     if (hidden.size === allNames.length - 1 && !hidden.has(name)) {
-      hiddenMoodDimensions.value = new Set()
-      return
+      hiddenMoodDimensions.value = new Set();
+      return;
     }
 
     // Otherwise (all visible, or a different dimension is isolated) → isolate clicked
-    hiddenMoodDimensions.value = new Set(allNames.filter((n) => n !== name))
+    hiddenMoodDimensions.value = new Set(allNames.filter((n) => n !== name));
   }
 
   function periodEndDate(periodStart: string, binSize: DashboardBin): string {
-    const d = new Date(periodStart + 'T12:00:00')
+    const d = new Date(periodStart + "T12:00:00");
     switch (binSize) {
-      case 'week':
-        d.setDate(d.getDate() + 6)
-        break
-      case 'month':
-        d.setMonth(d.getMonth() + 1)
-        d.setDate(d.getDate() - 1)
-        break
-      case 'quarter':
-        d.setMonth(d.getMonth() + 3)
-        d.setDate(d.getDate() - 1)
-        break
-      case 'year':
-        d.setFullYear(d.getFullYear() + 1)
-        d.setDate(d.getDate() - 1)
-        break
+      case "week":
+        d.setDate(d.getDate() + 6);
+        break;
+      case "month":
+        d.setMonth(d.getMonth() + 1);
+        d.setDate(d.getDate() - 1);
+        break;
+      case "quarter":
+        d.setMonth(d.getMonth() + 3);
+        d.setDate(d.getDate() - 1);
+        break;
+      case "year":
+        d.setFullYear(d.getFullYear() + 1);
+        d.setDate(d.getDate() - 1);
+        break;
     }
-    const y = d.getFullYear()
-    const m = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    return `${y}-${m}-${day}`
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
   }
 
   async function loadDrillDown(
     period: string,
     dimension: string,
   ): Promise<void> {
-    drillPeriod.value = period
-    drillDimension.value = dimension
-    drillLoading.value = true
-    drillError.value = null
+    drillPeriod.value = period;
+    drillDimension.value = dimension;
+    drillLoading.value = true;
+    drillError.value = null;
     try {
       const response = await fetchMoodDrilldown({
         dimension,
         from: period,
         to: periodEndDate(period, bin.value),
-      })
-      drillEntries.value = response.entries
+      });
+      drillEntries.value = response.entries;
     } catch (e) {
       if (e instanceof ApiRequestError) {
-        drillError.value = e.message
+        drillError.value = e.message;
       } else if (e instanceof Error) {
-        drillError.value = e.message
+        drillError.value = e.message;
       } else {
-        drillError.value = 'Failed to load drill-down data'
+        drillError.value = "Failed to load drill-down data";
       }
-      drillEntries.value = []
+      drillEntries.value = [];
     } finally {
-      drillLoading.value = false
+      drillLoading.value = false;
     }
   }
 
   function clearDrillDown(): void {
-    drillPeriod.value = null
-    drillDimension.value = null
-    drillEntries.value = []
-    drillError.value = null
+    drillPeriod.value = null;
+    drillDimension.value = null;
+    drillEntries.value = [];
+    drillError.value = null;
   }
 
   async function loadCalendarHeatmap(opts?: {
-    from?: string | null
-    to?: string | null
+    from?: string | null;
+    to?: string | null;
   }): Promise<void> {
-    calendarLoading.value = true
-    calendarError.value = null
+    calendarLoading.value = true;
+    calendarError.value = null;
     try {
       const response = await fetchCalendarHeatmap({
         from: opts?.from ?? undefined,
         to: opts?.to ?? undefined,
-      })
-      calendarDays.value = response.days
-      calendarHasLoaded.value = true
+      });
+      calendarDays.value = response.days;
+      calendarHasLoaded.value = true;
     } catch (e) {
       if (e instanceof ApiRequestError) {
-        calendarError.value = e.message
+        calendarError.value = e.message;
       } else if (e instanceof Error) {
-        calendarError.value = e.message
+        calendarError.value = e.message;
       } else {
-        calendarError.value = 'Failed to load calendar heatmap'
+        calendarError.value = "Failed to load calendar heatmap";
       }
-      calendarDays.value = []
+      calendarDays.value = [];
     } finally {
-      calendarLoading.value = false
+      calendarLoading.value = false;
     }
   }
 
   async function loadEntityTrends(
     entityType?: InsightsEntityType,
   ): Promise<void> {
-    if (entityType !== undefined) entityTrendsType.value = entityType
+    if (entityType !== undefined) entityTrendsType.value = entityType;
 
-    entityTrendsLoading.value = true
-    entityTrendsError.value = null
+    entityTrendsLoading.value = true;
+    entityTrendsError.value = null;
     try {
-      const { from, to } = rangeToDates(range.value)
+      const { from, to } = rangeToDates(range.value);
       const response = await fetchEntityTrends({
         bin: bin.value,
         from: from ?? undefined,
         to: to ?? undefined,
         type: entityTrendsType.value,
         limit: 8,
-      })
-      entityTrends.value = response.bins
-      entityTrendEntities.value = response.entities
-      entityTrendsHasLoaded.value = true
+      });
+      entityTrends.value = response.bins;
+      entityTrendEntities.value = response.entities;
+      entityTrendsHasLoaded.value = true;
     } catch (e) {
       if (e instanceof ApiRequestError) {
-        entityTrendsError.value = e.message
+        entityTrendsError.value = e.message;
       } else if (e instanceof Error) {
-        entityTrendsError.value = e.message
+        entityTrendsError.value = e.message;
       } else {
-        entityTrendsError.value = 'Failed to load entity trends'
+        entityTrendsError.value = "Failed to load entity trends";
       }
-      entityTrends.value = []
-      entityTrendEntities.value = []
+      entityTrends.value = [];
+      entityTrendEntities.value = [];
     } finally {
-      entityTrendsLoading.value = false
+      entityTrendsLoading.value = false;
     }
   }
 
@@ -407,260 +407,262 @@ export const useDashboardStore = defineStore('dashboard', () => {
     dimension?: string,
     type?: InsightsEntityType,
   ): Promise<void> {
-    if (dimension !== undefined) moodCorrelationDimension.value = dimension
-    if (type !== undefined) moodCorrelationType.value = type
+    if (dimension !== undefined) moodCorrelationDimension.value = dimension;
+    if (type !== undefined) moodCorrelationType.value = type;
 
-    moodCorrelationLoading.value = true
-    moodCorrelationError.value = null
+    moodCorrelationLoading.value = true;
+    moodCorrelationError.value = null;
     try {
-      const { from, to } = rangeToDates(range.value)
+      const { from, to } = rangeToDates(range.value);
       const response = await fetchMoodEntityCorrelation({
         dimension: moodCorrelationDimension.value,
         from: from ?? undefined,
         to: to ?? undefined,
         type: moodCorrelationType.value,
         limit: 10,
-      })
-      moodCorrelationItems.value = response.items
-      moodCorrelationOverallAvg.value = response.overall_avg
-      moodCorrelationHasLoaded.value = true
+      });
+      moodCorrelationItems.value = response.items;
+      moodCorrelationOverallAvg.value = response.overall_avg;
+      moodCorrelationHasLoaded.value = true;
     } catch (e) {
       if (e instanceof ApiRequestError) {
-        moodCorrelationError.value = e.message
+        moodCorrelationError.value = e.message;
       } else if (e instanceof Error) {
-        moodCorrelationError.value = e.message
+        moodCorrelationError.value = e.message;
       } else {
-        moodCorrelationError.value = 'Failed to load mood-entity correlation'
+        moodCorrelationError.value = "Failed to load mood-entity correlation";
       }
-      moodCorrelationItems.value = []
-      moodCorrelationOverallAvg.value = 0
+      moodCorrelationItems.value = [];
+      moodCorrelationOverallAvg.value = 0;
     } finally {
-      moodCorrelationLoading.value = false
+      moodCorrelationLoading.value = false;
     }
   }
 
   async function loadWordCountDistribution(): Promise<void> {
-    wordCountLoading.value = true
-    wordCountError.value = null
+    wordCountLoading.value = true;
+    wordCountError.value = null;
     try {
-      const { from, to } = rangeToDates(range.value)
+      const { from, to } = rangeToDates(range.value);
       const response = await fetchWordCountDistribution({
         from: from ?? undefined,
         to: to ?? undefined,
         bucket_size: 100,
-      })
-      wordCountBuckets.value = response.buckets
-      wordCountStats.value = response.stats
-      wordCountHasLoaded.value = true
+      });
+      wordCountBuckets.value = response.buckets;
+      wordCountStats.value = response.stats;
+      wordCountHasLoaded.value = true;
     } catch (e) {
       if (e instanceof ApiRequestError) {
-        wordCountError.value = e.message
+        wordCountError.value = e.message;
       } else if (e instanceof Error) {
-        wordCountError.value = e.message
+        wordCountError.value = e.message;
       } else {
-        wordCountError.value = 'Failed to load word count distribution'
+        wordCountError.value = "Failed to load word count distribution";
       }
-      wordCountBuckets.value = []
-      wordCountStats.value = null
+      wordCountBuckets.value = [];
+      wordCountStats.value = null;
     } finally {
-      wordCountLoading.value = false
+      wordCountLoading.value = false;
     }
   }
 
   async function loadEntityDistribution(
     type?: InsightsEntityType,
   ): Promise<void> {
-    if (type !== undefined) entityType.value = type
+    if (type !== undefined) entityType.value = type;
 
-    entityLoading.value = true
-    entityError.value = null
+    entityLoading.value = true;
+    entityError.value = null;
     try {
-      const { from, to } = rangeToDates(range.value)
+      const { from, to } = rangeToDates(range.value);
       const response = await fetchEntityDistribution({
         type: entityType.value,
         from: from ?? undefined,
         to: to ?? undefined,
         limit: 30,
-      })
-      entityDistribution.value = response.items
-      entityHasLoaded.value = true
+      });
+      entityDistribution.value = response.items;
+      entityHasLoaded.value = true;
     } catch (e) {
       if (e instanceof ApiRequestError) {
-        entityError.value = e.message
+        entityError.value = e.message;
       } else if (e instanceof Error) {
-        entityError.value = e.message
+        entityError.value = e.message;
       } else {
-        entityError.value = 'Failed to load entity distribution'
+        entityError.value = "Failed to load entity distribution";
       }
-      entityDistribution.value = []
+      entityDistribution.value = [];
     } finally {
-      entityLoading.value = false
+      entityLoading.value = false;
     }
   }
 
   // ── Tile layout ────────────────────────────────────────────────
-  const tileOrder = ref<DashboardTileId[]>([...DEFAULT_TILE_ORDER])
-  const hiddenTiles = ref<DashboardTileId[]>([])
-  const tileWidths = ref<Partial<Record<DashboardTileId, TileSpan>>>({})
-  const layoutLoaded = ref(false)
-  const editingLayout = ref(false)
+  const tileOrder = ref<DashboardTileId[]>([...DEFAULT_TILE_ORDER]);
+  const hiddenTiles = ref<DashboardTileId[]>([]);
+  const tileWidths = ref<Partial<Record<DashboardTileId, TileSpan>>>({});
+  const layoutLoaded = ref(false);
+  const editingLayout = ref(false);
 
   /** Tiles in display order, excluding hidden ones. */
   const visibleTiles = computed(() =>
     tileOrder.value.filter((id) => !hiddenTiles.value.includes(id)),
-  )
+  );
 
   /** Tile definitions keyed by ID for quick lookup. */
   const tileDefs = computed(() => {
-    const map = new Map<DashboardTileId, (typeof DASHBOARD_TILES)[number]>()
-    for (const t of DASHBOARD_TILES) map.set(t.id, t)
-    return map
-  })
+    const map = new Map<DashboardTileId, (typeof DASHBOARD_TILES)[number]>();
+    for (const t of DASHBOARD_TILES) map.set(t.id, t);
+    return map;
+  });
 
-  let _saveTimer: ReturnType<typeof setTimeout> | null = null
+  let _saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   function _persistLayout(): void {
-    if (_saveTimer) clearTimeout(_saveTimer)
+    if (_saveTimer) clearTimeout(_saveTimer);
     _saveTimer = setTimeout(() => {
       const layout: DashboardLayout = {
         tileOrder: tileOrder.value,
         hiddenTiles: hiddenTiles.value,
         tileWidths: tileWidths.value,
-      }
+      };
       updatePreferences({ dashboard_layout: layout }).catch(() => {
         // Silent — layout is still in-memory, will retry on next change.
-      })
-    }, 500)
+      });
+    }, 500);
   }
 
   async function loadLayout(): Promise<void> {
     try {
-      const { preferences } = await fetchPreferences()
-      const layout = preferences.dashboard_layout as DashboardLayout | undefined
+      const { preferences } = await fetchPreferences();
+      const layout = preferences.dashboard_layout as
+        | DashboardLayout
+        | undefined;
       if (layout) {
         // Validate tile IDs — ignore unknown ones, append any missing tiles
-        const validIds = new Set<DashboardTileId>(DEFAULT_TILE_ORDER)
+        const validIds = new Set<DashboardTileId>(DEFAULT_TILE_ORDER);
         const order = (layout.tileOrder ?? []).filter((id: string) =>
           validIds.has(id as DashboardTileId),
-        ) as DashboardTileId[]
+        ) as DashboardTileId[];
         // Append any tiles that exist in defaults but aren't in the saved order
         for (const id of DEFAULT_TILE_ORDER) {
-          if (!order.includes(id)) order.push(id)
+          if (!order.includes(id)) order.push(id);
         }
-        tileOrder.value = order
+        tileOrder.value = order;
         hiddenTiles.value = (layout.hiddenTiles ?? []).filter((id: string) =>
           validIds.has(id as DashboardTileId),
-        ) as DashboardTileId[]
+        ) as DashboardTileId[];
         // Restore tile width overrides, filtering to valid IDs and values
-        const savedWidths = layout.tileWidths ?? {}
-        const restored: Partial<Record<DashboardTileId, TileSpan>> = {}
+        const savedWidths = layout.tileWidths ?? {};
+        const restored: Partial<Record<DashboardTileId, TileSpan>> = {};
         for (const [id, span] of Object.entries(savedWidths)) {
           if (
             validIds.has(id as DashboardTileId) &&
             (span === 1 || span === 2)
           ) {
-            restored[id as DashboardTileId] = span
+            restored[id as DashboardTileId] = span;
           }
         }
-        tileWidths.value = restored
+        tileWidths.value = restored;
       }
     } catch {
       // Preferences endpoint not available or no saved layout — use defaults.
     } finally {
-      layoutLoaded.value = true
+      layoutLoaded.value = true;
     }
   }
 
-  function moveTile(id: DashboardTileId, direction: 'up' | 'down'): void {
-    const order = [...tileOrder.value]
-    const idx = order.indexOf(id)
-    if (idx === -1) return
-    const targetIdx = direction === 'up' ? idx - 1 : idx + 1
-    if (targetIdx < 0 || targetIdx >= order.length) return
-    ;[order[idx], order[targetIdx]] = [order[targetIdx], order[idx]]
-    tileOrder.value = order
-    _persistLayout()
+  function moveTile(id: DashboardTileId, direction: "up" | "down"): void {
+    const order = [...tileOrder.value];
+    const idx = order.indexOf(id);
+    if (idx === -1) return;
+    const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= order.length) return;
+    [order[idx], order[targetIdx]] = [order[targetIdx], order[idx]];
+    tileOrder.value = order;
+    _persistLayout();
   }
 
   function hideTile(id: DashboardTileId): void {
     if (!hiddenTiles.value.includes(id)) {
-      hiddenTiles.value = [...hiddenTiles.value, id]
-      _persistLayout()
+      hiddenTiles.value = [...hiddenTiles.value, id];
+      _persistLayout();
     }
   }
 
   function showTile(id: DashboardTileId): void {
-    hiddenTiles.value = hiddenTiles.value.filter((t) => t !== id)
-    _persistLayout()
+    hiddenTiles.value = hiddenTiles.value.filter((t) => t !== id);
+    _persistLayout();
   }
 
   function resetLayout(): void {
-    tileOrder.value = [...DEFAULT_TILE_ORDER]
-    hiddenTiles.value = []
-    tileWidths.value = {}
-    _persistLayout()
+    tileOrder.value = [...DEFAULT_TILE_ORDER];
+    hiddenTiles.value = [];
+    tileWidths.value = {};
+    _persistLayout();
   }
 
   /** Get the effective span for a tile: user override or definition default. */
   function getTileSpan(id: DashboardTileId): TileSpan {
-    const override = tileWidths.value[id]
-    if (override !== undefined) return override
-    const def = tileDefs.value.get(id)
-    return def?.span ?? 2
+    const override = tileWidths.value[id];
+    if (override !== undefined) return override;
+    const def = tileDefs.value.get(id);
+    return def?.span ?? 2;
   }
 
   /** Set a tile's width override and persist. */
   function setTileWidth(id: DashboardTileId, span: TileSpan): void {
-    tileWidths.value = { ...tileWidths.value, [id]: span }
-    _persistLayout()
+    tileWidths.value = { ...tileWidths.value, [id]: span };
+    _persistLayout();
   }
 
   function reset(): void {
-    range.value = 'all'
-    bin.value = 'week'
-    bins.value = []
-    loading.value = false
-    error.value = null
-    hasLoaded.value = false
-    moodDimensions.value = []
-    moodBins.value = []
-    hiddenMoodDimensions.value = new Set()
-    moodDefaultsApplied = false
-    moodLoading.value = false
-    moodError.value = null
-    moodHasLoaded.value = false
-    drillPeriod.value = null
-    drillDimension.value = null
-    drillEntries.value = []
-    drillLoading.value = false
-    drillError.value = null
-    entityType.value = 'topic'
-    entityDistribution.value = []
-    entityLoading.value = false
-    entityError.value = null
-    entityHasLoaded.value = false
-    calendarDays.value = []
-    calendarLoading.value = false
-    calendarError.value = null
-    calendarHasLoaded.value = false
-    entityTrends.value = []
-    entityTrendEntities.value = []
-    entityTrendsType.value = 'topic'
-    entityTrendsLoading.value = false
-    entityTrendsError.value = null
-    entityTrendsHasLoaded.value = false
-    moodCorrelationItems.value = []
-    moodCorrelationOverallAvg.value = 0
-    moodCorrelationDimension.value = 'agency'
-    moodCorrelationType.value = 'person'
-    moodCorrelationLoading.value = false
-    moodCorrelationError.value = null
-    moodCorrelationHasLoaded.value = false
-    wordCountBuckets.value = []
-    wordCountStats.value = null
-    wordCountLoading.value = false
-    wordCountError.value = null
-    wordCountHasLoaded.value = false
+    range.value = "all";
+    bin.value = "week";
+    bins.value = [];
+    loading.value = false;
+    error.value = null;
+    hasLoaded.value = false;
+    moodDimensions.value = [];
+    moodBins.value = [];
+    hiddenMoodDimensions.value = new Set();
+    moodDefaultsApplied = false;
+    moodLoading.value = false;
+    moodError.value = null;
+    moodHasLoaded.value = false;
+    drillPeriod.value = null;
+    drillDimension.value = null;
+    drillEntries.value = [];
+    drillLoading.value = false;
+    drillError.value = null;
+    entityType.value = "topic";
+    entityDistribution.value = [];
+    entityLoading.value = false;
+    entityError.value = null;
+    entityHasLoaded.value = false;
+    calendarDays.value = [];
+    calendarLoading.value = false;
+    calendarError.value = null;
+    calendarHasLoaded.value = false;
+    entityTrends.value = [];
+    entityTrendEntities.value = [];
+    entityTrendsType.value = "topic";
+    entityTrendsLoading.value = false;
+    entityTrendsError.value = null;
+    entityTrendsHasLoaded.value = false;
+    moodCorrelationItems.value = [];
+    moodCorrelationOverallAvg.value = 0;
+    moodCorrelationDimension.value = "agency";
+    moodCorrelationType.value = "person";
+    moodCorrelationLoading.value = false;
+    moodCorrelationError.value = null;
+    moodCorrelationHasLoaded.value = false;
+    wordCountBuckets.value = [];
+    wordCountStats.value = null;
+    wordCountLoading.value = false;
+    wordCountError.value = null;
+    wordCountHasLoaded.value = false;
     // Layout is NOT reset here — it persists independently.
   }
 
@@ -745,5 +747,5 @@ export const useDashboardStore = defineStore('dashboard', () => {
     getTileSpan,
     setTileWidth,
     reset,
-  }
-})
+  };
+});
