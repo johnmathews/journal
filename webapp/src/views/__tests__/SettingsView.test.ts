@@ -30,6 +30,18 @@ vi.mock('@/api/jobs', () => ({
   listJobs: vi.fn().mockResolvedValue({ jobs: [], total: 0 }),
 }))
 
+vi.mock('@/api/notifications', () => ({
+  fetchNotificationTopics: vi.fn().mockResolvedValue({ topics: [] }),
+  fetchNotificationStatus: vi.fn().mockResolvedValue({ configured: false }),
+  validatePushoverCredentials: vi.fn(),
+  sendPushoverTest: vi.fn(),
+}))
+
+vi.mock('@/api/preferences', () => ({
+  updatePreferences: vi.fn(),
+  fetchPreferences: vi.fn().mockResolvedValue({ preferences: {} }),
+}))
+
 vi.mock('@/api/dashboard', () => ({
   fetchWritingStats: vi.fn().mockResolvedValue({ bins: [] }),
   fetchMoodDimensions: vi.fn().mockResolvedValue({ dimensions: [] }),

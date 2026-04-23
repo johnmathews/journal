@@ -7,6 +7,7 @@ import { useDashboardStore } from '@/stores/dashboard'
 import { useToast } from '@/composables/useToast'
 import { triggerEntityExtraction } from '@/api/entities'
 import BatchJobModal from '@/components/BatchJobModal.vue'
+import NotificationsSettings from '@/components/NotificationsSettings.vue'
 import {
   ocrCostPer1000Words,
   audioCostPer1000Words,
@@ -490,6 +491,9 @@ const moodScoringEnabled = computed(
         title="Run entity extraction"
         job-kind="entity_extraction"
       />
+
+      <!-- Notifications -->
+      <NotificationsSettings />
 
       <!-- Settings Section -->
       <section v-if="store.settings" data-testid="settings-section">
