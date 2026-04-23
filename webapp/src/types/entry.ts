@@ -13,6 +13,9 @@ export interface EntrySummary {
   uncertain_span_count: number
   doubts_verified: boolean
   created_at: string
+  language: string
+  updated_at: string
+  entity_mention_count: number
 }
 
 /** A character range in `EntryDetail.raw_text` that the OCR model

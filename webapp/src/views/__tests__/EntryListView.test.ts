@@ -4,21 +4,30 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
 import EntryListView from '../EntryListView.vue'
 
+/** Helper to build a mock entry with new-field defaults. */
+function mockEntry(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 1,
+    entry_date: '2026-03-22',
+    source_type: 'photo' as const,
+    page_count: 2,
+    word_count: 347,
+    chunk_count: 5,
+    created_at: '2026-03-23T10:30:00Z',
+    uncertain_span_count: 0,
+    doubts_verified: false,
+    language: 'en',
+    updated_at: '2026-03-23T11:00:00Z',
+    entity_mention_count: 3,
+    ...overrides,
+  }
+}
+
 vi.mock('@/api/entries', () => ({
   fetchEntries: vi.fn().mockResolvedValue({
     items: [
-      {
-        id: 1,
-        entry_date: '2026-03-22',
-        source_type: 'photo',
-        page_count: 2,
-        word_count: 347,
-        chunk_count: 5,
-        created_at: '2026-03-23T10:30:00Z',
-        uncertain_span_count: 0,
-        doubts_verified: false,
-      },
-      {
+      mockEntry({ id: 1, entry_date: '2026-03-22', word_count: 347 }),
+      mockEntry({
         id: 2,
         entry_date: '2026-03-21',
         source_type: 'voice',
@@ -26,9 +35,9 @@ vi.mock('@/api/entries', () => ({
         word_count: 120,
         chunk_count: 2,
         created_at: '2026-03-21T15:00:00Z',
-        uncertain_span_count: 0,
-        doubts_verified: false,
-      },
+        updated_at: '2026-03-21T16:00:00Z',
+        entity_mention_count: 1,
+      }),
     ],
     total: 2,
     limit: 20,
@@ -58,10 +67,38 @@ function mountComponent() {
   })
 }
 
+function cleanupStorage() {
+  localStorage.removeItem('journal-entry-columns')
+  localStorage.removeItem('journal-entry-column-order')
+}
+
 describe('EntryListView', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     setActivePinia(createPinia())
+    cleanupStorage()
+    // Restore the default mock before each test (pagination tests override it)
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValue({
+      items: [
+        mockEntry({ id: 1, entry_date: '2026-03-22', word_count: 347 }),
+        mockEntry({
+          id: 2,
+          entry_date: '2026-03-21',
+          source_type: 'voice',
+          page_count: 0,
+          word_count: 120,
+          chunk_count: 2,
+          created_at: '2026-03-21T15:00:00Z',
+          updated_at: '2026-03-21T16:00:00Z',
+          entity_mention_count: 1,
+        }),
+      ],
+      total: 2,
+      limit: 20,
+      offset: 0,
+    })
   })
+  afterEach(cleanupStorage)
 
   it('renders the heading', () => {
     const wrapper = mountComponent()
@@ -166,17 +203,7 @@ describe('EntryListView', () => {
     const { fetchEntries } = await import('@/api/entries')
     const mock = vi.mocked(fetchEntries)
     mock.mockResolvedValue({
-      items: Array.from({ length: 20 }, (_, i) => ({
-        id: i + 1,
-        entry_date: '2026-01-01',
-        source_type: 'photo' as const,
-        page_count: 1,
-        word_count: 1,
-        chunk_count: 1,
-        created_at: '',
-        uncertain_span_count: 0,
-        doubts_verified: false,
-      })),
+      items: Array.from({ length: 20 }, (_, i) => mockEntry({ id: i + 1 })),
       total: 45,
       limit: 20,
       offset: 0,
@@ -196,36 +223,6 @@ describe('EntryListView', () => {
   })
 
   it('sorts by date descending by default', async () => {
-    const { fetchEntries } = await import('@/api/entries')
-    vi.mocked(fetchEntries).mockResolvedValueOnce({
-      items: [
-        {
-          id: 1,
-          entry_date: '2026-03-22',
-          source_type: 'photo',
-          page_count: 2,
-          word_count: 347,
-          chunk_count: 5,
-          created_at: '2026-03-23T10:30:00Z',
-          uncertain_span_count: 0,
-          doubts_verified: false,
-        },
-        {
-          id: 2,
-          entry_date: '2026-03-21',
-          source_type: 'voice',
-          page_count: 0,
-          word_count: 120,
-          chunk_count: 2,
-          created_at: '2026-03-21T15:00:00Z',
-          uncertain_span_count: 0,
-          doubts_verified: false,
-        },
-      ],
-      total: 2,
-      limit: 20,
-      offset: 0,
-    })
     const wrapper = mountComponent()
     await new Promise((r) => setTimeout(r, 50))
     await wrapper.vm.$nextTick()
@@ -237,36 +234,6 @@ describe('EntryListView', () => {
   })
 
   it('toggles sort direction on column header click', async () => {
-    const { fetchEntries } = await import('@/api/entries')
-    vi.mocked(fetchEntries).mockResolvedValueOnce({
-      items: [
-        {
-          id: 1,
-          entry_date: '2026-03-22',
-          source_type: 'photo',
-          page_count: 2,
-          word_count: 347,
-          chunk_count: 5,
-          created_at: '2026-03-23T10:30:00Z',
-          uncertain_span_count: 0,
-          doubts_verified: false,
-        },
-        {
-          id: 2,
-          entry_date: '2026-03-21',
-          source_type: 'voice',
-          page_count: 0,
-          word_count: 120,
-          chunk_count: 2,
-          created_at: '2026-03-21T15:00:00Z',
-          uncertain_span_count: 0,
-          doubts_verified: false,
-        },
-      ],
-      total: 2,
-      limit: 20,
-      offset: 0,
-    })
     const wrapper = mountComponent()
     await new Promise((r) => setTimeout(r, 50))
     await wrapper.vm.$nextTick()
@@ -279,36 +246,6 @@ describe('EntryListView', () => {
   })
 
   it('sorts by a different column when its header is clicked', async () => {
-    const { fetchEntries } = await import('@/api/entries')
-    vi.mocked(fetchEntries).mockResolvedValueOnce({
-      items: [
-        {
-          id: 1,
-          entry_date: '2026-03-22',
-          source_type: 'photo',
-          page_count: 2,
-          word_count: 347,
-          chunk_count: 5,
-          created_at: '2026-03-23T10:30:00Z',
-          uncertain_span_count: 0,
-          doubts_verified: false,
-        },
-        {
-          id: 2,
-          entry_date: '2026-03-21',
-          source_type: 'voice',
-          page_count: 0,
-          word_count: 120,
-          chunk_count: 2,
-          created_at: '2026-03-21T15:00:00Z',
-          uncertain_span_count: 0,
-          doubts_verified: false,
-        },
-      ],
-      total: 2,
-      limit: 20,
-      offset: 0,
-    })
     const wrapper = mountComponent()
     await new Promise((r) => setTimeout(r, 50))
     await wrapper.vm.$nextTick()
@@ -324,17 +261,7 @@ describe('EntryListView', () => {
     const { fetchEntries } = await import('@/api/entries')
     const mock = vi.mocked(fetchEntries)
     mock.mockResolvedValue({
-      items: Array.from({ length: 20 }, (_, i) => ({
-        id: i + 1,
-        entry_date: '2026-01-01',
-        source_type: 'photo' as const,
-        page_count: 1,
-        word_count: 1,
-        chunk_count: 1,
-        created_at: '',
-        uncertain_span_count: 0,
-        doubts_verified: false,
-      })),
+      items: Array.from({ length: 20 }, (_, i) => mockEntry({ id: i + 1 })),
       total: 100,
       limit: 20,
       offset: 0,
@@ -357,38 +284,24 @@ describe('EntryListView', () => {
 describe('Source type column', () => {
   beforeEach(async () => {
     setActivePinia(createPinia())
-    localStorage.removeItem('journal-entry-columns')
+    cleanupStorage()
     const { fetchEntries } = await import('@/api/entries')
     vi.mocked(fetchEntries).mockResolvedValue({
       items: [
-        {
-          id: 1,
-          entry_date: '2026-03-22',
-          source_type: 'photo',
-          page_count: 2,
-          word_count: 347,
-          chunk_count: 5,
-          created_at: '2026-03-23T10:30:00Z',
-          uncertain_span_count: 0,
-          doubts_verified: false,
-        },
-        {
+        mockEntry({ id: 1, source_type: 'photo' }),
+        mockEntry({
           id: 2,
           entry_date: '2026-03-21',
           source_type: 'voice',
-          page_count: 0,
-          word_count: 120,
-          chunk_count: 2,
           created_at: '2026-03-21T15:00:00Z',
-          uncertain_span_count: 0,
-          doubts_verified: false,
-        },
+        }),
       ],
       total: 2,
       limit: 20,
       offset: 0,
     })
   })
+  afterEach(cleanupStorage)
 
   it('displays human-readable source labels', async () => {
     const wrapper = mountComponent()
@@ -406,30 +319,16 @@ describe('Source type column', () => {
 describe('Column visibility', () => {
   beforeEach(async () => {
     setActivePinia(createPinia())
-    localStorage.removeItem('journal-entry-columns')
+    cleanupStorage()
     const { fetchEntries } = await import('@/api/entries')
     vi.mocked(fetchEntries).mockResolvedValue({
-      items: [
-        {
-          id: 1,
-          entry_date: '2026-03-22',
-          source_type: 'photo',
-          page_count: 2,
-          word_count: 347,
-          chunk_count: 5,
-          created_at: '2026-03-23T10:30:00Z',
-          uncertain_span_count: 0,
-          doubts_verified: false,
-        },
-      ],
+      items: [mockEntry()],
       total: 1,
       limit: 20,
       offset: 0,
     })
   })
-  afterEach(() => {
-    localStorage.removeItem('journal-entry-columns')
-  })
+  afterEach(cleanupStorage)
 
   it('shows the Columns button', () => {
     const wrapper = mountComponent()
@@ -471,10 +370,25 @@ describe('Column visibility', () => {
   })
 
   it('restores defaults on reset', async () => {
-    // Pre-set custom visibility
+    // Pre-set custom visibility and order
     localStorage.setItem(
       'journal-entry-columns',
       JSON.stringify({ source_type: false, chunk_count: true }),
+    )
+    localStorage.setItem(
+      'journal-entry-column-order',
+      JSON.stringify([
+        'word_count',
+        'entry_date',
+        'source_type',
+        'created_at',
+        'uncertain_span_count',
+        'page_count',
+        'chunk_count',
+        'language',
+        'updated_at',
+        'entity_mention_count',
+      ]),
     )
 
     const wrapper = mountComponent()
@@ -492,6 +406,7 @@ describe('Column visibility', () => {
     // Source back, chunks hidden (default)
     expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(true)
     expect(localStorage.getItem('journal-entry-columns')).toBeNull()
+    expect(localStorage.getItem('journal-entry-column-order')).toBeNull()
   })
 
   it('handles corrupted localStorage gracefully', async () => {
@@ -534,54 +449,72 @@ describe('Column visibility', () => {
 
     expect(wrapper.find('[data-testid="sort-chunks"]').exists()).toBe(false)
   })
+
+  it('new columns (language, modified, entities) are hidden by default', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="sort-language"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="sort-modified"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="sort-entities"]').exists()).toBe(false)
+  })
+
+  it('shows new columns when toggled on', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    await wrapper.find('[data-testid="col-toggle-language"]').setValue(true)
+    await wrapper.find('[data-testid="col-toggle-updated_at"]').setValue(true)
+    await wrapper
+      .find('[data-testid="col-toggle-entity_mention_count"]')
+      .setValue(true)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="sort-language"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="sort-modified"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="sort-entities"]').exists()).toBe(true)
+  })
 })
 
 describe('Source type label mapping', () => {
   beforeEach(async () => {
     setActivePinia(createPinia())
-    localStorage.removeItem('journal-entry-columns')
+    cleanupStorage()
     const { fetchEntries } = await import('@/api/entries')
     vi.mocked(fetchEntries).mockResolvedValue({
       items: [
-        {
+        mockEntry({
           id: 1,
-          entry_date: '2026-03-22',
           source_type: 'text_entry',
-          page_count: 0,
           word_count: 100,
           chunk_count: 1,
-          created_at: '2026-03-23T10:30:00Z',
-          uncertain_span_count: 0,
-          doubts_verified: false,
-        },
-        {
+        }),
+        mockEntry({
           id: 2,
           entry_date: '2026-03-21',
           source_type: 'imported_text_file',
-          page_count: 0,
           word_count: 200,
           chunk_count: 2,
           created_at: '2026-03-21T15:00:00Z',
-          uncertain_span_count: 0,
-          doubts_verified: false,
-        },
-        {
+        }),
+        mockEntry({
           id: 3,
           entry_date: '2026-03-20',
           source_type: 'imported_audio_file',
-          page_count: 0,
           word_count: 150,
           chunk_count: 1,
           created_at: '2026-03-20T12:00:00Z',
-          uncertain_span_count: 0,
-          doubts_verified: false,
-        },
+        }),
       ],
       total: 3,
       limit: 20,
       offset: 0,
     })
   })
+  afterEach(cleanupStorage)
 
   it('maps all source types to readable labels', async () => {
     const wrapper = mountComponent()
@@ -598,43 +531,27 @@ describe('Source type label mapping', () => {
 })
 
 describe('OCR Doubts column', () => {
+  afterEach(cleanupStorage)
+
   it('renders uncertain_span_count with color coding', async () => {
     const { fetchEntries } = await import('@/api/entries')
     ;(fetchEntries as ReturnType<typeof vi.fn>).mockResolvedValue({
       items: [
-        {
+        mockEntry({
           id: 10,
           entry_date: '2026-04-01',
-          source_type: 'photo',
-          page_count: 1,
-          word_count: 50,
-          chunk_count: 1,
-          created_at: '2026-04-01T10:00:00Z',
           uncertain_span_count: 0,
-          doubts_verified: false,
-        },
-        {
+        }),
+        mockEntry({
           id: 11,
           entry_date: '2026-04-02',
-          source_type: 'photo',
-          page_count: 1,
-          word_count: 50,
-          chunk_count: 1,
-          created_at: '2026-04-02T10:00:00Z',
           uncertain_span_count: 2,
-          doubts_verified: false,
-        },
-        {
+        }),
+        mockEntry({
           id: 12,
           entry_date: '2026-04-03',
-          source_type: 'photo',
-          page_count: 1,
-          word_count: 50,
-          chunk_count: 1,
-          created_at: '2026-04-03T10:00:00Z',
           uncertain_span_count: 5,
-          doubts_verified: false,
-        },
+        }),
       ],
       total: 3,
       limit: 20,
@@ -660,5 +577,298 @@ describe('OCR Doubts column', () => {
     // 0 = green (2026-04-01)
     expect(cells[2].text()).toBe('0')
     expect(cells[2].classes().join(' ')).toContain('emerald')
+  })
+})
+
+describe('New columns rendering', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia())
+    cleanupStorage()
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValue({
+      items: [
+        mockEntry({
+          id: 1,
+          language: 'nl',
+          updated_at: '2026-03-24T09:00:00Z',
+          entity_mention_count: 7,
+        }),
+      ],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    })
+  })
+  afterEach(cleanupStorage)
+
+  it('renders language column in uppercase when visible', async () => {
+    // Enable the language column
+    localStorage.setItem(
+      'journal-entry-columns',
+      JSON.stringify({
+        entry_date: true,
+        source_type: true,
+        created_at: true,
+        uncertain_span_count: true,
+        word_count: true,
+        page_count: true,
+        chunk_count: false,
+        language: true,
+        updated_at: false,
+        entity_mention_count: false,
+      }),
+    )
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="sort-language"]').exists()).toBe(true)
+    // Check that the cell contains the uppercase language
+    expect(wrapper.text()).toContain('NL')
+  })
+
+  it('renders modified column with formatted datetime when visible', async () => {
+    localStorage.setItem(
+      'journal-entry-columns',
+      JSON.stringify({
+        entry_date: true,
+        source_type: true,
+        created_at: true,
+        uncertain_span_count: true,
+        word_count: true,
+        page_count: true,
+        chunk_count: false,
+        language: false,
+        updated_at: true,
+        entity_mention_count: false,
+      }),
+    )
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="sort-modified"]').exists()).toBe(true)
+    // Should contain formatted date
+    expect(wrapper.text()).toContain('24 Mar')
+  })
+
+  it('renders entities column with count when visible', async () => {
+    localStorage.setItem(
+      'journal-entry-columns',
+      JSON.stringify({
+        entry_date: true,
+        source_type: true,
+        created_at: true,
+        uncertain_span_count: true,
+        word_count: true,
+        page_count: true,
+        chunk_count: false,
+        language: false,
+        updated_at: false,
+        entity_mention_count: true,
+      }),
+    )
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="sort-entities"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('7')
+  })
+})
+
+describe('Edit mode', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia())
+    cleanupStorage()
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValue({
+      items: [mockEntry()],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    })
+  })
+  afterEach(cleanupStorage)
+
+  it('shows edit mode toggle button', () => {
+    const wrapper = mountComponent()
+    expect(wrapper.find('[data-testid="edit-mode-toggle"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="edit-mode-toggle"]').text()).toBe('Edit')
+  })
+
+  it('toggles edit mode on button click', async () => {
+    const wrapper = mountComponent()
+    const toggle = wrapper.find('[data-testid="edit-mode-toggle"]')
+
+    await toggle.trigger('click')
+    expect(toggle.text()).toBe('Done')
+
+    await toggle.trigger('click')
+    expect(toggle.text()).toBe('Edit')
+  })
+
+  it('shows drag handles in column menu only when in edit mode', async () => {
+    const wrapper = mountComponent()
+
+    // Open column menu — no drag handles yet
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    expect(wrapper.findAll('[data-testid="drag-handle"]').length).toBe(0)
+
+    // Enter edit mode
+    await wrapper.find('[data-testid="edit-mode-toggle"]').trigger('click')
+    expect(
+      wrapper.findAll('[data-testid="drag-handle"]').length,
+    ).toBeGreaterThan(0)
+
+    // Exit edit mode
+    await wrapper.find('[data-testid="edit-mode-toggle"]').trigger('click')
+    expect(wrapper.findAll('[data-testid="drag-handle"]').length).toBe(0)
+  })
+
+  it('menu items are draggable only in edit mode', async () => {
+    const wrapper = mountComponent()
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+
+    const firstItem = wrapper.find('[data-testid="col-item-entry_date"]')
+    expect(firstItem.attributes('draggable')).toBe('false')
+
+    await wrapper.find('[data-testid="edit-mode-toggle"]').trigger('click')
+    expect(
+      wrapper
+        .find('[data-testid="col-item-entry_date"]')
+        .attributes('draggable'),
+    ).toBe('true')
+  })
+})
+
+describe('Column order', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia())
+    cleanupStorage()
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValue({
+      items: [mockEntry()],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    })
+  })
+  afterEach(cleanupStorage)
+
+  it('renders columns in default order', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    const headers = wrapper.findAll('th')
+    // Default visible: Date, Source, Ingested, Doubts, Words, Pages
+    expect(headers[0].text()).toContain('Date')
+    expect(headers[1].text()).toContain('Source')
+    expect(headers[2].text()).toContain('Ingested')
+  })
+
+  it('loads saved column order from localStorage', async () => {
+    // Set order with Source first
+    localStorage.setItem(
+      'journal-entry-column-order',
+      JSON.stringify([
+        'source_type',
+        'entry_date',
+        'created_at',
+        'uncertain_span_count',
+        'word_count',
+        'page_count',
+        'chunk_count',
+        'language',
+        'updated_at',
+        'entity_mention_count',
+      ]),
+    )
+
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    const headers = wrapper.findAll('th')
+    expect(headers[0].text()).toContain('Source')
+    expect(headers[1].text()).toContain('Date')
+  })
+
+  it('handles corrupted column order localStorage gracefully', async () => {
+    localStorage.setItem('journal-entry-column-order', 'not valid json')
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    // Should fall back to defaults
+    const headers = wrapper.findAll('th')
+    expect(headers[0].text()).toContain('Date')
+  })
+
+  it('adds missing columns to the end when new columns are added', async () => {
+    // Simulate an old order that doesn't include the new columns
+    localStorage.setItem(
+      'journal-entry-column-order',
+      JSON.stringify([
+        'entry_date',
+        'source_type',
+        'created_at',
+        'uncertain_span_count',
+        'word_count',
+        'page_count',
+        'chunk_count',
+      ]),
+    )
+
+    const wrapper = mountComponent()
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+
+    // The menu should still include all columns
+    expect(wrapper.find('[data-testid="col-item-language"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('[data-testid="col-item-updated_at"]').exists()).toBe(
+      true,
+    )
+    expect(
+      wrapper.find('[data-testid="col-item-entity_mention_count"]').exists(),
+    ).toBe(true)
+  })
+
+  it('reset restores default column order', async () => {
+    localStorage.setItem(
+      'journal-entry-column-order',
+      JSON.stringify([
+        'word_count',
+        'entry_date',
+        'source_type',
+        'created_at',
+        'uncertain_span_count',
+        'page_count',
+        'chunk_count',
+        'language',
+        'updated_at',
+        'entity_mention_count',
+      ]),
+    )
+
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    // Words should be first with custom order
+    let headers = wrapper.findAll('th')
+    expect(headers[0].text()).toContain('Words')
+
+    // Open menu and reset
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    await wrapper.find('[data-testid="columns-reset"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    // Date should be back to first
+    headers = wrapper.findAll('th')
+    expect(headers[0].text()).toContain('Date')
+    expect(localStorage.getItem('journal-entry-column-order')).toBeNull()
   })
 })

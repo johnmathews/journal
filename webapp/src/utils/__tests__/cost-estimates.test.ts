@@ -127,11 +127,7 @@ describe('cost-estimates', () => {
         true,
         'unknown-model',
       )!
-      const baseOnly = audioCostPer1000Words(
-        'gpt-4o-transcribe',
-        false,
-        null,
-      )!
+      const baseOnly = audioCostPer1000Words('gpt-4o-transcribe', false, null)!
       expect(cost).toBeCloseTo(baseOnly, 4)
     })
 

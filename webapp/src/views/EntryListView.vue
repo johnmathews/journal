@@ -19,6 +19,9 @@ type SortKey =
   | 'chunk_count'
   | 'uncertain_span_count'
   | 'created_at'
+  | 'language'
+  | 'updated_at'
+  | 'entity_mention_count'
 const sortKey = ref<SortKey>('entry_date')
 const sortAsc = ref(false)
 
@@ -49,23 +52,99 @@ function sourceLabel(sourceType: string): string {
   return SOURCE_LABELS[sourceType] ?? sourceType
 }
 
-// Column visibility
+// Column definitions
 interface ColumnDef {
   key: string
   label: string
   defaultVisible: boolean
+  align: 'left' | 'center' | 'right'
+  sortTestId: string
 }
 
 const COLUMNS: ColumnDef[] = [
-  { key: 'entry_date', label: 'Date', defaultVisible: true },
-  { key: 'source_type', label: 'Source', defaultVisible: true },
-  { key: 'created_at', label: 'Ingested', defaultVisible: true },
-  { key: 'uncertain_span_count', label: 'Doubts', defaultVisible: true },
-  { key: 'word_count', label: 'Words', defaultVisible: true },
-  { key: 'page_count', label: 'Pages', defaultVisible: true },
-  { key: 'chunk_count', label: 'Chunks', defaultVisible: false },
+  {
+    key: 'entry_date',
+    label: 'Date',
+    defaultVisible: true,
+    align: 'left',
+    sortTestId: 'sort-date',
+  },
+  {
+    key: 'source_type',
+    label: 'Source',
+    defaultVisible: true,
+    align: 'left',
+    sortTestId: 'sort-source',
+  },
+  {
+    key: 'created_at',
+    label: 'Ingested',
+    defaultVisible: true,
+    align: 'left',
+    sortTestId: 'sort-ingested',
+  },
+  {
+    key: 'uncertain_span_count',
+    label: 'Doubts',
+    defaultVisible: true,
+    align: 'center',
+    sortTestId: 'sort-doubts',
+  },
+  {
+    key: 'word_count',
+    label: 'Words',
+    defaultVisible: true,
+    align: 'right',
+    sortTestId: 'sort-words',
+  },
+  {
+    key: 'page_count',
+    label: 'Pages',
+    defaultVisible: true,
+    align: 'center',
+    sortTestId: 'sort-pages',
+  },
+  {
+    key: 'chunk_count',
+    label: 'Chunks',
+    defaultVisible: false,
+    align: 'right',
+    sortTestId: 'sort-chunks',
+  },
+  {
+    key: 'language',
+    label: 'Language',
+    defaultVisible: false,
+    align: 'left',
+    sortTestId: 'sort-language',
+  },
+  {
+    key: 'updated_at',
+    label: 'Modified',
+    defaultVisible: false,
+    align: 'left',
+    sortTestId: 'sort-modified',
+  },
+  {
+    key: 'entity_mention_count',
+    label: 'Entities',
+    defaultVisible: false,
+    align: 'right',
+    sortTestId: 'sort-entities',
+  },
 ]
 
+const COLUMN_MAP: Record<string, ColumnDef> = Object.fromEntries(
+  COLUMNS.map((c) => [c.key, c]),
+)
+
+const ALIGN_CLASSES: Record<string, string> = {
+  left: 'text-left',
+  center: 'text-center',
+  right: 'text-right',
+}
+
+// Column visibility
 const STORAGE_KEY = 'journal-entry-columns'
 
 function loadColumnVisibility(): Record<string, boolean> {
@@ -90,18 +169,91 @@ function toggleColumn(key: string) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(columnVisibility.value))
 }
 
+// Column order
+const ORDER_STORAGE_KEY = 'journal-entry-column-order'
+const DEFAULT_ORDER = COLUMNS.map((c) => c.key)
+
+function loadColumnOrder(): string[] {
+  try {
+    const stored = localStorage.getItem(ORDER_STORAGE_KEY)
+    if (stored) {
+      const order = JSON.parse(stored) as string[]
+      const validKeys = new Set(DEFAULT_ORDER)
+      const filtered = order.filter((k) => validKeys.has(k))
+      const missing = DEFAULT_ORDER.filter((k) => !filtered.includes(k))
+      return [...filtered, ...missing]
+    }
+  } catch {
+    // Corrupted storage — fall through to defaults
+  }
+  return [...DEFAULT_ORDER]
+}
+
+const columnOrder = ref<string[]>(loadColumnOrder())
+
+const orderedColumns = computed(() =>
+  columnOrder.value.map((key) => COLUMN_MAP[key]).filter(Boolean),
+)
+
+const visibleOrderedColumns = computed(() =>
+  orderedColumns.value.filter((col) => isVisible(col.key)),
+)
+
+// Edit mode — enables column reordering in the menu
+const editMode = ref(false)
+
+// Drag-and-drop state for column reordering
+const dragIndex = ref<number | null>(null)
+const dragOverIndex = ref<number | null>(null)
+
+function onDragStart(e: DragEvent, index: number) {
+  dragIndex.value = index
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move'
+  }
+}
+
+function onDragOver(e: DragEvent, index: number) {
+  e.preventDefault()
+  if (e.dataTransfer) {
+    e.dataTransfer.dropEffect = 'move'
+  }
+  dragOverIndex.value = index
+}
+
+function onDrop(e: DragEvent, index: number) {
+  e.preventDefault()
+  if (dragIndex.value === null || dragIndex.value === index) return
+  const order = [...columnOrder.value]
+  const [moved] = order.splice(dragIndex.value, 1)
+  order.splice(index, 0, moved)
+  columnOrder.value = order
+  localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(order))
+  dragIndex.value = null
+  dragOverIndex.value = null
+}
+
+function onDragEnd() {
+  dragIndex.value = null
+  dragOverIndex.value = null
+}
+
 function resetColumns() {
   columnVisibility.value = Object.fromEntries(
     COLUMNS.map((c) => [c.key, c.defaultVisible]),
   )
+  columnOrder.value = [...DEFAULT_ORDER]
   localStorage.removeItem(STORAGE_KEY)
+  localStorage.removeItem(ORDER_STORAGE_KEY)
 }
 
 // Close column menu on outside click
 function onDocumentClick(e: MouseEvent) {
   if (!showColumnMenu.value) return
   const target = e.target as Node
-  const container = document.querySelector('[data-testid="columns-button"]')?.parentElement
+  const container = document.querySelector(
+    '[data-testid="columns-button"]',
+  )?.parentElement
   if (container && !container.contains(target)) {
     showColumnMenu.value = false
   }
@@ -182,6 +334,57 @@ function doubtsColor(count: number): string {
   if (count <= 2) return 'text-amber-600 dark:text-amber-400'
   return 'text-red-600 dark:text-red-400'
 }
+
+// Cell rendering helpers
+function cellValue(col: ColumnDef, entry: EntrySummary): string {
+  switch (col.key) {
+    case 'entry_date':
+      return formatDate(entry.entry_date)
+    case 'source_type':
+      return sourceLabel(entry.source_type)
+    case 'created_at':
+      return formatDateTime(entry.created_at)
+    case 'uncertain_span_count':
+      return String(entry.uncertain_span_count)
+    case 'word_count':
+      return entry.word_count.toLocaleString()
+    case 'page_count':
+      return String(entry.page_count)
+    case 'chunk_count':
+      return String(entry.chunk_count)
+    case 'language':
+      return entry.language?.toUpperCase() ?? ''
+    case 'updated_at':
+      return formatDateTime(entry.updated_at)
+    case 'entity_mention_count':
+      return String(entry.entity_mention_count)
+    default:
+      return ''
+  }
+}
+
+function cellClasses(col: ColumnDef, entry: EntrySummary): string {
+  const align = ALIGN_CLASSES[col.align]
+  switch (col.key) {
+    case 'entry_date':
+      return `${align} text-gray-800 dark:text-gray-100 font-medium`
+    case 'source_type':
+    case 'created_at':
+    case 'language':
+    case 'updated_at':
+      return `${align} text-gray-500 dark:text-gray-400`
+    case 'uncertain_span_count':
+      return `${align} font-medium ${doubtsColor(entry.uncertain_span_count)}`
+    default:
+      return align
+  }
+}
+
+function cellTestId(col: ColumnDef): string | undefined {
+  if (col.key === 'source_type') return 'source-cell'
+  if (col.key === 'uncertain_span_count') return 'doubts-cell'
+  return undefined
+}
 </script>
 
 <template>
@@ -203,6 +406,38 @@ function doubtsColor(count: number): string {
         >
           {{ store.total }} entries
         </div>
+
+        <!-- Edit mode toggle -->
+        <button
+          class="btn px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5"
+          :class="
+            editMode
+              ? 'bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-500/40'
+              : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+          "
+          data-testid="edit-mode-toggle"
+          @click="editMode = !editMode"
+        >
+          <svg
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+            />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+          </svg>
+          {{ editMode ? 'Done' : 'Edit' }}
+        </button>
 
         <!-- Column visibility menu -->
         <div class="relative">
@@ -228,23 +463,54 @@ function doubtsColor(count: number): string {
           </button>
           <div
             v-if="showColumnMenu"
-            class="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-lg z-40 py-1"
+            class="absolute right-0 mt-1 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-lg z-40 py-1"
             data-testid="columns-menu"
           >
-            <label
-              v-for="col in COLUMNS"
+            <div
+              v-for="(col, index) in orderedColumns"
               :key="col.key"
-              class="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
+              class="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              :class="{
+                'border-t-2 border-violet-400':
+                  editMode &&
+                  dragOverIndex === index &&
+                  dragIndex !== null &&
+                  dragIndex !== index,
+                'opacity-50': editMode && dragIndex === index,
+              }"
+              :draggable="editMode"
+              :data-testid="`col-item-${col.key}`"
+              @dragstart="onDragStart($event, index)"
+              @dragover="onDragOver($event, index)"
+              @drop="onDrop($event, index)"
+              @dragend="onDragEnd"
             >
-              <input
-                type="checkbox"
-                :checked="isVisible(col.key)"
-                class="form-checkbox rounded text-violet-500"
-                :data-testid="`col-toggle-${col.key}`"
-                @change="toggleColumn(col.key)"
-              />
-              {{ col.label }}
-            </label>
+              <!-- Drag handle — only in edit mode -->
+              <svg
+                v-if="editMode"
+                class="w-4 h-4 text-gray-400 cursor-grab shrink-0"
+                data-testid="drag-handle"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <circle cx="9" cy="5" r="1.5" />
+                <circle cx="15" cy="5" r="1.5" />
+                <circle cx="9" cy="12" r="1.5" />
+                <circle cx="15" cy="12" r="1.5" />
+                <circle cx="9" cy="19" r="1.5" />
+                <circle cx="15" cy="19" r="1.5" />
+              </svg>
+              <label class="flex items-center gap-2 cursor-pointer flex-1">
+                <input
+                  type="checkbox"
+                  :checked="isVisible(col.key)"
+                  class="form-checkbox rounded text-violet-500"
+                  :data-testid="`col-toggle-${col.key}`"
+                  @change="toggleColumn(col.key)"
+                />
+                {{ col.label }}
+              </label>
+            </div>
             <div
               class="border-t border-gray-200 dark:border-gray-700/60 mt-1 pt-1"
             >
@@ -320,7 +586,7 @@ function doubtsColor(count: number): string {
         No journal entries found.
       </div>
 
-      <!-- Entry table with user-configurable column visibility -->
+      <!-- Entry table with user-configurable column visibility and order -->
       <div v-else class="overflow-x-auto">
         <table class="table-auto w-full dark:text-gray-300">
           <thead
@@ -328,60 +594,14 @@ function doubtsColor(count: number): string {
           >
             <tr>
               <th
-                v-if="isVisible('entry_date')"
-                class="px-4 py-3 whitespace-nowrap text-left cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
-                data-testid="sort-date"
-                @click="toggleSort('entry_date')"
+                v-for="col in visibleOrderedColumns"
+                :key="col.key"
+                class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+                :class="ALIGN_CLASSES[col.align]"
+                :data-testid="col.sortTestId"
+                @click="toggleSort(col.key as SortKey)"
               >
-                Date{{ sortIndicator('entry_date') }}
-              </th>
-              <th
-                v-if="isVisible('source_type')"
-                class="px-4 py-3 whitespace-nowrap text-left cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
-                data-testid="sort-source"
-                @click="toggleSort('source_type')"
-              >
-                Source{{ sortIndicator('source_type') }}
-              </th>
-              <th
-                v-if="isVisible('created_at')"
-                class="px-4 py-3 whitespace-nowrap text-left cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
-                data-testid="sort-ingested"
-                @click="toggleSort('created_at')"
-              >
-                Ingested{{ sortIndicator('created_at') }}
-              </th>
-              <th
-                v-if="isVisible('uncertain_span_count')"
-                class="px-4 py-3 whitespace-nowrap text-center cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
-                data-testid="sort-doubts"
-                @click="toggleSort('uncertain_span_count')"
-              >
-                Doubts{{ sortIndicator('uncertain_span_count') }}
-              </th>
-              <th
-                v-if="isVisible('word_count')"
-                class="px-4 py-3 whitespace-nowrap text-right cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
-                data-testid="sort-words"
-                @click="toggleSort('word_count')"
-              >
-                Words{{ sortIndicator('word_count') }}
-              </th>
-              <th
-                v-if="isVisible('page_count')"
-                class="px-4 py-3 whitespace-nowrap text-center cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
-                data-testid="sort-pages"
-                @click="toggleSort('page_count')"
-              >
-                Pages{{ sortIndicator('page_count') }}
-              </th>
-              <th
-                v-if="isVisible('chunk_count')"
-                class="px-4 py-3 whitespace-nowrap text-right cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
-                data-testid="sort-chunks"
-                @click="toggleSort('chunk_count')"
-              >
-                Chunks{{ sortIndicator('chunk_count') }}
+                {{ col.label }}{{ sortIndicator(col.key as SortKey) }}
               </th>
             </tr>
           </thead>
@@ -396,49 +616,13 @@ function doubtsColor(count: number): string {
               @click="onRowClick(entry.id)"
             >
               <td
-                v-if="isVisible('entry_date')"
-                class="px-4 py-3 whitespace-nowrap text-gray-800 dark:text-gray-100 font-medium"
+                v-for="col in visibleOrderedColumns"
+                :key="col.key"
+                class="px-4 py-3 whitespace-nowrap"
+                :class="cellClasses(col, entry)"
+                :data-testid="cellTestId(col)"
               >
-                {{ formatDate(entry.entry_date) }}
-              </td>
-              <td
-                v-if="isVisible('source_type')"
-                class="px-4 py-3 whitespace-nowrap text-gray-500 dark:text-gray-400"
-                data-testid="source-cell"
-              >
-                {{ sourceLabel(entry.source_type) }}
-              </td>
-              <td
-                v-if="isVisible('created_at')"
-                class="px-4 py-3 whitespace-nowrap text-gray-500 dark:text-gray-400"
-              >
-                {{ formatDateTime(entry.created_at) }}
-              </td>
-              <td
-                v-if="isVisible('uncertain_span_count')"
-                class="px-4 py-3 whitespace-nowrap text-center font-medium"
-                :class="doubtsColor(entry.uncertain_span_count)"
-                data-testid="doubts-cell"
-              >
-                {{ entry.uncertain_span_count }}
-              </td>
-              <td
-                v-if="isVisible('word_count')"
-                class="px-4 py-3 whitespace-nowrap text-right"
-              >
-                {{ entry.word_count.toLocaleString() }}
-              </td>
-              <td
-                v-if="isVisible('page_count')"
-                class="px-4 py-3 whitespace-nowrap text-center"
-              >
-                {{ entry.page_count }}
-              </td>
-              <td
-                v-if="isVisible('chunk_count')"
-                class="px-4 py-3 whitespace-nowrap text-right"
-              >
-                {{ entry.chunk_count }}
+                {{ cellValue(col, entry) }}
               </td>
             </tr>
           </tbody>
