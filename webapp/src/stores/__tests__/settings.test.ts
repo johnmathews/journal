@@ -18,6 +18,7 @@ function makeSettings(): ServerSettings {
   return {
     ocr: { provider: 'anthropic', model: 'claude-opus-4-6' },
     transcription: { model: 'gpt-4o-transcribe' },
+    transcript_formatting: { model: 'claude-haiku-4-5' },
     embedding: { model: 'text-embedding-3-large', dimensions: 1024 },
     chunking: {
       strategy: 'semantic',
