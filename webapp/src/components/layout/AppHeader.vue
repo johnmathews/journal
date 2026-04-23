@@ -81,7 +81,7 @@ async function handleSignOut() {
                   >{{ authStore.displayName || 'User' }}</span
                 >
                 <svg
-                  class="w-3 h-3 shrink-0 ml-1 fill-current text-gray-400 dark:text-gray-500"
+                  class="w-3 h-3 shrink-0 ml-1 fill-current text-gray-600 dark:text-gray-300"
                   viewBox="0 0 12 12"
                 >
                   <path d="M5.9 11.4L.5 6l1.4-1.4 4 4 4-4L11.3 6z" />
@@ -108,7 +108,7 @@ async function handleSignOut() {
                   <div class="font-medium text-gray-800 dark:text-gray-100">
                     {{ authStore.displayName }}
                   </div>
-                  <div class="text-xs text-gray-500 dark:text-gray-400 italic">
+                  <div class="text-xs text-gray-600 dark:text-gray-300 italic">
                     {{ authStore.user?.email }}
                   </div>
                 </div>

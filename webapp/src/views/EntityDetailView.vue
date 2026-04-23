@@ -151,7 +151,7 @@ async function confirmDelete() {
   <div data-testid="entity-detail-view">
     <div
       v-if="store.detailLoading && !store.currentEntity"
-      class="py-16 text-center text-gray-500 dark:text-gray-400"
+      class="py-16 text-center text-gray-600 dark:text-gray-300"
       data-testid="loading-state"
     >
       Loading entity…
@@ -245,7 +245,7 @@ async function confirmDelete() {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label
-                class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+                class="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1"
               >
                 Name
               </label>
@@ -258,7 +258,7 @@ async function confirmDelete() {
             </div>
             <div>
               <label
-                class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+                class="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1"
               >
                 Type
               </label>
@@ -280,7 +280,7 @@ async function confirmDelete() {
           </div>
           <div class="mb-4">
             <label
-              class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+              class="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1"
             >
               Description
             </label>
@@ -313,12 +313,12 @@ async function confirmDelete() {
         <template v-if="!editing">
           <div
             v-if="store.currentEntity.aliases.length"
-            class="text-sm text-gray-500 dark:text-gray-400"
+            class="text-sm text-gray-600 dark:text-gray-300"
             data-testid="entity-aliases"
           >
             Aliases: {{ displayAliases(store.currentEntity.aliases) }}
           </div>
-          <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <div class="text-sm text-gray-600 dark:text-gray-300 mt-1">
             {{ store.mentions.length }} mentions
             <template v-if="store.currentEntity.first_seen">
               · first seen {{ formatDate(store.currentEntity.first_seen) }}
@@ -340,13 +340,13 @@ async function confirmDelete() {
           data-testid="related-entities"
         >
           <h2
-            class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3"
+            class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-3"
           >
             Related entities
           </h2>
           <div
             v-if="!store.outgoing.length && !store.incoming.length"
-            class="text-sm text-gray-500 dark:text-gray-400"
+            class="text-sm text-gray-600 dark:text-gray-300"
           >
             No relationships recorded yet.
           </div>
@@ -357,8 +357,8 @@ async function confirmDelete() {
               class="flex items-center gap-2"
               data-testid="relationship-outgoing"
             >
-              <span class="text-gray-400 dark:text-gray-500">→</span>
-              <span class="text-gray-500 dark:text-gray-400 italic">
+              <span class="text-gray-600 dark:text-gray-300">→</span>
+              <span class="text-gray-600 dark:text-gray-300 italic">
                 {{ rel.predicate }}
               </span>
               <RouterLink
@@ -383,7 +383,7 @@ async function confirmDelete() {
               class="flex items-center gap-2"
               data-testid="relationship-incoming"
             >
-              <span class="text-gray-400 dark:text-gray-500">←</span>
+              <span class="text-gray-600 dark:text-gray-300">←</span>
               <RouterLink
                 :to="{
                   name: 'entity-detail',
@@ -399,7 +399,7 @@ async function confirmDelete() {
               >
                 {{ rel.subject_type }}
               </span>
-              <span class="text-gray-500 dark:text-gray-400 italic">
+              <span class="text-gray-600 dark:text-gray-300 italic">
                 {{ rel.predicate }} this
               </span>
             </li>
@@ -412,13 +412,13 @@ async function confirmDelete() {
           data-testid="mentions-timeline"
         >
           <h2
-            class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3"
+            class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-3"
           >
             Journal entries ({{ entriesByMention.length }})
           </h2>
           <div
             v-if="!store.mentions.length"
-            class="text-sm text-gray-500 dark:text-gray-400"
+            class="text-sm text-gray-600 dark:text-gray-300"
           >
             No mentions recorded yet.
           </div>
@@ -442,7 +442,7 @@ async function confirmDelete() {
                 >
                   {{ formatDate(group.entry_date) }}
                 </span>
-                <span class="text-[10px] text-gray-400 dark:text-gray-500">
+                <span class="text-[10px] text-gray-600 dark:text-gray-300">
                   {{ group.mentions.length }}
                   {{ group.mentions.length === 1 ? 'mention' : 'mentions' }}
                 </span>

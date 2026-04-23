@@ -582,7 +582,7 @@ onBeforeUnmount(() => {
     <!-- Loading state -->
     <div
       v-if="store.loading && !store.currentEntry"
-      class="py-16 text-center text-gray-500 dark:text-gray-400"
+      class="py-16 text-center text-gray-600 dark:text-gray-300"
       data-testid="loading-state"
     >
       Loading entry…
@@ -678,7 +678,7 @@ onBeforeUnmount(() => {
             doesn't.
           -->
           <div
-            class="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400"
+            class="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-300"
           >
             <span>{{
               SOURCE_TYPE_LABELS[store.currentEntry.source_type ?? ''] ??
@@ -863,7 +863,7 @@ onBeforeUnmount(() => {
               aria-label="Overlay mode"
             >
               <span
-                class="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mr-1"
+                class="text-xs uppercase tracking-wider text-gray-600 dark:text-gray-300 mr-1"
               >
                 Overlay
               </span>
@@ -890,7 +890,7 @@ onBeforeUnmount(() => {
             <!-- Legend (visible when diff or review is on) -->
             <div
               v-if="showDiff || showReview"
-              class="hidden sm:flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400"
+              class="hidden sm:flex items-center gap-3 text-xs text-gray-600 dark:text-gray-300"
               data-testid="diff-legend"
             >
               <span v-if="showDiff" class="flex items-center gap-1">
@@ -1017,7 +1017,7 @@ onBeforeUnmount(() => {
             class="lg:flex-1 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
           >
             <h2
-              class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3"
+              class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-3"
             >
               {{ isVoiceEntry ? 'Original Transcription' : 'Original OCR' }}
             </h2>
@@ -1041,7 +1041,7 @@ onBeforeUnmount(() => {
             class="lg:flex-1 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
           >
             <h2
-              class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3"
+              class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-3"
             >
               Corrected Text
             </h2>
@@ -1112,7 +1112,7 @@ onBeforeUnmount(() => {
          `template v-else-if="store.currentEntry"` branch. -->
     <div
       v-else
-      class="py-16 text-center text-gray-500 dark:text-gray-400"
+      class="py-16 text-center text-gray-600 dark:text-gray-300"
       data-testid="loading-state"
     >
       Loading entry…

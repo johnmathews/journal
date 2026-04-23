@@ -152,7 +152,7 @@ function nextPage() {
       <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">
         Job History
       </h1>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+      <p class="text-sm text-gray-600 dark:text-gray-300 mt-1">
         Background jobs: entity extraction, mood scoring, ingestion, and more.
       </p>
     </header>
@@ -207,7 +207,7 @@ function nextPage() {
     <!-- Loading -->
     <div
       v-if="loading && jobs.length === 0"
-      class="py-16 text-center text-gray-500 dark:text-gray-400"
+      class="py-16 text-center text-gray-600 dark:text-gray-300"
       data-testid="job-history-loading"
     >
       Loading...
@@ -216,7 +216,7 @@ function nextPage() {
     <!-- Empty -->
     <div
       v-else-if="jobs.length === 0 && !loading"
-      class="py-16 text-center text-gray-500 dark:text-gray-400"
+      class="py-16 text-center text-gray-600 dark:text-gray-300"
       data-testid="job-history-empty"
     >
       No jobs found.
@@ -230,7 +230,7 @@ function nextPage() {
       <table class="w-full text-sm" data-testid="job-history-table">
         <thead>
           <tr
-            class="bg-gray-50 dark:bg-gray-800/60 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+            class="bg-gray-50 dark:bg-gray-800/60 text-left text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wider"
           >
             <th class="px-4 py-3">Type</th>
             <th class="px-4 py-3">Status</th>
@@ -261,22 +261,22 @@ function nextPage() {
               </span>
             </td>
             <td
-              class="px-4 py-3 text-gray-500 dark:text-gray-400 max-w-[200px] truncate"
+              class="px-4 py-3 text-gray-600 dark:text-gray-300 max-w-[200px] truncate"
             >
               {{ paramsLabel(job) }}
             </td>
             <td
-              class="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap"
+              class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap"
             >
               {{ formatTime(job.created_at) }}
             </td>
             <td
-              class="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap"
+              class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap"
             >
               {{ duration(job) }}
             </td>
             <td
-              class="px-4 py-3 text-gray-500 dark:text-gray-400 max-w-[350px]"
+              class="px-4 py-3 text-gray-600 dark:text-gray-300 max-w-[350px]"
             >
               <template v-if="job.status === 'failed' && job.error_message">
                 <span class="text-red-500 dark:text-red-400">{{
@@ -302,7 +302,7 @@ function nextPage() {
                   >
                     {{ resultSummary(job.result) }}
                     <span
-                      class="ml-1 text-xs text-gray-400 dark:text-gray-500 group-hover:text-violet-500"
+                      class="ml-1 text-xs text-gray-600 dark:text-gray-300 group-hover:text-violet-500"
                       >+</span
                     >
                   </div>
@@ -340,7 +340,7 @@ function nextPage() {
     <!-- Pagination -->
     <div
       v-if="total > pageSize"
-      class="flex items-center justify-between mt-4 text-sm text-gray-500 dark:text-gray-400"
+      class="flex items-center justify-between mt-4 text-sm text-gray-600 dark:text-gray-300"
     >
       <span>{{ total }} total jobs</span>
       <div class="flex items-center gap-2">

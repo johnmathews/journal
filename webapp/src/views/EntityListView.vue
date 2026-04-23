@@ -297,7 +297,7 @@ async function executeMerge() {
             >
               {{ candidate.entity_a.entity_type }}
             </span>
-            <span class="text-gray-400 dark:text-gray-500 mx-1">~</span>
+            <span class="text-gray-600 dark:text-gray-300 mx-1">~</span>
             <span class="font-medium text-gray-800 dark:text-gray-100">
               {{ displayName(candidate.entity_b.canonical_name) }}
             </span>
@@ -307,7 +307,7 @@ async function executeMerge() {
             >
               {{ candidate.entity_b.entity_type }}
             </span>
-            <span class="text-xs text-gray-400 dark:text-gray-500 ml-2">
+            <span class="text-xs text-gray-600 dark:text-gray-300 ml-2">
               {{ (candidate.similarity * 100).toFixed(0) }}% similar
             </span>
           </div>
@@ -399,7 +399,7 @@ async function executeMerge() {
     <!-- Loading / empty / error states -->
     <div
       v-if="store.loading && !store.hasEntities"
-      class="py-16 text-center text-gray-500 dark:text-gray-400"
+      class="py-16 text-center text-gray-600 dark:text-gray-300"
       data-testid="loading-state"
     >
       Loading entities…
@@ -415,7 +415,7 @@ async function executeMerge() {
 
     <div
       v-else-if="!store.hasEntities"
-      class="py-16 text-center text-gray-500 dark:text-gray-400"
+      class="py-16 text-center text-gray-600 dark:text-gray-300"
       data-testid="empty-state"
     >
       No entities yet. Click 'Run extraction' above to populate them.
@@ -429,7 +429,7 @@ async function executeMerge() {
     >
       <table class="w-full text-sm">
         <thead
-          class="text-xs uppercase text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-900/40"
+          class="text-xs uppercase text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/40"
         >
           <tr>
             <th class="px-2 py-3 w-8"></th>
@@ -501,7 +501,7 @@ async function executeMerge() {
               </RouterLink>
               <span
                 v-if="entity.aliases.length"
-                class="text-xs text-gray-400 dark:text-gray-500 ml-2"
+                class="text-xs text-gray-600 dark:text-gray-300 ml-2"
               >
                 ({{ displayAliases(entity.aliases) }})
               </span>
@@ -519,10 +519,10 @@ async function executeMerge() {
             >
               {{ entity.mention_count }}
             </td>
-            <td class="px-4 py-3 text-gray-500 dark:text-gray-400">
+            <td class="px-4 py-3 text-gray-600 dark:text-gray-300">
               {{ entity.first_seen || '—' }}
             </td>
-            <td class="px-4 py-3 text-gray-500 dark:text-gray-400">
+            <td class="px-4 py-3 text-gray-600 dark:text-gray-300">
               {{ entity.last_seen || '—' }}
             </td>
           </tr>
@@ -533,7 +533,7 @@ async function executeMerge() {
     <!-- Pagination -->
     <div
       v-if="store.hasEntities"
-      class="mt-4 flex items-center justify-between text-sm text-gray-500 dark:text-gray-400"
+      class="mt-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300"
     >
       <div data-testid="entity-page-info">
         Page {{ store.currentPage }} of {{ Math.max(1, store.totalPages) }} —
@@ -604,7 +604,7 @@ async function executeMerge() {
               >
                 {{ entity.entity_type }}
               </span>
-              <span class="text-xs text-gray-400 dark:text-gray-500 ml-2">
+              <span class="text-xs text-gray-600 dark:text-gray-300 ml-2">
                 {{ entity.mention_count }} mentions
               </span>
             </div>
@@ -614,7 +614,7 @@ async function executeMerge() {
             >
               Keep
             </span>
-            <span v-else class="text-xs text-gray-400 dark:text-gray-500">
+            <span v-else class="text-xs text-gray-600 dark:text-gray-300">
               Merge into survivor
             </span>
           </label>

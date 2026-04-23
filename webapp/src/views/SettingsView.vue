@@ -197,12 +197,14 @@ const editTotal = computed(() => {
 })
 
 const imageGrandTotal = computed(() => {
-  if (imageIngestionTotal.value === null || editTotal.value === null) return null
+  if (imageIngestionTotal.value === null || editTotal.value === null)
+    return null
   return imageIngestionTotal.value + editTotal.value
 })
 
 const audioGrandTotal = computed(() => {
-  if (audioIngestionTotal.value === null || editTotal.value === null) return null
+  if (audioIngestionTotal.value === null || editTotal.value === null)
+    return null
   return audioIngestionTotal.value + editTotal.value
 })
 
@@ -250,9 +252,7 @@ function startEditingPricing(entry: {
   pricingInputCost.value =
     entry.input_cost_per_mtok != null ? String(entry.input_cost_per_mtok) : ''
   pricingOutputCost.value =
-    entry.output_cost_per_mtok != null
-      ? String(entry.output_cost_per_mtok)
-      : ''
+    entry.output_cost_per_mtok != null ? String(entry.output_cost_per_mtok) : ''
   pricingMinuteCost.value =
     entry.cost_per_minute != null ? String(entry.cost_per_minute) : ''
 }
@@ -306,7 +306,7 @@ const moodScoringEnabled = computed(
     <!-- Loading -->
     <div
       v-if="store.loading"
-      class="text-gray-500 dark:text-gray-400"
+      class="text-gray-600 dark:text-gray-300"
       data-testid="settings-loading"
     >
       Loading...
@@ -333,7 +333,7 @@ const moodScoringEnabled = computed(
           class="flex items-center gap-4 mb-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs"
         >
           <div>
-            <span class="text-sm text-gray-500 dark:text-gray-400">Status</span>
+            <span class="text-sm text-gray-600 dark:text-gray-300">Status</span>
             <p
               class="text-lg font-bold uppercase"
               :class="statusColor"
@@ -344,7 +344,7 @@ const moodScoringEnabled = computed(
           </div>
           <div class="h-8 w-px bg-gray-200 dark:bg-gray-700" />
           <div>
-            <span class="text-sm text-gray-500 dark:text-gray-400">Uptime</span>
+            <span class="text-sm text-gray-600 dark:text-gray-300">Uptime</span>
             <p
               class="text-lg font-semibold text-gray-900 dark:text-gray-100"
               data-testid="health-uptime"
@@ -354,7 +354,7 @@ const moodScoringEnabled = computed(
           </div>
           <div class="h-8 w-px bg-gray-200 dark:bg-gray-700" />
           <div>
-            <span class="text-sm text-gray-500 dark:text-gray-400"
+            <span class="text-sm text-gray-600 dark:text-gray-300"
               >Entries</span
             >
             <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">
@@ -363,7 +363,7 @@ const moodScoringEnabled = computed(
           </div>
           <div class="h-8 w-px bg-gray-200 dark:bg-gray-700" />
           <div>
-            <span class="text-sm text-gray-500 dark:text-gray-400">Chunks</span>
+            <span class="text-sm text-gray-600 dark:text-gray-300">Chunks</span>
             <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">
               {{ store.health.ingestion.total_chunks.toLocaleString() }}
             </p>
@@ -381,7 +381,7 @@ const moodScoringEnabled = computed(
             class="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-xs"
           >
             <p
-              class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1"
+              class="text-xs text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-1"
             >
               {{ check.name }}
             </p>
@@ -399,7 +399,7 @@ const moodScoringEnabled = computed(
             </p>
             <p
               v-if="check.detail && check.status !== 'ok'"
-              class="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate"
+              class="text-xs text-gray-600 dark:text-gray-300 mt-1 truncate"
               :title="check.detail"
             >
               {{ check.detail }}
@@ -416,7 +416,7 @@ const moodScoringEnabled = computed(
             class="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-xs"
           >
             <p
-              class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1"
+              class="text-xs text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-1"
             >
               Last 7 days
             </p>
@@ -428,7 +428,7 @@ const moodScoringEnabled = computed(
             class="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-xs"
           >
             <p
-              class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1"
+              class="text-xs text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-1"
             >
               Last 30 days
             </p>
@@ -440,7 +440,7 @@ const moodScoringEnabled = computed(
             class="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-xs"
           >
             <p
-              class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1"
+              class="text-xs text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-1"
             >
               Avg words/entry
             </p>
@@ -452,7 +452,7 @@ const moodScoringEnabled = computed(
             class="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-xs"
           >
             <p
-              class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1"
+              class="text-xs text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-1"
             >
               Avg chunks/entry
             </p>
@@ -486,7 +486,7 @@ const moodScoringEnabled = computed(
               <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
                 {{ setting.label }}
               </p>
-              <p class="text-xs text-gray-400 dark:text-gray-500">
+              <p class="text-xs text-gray-600 dark:text-gray-300">
                 {{ setting.description }}
               </p>
             </div>
@@ -557,7 +557,7 @@ const moodScoringEnabled = computed(
                 <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Mood Backfill
                 </p>
-                <p class="text-xs text-gray-400 dark:text-gray-500">
+                <p class="text-xs text-gray-600 dark:text-gray-300">
                   Score entries for mood dimensions. Run on new entries or
                   re-score existing ones.
                 </p>
@@ -589,7 +589,7 @@ const moodScoringEnabled = computed(
                 <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Entity Extraction
                 </p>
-                <p class="text-xs text-gray-400 dark:text-gray-500">
+                <p class="text-xs text-gray-600 dark:text-gray-300">
                   Extract people, places, and other entities from entries.
                 </p>
               </div>
@@ -648,7 +648,7 @@ const moodScoringEnabled = computed(
             </div>
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
               <div class="flex justify-between sm:block">
-                <dt class="text-gray-500 dark:text-gray-400">OCR Provider</dt>
+                <dt class="text-gray-600 dark:text-gray-300">OCR Provider</dt>
                 <dd
                   class="font-medium text-gray-900 dark:text-gray-100"
                   data-testid="ocr-provider"
@@ -657,7 +657,7 @@ const moodScoringEnabled = computed(
                 </dd>
               </div>
               <div class="flex justify-between sm:block">
-                <dt class="text-gray-500 dark:text-gray-400">OCR Model</dt>
+                <dt class="text-gray-600 dark:text-gray-300">OCR Model</dt>
                 <dd
                   class="font-medium text-gray-900 dark:text-gray-100"
                   data-testid="ocr-model"
@@ -688,7 +688,7 @@ const moodScoringEnabled = computed(
             </div>
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
               <div class="flex justify-between sm:block">
-                <dt class="text-gray-500 dark:text-gray-400">
+                <dt class="text-gray-600 dark:text-gray-300">
                   Transcription Model
                 </dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
@@ -696,7 +696,7 @@ const moodScoringEnabled = computed(
                 </dd>
               </div>
               <div class="flex justify-between sm:block">
-                <dt class="text-gray-500 dark:text-gray-400">
+                <dt class="text-gray-600 dark:text-gray-300">
                   Paragraph Formatting
                 </dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
@@ -728,7 +728,7 @@ const moodScoringEnabled = computed(
                 v-if="runtimeSettingValue('transcript_formatting')"
                 class="flex justify-between sm:block"
               >
-                <dt class="text-gray-500 dark:text-gray-400">
+                <dt class="text-gray-600 dark:text-gray-300">
                   Formatting Model
                 </dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
@@ -758,13 +758,13 @@ const moodScoringEnabled = computed(
             </div>
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
               <div class="flex justify-between sm:block">
-                <dt class="text-gray-500 dark:text-gray-400">Strategy</dt>
+                <dt class="text-gray-600 dark:text-gray-300">Strategy</dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
                   {{ store.settings.chunking.strategy }}
                 </dd>
               </div>
               <div class="flex justify-between sm:block">
-                <dt class="text-gray-500 dark:text-gray-400">
+                <dt class="text-gray-600 dark:text-gray-300">
                   Embedding Model
                 </dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
@@ -772,7 +772,7 @@ const moodScoringEnabled = computed(
                 </dd>
               </div>
               <div class="flex justify-between sm:block">
-                <dt class="text-gray-500 dark:text-gray-400">
+                <dt class="text-gray-600 dark:text-gray-300">
                   Embedding Dimensions
                 </dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
@@ -780,25 +780,25 @@ const moodScoringEnabled = computed(
                 </dd>
               </div>
               <div class="flex justify-between sm:block">
-                <dt class="text-gray-500 dark:text-gray-400">Max Tokens</dt>
+                <dt class="text-gray-600 dark:text-gray-300">Max Tokens</dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
                   {{ store.settings.chunking.max_tokens }}
                 </dd>
               </div>
               <div class="flex justify-between sm:block">
-                <dt class="text-gray-500 dark:text-gray-400">Min Tokens</dt>
+                <dt class="text-gray-600 dark:text-gray-300">Min Tokens</dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
                   {{ store.settings.chunking.min_tokens }}
                 </dd>
               </div>
               <div class="flex justify-between sm:block">
-                <dt class="text-gray-500 dark:text-gray-400">Overlap Tokens</dt>
+                <dt class="text-gray-600 dark:text-gray-300">Overlap Tokens</dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
                   {{ store.settings.chunking.overlap_tokens }}
                 </dd>
               </div>
               <div class="flex justify-between sm:block">
-                <dt class="text-gray-500 dark:text-gray-400">
+                <dt class="text-gray-600 dark:text-gray-300">
                   Boundary Percentile
                 </dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
@@ -806,7 +806,7 @@ const moodScoringEnabled = computed(
                 </dd>
               </div>
               <div class="flex justify-between sm:block">
-                <dt class="text-gray-500 dark:text-gray-400">
+                <dt class="text-gray-600 dark:text-gray-300">
                   Decisive Percentile
                 </dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
@@ -814,7 +814,7 @@ const moodScoringEnabled = computed(
                 </dd>
               </div>
               <div class="flex justify-between sm:block">
-                <dt class="text-gray-500 dark:text-gray-400">
+                <dt class="text-gray-600 dark:text-gray-300">
                   Metadata Prefix
                 </dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
@@ -848,7 +848,7 @@ const moodScoringEnabled = computed(
               </span>
               <span
                 v-else
-                class="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full"
+                class="text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full"
               >
                 Disabled
               </span>
@@ -858,13 +858,13 @@ const moodScoringEnabled = computed(
               class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm"
             >
               <div class="flex justify-between sm:block">
-                <dt class="text-gray-500 dark:text-gray-400">Model</dt>
+                <dt class="text-gray-600 dark:text-gray-300">Model</dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
                   {{ store.settings.features.mood_scorer_model }}
                 </dd>
               </div>
               <div class="flex justify-between sm:block">
-                <dt class="text-gray-500 dark:text-gray-400">Status</dt>
+                <dt class="text-gray-600 dark:text-gray-300">Status</dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
                   Enabled
                 </dd>
@@ -892,13 +892,13 @@ const moodScoringEnabled = computed(
             </div>
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
               <div class="flex justify-between sm:block">
-                <dt class="text-gray-500 dark:text-gray-400">Model</dt>
+                <dt class="text-gray-600 dark:text-gray-300">Model</dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
                   {{ store.settings.entity_extraction.model }}
                 </dd>
               </div>
               <div class="flex justify-between sm:block">
-                <dt class="text-gray-500 dark:text-gray-400">
+                <dt class="text-gray-600 dark:text-gray-300">
                   Dedup Threshold
                 </dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
@@ -908,7 +908,7 @@ const moodScoringEnabled = computed(
                 </dd>
               </div>
               <div class="flex justify-between sm:block">
-                <dt class="text-gray-500 dark:text-gray-400">
+                <dt class="text-gray-600 dark:text-gray-300">
                   Embedding Model
                 </dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
@@ -919,7 +919,7 @@ const moodScoringEnabled = computed(
                 class="flex justify-between sm:block"
                 data-testid="author-name-field"
               >
-                <dt class="text-gray-500 dark:text-gray-400">Author Name</dt>
+                <dt class="text-gray-600 dark:text-gray-300">Author Name</dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
                   <template v-if="!editingName">
                     <span data-testid="author-name-value">{{
@@ -966,7 +966,7 @@ const moodScoringEnabled = computed(
                     >
                       {{ nameError }}
                     </p>
-                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    <p class="text-xs text-gray-600 dark:text-gray-300 mt-1">
                       Use your full name (e.g. John Mathews) for accurate entity
                       extraction
                     </p>
@@ -986,14 +986,14 @@ const moodScoringEnabled = computed(
             >
               Estimated Cost per 1,000 Words
             </h3>
-            <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">
+            <p class="text-xs text-gray-600 dark:text-gray-300 mb-4">
               Ingestion + one text edit. Costs update with current settings.
             </p>
             <div class="space-y-3 text-sm">
               <!-- Image ingestion subtotal -->
               <div>
                 <div
-                  class="flex justify-between text-gray-500 dark:text-gray-400 mb-1"
+                  class="flex justify-between text-gray-600 dark:text-gray-300 mb-1"
                 >
                   <span class="font-medium text-gray-700 dark:text-gray-300"
                     >Image Ingestion</span
@@ -1005,7 +1005,7 @@ const moodScoringEnabled = computed(
                   >
                 </div>
                 <div
-                  class="ml-3 space-y-0.5 text-xs text-gray-400 dark:text-gray-500"
+                  class="ml-3 space-y-0.5 text-xs text-gray-600 dark:text-gray-300"
                 >
                   <div class="flex justify-between">
                     <span>OCR{{ isDualPass ? ' (dual-pass)' : '' }}</span>
@@ -1032,7 +1032,7 @@ const moodScoringEnabled = computed(
               <!-- Audio ingestion subtotal -->
               <div>
                 <div
-                  class="flex justify-between text-gray-500 dark:text-gray-400 mb-1"
+                  class="flex justify-between text-gray-600 dark:text-gray-300 mb-1"
                 >
                   <span class="font-medium text-gray-700 dark:text-gray-300"
                     >Audio Ingestion</span
@@ -1044,7 +1044,7 @@ const moodScoringEnabled = computed(
                   >
                 </div>
                 <div
-                  class="ml-3 space-y-0.5 text-xs text-gray-400 dark:text-gray-500"
+                  class="ml-3 space-y-0.5 text-xs text-gray-600 dark:text-gray-300"
                 >
                   <div class="flex justify-between">
                     <span>Transcription</span>
@@ -1071,7 +1071,7 @@ const moodScoringEnabled = computed(
               <!-- Edit subtotal -->
               <div>
                 <div
-                  class="flex justify-between text-gray-500 dark:text-gray-400 mb-1"
+                  class="flex justify-between text-gray-600 dark:text-gray-300 mb-1"
                 >
                   <span class="font-medium text-gray-700 dark:text-gray-300"
                     >First Edit</span
@@ -1083,7 +1083,7 @@ const moodScoringEnabled = computed(
                   >
                 </div>
                 <div
-                  class="ml-3 space-y-0.5 text-xs text-gray-400 dark:text-gray-500"
+                  class="ml-3 space-y-0.5 text-xs text-gray-600 dark:text-gray-300"
                 >
                   <div class="flex justify-between">
                     <span>Chunking & Embedding</span>
@@ -1141,7 +1141,7 @@ const moodScoringEnabled = computed(
             >
               API Pricing
             </h3>
-            <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">
+            <p class="text-xs text-gray-600 dark:text-gray-300 mb-4">
               Update when providers change their rates. Costs above recalculate
               automatically.
             </p>
@@ -1151,7 +1151,7 @@ const moodScoringEnabled = computed(
               :key="category"
             >
               <h4
-                class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mt-3 mb-2"
+                class="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wider mt-3 mb-2"
               >
                 {{
                   category === 'llm'
@@ -1177,20 +1177,16 @@ const moodScoringEnabled = computed(
                       >{{ entry.model }}</span
                     >
                     <div
-                      class="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 shrink-0"
+                      class="flex items-center gap-3 text-xs text-gray-600 dark:text-gray-300 shrink-0"
                     >
                       <template v-if="category !== 'transcription'">
-                        <span
-                          >${{ entry.input_cost_per_mtok }}/MTok in</span
-                        >
-                        <span
-                          >${{ entry.output_cost_per_mtok }}/MTok out</span
-                        >
+                        <span>${{ entry.input_cost_per_mtok }}/MTok in</span>
+                        <span>${{ entry.output_cost_per_mtok }}/MTok out</span>
                       </template>
                       <template v-else>
                         <span>${{ entry.cost_per_minute }}/min</span>
                       </template>
-                      <span class="text-gray-300 dark:text-gray-600">{{
+                      <span class="text-gray-600 dark:text-gray-300">{{
                         entry.last_verified
                       }}</span>
                       <button
@@ -1201,10 +1197,7 @@ const moodScoringEnabled = computed(
                       </button>
                     </div>
                   </div>
-                  <div
-                    v-else
-                    class="flex items-center gap-2 text-sm py-1"
-                  >
+                  <div v-else class="flex items-center gap-2 text-sm py-1">
                     <span
                       class="font-medium text-gray-900 dark:text-gray-100 min-w-0 truncate shrink-0"
                       >{{ entry.model }}</span

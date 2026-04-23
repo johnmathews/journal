@@ -132,6 +132,32 @@ dashboard — see the matching journal entry for the audit of
 every `RouterLink to="/"` and `router.push({ name: 'entries' })`
 call site.
 
+## Typography & Contrast
+
+Text contrast follows a two-tier system targeting WCAG AAA (7:1) for all secondary
+text. Visual hierarchy comes from font size and weight, not barely-distinguishable
+shades of gray.
+
+| Level       | Light mode   | Dark mode    | Contrast | Use                                    |
+|-------------|-------------|--------------|----------|----------------------------------------|
+| **Primary** | gray-800/900 | gray-100/200 | ~13:1+   | Headings, values, data, model names    |
+| **Secondary** | gray-600   | gray-300     | ~7:1     | Labels, descriptions, metadata, dates  |
+
+### Rules
+
+- Never use `text-gray-400` or lighter for readable text in light mode.
+- Never use `dark:text-gray-500` or darker for readable text in dark mode.
+- The minimum text color in light mode is `text-gray-600` (`#4b5563`, ~7:1 on white).
+- The minimum text color in dark mode is `dark:text-gray-300` (`#bfc4cd`, ~6.7:1 on gray-800).
+- Heading hierarchy uses font size (`text-2xl` → `text-lg` → `text-sm` → `text-xs`)
+  and weight (`font-bold` → `font-semibold` → `font-medium`), not color variation.
+
+### Custom gray scale
+
+The project uses a custom gray palette defined in `src/assets/main.css` `@theme` block
+(not Tailwind defaults). Key values: gray-300 `#bfc4cd`, gray-500 `#6b7280`,
+gray-600 `#4b5563`, gray-800 `#1f2937`, gray-900 `#111827`.
+
 ## Sidebar expanded-by-default
 
 `AppSidebar` defaults its `sidebarExpanded` state based on a

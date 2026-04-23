@@ -37,7 +37,7 @@ const isPublicRoute = computed(() => route.meta.public === true)
           d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
         />
       </svg>
-      <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">Loading...</p>
+      <p class="mt-3 text-sm text-gray-600 dark:text-gray-300">Loading...</p>
     </div>
   </div>
 

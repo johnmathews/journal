@@ -101,7 +101,7 @@ function statusIcon(job: Job): string {
 function statusClass(job: Job): string {
   switch (job.status) {
     case 'queued':
-      return 'text-gray-400 dark:text-gray-500'
+      return 'text-gray-600 dark:text-gray-300'
     case 'running':
       return 'text-violet-500 dark:text-violet-400 animate-spin-slow'
     case 'succeeded':
@@ -173,7 +173,7 @@ function closeDropdown() {
       >
         <div class="px-3 py-2 border-b border-gray-100 dark:border-gray-700/60">
           <p
-            class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+            class="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wider"
           >
             Running jobs
           </p>
@@ -181,7 +181,7 @@ function closeDropdown() {
 
         <div
           v-if="visibleJobs.length === 0"
-          class="px-3 py-6 text-center text-sm text-gray-400 dark:text-gray-500"
+          class="px-3 py-6 text-center text-sm text-gray-600 dark:text-gray-300"
         >
           No recent jobs
         </div>
@@ -213,7 +213,7 @@ function closeDropdown() {
               </p>
               <p
                 v-else-if="job.status === 'running' && job.progress_total > 0"
-                class="text-xs text-gray-400 dark:text-gray-500"
+                class="text-xs text-gray-600 dark:text-gray-300"
               >
                 {{ job.progress_current }}/{{ job.progress_total }}
               </p>
@@ -225,7 +225,7 @@ function closeDropdown() {
               </p>
               <p
                 v-else
-                class="text-xs text-gray-400 dark:text-gray-500 capitalize"
+                class="text-xs text-gray-600 dark:text-gray-300 capitalize"
               >
                 {{ job.status }}
               </p>
@@ -233,7 +233,7 @@ function closeDropdown() {
             <button
               v-if="isTerminal(job.status)"
               type="button"
-              class="text-gray-300 hover:text-gray-500 dark:text-gray-600 dark:hover:text-gray-400 text-xs"
+              class="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 text-xs"
               aria-label="Dismiss"
               @click="dismiss(job.id)"
             >

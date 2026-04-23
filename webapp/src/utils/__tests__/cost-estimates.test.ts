@@ -192,10 +192,7 @@ describe('cost-estimates', () => {
     it('sums both default model costs', () => {
       const primary = ocrCostPer1000Words(DUAL_PASS_MODELS.primary)!
       const secondary = ocrCostPer1000Words(DUAL_PASS_MODELS.secondary)!
-      expect(ocrDualPassCostPer1000Words()).toBeCloseTo(
-        primary + secondary,
-        5,
-      )
+      expect(ocrDualPassCostPer1000Words()).toBeCloseTo(primary + secondary, 5)
     })
 
     it('is more expensive than either model alone', () => {
@@ -250,10 +247,7 @@ describe('cost-estimates', () => {
           'claude-sonnet-4-5',
           'text-embedding-3-large',
         )!
-      expect(dualPass).toBeCloseTo(
-        opusOcr + geminiOcr + enrichment,
-        5,
-      )
+      expect(dualPass).toBeCloseTo(opusOcr + geminiOcr + enrichment, 5)
     })
 
     it('excludes mood when model is null', () => {

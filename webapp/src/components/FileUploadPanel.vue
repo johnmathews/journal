@@ -231,7 +231,7 @@ watch(currentJob, (job) => {
       >
         {{ currentJob.status_detail }}
       </p>
-      <p v-else class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+      <p v-else class="text-sm text-gray-600 dark:text-gray-300 mb-6">
         <template
           v-if="currentJob?.progress_total && currentJob.progress_current === 0"
         >
@@ -243,7 +243,7 @@ watch(currentJob, (job) => {
         </template>
         <template v-else>Queued...</template>
       </p>
-      <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">
+      <p class="text-xs text-gray-600 dark:text-gray-300 mb-3">
         This job will continue in the background. Track progress via the
         notifications bell.
       </p>
@@ -293,7 +293,7 @@ watch(currentJob, (job) => {
             d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
           />
         </svg>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">
+        <p class="text-sm text-gray-600 dark:text-gray-300 mb-1">
           Drag files here, or click to browse
         </p>
         <p class="text-xs text-gray-400">
@@ -340,7 +340,7 @@ watch(currentJob, (job) => {
               <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
                 {{ file.name }}
               </p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
+              <p class="text-xs text-gray-600 dark:text-gray-300">
                 {{ formatSize(file.size) }}
               </p>
             </div>
@@ -373,7 +373,7 @@ watch(currentJob, (job) => {
         </div>
 
         <label
-          class="flex items-center justify-center w-full h-12 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-violet-400 transition-colors text-sm text-gray-500 dark:text-gray-400"
+          class="flex items-center justify-center w-full h-12 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-violet-400 transition-colors text-sm text-gray-600 dark:text-gray-300"
           @dragover.prevent="dragOver = true"
           @dragleave="dragOver = false"
           @drop.prevent="handleDrop"
@@ -391,7 +391,7 @@ watch(currentJob, (job) => {
         <div
           class="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700"
         >
-          <span class="text-sm text-gray-500 dark:text-gray-400">
+          <span class="text-sm text-gray-600 dark:text-gray-300">
             {{ imageFiles.length }}
             {{ imageFiles.length === 1 ? 'page' : 'pages' }} &middot;
             {{ formatSize(totalImageSize) }}
@@ -421,7 +421,7 @@ watch(currentJob, (job) => {
             class="text-sm text-gray-700 dark:text-gray-300 font-medium"
             >{{ textFile.name }}</span
           >
-          <span class="text-sm text-gray-500 dark:text-gray-400">{{
+          <span class="text-sm text-gray-600 dark:text-gray-300">{{
             textFileSize
           }}</span>
         </div>

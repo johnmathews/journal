@@ -214,7 +214,7 @@ onUnmounted(() => {
       >
         {{ currentJob.status_detail }}
       </p>
-      <p v-else class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+      <p v-else class="text-sm text-gray-600 dark:text-gray-300 mb-6">
         <template
           v-if="currentJob?.progress_total && currentJob.progress_current === 0"
         >
@@ -226,7 +226,7 @@ onUnmounted(() => {
         </template>
         <template v-else>Queued...</template>
       </p>
-      <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">
+      <p class="text-xs text-gray-600 dark:text-gray-300 mb-3">
         This job will continue in the background. Track progress via the
         notifications bell.
       </p>
@@ -309,7 +309,7 @@ onUnmounted(() => {
             d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4M12 1a3 3 0 00-3 3v7a3 3 0 006 0V4a3 3 0 00-3-3z"
           />
         </svg>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">
+        <p class="text-sm text-gray-600 dark:text-gray-300 mb-1">
           Record a voice journal entry
         </p>
         <p class="text-xs text-gray-400 mb-4">
@@ -341,7 +341,7 @@ onUnmounted(() => {
               <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Recording {{ index + 1 }}
               </p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
+              <p class="text-xs text-gray-600 dark:text-gray-300">
                 {{ formatDuration(rec.duration) }} &middot;
                 {{ formatSize(rec.blob.size) }}
               </p>
@@ -384,7 +384,7 @@ onUnmounted(() => {
 
         <!-- Add another recording -->
         <button
-          class="flex items-center justify-center w-full h-12 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-violet-400 transition-colors text-sm text-gray-500 dark:text-gray-400"
+          class="flex items-center justify-center w-full h-12 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-violet-400 transition-colors text-sm text-gray-600 dark:text-gray-300"
           data-testid="add-recording-button"
           @click="startRecording"
         >
@@ -395,7 +395,7 @@ onUnmounted(() => {
         <div
           class="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700"
         >
-          <span class="text-sm text-gray-500 dark:text-gray-400">
+          <span class="text-sm text-gray-600 dark:text-gray-300">
             {{ recordings.length }}
             {{ recordings.length === 1 ? 'recording' : 'recordings' }}
             &middot; {{ formatDuration(totalDuration) }} total

@@ -30,7 +30,7 @@ async function submit() {
       class="form-input w-full min-h-[300px] font-mono text-sm resize-y dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100 dark:placeholder-gray-400"
     />
     <div class="flex items-center justify-between mt-4">
-      <span class="text-sm text-gray-500 dark:text-gray-400">
+      <span class="text-sm text-gray-600 dark:text-gray-300">
         {{ wordCount }} {{ wordCount === 1 ? 'word' : 'words' }}
       </span>
       <button

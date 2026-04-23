@@ -380,7 +380,7 @@ function cellClasses(col: ColumnDef, entry: EntrySummary): string {
     case 'created_at':
     case 'language':
     case 'updated_at':
-      return `${align} text-gray-500 dark:text-gray-400`
+      return `${align} text-gray-600 dark:text-gray-300`
     case 'uncertain_span_count':
       return `${align} font-medium ${doubtsColor(entry.uncertain_span_count)}`
     default:
@@ -409,7 +409,7 @@ function cellTestId(col: ColumnDef): string | undefined {
       <div class="flex items-center gap-4">
         <div
           v-if="store.total > 0"
-          class="text-sm text-gray-500 dark:text-gray-400"
+          class="text-sm text-gray-600 dark:text-gray-300"
           data-testid="entry-count"
         >
           {{ store.total }} entries
@@ -525,7 +525,7 @@ function cellTestId(col: ColumnDef): string | undefined {
       <!-- Loading state -->
       <div
         v-if="store.loading"
-        class="flex items-center justify-center py-16 text-gray-500 dark:text-gray-400"
+        class="flex items-center justify-center py-16 text-gray-600 dark:text-gray-300"
         data-testid="loading-state"
       >
         <svg
@@ -554,7 +554,7 @@ function cellTestId(col: ColumnDef): string | undefined {
       <!-- Empty state -->
       <div
         v-else-if="store.entries.length === 0"
-        class="py-16 text-center text-gray-500 dark:text-gray-400"
+        class="py-16 text-center text-gray-600 dark:text-gray-300"
         data-testid="empty-state"
       >
         No journal entries found.
@@ -564,7 +564,7 @@ function cellTestId(col: ColumnDef): string | undefined {
       <div v-else class="overflow-x-auto">
         <table class="table-auto w-full dark:text-gray-300">
           <thead
-            class="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700/60"
+            class="text-xs font-semibold uppercase text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700/60"
           >
             <tr>
               <th
@@ -609,7 +609,7 @@ function cellTestId(col: ColumnDef): string | undefined {
         class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-t border-gray-200 dark:border-gray-700/60"
       >
         <div
-          class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400"
+          class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300"
         >
           <label for="rows-per-page">Rows per page:</label>
           <select
@@ -626,7 +626,7 @@ function cellTestId(col: ColumnDef): string | undefined {
 
         <div class="flex items-center gap-3">
           <span
-            class="text-sm text-gray-500 dark:text-gray-400"
+            class="text-sm text-gray-600 dark:text-gray-300"
             data-testid="page-indicator"
           >
             Page {{ currentPage }} of {{ totalPages }}

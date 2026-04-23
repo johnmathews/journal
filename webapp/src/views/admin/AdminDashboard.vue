@@ -108,14 +108,14 @@ function formatNumber(n: number): string {
       </div>
 
       <div v-else-if="users.length === 0" class="p-8 text-center">
-        <p class="text-sm text-gray-500 dark:text-gray-400">No users found.</p>
+        <p class="text-sm text-gray-600 dark:text-gray-300">No users found.</p>
       </div>
 
       <div v-else class="overflow-x-auto">
         <table class="w-full table-auto">
           <thead>
             <tr
-              class="text-xs uppercase text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-gray-700/60"
+              class="text-xs uppercase text-gray-600 dark:text-gray-300 border-b border-gray-100 dark:border-gray-700/60"
             >
               <th class="px-4 py-3 text-left font-semibold">Email</th>
               <th class="px-4 py-3 text-left font-semibold">Display Name</th>
@@ -191,7 +191,7 @@ function formatNumber(n: number): string {
               >
                 ${{ user.cost_this_week.toFixed(2) }}
               </td>
-              <td class="px-4 py-3 text-gray-500 dark:text-gray-400">
+              <td class="px-4 py-3 text-gray-600 dark:text-gray-300">
                 {{ formatDate(user.last_entry_at) }}
               </td>
               <td class="px-4 py-3 text-right">

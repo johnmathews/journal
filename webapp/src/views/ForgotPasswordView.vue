@@ -38,7 +38,7 @@ async function handleSubmit() {
           <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">
             Reset Password
           </h1>
-          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
             Enter your email and we'll send you a reset link
           </p>
         </div>

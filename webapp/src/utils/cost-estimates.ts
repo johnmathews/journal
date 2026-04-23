@@ -163,11 +163,7 @@ export function entityExtractionCostPerEntry(
   const extractP = lookupModel(extractionModel, pricing)
   const embedP = lookupModel(embeddingModel, pricing)
   if (!extractP || !embedP) return null
-  const llmCost = tokenCost(
-    ENTITY_INPUT_TOKENS,
-    ENTITY_OUTPUT_TOKENS,
-    extractP,
-  )
+  const llmCost = tokenCost(ENTITY_INPUT_TOKENS, ENTITY_OUTPUT_TOKENS, extractP)
   const dedupCost = embeddingCost(ENTITY_DEDUP_TOKENS, embedP)
   return llmCost + dedupCost
 }
@@ -278,9 +274,7 @@ export function totalImageIngestionCostPer1000Words(
     if (ocrSecondary === null) return null
     ocrTotal += ocrSecondary
   }
-  const mood = moodModel
-    ? moodScoringCostPer1000Words(moodModel, pricing)
-    : 0
+  const mood = moodModel ? moodScoringCostPer1000Words(moodModel, pricing) : 0
   if (mood === null) return null
   return ocrTotal + chunking + mood + entity
 }
@@ -308,9 +302,7 @@ export function totalAudioIngestionCostPer1000Words(
     pricing,
   )
   if (audio === null || chunking === null || entity === null) return null
-  const mood = moodModel
-    ? moodScoringCostPer1000Words(moodModel, pricing)
-    : 0
+  const mood = moodModel ? moodScoringCostPer1000Words(moodModel, pricing) : 0
   if (mood === null) return null
   return audio + chunking + mood + entity
 }
@@ -329,9 +321,7 @@ export function totalEditCostPer1000Words(
     pricing,
   )
   if (chunking === null || entity === null) return null
-  const mood = moodModel
-    ? moodScoringCostPer1000Words(moodModel, pricing)
-    : 0
+  const mood = moodModel ? moodScoringCostPer1000Words(moodModel, pricing) : 0
   if (mood === null) return null
   return chunking + mood + entity
 }

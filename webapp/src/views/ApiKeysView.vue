@@ -231,7 +231,7 @@ function formatDate(dateStr: string | null): string {
             class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
           >
             Expiry Date
-            <span class="text-gray-400 dark:text-gray-500 font-normal"
+            <span class="text-gray-600 dark:text-gray-300 font-normal"
               >(optional)</span
             >
           </label>
@@ -308,7 +308,7 @@ function formatDate(dateStr: string | null): string {
       </div>
 
       <div v-else-if="keys.length === 0" class="p-8 text-center">
-        <p class="text-sm text-gray-500 dark:text-gray-400">
+        <p class="text-sm text-gray-600 dark:text-gray-300">
           No API keys yet. Generate one to get started.
         </p>
       </div>
@@ -317,7 +317,7 @@ function formatDate(dateStr: string | null): string {
         <table class="w-full table-auto">
           <thead>
             <tr
-              class="text-xs uppercase text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-gray-700/60"
+              class="text-xs uppercase text-gray-600 dark:text-gray-300 border-b border-gray-100 dark:border-gray-700/60"
             >
               <th class="px-5 py-3 text-left font-semibold">Name</th>
               <th class="px-5 py-3 text-left font-semibold">Prefix</th>
@@ -345,13 +345,13 @@ function formatDate(dateStr: string | null): string {
                   {{ key.prefix }}...
                 </code>
               </td>
-              <td class="px-5 py-3 text-gray-500 dark:text-gray-400">
+              <td class="px-5 py-3 text-gray-600 dark:text-gray-300">
                 {{ formatDate(key.created_at) }}
               </td>
-              <td class="px-5 py-3 text-gray-500 dark:text-gray-400">
+              <td class="px-5 py-3 text-gray-600 dark:text-gray-300">
                 {{ formatDate(key.last_used_at) }}
               </td>
-              <td class="px-5 py-3 text-gray-500 dark:text-gray-400">
+              <td class="px-5 py-3 text-gray-600 dark:text-gray-300">
                 {{ key.expires_at ? formatDate(key.expires_at) : 'Never' }}
               </td>
               <td class="px-5 py-3 text-right">

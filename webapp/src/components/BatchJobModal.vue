@@ -216,7 +216,7 @@ const moodResult = computed<MoodResultSummary | null>(() => {
     >
       <fieldset class="space-y-2">
         <legend
-          class="text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1"
+          class="text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
         >
           Scope
         </legend>
@@ -232,7 +232,7 @@ const moodResult = computed<MoodResultSummary | null>(() => {
             <span class="font-medium text-gray-800 dark:text-gray-100">
               New entries only
             </span>
-            <span class="block text-xs text-gray-500 dark:text-gray-400">
+            <span class="block text-xs text-gray-600 dark:text-gray-300">
               {{ staleHelper }}
             </span>
           </span>
@@ -249,7 +249,7 @@ const moodResult = computed<MoodResultSummary | null>(() => {
             <span class="font-medium text-gray-800 dark:text-gray-100">
               Re-extract all
             </span>
-            <span class="block text-xs text-gray-500 dark:text-gray-400">
+            <span class="block text-xs text-gray-600 dark:text-gray-300">
               {{ forceHelper }}
             </span>
           </span>
@@ -260,7 +260,7 @@ const moodResult = computed<MoodResultSummary | null>(() => {
         <div>
           <label
             for="batch-modal-start-date"
-            class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1"
+            class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
           >
             Start date
           </label>
@@ -275,7 +275,7 @@ const moodResult = computed<MoodResultSummary | null>(() => {
         <div>
           <label
             for="batch-modal-end-date"
-            class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1"
+            class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
           >
             End date
           </label>
@@ -288,7 +288,7 @@ const moodResult = computed<MoodResultSummary | null>(() => {
           />
         </div>
       </div>
-      <p class="text-xs text-gray-400 dark:text-gray-500">
+      <p class="text-xs text-gray-600 dark:text-gray-300">
         Date range is optional — leave both blank to cover every entry.
       </p>
     </div>
@@ -301,7 +301,7 @@ const moodResult = computed<MoodResultSummary | null>(() => {
     >
       <div class="text-sm text-gray-700 dark:text-gray-200">
         <span class="font-medium">{{ title }}</span>
-        <span class="text-gray-500 dark:text-gray-400">
+        <span class="text-gray-600 dark:text-gray-300">
           — {{ mode === 'stale-only' ? 'new only' : 'force all' }}
         </span>
       </div>
@@ -317,7 +317,7 @@ const moodResult = computed<MoodResultSummary | null>(() => {
         <div v-else class="bg-violet-500/60 h-2 w-1/3 animate-pulse" />
       </div>
       <div
-        class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400"
+        class="flex items-center justify-between text-xs text-gray-600 dark:text-gray-300"
       >
         <span data-testid="batch-modal-progress-counter">
           {{ currentJob?.progress_current ?? 0 }} /
@@ -325,7 +325,7 @@ const moodResult = computed<MoodResultSummary | null>(() => {
         </span>
         <span class="capitalize">{{ currentJob?.status ?? 'queued' }}</span>
       </div>
-      <p class="text-xs text-gray-400 dark:text-gray-500">
+      <p class="text-xs text-gray-600 dark:text-gray-300">
         Closing this window will not cancel the job — it will continue running
         in the background.
       </p>
@@ -345,17 +345,17 @@ const moodResult = computed<MoodResultSummary | null>(() => {
         class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-300"
         data-testid="batch-modal-entity-result"
       >
-        <dt class="text-gray-400 dark:text-gray-500">Processed</dt>
+        <dt class="text-gray-600 dark:text-gray-300">Processed</dt>
         <dd class="font-mono">{{ entityResult.processed ?? 0 }}</dd>
-        <dt class="text-gray-400 dark:text-gray-500">Entities created</dt>
+        <dt class="text-gray-600 dark:text-gray-300">Entities created</dt>
         <dd class="font-mono">{{ entityResult.entities_created ?? 0 }}</dd>
-        <dt class="text-gray-400 dark:text-gray-500">Entities matched</dt>
+        <dt class="text-gray-600 dark:text-gray-300">Entities matched</dt>
         <dd class="font-mono">{{ entityResult.entities_matched ?? 0 }}</dd>
-        <dt class="text-gray-400 dark:text-gray-500">Mentions created</dt>
+        <dt class="text-gray-600 dark:text-gray-300">Mentions created</dt>
         <dd class="font-mono">{{ entityResult.mentions_created ?? 0 }}</dd>
-        <dt class="text-gray-400 dark:text-gray-500">Relationships created</dt>
+        <dt class="text-gray-600 dark:text-gray-300">Relationships created</dt>
         <dd class="font-mono">{{ entityResult.relationships_created ?? 0 }}</dd>
-        <dt class="text-gray-400 dark:text-gray-500">Warnings</dt>
+        <dt class="text-gray-600 dark:text-gray-300">Warnings</dt>
         <dd class="font-mono">{{ entityResult.warnings?.length ?? 0 }}</dd>
       </dl>
       <dl
@@ -363,11 +363,11 @@ const moodResult = computed<MoodResultSummary | null>(() => {
         class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-300"
         data-testid="batch-modal-mood-result"
       >
-        <dt class="text-gray-400 dark:text-gray-500">Scored</dt>
+        <dt class="text-gray-600 dark:text-gray-300">Scored</dt>
         <dd class="font-mono">{{ moodResult.scored ?? 0 }}</dd>
-        <dt class="text-gray-400 dark:text-gray-500">Skipped</dt>
+        <dt class="text-gray-600 dark:text-gray-300">Skipped</dt>
         <dd class="font-mono">{{ moodResult.skipped ?? 0 }}</dd>
-        <dt class="text-gray-400 dark:text-gray-500">Errors</dt>
+        <dt class="text-gray-600 dark:text-gray-300">Errors</dt>
         <dd class="font-mono">{{ moodResult.errors?.length ?? 0 }}</dd>
       </dl>
     </div>

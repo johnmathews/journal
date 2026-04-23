@@ -76,7 +76,7 @@ onMounted(async () => {
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
             />
           </svg>
-          <p class="mt-4 text-sm text-gray-500 dark:text-gray-400">
+          <p class="mt-4 text-sm text-gray-600 dark:text-gray-300">
             Verifying your email...
           </p>
         </div>
@@ -103,7 +103,7 @@ onMounted(async () => {
           <h1 class="mt-4 text-2xl font-bold text-gray-800 dark:text-gray-100">
             Email Verified
           </h1>
-          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+          <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
             Your email address has been verified successfully.
           </p>
           <div class="mt-6">

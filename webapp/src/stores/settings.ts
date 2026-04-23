@@ -12,10 +12,7 @@ import type {
   PricingEntry,
   ServerSettings,
 } from '@/types/settings'
-import {
-  DEFAULT_PRICING,
-  type PricingConfig,
-} from '@/utils/cost-estimates'
+import { DEFAULT_PRICING, type PricingConfig } from '@/utils/cost-estimates'
 
 export const useSettingsStore = defineStore('settings', () => {
   const settings = ref<ServerSettings | null>(null)

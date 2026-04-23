@@ -42,7 +42,7 @@ const adminTopics = () => store.topics.filter((t) => t.group === 'admin')
       </span>
       <span
         v-else
-        class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full"
+        class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full"
         data-testid="notif-status-not-configured"
       >
         Not configured
@@ -62,7 +62,7 @@ const adminTopics = () => store.topics.filter((t) => t.group === 'admin')
 
         <!-- API Token -->
         <div>
-          <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1"
+          <label class="block text-xs text-gray-600 dark:text-gray-300 mb-1"
             >API Token</label
           >
           <div class="relative">
@@ -120,7 +120,7 @@ const adminTopics = () => store.topics.filter((t) => t.group === 'admin')
 
         <!-- User Key -->
         <div>
-          <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1"
+          <label class="block text-xs text-gray-600 dark:text-gray-300 mb-1"
             >User Key</label
           >
           <div class="relative">
@@ -194,7 +194,7 @@ const adminTopics = () => store.topics.filter((t) => t.group === 'admin')
           </span>
           <span
             v-else-if="store.validationStatus === 'validating'"
-            class="text-gray-500 dark:text-gray-400"
+            class="text-gray-600 dark:text-gray-300"
           >
             Validating...
           </span>
@@ -246,7 +246,7 @@ const adminTopics = () => store.topics.filter((t) => t.group === 'admin')
       >
         <p
           v-if="!store.topicsEnabled"
-          class="text-xs text-gray-400 dark:text-gray-500 mb-4"
+          class="text-xs text-gray-600 dark:text-gray-300 mb-4"
         >
           Save valid credentials to enable notification topics.
         </p>
@@ -254,7 +254,7 @@ const adminTopics = () => store.topics.filter((t) => t.group === 'admin')
         <!-- Success Notifications -->
         <div v-if="successTopics().length" class="mb-4">
           <p
-            class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2"
+            class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-2"
           >
             Success Notifications
           </p>
@@ -294,7 +294,7 @@ const adminTopics = () => store.topics.filter((t) => t.group === 'admin')
         <!-- Failure Notifications -->
         <div v-if="failureTopics().length" class="mb-4">
           <p
-            class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2"
+            class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-2"
           >
             Failure Notifications
           </p>
@@ -334,7 +334,7 @@ const adminTopics = () => store.topics.filter((t) => t.group === 'admin')
         <!-- Admin Notifications -->
         <div v-if="authStore.isAdmin && adminTopics().length">
           <p
-            class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2"
+            class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-2"
           >
             Admin Notifications
           </p>

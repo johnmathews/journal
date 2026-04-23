@@ -135,7 +135,7 @@ function objectUrl(file: File): string {
       >
         {{ currentJob.status_detail }}
       </p>
-      <p v-else class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+      <p v-else class="text-sm text-gray-600 dark:text-gray-300 mb-6">
         <template
           v-if="currentJob?.progress_total && currentJob.progress_current === 0"
         >
@@ -147,7 +147,7 @@ function objectUrl(file: File): string {
         </template>
         <template v-else>Queued...</template>
       </p>
-      <p class="text-xs text-gray-400 dark:text-gray-500 mb-3">
+      <p class="text-xs text-gray-600 dark:text-gray-300 mb-3">
         This job will continue in the background. Track progress via the
         notifications bell.
       </p>
@@ -199,7 +199,7 @@ function objectUrl(file: File): string {
             d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
           />
         </svg>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-1">
+        <p class="text-sm text-gray-600 dark:text-gray-300 mb-1">
           Drag journal page images here, or click to browse
         </p>
         <p class="text-xs text-gray-400">
@@ -236,7 +236,7 @@ function objectUrl(file: File): string {
               <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
                 {{ file.name }}
               </p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
+              <p class="text-xs text-gray-600 dark:text-gray-300">
                 {{ formatSize(file.size) }}
               </p>
             </div>
@@ -269,7 +269,7 @@ function objectUrl(file: File): string {
         </div>
 
         <label
-          class="flex items-center justify-center w-full h-12 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-violet-400 transition-colors text-sm text-gray-500 dark:text-gray-400"
+          class="flex items-center justify-center w-full h-12 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-violet-400 transition-colors text-sm text-gray-600 dark:text-gray-300"
           @dragover.prevent="dragOver = true"
           @dragleave="dragOver = false"
           @drop.prevent="handleDrop"
@@ -287,7 +287,7 @@ function objectUrl(file: File): string {
         <div
           class="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700"
         >
-          <span class="text-sm text-gray-500 dark:text-gray-400">
+          <span class="text-sm text-gray-600 dark:text-gray-300">
             {{ files.length }}
             {{ files.length === 1 ? 'page' : 'pages' }} &middot;
             {{ formatSize(totalSize) }}

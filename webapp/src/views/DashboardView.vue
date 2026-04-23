@@ -1100,7 +1100,7 @@ async function onMoodCorrelationTypeChange(
     >
       <div>
         <label
-          class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1"
+          class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
           >Range</label
         >
         <div
@@ -1129,7 +1129,7 @@ async function onMoodCorrelationTypeChange(
       </div>
       <div>
         <label
-          class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1"
+          class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
           >Bin width</label
         >
         <div
@@ -1161,7 +1161,7 @@ async function onMoodCorrelationTypeChange(
     <!-- Loading / error / empty / charts -->
     <div
       v-if="store.loading && !store.hasLoaded"
-      class="py-16 text-center text-gray-500 dark:text-gray-400"
+      class="py-16 text-center text-gray-600 dark:text-gray-300"
       data-testid="dashboard-loading"
     >
       Loading dashboard…
@@ -1177,7 +1177,7 @@ async function onMoodCorrelationTypeChange(
 
     <div
       v-else-if="!showCharts"
-      class="py-16 text-center text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs"
+      class="py-16 text-center text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs"
       data-testid="dashboard-empty"
     >
       <p class="text-base font-medium text-gray-700 dark:text-gray-200 mb-1">
@@ -1193,7 +1193,7 @@ async function onMoodCorrelationTypeChange(
         }}</span
         >.
       </p>
-      <p class="text-xs mt-2 text-gray-400 dark:text-gray-500">
+      <p class="text-xs mt-2 text-gray-600 dark:text-gray-300">
         Try widening the range or ingesting more entries.
       </p>
     </div>
@@ -1266,7 +1266,7 @@ async function onMoodCorrelationTypeChange(
               >
                 Writing Consistency
               </h2>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
+              <p class="text-xs text-gray-600 dark:text-gray-300">
                 Daily word count{{
                   heatmapSpanLabel ? ` over the last ${heatmapSpanLabel}` : ''
                 }}.
@@ -1377,7 +1377,7 @@ async function onMoodCorrelationTypeChange(
 
           <div
             v-if="store.calendarLoading && !store.calendarHasLoaded"
-            class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
+            class="py-12 text-center text-gray-600 dark:text-gray-300 text-sm"
             data-testid="dashboard-calendar-loading"
           >
             Loading calendar data…
@@ -1393,7 +1393,7 @@ async function onMoodCorrelationTypeChange(
 
           <div
             v-else-if="store.calendarDays.length === 0"
-            class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
+            class="py-8 text-center text-gray-600 dark:text-gray-300 text-sm"
             data-testid="dashboard-calendar-empty"
           >
             No calendar data available for this range.
@@ -1406,7 +1406,7 @@ async function onMoodCorrelationTypeChange(
           >
             <!-- Month labels -->
             <div
-              class="relative flex text-[11px] text-gray-400 dark:text-gray-500 mb-1"
+              class="relative flex text-[11px] text-gray-600 dark:text-gray-300 mb-1"
               :style="{ paddingLeft: '32px' }"
             >
               <div
@@ -1425,7 +1425,7 @@ async function onMoodCorrelationTypeChange(
             <div class="flex gap-0 mt-4" data-testid="dashboard-calendar-grid">
               <!-- Day-of-week labels -->
               <div
-                class="flex flex-col gap-[3px] mr-1.5 text-[11px] text-gray-400 dark:text-gray-500"
+                class="flex flex-col gap-[3px] mr-1.5 text-[11px] text-gray-600 dark:text-gray-300"
               >
                 <div
                   v-for="(lbl, li) in WEEKDAY_LABELS"
@@ -1485,7 +1485,7 @@ async function onMoodCorrelationTypeChange(
 
             <!-- Legend -->
             <div
-              class="flex items-center gap-2 mt-3 text-[11px] text-gray-400 dark:text-gray-500"
+              class="flex items-center gap-2 mt-3 text-[11px] text-gray-600 dark:text-gray-300"
               data-testid="dashboard-calendar-legend"
             >
               <span>Fewer words</span>
@@ -1523,7 +1523,7 @@ async function onMoodCorrelationTypeChange(
               >
                 What I Write About
               </h2>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
+              <p class="text-xs text-gray-600 dark:text-gray-300">
                 Entity mention frequency by type {{ rangePhrase }}.
               </p>
             </div>
@@ -1652,7 +1652,7 @@ async function onMoodCorrelationTypeChange(
 
           <div
             v-if="store.entityLoading && !store.entityHasLoaded"
-            class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
+            class="py-12 text-center text-gray-600 dark:text-gray-300 text-sm"
             data-testid="dashboard-entity-loading"
           >
             Loading entity data…
@@ -1668,7 +1668,7 @@ async function onMoodCorrelationTypeChange(
 
           <div
             v-else-if="store.entityDistribution.length === 0"
-            class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
+            class="py-8 text-center text-gray-600 dark:text-gray-300 text-sm"
             data-testid="dashboard-entity-empty"
           >
             No {{ store.entityType }} entities found in this range.
@@ -1706,7 +1706,7 @@ async function onMoodCorrelationTypeChange(
                       {{ item.canonical_name }}
                     </td>
                     <td
-                      class="py-0.5 text-right text-xs text-gray-400 dark:text-gray-500 font-mono tabular-nums"
+                      class="py-0.5 text-right text-xs text-gray-600 dark:text-gray-300 font-mono tabular-nums"
                     >
                       {{ item.mention_count }}
                     </td>
@@ -1747,7 +1747,7 @@ async function onMoodCorrelationTypeChange(
               >
                 Writing frequency
               </h2>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
+              <p class="text-xs text-gray-600 dark:text-gray-300">
                 Entries per {{ store.bin }} {{ rangePhrase }}.
               </p>
             </div>
@@ -1875,7 +1875,7 @@ async function onMoodCorrelationTypeChange(
               >
                 Word count
               </h2>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
+              <p class="text-xs text-gray-600 dark:text-gray-300">
                 Total words per {{ store.bin }} {{ rangePhrase }}.
               </p>
             </div>
@@ -2003,7 +2003,7 @@ async function onMoodCorrelationTypeChange(
               >
                 Mood Trends
               </h2>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
+              <p class="text-xs text-gray-600 dark:text-gray-300">
                 Average score per {{ store.bin }} {{ rangePhrase }}, with
                 min/max variance bands. Click a data point to see contributing
                 entries.
@@ -2123,7 +2123,7 @@ async function onMoodCorrelationTypeChange(
               class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
               :class="
                 store.hiddenMoodDimensions.has(d.name)
-                  ? 'bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700/60 opacity-40'
+                  ? 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60 opacity-40'
                   : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700/60'
               "
               :data-testid="`dashboard-mood-toggle-${d.name}`"
@@ -2140,7 +2140,7 @@ async function onMoodCorrelationTypeChange(
               ></span>
               {{ d.positive_pole }}
               <span
-                class="text-gray-400 dark:text-gray-500 font-mono text-[0.65rem]"
+                class="text-gray-600 dark:text-gray-300 font-mono text-[0.65rem]"
                 >{{ d.scale_type === 'bipolar' ? '±1' : '0..1' }}</span
               >
             </button>
@@ -2148,7 +2148,7 @@ async function onMoodCorrelationTypeChange(
 
           <div
             v-if="store.moodLoading && !store.moodHasLoaded"
-            class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
+            class="py-12 text-center text-gray-600 dark:text-gray-300 text-sm"
             data-testid="dashboard-mood-loading"
           >
             Loading mood data…
@@ -2164,7 +2164,7 @@ async function onMoodCorrelationTypeChange(
 
           <div
             v-else-if="!store.hasMoodData"
-            class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
+            class="py-8 text-center text-gray-600 dark:text-gray-300 text-sm"
             data-testid="dashboard-mood-empty"
           >
             <p class="font-medium text-gray-700 dark:text-gray-200 mb-1">
@@ -2213,7 +2213,7 @@ async function onMoodCorrelationTypeChange(
 
             <div
               v-if="store.drillLoading"
-              class="py-4 text-center text-gray-500 dark:text-gray-400 text-sm"
+              class="py-4 text-center text-gray-600 dark:text-gray-300 text-sm"
             >
               Loading entries…
             </div>
@@ -2227,7 +2227,7 @@ async function onMoodCorrelationTypeChange(
 
             <div
               v-else-if="store.drillEntries.length === 0"
-              class="py-4 text-center text-gray-500 dark:text-gray-400 text-sm"
+              class="py-4 text-center text-gray-600 dark:text-gray-300 text-sm"
             >
               No scored entries for this period.
             </div>
@@ -2239,7 +2239,7 @@ async function onMoodCorrelationTypeChange(
               >
                 <thead>
                   <tr
-                    class="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700/60"
+                    class="text-left text-xs text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700/60"
                   >
                     <th class="pb-2 pr-4 font-medium">Date</th>
                     <th class="pb-2 pr-4 font-medium">Score</th>
@@ -2274,7 +2274,7 @@ async function onMoodCorrelationTypeChange(
                   </tr>
                 </tbody>
               </table>
-              <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">
+              <p class="mt-2 text-xs text-gray-600 dark:text-gray-300">
                 Note: Entries scored before the rationale feature will show "No
                 rationale available". Run
                 <code class="font-mono">journal backfill-mood --force</code> to
@@ -2301,7 +2301,7 @@ async function onMoodCorrelationTypeChange(
               >
                 Topic Trends
               </h2>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
+              <p class="text-xs text-gray-600 dark:text-gray-300">
                 Entity mentions {{ rangePhrase }}, grouped per {{ store.bin }}.
               </p>
             </div>
@@ -2430,7 +2430,7 @@ async function onMoodCorrelationTypeChange(
 
           <div
             v-if="store.entityTrendsLoading && !store.entityTrendsHasLoaded"
-            class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
+            class="py-12 text-center text-gray-600 dark:text-gray-300 text-sm"
             data-testid="dashboard-entity-trends-loading"
           >
             Loading entity trends…
@@ -2446,7 +2446,7 @@ async function onMoodCorrelationTypeChange(
 
           <div
             v-else-if="store.entityTrendEntities.length === 0"
-            class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
+            class="py-8 text-center text-gray-600 dark:text-gray-300 text-sm"
             data-testid="dashboard-entity-trends-empty"
           >
             No {{ store.entityTrendsType }} entity trends found in this range.
@@ -2483,7 +2483,7 @@ async function onMoodCorrelationTypeChange(
               >
                 Mood by Entity
               </h2>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
+              <p class="text-xs text-gray-600 dark:text-gray-300">
                 Average mood score per entity {{ rangePhrase }}. Dashed line
                 shows overall average.
               </p>
@@ -2592,7 +2592,7 @@ async function onMoodCorrelationTypeChange(
           <div class="flex flex-col gap-3 mb-4">
             <div>
               <label
-                class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1"
+                class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
               >
                 Dimension
               </label>
@@ -2621,7 +2621,7 @@ async function onMoodCorrelationTypeChange(
 
             <div>
               <label
-                class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1"
+                class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
               >
                 Entity type
               </label>
@@ -2653,7 +2653,7 @@ async function onMoodCorrelationTypeChange(
             v-if="
               store.moodCorrelationLoading && !store.moodCorrelationHasLoaded
             "
-            class="py-12 text-center text-gray-500 dark:text-gray-400 text-sm"
+            class="py-12 text-center text-gray-600 dark:text-gray-300 text-sm"
             data-testid="dashboard-mood-correlation-loading"
           >
             Loading mood correlation…
@@ -2669,7 +2669,7 @@ async function onMoodCorrelationTypeChange(
 
           <div
             v-else-if="store.moodCorrelationItems.length === 0"
-            class="py-8 text-center text-gray-500 dark:text-gray-400 text-sm"
+            class="py-8 text-center text-gray-600 dark:text-gray-300 text-sm"
             data-testid="dashboard-mood-correlation-empty"
           >
             No mood-entity data for this selection.

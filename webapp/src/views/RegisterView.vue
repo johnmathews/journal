@@ -36,7 +36,7 @@ async function handleRegister() {
           <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">
             Create Account
           </h1>
-          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
             Register for Journal Insights
           </p>
         </div>
@@ -69,7 +69,7 @@ async function handleRegister() {
                 @focus="authStore.clearError()"
               />
               <p
-                class="mt-1 text-xs text-gray-400 dark:text-gray-500"
+                class="mt-1 text-xs text-gray-600 dark:text-gray-300"
                 data-testid="register-name-hint"
               >
                 Use your full name — it helps the system understand who
@@ -150,7 +150,7 @@ async function handleRegister() {
         </form>
 
         <div class="mt-5 text-center">
-          <span class="text-sm text-gray-500 dark:text-gray-400"
+          <span class="text-sm text-gray-600 dark:text-gray-300"
             >Already have an account?</span
           >
           {{ ' ' }}

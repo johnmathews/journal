@@ -105,7 +105,7 @@ function scorePercent(score: number): string {
     >
       <div class="grow min-w-[16rem]">
         <label
-          class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1"
+          class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
           for="search-query"
           >Query</label
         >
@@ -120,7 +120,7 @@ function scorePercent(score: number): string {
       </div>
       <div>
         <label
-          class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1"
+          class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
           >Mode</label
         >
         <div
@@ -161,7 +161,7 @@ function scorePercent(score: number): string {
       </div>
       <div>
         <label
-          class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1"
+          class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
           for="search-start"
           >From</label
         >
@@ -175,7 +175,7 @@ function scorePercent(score: number): string {
       </div>
       <div>
         <label
-          class="block text-xs uppercase text-gray-400 dark:text-gray-500 font-semibold mb-1"
+          class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
           for="search-end"
           >To</label
         >
@@ -199,7 +199,7 @@ function scorePercent(score: number): string {
     <!-- Loading / error / empty states -->
     <div
       v-if="store.loading && !store.hasResults"
-      class="py-16 text-center text-gray-500 dark:text-gray-400"
+      class="py-16 text-center text-gray-600 dark:text-gray-300"
       data-testid="loading-state"
     >
       Searching…
@@ -215,7 +215,7 @@ function scorePercent(score: number): string {
 
     <div
       v-else-if="!store.hasRun"
-      class="py-16 text-center text-gray-500 dark:text-gray-400"
+      class="py-16 text-center text-gray-600 dark:text-gray-300"
       data-testid="initial-state"
     >
       Enter a query above to search your journal.
@@ -223,7 +223,7 @@ function scorePercent(score: number): string {
 
     <div
       v-else-if="!store.hasResults"
-      class="py-16 text-center text-gray-500 dark:text-gray-400"
+      class="py-16 text-center text-gray-600 dark:text-gray-300"
       data-testid="empty-state"
     >
       No entries matched “{{ store.lastRunQuery }}”.
@@ -253,7 +253,7 @@ function scorePercent(score: number): string {
             {{ item.entry_date }}
           </RouterLink>
           <span
-            class="inline-block text-xs font-mono text-gray-500 dark:text-gray-400"
+            class="inline-block text-xs font-mono text-gray-600 dark:text-gray-300"
             data-testid="search-result-score"
           >
             {{ scorePercent(item.score) }}
@@ -285,7 +285,7 @@ function scorePercent(score: number): string {
           >
             Matched by meaning
           </span>
-          <span class="text-xs text-gray-400 dark:text-gray-500 ml-1">
+          <span class="text-xs text-gray-600 dark:text-gray-300 ml-1">
             — this passage is semantically similar to your query ({{
               scorePercent(item.matching_chunks[0].score)
             }}
@@ -299,7 +299,7 @@ function scorePercent(score: number): string {
             <li
               v-for="(chunk, idx) in item.matching_chunks.slice(1, 3)"
               :key="idx"
-              class="text-xs text-gray-500 dark:text-gray-400 pl-3 border-l-2 border-gray-200 dark:border-gray-700/60 line-clamp-2"
+              class="text-xs text-gray-600 dark:text-gray-300 pl-3 border-l-2 border-gray-200 dark:border-gray-700/60 line-clamp-2"
             >
               {{ scorePercent(chunk.score) }} — {{ chunk.text.slice(0, 150)
               }}{{ chunk.text.length > 150 ? '…' : '' }}
@@ -312,7 +312,7 @@ function scorePercent(score: number): string {
     <!-- Pagination (bottom of results) -->
     <div
       v-if="store.hasResults"
-      class="mt-4 flex items-center justify-between text-sm text-gray-500 dark:text-gray-400"
+      class="mt-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300"
     >
       <div data-testid="search-page-info">Page {{ currentPage }}</div>
       <div class="flex gap-2">

@@ -123,7 +123,7 @@ watch(
       <div class="space-y-8">
         <div>
           <h2
-            class="text-m uppercase text-gray-400 dark:text-gray-500 font-semibold pl-3 lg:hidden lg:sidebar-expanded:block 2xl:block"
+            class="text-m uppercase text-gray-600 dark:text-gray-300 font-semibold pl-3 lg:hidden lg:sidebar-expanded:block 2xl:block"
           ></h2>
           <ul class="mt-3" @click="$emit('close-sidebar')">
             <!-- Dashboard link (home / `/`) -->
@@ -156,7 +156,7 @@ watch(
                       :class="
                         isExactActive
                           ? 'text-violet-500'
-                          : 'text-gray-400 dark:text-gray-500'
+                          : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"
                       width="16"
@@ -206,7 +206,7 @@ watch(
                       :class="
                         isExactActive
                           ? 'text-violet-500'
-                          : 'text-gray-400 dark:text-gray-500'
+                          : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"
                       width="16"
@@ -256,7 +256,7 @@ watch(
                       :class="
                         isActive
                           ? 'text-violet-500'
-                          : 'text-gray-400 dark:text-gray-500'
+                          : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"
                       width="16"
@@ -306,7 +306,7 @@ watch(
                       :class="
                         isActive
                           ? 'text-violet-500'
-                          : 'text-gray-400 dark:text-gray-500'
+                          : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"
                       width="16"
@@ -359,7 +359,7 @@ watch(
                       :class="
                         isActive
                           ? 'text-violet-500'
-                          : 'text-gray-400 dark:text-gray-500'
+                          : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"
                       width="16"
@@ -405,7 +405,7 @@ watch(
                       :class="
                         isActive
                           ? 'text-violet-500'
-                          : 'text-gray-400 dark:text-gray-500'
+                          : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"
                       width="16"
@@ -455,7 +455,7 @@ watch(
                       :class="
                         isActive
                           ? 'text-violet-500'
-                          : 'text-gray-400 dark:text-gray-500'
+                          : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"
                       width="16"
@@ -505,7 +505,7 @@ watch(
                       :class="
                         isActive
                           ? 'text-violet-500'
-                          : 'text-gray-400 dark:text-gray-500'
+                          : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"
                       width="16"
@@ -556,7 +556,7 @@ watch(
                       :class="
                         isActive
                           ? 'text-violet-500'
-                          : 'text-gray-400 dark:text-gray-500'
+                          : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"
                       width="16"
@@ -588,7 +588,7 @@ watch(
           >
             <span class="sr-only">Expand / collapse sidebar</span>
             <svg
-              class="shrink-0 fill-current text-gray-400 dark:text-gray-500 sidebar-expanded:rotate-180"
+              class="shrink-0 fill-current text-gray-600 dark:text-gray-300 sidebar-expanded:rotate-180"
               xmlns="http://www.w3.org/2000/svg"
               width="16"
               height="16"

@@ -52,7 +52,7 @@ async function handleLogin() {
           <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">
             Sign In
           </h1>
-          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
             Welcome back to Journal Insights
           </p>
         </div>
@@ -155,7 +155,7 @@ async function handleLogin() {
           </RouterLink>
 
           <div v-if="registrationEnabled">
-            <span class="text-sm text-gray-500 dark:text-gray-400"
+            <span class="text-sm text-gray-600 dark:text-gray-300"
               >Don't have an account?</span
             >
             {{ ' ' }}
