@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   ocrCostPerPage,
   ocrCostPer1000Words,
+  ocrDualPassCostPer1000Words,
   transcriptionCostPerMinute,
   audioCostPer1000Words,
   chunkingCostPerEntry,
@@ -10,9 +11,11 @@ import {
   moodScoringCostPer1000Words,
   entityExtractionCostPerEntry,
   entityExtractionCostPer1000Words,
-  totalIngestionCostPer1000Words,
+  totalImageIngestionCostPer1000Words,
+  totalAudioIngestionCostPer1000Words,
   totalEditCostPer1000Words,
   formatCost,
+  DUAL_PASS_MODELS,
 } from '../cost-estimates'
 
 describe('cost-estimates', () => {
@@ -185,8 +188,27 @@ describe('cost-estimates', () => {
     })
   })
 
-  describe('totalIngestionCostPer1000Words', () => {
-    it('sums OCR + chunking + mood + entity costs', () => {
+  describe('ocrDualPassCostPer1000Words', () => {
+    it('sums both default model costs', () => {
+      const primary = ocrCostPer1000Words(DUAL_PASS_MODELS.primary)!
+      const secondary = ocrCostPer1000Words(DUAL_PASS_MODELS.secondary)!
+      expect(ocrDualPassCostPer1000Words()).toBeCloseTo(
+        primary + secondary,
+        5,
+      )
+    })
+
+    it('is more expensive than either model alone', () => {
+      const dualPass = ocrDualPassCostPer1000Words()!
+      const opus = ocrCostPer1000Words('claude-opus-4-6')!
+      const gemini = ocrCostPer1000Words('gemini-2.5-pro')!
+      expect(dualPass).toBeGreaterThan(opus)
+      expect(dualPass).toBeGreaterThan(gemini)
+    })
+  })
+
+  describe('totalImageIngestionCostPer1000Words', () => {
+    it('sums OCR + chunking + mood + entity costs (single-pass)', () => {
       const ocr = ocrCostPer1000Words('gemini-2.5-pro')!
       const chunking = chunkingCostPer1000Words('text-embedding-3-large')!
       const mood = moodScoringCostPer1000Words('claude-sonnet-4-5')!
@@ -194,13 +216,44 @@ describe('cost-estimates', () => {
         'claude-sonnet-4-5',
         'text-embedding-3-large',
       )!
-      const total = totalIngestionCostPer1000Words(
+      const total = totalImageIngestionCostPer1000Words(
         'gemini-2.5-pro',
         'text-embedding-3-large',
         'claude-sonnet-4-5',
         'claude-sonnet-4-5',
       )!
       expect(total).toBeCloseTo(ocr + chunking + mood + entity, 5)
+    })
+
+    it('includes both OCR models in dual-pass', () => {
+      const singlePass = totalImageIngestionCostPer1000Words(
+        'gemini-2.5-pro',
+        'text-embedding-3-large',
+        'claude-sonnet-4-5',
+        'claude-sonnet-4-5',
+      )!
+      const dualPass = totalImageIngestionCostPer1000Words(
+        'claude-opus-4-6',
+        'text-embedding-3-large',
+        'claude-sonnet-4-5',
+        'claude-sonnet-4-5',
+        'gemini-2.5-pro',
+      )!
+      expect(dualPass).toBeGreaterThan(singlePass)
+      // Dual-pass OCR cost should equal the sum of both models
+      const opusOcr = ocrCostPer1000Words('claude-opus-4-6')!
+      const geminiOcr = ocrCostPer1000Words('gemini-2.5-pro')!
+      const enrichment =
+        chunkingCostPer1000Words('text-embedding-3-large')! +
+        moodScoringCostPer1000Words('claude-sonnet-4-5')! +
+        entityExtractionCostPer1000Words(
+          'claude-sonnet-4-5',
+          'text-embedding-3-large',
+        )!
+      expect(dualPass).toBeCloseTo(
+        opusOcr + geminiOcr + enrichment,
+        5,
+      )
     })
 
     it('excludes mood when model is null', () => {
@@ -210,7 +263,7 @@ describe('cost-estimates', () => {
         'claude-sonnet-4-5',
         'text-embedding-3-large',
       )!
-      const total = totalIngestionCostPer1000Words(
+      const total = totalImageIngestionCostPer1000Words(
         'gemini-2.5-pro',
         'text-embedding-3-large',
         null,
@@ -221,8 +274,42 @@ describe('cost-estimates', () => {
 
     it('returns null if any required model is unknown', () => {
       expect(
-        totalIngestionCostPer1000Words(
+        totalImageIngestionCostPer1000Words(
           'unknown',
+          'text-embedding-3-large',
+          'claude-sonnet-4-5',
+          'claude-sonnet-4-5',
+        ),
+      ).toBeNull()
+    })
+  })
+
+  describe('totalAudioIngestionCostPer1000Words', () => {
+    it('sums transcription + chunking + mood + entity costs', () => {
+      const audio = audioCostPer1000Words('gpt-4o-transcribe', false, null)!
+      const chunking = chunkingCostPer1000Words('text-embedding-3-large')!
+      const mood = moodScoringCostPer1000Words('claude-sonnet-4-5')!
+      const entity = entityExtractionCostPer1000Words(
+        'claude-sonnet-4-5',
+        'text-embedding-3-large',
+      )!
+      const total = totalAudioIngestionCostPer1000Words(
+        'gpt-4o-transcribe',
+        false,
+        null,
+        'text-embedding-3-large',
+        'claude-sonnet-4-5',
+        'claude-sonnet-4-5',
+      )!
+      expect(total).toBeCloseTo(audio + chunking + mood + entity, 5)
+    })
+
+    it('returns null for unknown transcription model', () => {
+      expect(
+        totalAudioIngestionCostPer1000Words(
+          'unknown',
+          false,
+          null,
           'text-embedding-3-large',
           'claude-sonnet-4-5',
           'claude-sonnet-4-5',

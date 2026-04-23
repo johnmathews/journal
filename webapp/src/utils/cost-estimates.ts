@@ -11,6 +11,15 @@ interface LlmPricing {
   output: number // $/MTok
 }
 
+/**
+ * Dual-pass OCR always uses both default models regardless of ocr_provider.
+ * Must match _DEFAULT_MODELS in journal-server/src/journal/providers/ocr.py.
+ */
+export const DUAL_PASS_MODELS = {
+  primary: 'claude-opus-4-6',
+  secondary: 'gemini-2.5-pro',
+} as const
+
 /** LLM and embedding model pricing ($/MTok). */
 const MODEL_PRICING: Record<string, LlmPricing> = {
   // Anthropic
@@ -172,20 +181,58 @@ export function entityExtractionCostPer1000Words(
   return perEntry * (1000 / WORDS_PER_ENTRY)
 }
 
-/** Total ingestion cost per 1000 words (OCR + chunking + mood + entities). */
-export function totalIngestionCostPer1000Words(
+/** OCR cost per 1000 words for dual-pass (sum of both models). */
+export function ocrDualPassCostPer1000Words(): number | null {
+  const primary = ocrCostPer1000Words(DUAL_PASS_MODELS.primary)
+  const secondary = ocrCostPer1000Words(DUAL_PASS_MODELS.secondary)
+  if (primary === null || secondary === null) return null
+  return primary + secondary
+}
+
+/** Total image ingestion cost per 1000 words (OCR + chunking + mood + entities).
+ *  When secondaryOcrModel is provided, OCR cost includes both models (dual-pass). */
+export function totalImageIngestionCostPer1000Words(
   ocrModel: string,
   embeddingModel: string,
   moodModel: string | null,
   entityModel: string,
+  secondaryOcrModel?: string,
 ): number | null {
-  const ocr = ocrCostPer1000Words(ocrModel)
+  const ocrPrimary = ocrCostPer1000Words(ocrModel)
   const chunking = chunkingCostPer1000Words(embeddingModel)
   const entity = entityExtractionCostPer1000Words(entityModel, embeddingModel)
-  if (ocr === null || chunking === null || entity === null) return null
+  if (ocrPrimary === null || chunking === null || entity === null) return null
+  let ocrTotal = ocrPrimary
+  if (secondaryOcrModel) {
+    const ocrSecondary = ocrCostPer1000Words(secondaryOcrModel)
+    if (ocrSecondary === null) return null
+    ocrTotal += ocrSecondary
+  }
   const mood = moodModel ? moodScoringCostPer1000Words(moodModel) : 0
   if (mood === null) return null
-  return ocr + chunking + mood + entity
+  return ocrTotal + chunking + mood + entity
+}
+
+/** Total audio ingestion cost per 1000 words (transcription + chunking + mood + entities). */
+export function totalAudioIngestionCostPer1000Words(
+  transcriptionModel: string,
+  formattingEnabled: boolean,
+  formattingModel: string | null,
+  embeddingModel: string,
+  moodModel: string | null,
+  entityModel: string,
+): number | null {
+  const audio = audioCostPer1000Words(
+    transcriptionModel,
+    formattingEnabled,
+    formattingModel,
+  )
+  const chunking = chunkingCostPer1000Words(embeddingModel)
+  const entity = entityExtractionCostPer1000Words(entityModel, embeddingModel)
+  if (audio === null || chunking === null || entity === null) return null
+  const mood = moodModel ? moodScoringCostPer1000Words(moodModel) : 0
+  if (mood === null) return null
+  return audio + chunking + mood + entity
 }
 
 /** Total edit cost per 1000 words (re-chunking + mood + entities, no OCR). */
