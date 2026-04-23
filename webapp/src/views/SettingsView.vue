@@ -700,28 +700,37 @@ const moodScoringEnabled = computed(
                   Paragraph Formatting
                 </dt>
                 <dd class="font-medium text-gray-900 dark:text-gray-100">
-                  <label class="inline-flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      class="form-checkbox rounded text-violet-500"
-                      :checked="
-                        runtimeSettingValue('transcript_formatting') === true
-                      "
-                      data-testid="transcript-formatting-toggle"
-                      @change="
-                        store.updateRuntime({
-                          transcript_formatting: !runtimeSettingValue(
-                            'transcript_formatting',
-                          ),
-                        })
-                      "
-                    />
-                    <span class="text-sm">{{
+                  <button
+                    type="button"
+                    :class="[
+                      'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900',
                       runtimeSettingValue('transcript_formatting')
-                        ? 'Enabled'
-                        : 'Disabled'
-                    }}</span>
-                  </label>
+                        ? 'bg-violet-500'
+                        : 'bg-gray-200 dark:bg-gray-600',
+                    ]"
+                    role="switch"
+                    :aria-checked="
+                      runtimeSettingValue('transcript_formatting') === true
+                    "
+                    :disabled="store.updating"
+                    data-testid="transcript-formatting-toggle"
+                    @click="
+                      store.updateRuntime({
+                        transcript_formatting: !runtimeSettingValue(
+                          'transcript_formatting',
+                        ),
+                      })
+                    "
+                  >
+                    <span
+                      :class="[
+                        'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                        runtimeSettingValue('transcript_formatting')
+                          ? 'translate-x-5'
+                          : 'translate-x-0',
+                      ]"
+                    />
+                  </button>
                 </dd>
               </div>
               <div
