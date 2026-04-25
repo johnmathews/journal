@@ -252,7 +252,11 @@ describe('AppNotifications', () => {
     wrapper.unmount()
   })
 
-  // --- Grouped notifications ---
+  // --- Toast behaviour ---
+  // Toasts fire individually per job — no grouping or compression.
+  // Pushover handles compression server-side; toasts are transient
+  // and non-blocking so one per pipeline stage is fine.
+  //
   // useToast() shares a module-level toasts ref across all callers,
   // so we read that ref to verify which toasts were shown.
 
@@ -260,13 +264,12 @@ describe('AppNotifications', () => {
     return toast.toasts.value.map((t) => ({ message: t.message, type: t.type }))
   }
 
-  it('shows one summary toast when all grouped jobs succeed', async () => {
+  it('shows individual toast for each grouped job as it succeeds', async () => {
     const store = useJobsStore()
     store.createGroup('g1', 'Entry created — all processing complete')
     store.trackJob('j1', 'ingest_audio', {}, 'g1')
     store.trackJob('j2', 'mood_score_entry', {}, 'g1')
     store.trackJob('j3', 'entity_extraction', {}, 'g1')
-    // Set all to running
     store.jobs['j1'] = makeJob({
       id: 'j1',
       type: 'ingest_audio',
@@ -285,7 +288,7 @@ describe('AppNotifications', () => {
 
     const wrapper = mount(AppNotifications, { global: { plugins: [pinia] } })
 
-    // Job 1 succeeds — group not complete, no toast
+    // Job 1 succeeds — individual toast
     store.jobs['j1'] = makeJob({
       id: 'j1',
       type: 'ingest_audio',
@@ -293,9 +296,9 @@ describe('AppNotifications', () => {
     })
     vi.advanceTimersByTime(600)
     await flushPromises()
-    expect(toastMessages().filter((t) => t.type === 'success')).toHaveLength(0)
+    expect(toastMessages().filter((t) => t.type === 'success')).toHaveLength(1)
 
-    // Job 2 succeeds — still not complete
+    // Job 2 succeeds — second individual toast
     store.jobs['j2'] = makeJob({
       id: 'j2',
       type: 'mood_score_entry',
@@ -303,9 +306,9 @@ describe('AppNotifications', () => {
     })
     vi.advanceTimersByTime(600)
     await flushPromises()
-    expect(toastMessages().filter((t) => t.type === 'success')).toHaveLength(0)
+    expect(toastMessages().filter((t) => t.type === 'success')).toHaveLength(2)
 
-    // Job 3 succeeds — group complete, ONE summary toast
+    // Job 3 succeeds — third individual toast
     store.jobs['j3'] = makeJob({
       id: 'j3',
       type: 'entity_extraction',
@@ -314,13 +317,17 @@ describe('AppNotifications', () => {
     vi.advanceTimersByTime(600)
     await flushPromises()
     const successes = toastMessages().filter((t) => t.type === 'success')
-    expect(successes).toHaveLength(1)
-    expect(successes[0].message).toBe('Entry created — all processing complete')
+    expect(successes).toHaveLength(3)
+    expect(successes.map((t) => t.message)).toEqual([
+      'Audio ingestion completed successfully',
+      'Mood scoring completed successfully',
+      'Entity extraction completed successfully',
+    ])
 
     wrapper.unmount()
   })
 
-  it('shows individual error toast immediately for grouped failed job', async () => {
+  it('shows error and success toasts individually for mixed outcomes', async () => {
     const store = useJobsStore()
     store.createGroup('g1', 'Entry created — all processing complete')
     store.trackJob('j1', 'ingest_audio', {}, 'g1')
@@ -338,7 +345,7 @@ describe('AppNotifications', () => {
 
     const wrapper = mount(AppNotifications, { global: { plugins: [pinia] } })
 
-    // Job 1 fails — error toast fires immediately
+    // Job 1 fails — error toast fires
     store.jobs['j1'] = makeJob({
       id: 'j1',
       type: 'ingest_audio',
@@ -347,13 +354,10 @@ describe('AppNotifications', () => {
     })
     vi.advanceTimersByTime(600)
     await flushPromises()
-    const errors = toastMessages().filter((t) => t.type === 'error')
-    expect(errors).toHaveLength(1)
-    expect(errors[0].message).toBe('Audio ingestion failed: API error')
-    // No success toast (group not complete)
-    expect(toastMessages().filter((t) => t.type === 'success')).toHaveLength(0)
+    expect(toastMessages().filter((t) => t.type === 'error')).toHaveLength(1)
+    expect(toastMessages()[0].message).toBe('Audio ingestion failed: API error')
 
-    // Job 2 succeeds — group complete but has failure, NO summary toast
+    // Job 2 succeeds — success toast also fires (not suppressed)
     store.jobs['j2'] = makeJob({
       id: 'j2',
       type: 'mood_score_entry',
@@ -361,7 +365,10 @@ describe('AppNotifications', () => {
     })
     vi.advanceTimersByTime(600)
     await flushPromises()
-    expect(toastMessages().filter((t) => t.type === 'success')).toHaveLength(0)
+    expect(toastMessages().filter((t) => t.type === 'success')).toHaveLength(1)
+    expect(toastMessages().find((t) => t.type === 'success')!.message).toBe(
+      'Mood scoring completed successfully',
+    )
 
     wrapper.unmount()
   })

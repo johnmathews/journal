@@ -28,33 +28,26 @@ function startDismissTimer(id: string) {
   recentlyCompleted.value.set(id, timer)
 }
 
-// Track which groups have already fired their summary toast so we
-// don't re-fire when later jobs in the same group are processed.
-const firedGroups = new Set<string>()
-
 function onJobComplete(jobId: string) {
   const job = jobsStore.jobs[jobId]
   if (!job) return
 
+  // Every job gets its own toast — toasts are transient and
+  // non-blocking, so one per pipeline stage is fine.  Pushover
+  // handles compression into a single push notification server-side.
+  const label = jobLabel(job.type)
+  if (job.status === 'succeeded') {
+    toast.success(`${label} completed successfully`)
+  } else if (job.status === 'failed') {
+    toast.error(`${label} failed: ${job.error_message || 'unknown error'}`)
+  }
+
+  // Dismiss: grouped jobs stay in the dropdown until the whole
+  // pipeline finishes, then dismiss together.  Ungrouped jobs
+  // dismiss individually.
   const groupId = jobsStore.getGroupId(jobId)
-
   if (groupId) {
-    // --- Grouped job ---
-    // Failures surface immediately so the user can act on them.
-    if (job.status === 'failed') {
-      toast.error(
-        `${jobLabel(job.type)} failed: ${job.error_message || 'unknown error'}`,
-      )
-    }
-
-    // Check whether every job in the group is now terminal.
-    if (jobsStore.isGroupComplete(groupId) && !firedGroups.has(groupId)) {
-      firedGroups.add(groupId)
-      if (jobsStore.isGroupAllSucceeded(groupId)) {
-        const group = jobsStore.getGroup(groupId)
-        toast.success(group?.label ?? 'All jobs completed')
-      }
-      // Start dismiss timers for every job in the group.
+    if (jobsStore.isGroupComplete(groupId)) {
       const group = jobsStore.getGroup(groupId)
       if (group) {
         for (const id of group.jobIds) {
@@ -62,16 +55,7 @@ function onJobComplete(jobId: string) {
         }
       }
     }
-    // If the group isn't complete yet, don't dismiss — the jobs stay
-    // visible in the dropdown until the whole group finishes.
   } else {
-    // --- Ungrouped job (legacy / batch-modal behaviour) ---
-    const label = jobLabel(job.type)
-    if (job.status === 'succeeded') {
-      toast.success(`${label} completed successfully`)
-    } else if (job.status === 'failed') {
-      toast.error(`${label} failed: ${job.error_message || 'unknown error'}`)
-    }
     startDismissTimer(jobId)
   }
 }
