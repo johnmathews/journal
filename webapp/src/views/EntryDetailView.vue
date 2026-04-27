@@ -490,7 +490,7 @@ async function save() {
     const hasJobs = reprocessJobId || extractionJobId || moodJobId
     const groupId = hasJobs ? crypto.randomUUID() : undefined
     if (groupId) {
-      jobsStore.createGroup(groupId, 'Entry updated — all processing complete')
+      jobsStore.createGroup(groupId, 'Entry update')
     }
 
     // Track background jobs. The notification UI shows progress;
