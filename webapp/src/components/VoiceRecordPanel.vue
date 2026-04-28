@@ -403,7 +403,7 @@ onUnmounted(() => {
 
         <!-- Footer -->
         <div
-          class="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700"
+          class="flex flex-col gap-3 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
         >
           <span class="text-sm text-gray-600 dark:text-gray-300">
             {{ recordings.length }}
@@ -412,7 +412,7 @@ onUnmounted(() => {
           </span>
           <button
             :disabled="entriesStore.creating"
-            class="btn bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg text-sm font-medium"
+            class="btn bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg text-sm font-medium w-full sm:w-auto"
             data-testid="submit-button"
             @click="submit"
           >

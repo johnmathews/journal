@@ -413,7 +413,7 @@ watch(currentJob, (job) => {
         </label>
 
         <div
-          class="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700"
+          class="flex flex-col gap-3 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
         >
           <span class="text-sm text-gray-600 dark:text-gray-300">
             {{ imageFiles.length }}
@@ -422,7 +422,7 @@ watch(currentJob, (job) => {
           </span>
           <button
             :disabled="entriesStore.creating"
-            class="btn bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg text-sm font-medium"
+            class="btn bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg text-sm font-medium w-full sm:w-auto"
             @click="submitImages"
           >
             {{ entriesStore.creating ? 'Uploading...' : 'Upload & Process' }}
@@ -433,8 +433,10 @@ watch(currentJob, (job) => {
 
     <!-- Text mode: file preview -->
     <div v-else-if="mode === 'text'">
-      <div class="flex items-center justify-between mb-4">
-        <div class="flex items-center space-x-3">
+      <div
+        class="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+      >
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span
             class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-violet-100 dark:bg-violet-900/40 text-violet-800 dark:text-violet-300"
           >
@@ -442,7 +444,7 @@ watch(currentJob, (job) => {
           </span>
           <span
             v-if="textFile"
-            class="text-sm text-gray-700 dark:text-gray-300 font-medium"
+            class="text-sm text-gray-700 dark:text-gray-300 font-medium break-all"
             >{{ textFile.name }}</span
           >
           <span class="text-sm text-gray-600 dark:text-gray-300">{{
@@ -450,7 +452,7 @@ watch(currentJob, (job) => {
           }}</span>
         </div>
         <button
-          class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 self-start sm:self-auto"
           @click="clearFile"
         >
           Change file
@@ -465,7 +467,7 @@ watch(currentJob, (job) => {
       <div class="flex justify-end mt-4">
         <button
           :disabled="entriesStore.creating"
-          class="btn bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg text-sm font-medium"
+          class="btn bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg text-sm font-medium w-full sm:w-auto"
           @click="submitText"
         >
           {{ entriesStore.creating ? 'Importing...' : 'Import File' }}
