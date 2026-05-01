@@ -76,6 +76,18 @@ vi.mock('@/views/admin/AdminLayout.vue', () => ({
 vi.mock('@/views/admin/AdminDashboard.vue', () => ({
   default: { template: '<div/>' },
 }))
+vi.mock('@/views/admin/AdminOverview.vue', () => ({
+  default: { template: '<div/>' },
+}))
+vi.mock('@/views/admin/AdminRuntimeView.vue', () => ({
+  default: { template: '<div/>' },
+}))
+vi.mock('@/views/admin/AdminPricingView.vue', () => ({
+  default: { template: '<div/>' },
+}))
+vi.mock('@/views/admin/AdminServerView.vue', () => ({
+  default: { template: '<div/>' },
+}))
 
 import router from '../index'
 import { useAuthStore } from '@/stores/auth'

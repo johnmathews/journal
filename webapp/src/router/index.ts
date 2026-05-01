@@ -106,8 +106,23 @@ const router = createRouter({
       children: [
         {
           path: '',
-          name: 'admin-dashboard',
+          name: 'admin-overview',
+          component: () => import('@/views/admin/AdminOverview.vue'),
+        },
+        {
+          path: 'users',
+          name: 'admin-users',
           component: () => import('@/views/admin/AdminDashboard.vue'),
+        },
+        {
+          path: 'runtime',
+          name: 'admin-runtime',
+          component: () => import('@/views/admin/AdminRuntimeView.vue'),
+        },
+        {
+          path: 'pricing',
+          name: 'admin-pricing',
+          component: () => import('@/views/admin/AdminPricingView.vue'),
         },
         {
           path: 'server',
