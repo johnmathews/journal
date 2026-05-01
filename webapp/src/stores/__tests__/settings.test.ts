@@ -19,7 +19,17 @@ vi.mock('@/api/settings', () => ({
 function makeSettings(): ServerSettings {
   return {
     ocr: { provider: 'anthropic', model: 'claude-opus-4-6' },
-    transcription: { model: 'gpt-4o-transcribe' },
+    transcription: {
+      provider: 'openai',
+      model: 'gpt-4o-transcribe',
+      fallback: { enabled: true, model: 'whisper-1' },
+      shadow: { enabled: false, provider: null, model: null },
+      retry: {
+        max_attempts: 3,
+        base_delay_seconds: 1.0,
+        max_delay_seconds: 30.0,
+      },
+    },
     transcript_formatting: { model: 'claude-haiku-4-5' },
     embedding: { model: 'text-embedding-3-large', dimensions: 1024 },
     chunking: {

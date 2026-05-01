@@ -73,7 +73,17 @@ const mockApiFetch = vi.mocked(apiFetch)
 function makeSettings(overrides: Partial<ServerSettings> = {}): ServerSettings {
   return {
     ocr: { provider: 'gemini', model: 'gemini-3-pro' },
-    transcription: { model: 'gpt-4o-transcribe' },
+    transcription: {
+      provider: 'openai',
+      model: 'gpt-4o-transcribe',
+      fallback: { enabled: true, model: 'whisper-1' },
+      shadow: { enabled: false, provider: null, model: null },
+      retry: {
+        max_attempts: 3,
+        base_delay_seconds: 1.0,
+        max_delay_seconds: 30.0,
+      },
+    },
     transcript_formatting: { model: 'claude-haiku-4-5' },
     embedding: { model: 'text-embedding-3-large', dimensions: 1024 },
     chunking: {
@@ -290,6 +300,100 @@ describe('SettingsView', () => {
     expect(entity.exists()).toBe(true)
     expect(entity.text()).toContain('claude-opus-4-6')
     expect(entity.text()).toContain('0.88')
+  })
+
+  it('renders transcription provider in audio ingestion section', async () => {
+    const wrapper = await mountView()
+    expect(wrapper.find('[data-testid="transcription-provider"]').text()).toBe(
+      'openai',
+    )
+  })
+
+  it('renders fallback details when fallback is enabled', async () => {
+    const wrapper = await mountView(
+      makeSettings({
+        transcription: {
+          provider: 'openai',
+          model: 'gpt-4o-transcribe',
+          fallback: { enabled: true, model: 'whisper-1' },
+          shadow: { enabled: false, provider: null, model: null },
+          retry: {
+            max_attempts: 3,
+            base_delay_seconds: 1.0,
+            max_delay_seconds: 30.0,
+          },
+        },
+      }),
+    )
+    const fallback = wrapper.find('[data-testid="transcription-fallback"]')
+    expect(fallback.text()).toContain('whisper-1')
+    expect(fallback.text()).toContain('after 3')
+    expect(fallback.text()).toContain('retries')
+  })
+
+  it('renders fallback as disabled when fallback is off', async () => {
+    const wrapper = await mountView(
+      makeSettings({
+        transcription: {
+          provider: 'openai',
+          model: 'gpt-4o-transcribe',
+          fallback: { enabled: false, model: 'whisper-1' },
+          shadow: { enabled: false, provider: null, model: null },
+          retry: {
+            max_attempts: 3,
+            base_delay_seconds: 1.0,
+            max_delay_seconds: 30.0,
+          },
+        },
+      }),
+    )
+    const fallback = wrapper.find('[data-testid="transcription-fallback"]')
+    expect(fallback.text()).toContain('disabled')
+  })
+
+  it('renders shadow as off when shadow is disabled', async () => {
+    const wrapper = await mountView(
+      makeSettings({
+        transcription: {
+          provider: 'openai',
+          model: 'gpt-4o-transcribe',
+          fallback: { enabled: true, model: 'whisper-1' },
+          shadow: { enabled: false, provider: null, model: null },
+          retry: {
+            max_attempts: 3,
+            base_delay_seconds: 1.0,
+            max_delay_seconds: 30.0,
+          },
+        },
+      }),
+    )
+    const shadow = wrapper.find('[data-testid="transcription-shadow"]')
+    expect(shadow.text()).toContain('off')
+  })
+
+  it('renders shadow provider/model when shadow is enabled', async () => {
+    const wrapper = await mountView(
+      makeSettings({
+        transcription: {
+          provider: 'openai',
+          model: 'gpt-4o-transcribe',
+          fallback: { enabled: true, model: 'whisper-1' },
+          shadow: {
+            enabled: true,
+            provider: 'gemini',
+            model: 'gemini-2.5-pro',
+          },
+          retry: {
+            max_attempts: 3,
+            base_delay_seconds: 1.0,
+            max_delay_seconds: 30.0,
+          },
+        },
+      }),
+    )
+    const shadow = wrapper.find('[data-testid="transcription-shadow"]')
+    expect(shadow.text()).toContain('gemini')
+    expect(shadow.text()).toContain('gemini-2.5-pro')
   })
 
   it('displays cost badges per 1k words for ingestion', async () => {
