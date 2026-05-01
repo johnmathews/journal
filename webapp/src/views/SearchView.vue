@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useSearchStore } from '@/stores/search'
 import { renderSnippetHtml } from '@/utils/searchSnippet'
-import type { SearchMode, SearchResultItem } from '@/types/search'
+import type { SearchResultItem } from '@/types/search'
 
 const store = useSearchStore()
 
@@ -11,25 +11,16 @@ const store = useSearchStore()
 // request and lets the existing result set stay visible while the
 // user refines a query.
 const queryInput = ref(store.query)
-const modeInput = ref<SearchMode>(store.mode)
 const startDateInput = ref(store.startDate ?? '')
 const endDateInput = ref(store.endDate ?? '')
 
 function submit(): void {
   store.runSearch({
     q: queryInput.value,
-    mode: modeInput.value,
     start_date: startDateInput.value || null,
     end_date: endDateInput.value || null,
     offset: 0,
   })
-}
-
-function selectMode(m: SearchMode): void {
-  modeInput.value = m
-  if (queryInput.value.trim()) {
-    submit()
-  }
 }
 
 function nextPage(): void {
@@ -41,8 +32,8 @@ function prevPage(): void {
   store.runSearch({ offset: next })
 }
 
-// Semantic mode doesn't know the total count, so we infer "might
-// have more" from "the server returned exactly `limit` items".
+// Hybrid mode doesn't know the total count, so we infer "might have
+// more" from "the server returned exactly `limit` items".
 const canNext = computed(
   () => store.items.length === store.limit && store.items.length > 0,
 )
@@ -54,24 +45,18 @@ const currentPage = computed(
 /**
  * Pick the best display text for a single result row.
  *
- * - Keyword mode: the server returns a snippet with `\x02`/`\x03`
- *   markers; render it as HTML via `renderSnippetHtml`.
- * - Semantic mode: the server returns `matching_chunks` with plain
- *   text. We show the top chunk's text (already sorted server-side)
- *   or fall back to the start of `text` if chunks are empty (should
- *   not happen but keeps the view defensive).
+ * Hybrid results carry `snippet` (BM25-marked excerpt) when BM25
+ * contributed and `matching_chunks` (dense top hits) when dense
+ * contributed. At least one of those is always present, since a
+ * result that neither retriever produced would not have made it
+ * into the response. Prefer the snippet — it's a focused excerpt
+ * around matched terms — and fall back to the top dense chunk.
  */
 function displayHtml(item: SearchResultItem): string {
-  if (item.snippet !== null) {
+  if (item.snippet) {
     return renderSnippetHtml(item.snippet)
   }
-  const top = item.matching_chunks[0]
-  if (top) {
-    // Escape by round-tripping through the snippet renderer — it
-    // handles plain strings without markers by escaping them.
-    return renderSnippetHtml(top.text)
-  }
-  return renderSnippetHtml(item.text.slice(0, 200))
+  return renderSnippetHtml(item.matching_chunks[0].text)
 }
 
 function topChunkIndex(item: SearchResultItem): number | null {
@@ -80,10 +65,26 @@ function topChunkIndex(item: SearchResultItem): number | null {
 }
 
 function scorePercent(score: number): string {
-  // Clamp and round — server-side keyword scores can have trailing
+  // Clamp and round — server-side scores can have trailing
   // floating-point fuzz.
   const pct = Math.max(0, Math.min(100, Math.round(score * 100)))
   return `${pct}%`
+}
+
+/**
+ * Build a short, human-readable explanation of WHY a result matched.
+ * Hybrid results may match via keywords, semantic similarity, or
+ * both — surface that to the user so the ranking feels less opaque.
+ * Only invoked from the template guarded by the same lex||sem check,
+ * so the "neither" case isn't reachable here.
+ */
+function matchExplanation(item: SearchResultItem): string {
+  const lex = !!item.snippet
+  const sem = item.matching_chunks.length > 0
+  if (lex && sem) {
+    return 'Matched by keywords and meaning'
+  }
+  return lex ? 'Matched by keywords' : 'Matched by meaning'
 }
 </script>
 
@@ -117,47 +118,6 @@ function scorePercent(score: number): string {
           data-testid="search-query-input"
           class="form-input w-full text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
         />
-      </div>
-      <div>
-        <label
-          class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
-          >Mode</label
-        >
-        <div
-          class="flex gap-2"
-          role="radiogroup"
-          aria-label="Search mode"
-          data-testid="search-mode-toggle"
-        >
-          <button
-            type="button"
-            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
-            :class="
-              modeInput === 'keyword'
-                ? 'bg-violet-500 text-white border-violet-500'
-                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
-            "
-            data-testid="search-mode-keyword"
-            :aria-pressed="modeInput === 'keyword'"
-            @click="selectMode('keyword')"
-          >
-            Keyword
-          </button>
-          <button
-            type="button"
-            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
-            :class="
-              modeInput === 'semantic'
-                ? 'bg-violet-500 text-white border-violet-500'
-                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
-            "
-            data-testid="search-mode-semantic"
-            :aria-pressed="modeInput === 'semantic'"
-            @click="selectMode('semantic')"
-          >
-            Semantic
-          </button>
-        </div>
       </div>
       <div>
         <label
@@ -272,29 +232,29 @@ function scorePercent(score: number): string {
         ></div>
         <!-- eslint-enable vue/no-v-html -->
 
-        <!-- Semantic match explanation — show why this result is relevant -->
+        <!-- "Why this matched" panel — surfaces lexical vs. semantic
+             contribution. A hybrid result can carry both signals. -->
         <div
-          v-if="
-            store.lastRunMode === 'semantic' && item.matching_chunks.length > 0
-          "
+          v-if="item.snippet || item.matching_chunks.length > 0"
           class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700/40"
-          data-testid="semantic-explanation"
+          data-testid="match-explanation"
         >
           <span
             class="text-xs font-medium text-violet-500 dark:text-violet-400"
           >
-            Matched by meaning
+            {{ matchExplanation(item) }}
           </span>
-          <span class="text-xs text-gray-600 dark:text-gray-300 ml-1">
-            — this passage is semantically similar to your query ({{
-              scorePercent(item.matching_chunks[0].score)
-            }}
-            similarity)
+          <span
+            v-if="item.matching_chunks.length > 0"
+            class="text-xs text-gray-600 dark:text-gray-300 ml-1"
+          >
+            — top passage similarity
+            {{ scorePercent(item.matching_chunks[0].score) }}
           </span>
           <ul
             v-if="item.matching_chunks.length > 1"
             class="mt-1 space-y-1"
-            data-testid="semantic-extra-chunks"
+            data-testid="match-extra-chunks"
           >
             <li
               v-for="(chunk, idx) in item.matching_chunks.slice(1, 3)"

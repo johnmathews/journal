@@ -1,15 +1,11 @@
 import type { DateFilterParams, PaginationParams } from './entry'
 
-export type SearchMode = 'semantic' | 'keyword'
-
 /**
  * One chunk within a matching entry. Mirrors the server's
  * `ChunkMatch` dataclass. Offsets and `chunk_index` are nullable
  * because entries ingested before chunk persistence shipped have no
  * `entry_chunks` rows to join against and the server returns `null`
- * for those fields. Keyword-mode responses always have
- * `matching_chunks === []`, so the nullability only matters in
- * semantic mode.
+ * for those fields.
  */
 export interface SearchChunkMatch {
   text: string
@@ -20,12 +16,17 @@ export interface SearchChunkMatch {
 }
 
 /**
- * One entry in a search response. In `semantic` mode, `snippet` is
- * `null` and `matching_chunks` is sorted descending by score. In
- * `keyword` mode, `matching_chunks` is empty and `snippet` is a
- * short excerpt with ASCII `\x02` (start) and `\x03` (end) control
- * characters wrapping matched terms — see `src/utils/searchSnippet.ts`
- * for the renderer that turns these into HTML.
+ * One entry in a hybrid search response.
+ *
+ * - `snippet` is populated when BM25 contributed to the match — it's
+ *   a short FTS5 excerpt with ASCII `\x02` (start) and `\x03` (end)
+ *   control characters wrapping matched terms (see
+ *   `src/utils/searchSnippet.ts` for the renderer).
+ * - `matching_chunks` is populated when dense (embedding) retrieval
+ *   contributed, sorted by chunk similarity descending.
+ *
+ * Either or both may be present per item — a result that both
+ * retrievers found will carry both signals.
  */
 export interface SearchResultItem {
   entry_id: number
@@ -39,13 +40,17 @@ export interface SearchResultItem {
 export interface SearchRequestParams
   extends PaginationParams, DateFilterParams {
   q: string
-  mode?: SearchMode
 }
 
 export interface SearchResponse {
   query: string
-  mode: SearchMode
   limit: number
   offset: number
+  /**
+   * Class name of the active L2 reranker on the server (e.g.
+   * `AnthropicReranker`, `NoopReranker`). Useful for debugging and
+   * cache busting.
+   */
+  reranker: string
   items: SearchResultItem[]
 }
