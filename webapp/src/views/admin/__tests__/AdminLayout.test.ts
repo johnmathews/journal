@@ -31,10 +31,26 @@ function createTestRouter() {
         path: '/admin',
         component: AdminLayout,
         children: [
+          { path: '', name: 'admin-overview', component: ChildComponent },
           {
-            path: '',
-            name: 'admin-dashboard',
-            component: ChildComponent,
+            path: 'users',
+            name: 'admin-users',
+            component: { template: '<div/>' },
+          },
+          {
+            path: 'runtime',
+            name: 'admin-runtime',
+            component: { template: '<div/>' },
+          },
+          {
+            path: 'pricing',
+            name: 'admin-pricing',
+            component: { template: '<div/>' },
+          },
+          {
+            path: 'server',
+            name: 'admin-server',
+            component: { template: '<div/>' },
           },
         ],
       },
@@ -76,36 +92,47 @@ describe('AdminLayout', () => {
     expect(nav.exists()).toBe(true)
   })
 
-  it('renders Users tab link', async () => {
+  it('renders all five tabs in order with correct paths', async () => {
     const router = createTestRouter()
     router.push('/admin')
     await router.isReady()
     const wrapper = mountComponent(router)
 
-    const links = wrapper.findAll('a')
-    const usersLink = links.find((l) => l.text() === 'Users')
-    expect(usersLink).toBeDefined()
+    const links = wrapper.find('nav[aria-label="Admin tabs"]').findAll('a')
+    expect(links.map((l) => l.text())).toEqual([
+      'Overview',
+      'Users',
+      'Runtime',
+      'Pricing',
+      'Server',
+    ])
+    expect(links[0].attributes('href')).toBe('/admin')
+    expect(links[1].attributes('href')).toBe('/admin/users')
+    expect(links[2].attributes('href')).toBe('/admin/runtime')
+    expect(links[3].attributes('href')).toBe('/admin/pricing')
+    expect(links[4].attributes('href')).toBe('/admin/server')
   })
 
-  it('renders Server tab link pointing to /admin/server', async () => {
+  it('highlights the Overview tab when at /admin', async () => {
     const router = createTestRouter()
     router.push('/admin')
     await router.isReady()
     const wrapper = mountComponent(router)
 
-    const serverLink = wrapper.findAll('a').find((l) => l.text() === 'Server')
-    expect(serverLink).toBeDefined()
-    expect(serverLink!.attributes('href')).toBe('/admin/server')
+    const overviewLink = wrapper
+      .findAll('a')
+      .find((l) => l.text() === 'Overview')
+    expect(overviewLink).toBeDefined()
+    expect(overviewLink!.classes().join(' ')).toContain('border-violet-500')
   })
 
-  it('highlights active tab with violet styling', async () => {
+  it('highlights the Users tab when at /admin/users', async () => {
     const router = createTestRouter()
-    router.push('/admin')
+    router.push('/admin/users')
     await router.isReady()
     const wrapper = mountComponent(router)
 
     const usersLink = wrapper.findAll('a').find((l) => l.text() === 'Users')
-    expect(usersLink).toBeDefined()
     expect(usersLink!.classes().join(' ')).toContain('border-violet-500')
   })
 

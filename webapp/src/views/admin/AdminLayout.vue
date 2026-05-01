@@ -4,7 +4,10 @@ import { useRoute } from 'vue-router'
 const route = useRoute()
 
 const tabs = [
-  { name: 'Users', routeName: 'admin-dashboard', path: '/admin' },
+  { name: 'Overview', routeName: 'admin-overview', path: '/admin' },
+  { name: 'Users', routeName: 'admin-users', path: '/admin/users' },
+  { name: 'Runtime', routeName: 'admin-runtime', path: '/admin/runtime' },
+  { name: 'Pricing', routeName: 'admin-pricing', path: '/admin/pricing' },
   { name: 'Server', routeName: 'admin-server', path: '/admin/server' },
 ] as const
 </script>

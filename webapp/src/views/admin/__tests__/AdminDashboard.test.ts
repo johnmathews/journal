@@ -59,8 +59,8 @@ const router = createRouter({
   routes: [
     { path: '/', component: { template: '<div/>' } },
     {
-      path: '/admin',
-      name: 'admin-dashboard',
+      path: '/admin/users',
+      name: 'admin-users',
       component: AdminDashboard,
     },
   ],
@@ -78,7 +78,7 @@ describe('AdminDashboard', () => {
   beforeEach(async () => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
-    router.push('/admin')
+    router.push('/admin/users')
     await router.isReady()
   })
 
