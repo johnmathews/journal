@@ -112,12 +112,21 @@ const showDiff = ref(true)
 
 // Uncertainty ("Review") toggle. Highlights the words that the OCR or
 // transcription model flagged as uncertain at ingestion time, overlaid
-// on the original-text panel. Defaults to off.
+// on the original-text panel. Defaults to off in read mode; auto-enables
+// each time the user enters edit mode while uncertain spans remain
+// (see watcher below) — reviewing doubts is the priority job in edit
+// mode, so we save the user a click.
 const showReview = ref(false)
 const uncertainSpans = computed<UncertainSpan[]>(
   () => store.currentEntry?.uncertain_spans ?? [],
 )
 const hasUncertainSpans = computed(() => uncertainSpans.value.length > 0)
+
+watch(viewMode, (mode) => {
+  if (mode === 'edit' && hasUncertainSpans.value) {
+    showReview.value = true
+  }
+})
 
 const isVoiceEntry = computed(() => {
   const st = store.currentEntry?.source_type
@@ -300,6 +309,18 @@ const tokens = ref<TokenSpan[] | null>(null)
 const overlayError = ref<string | null>(null)
 const overlayLoading = ref(false)
 
+const OVERLAY_MODE_TOOLTIPS: Record<OverlayMode, string> = {
+  off: 'Hide chunk and token overlays.',
+  chunks: 'Show chunk boundaries used by the embedder and search index.',
+  tokens:
+    "Show exact tokens from tiktoken's cl100k_base encoding — the same " +
+    'tokenizer that text-embedding-3-large uses to chunk and index your ' +
+    'entries. A token is usually a whole word, sometimes part of a word.',
+}
+function overlayModeTooltip(mode: OverlayMode): string {
+  return OVERLAY_MODE_TOOLTIPS[mode]
+}
+
 const persistedText = computed(() => store.currentEntry?.final_text ?? '')
 
 const { overlayHtml } = useOverlayHighlight({
@@ -456,6 +477,23 @@ function entityChipClass(type: EntityType): string {
     default:
       return 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300'
   }
+}
+
+const ENTITY_CATEGORY_LABELS: Record<EntityType, string> = {
+  person: 'Person',
+  place: 'Place',
+  activity: 'Activity',
+  organization: 'Organization',
+  topic: 'Topic',
+  other: 'Other',
+}
+
+function entityChipTooltip(chip: {
+  entity_type: EntityType
+  canonical_name: string
+}): string {
+  const category = ENTITY_CATEGORY_LABELS[chip.entity_type] ?? 'Other'
+  return `${category}. Click to highlight '${displayName(chip.canonical_name)}' in the text.`
 }
 
 onMounted(() => {
@@ -741,7 +779,7 @@ onBeforeUnmount(() => {
                 ? 'ring-2 ring-violet-500 ring-offset-1 dark:ring-offset-gray-800'
                 : 'hover:opacity-80',
             ]"
-            :title="`Highlight '${displayName(chip.canonical_name)}' in the text`"
+            :title="entityChipTooltip(chip)"
             :data-testid="`entry-entity-chip-${chip.id}`"
             @click="toggleEntityHighlight(chip)"
           >
@@ -891,6 +929,7 @@ onBeforeUnmount(() => {
                 v-for="m in ['off', 'chunks', 'tokens'] as const"
                 :key="m"
                 class="cursor-pointer"
+                :title="overlayModeTooltip(m)"
               >
                 <input
                   v-model="overlayMode"
