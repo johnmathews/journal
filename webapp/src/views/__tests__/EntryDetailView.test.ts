@@ -1078,6 +1078,66 @@ describe('EntryDetailView', () => {
       ).toBe(true)
     })
 
+    it('entity chip tooltip names the category and the click action', async () => {
+      const { fetchEntryEntities } = await import('@/api/entities')
+      vi.mocked(fetchEntryEntities).mockResolvedValueOnce({
+        entry_id: 1,
+        items: [
+          {
+            id: 42,
+            canonical_name: 'Alice',
+            entity_type: 'person',
+            aliases: [],
+            mention_count: 3,
+            first_seen: '2026-01-01',
+            last_seen: '2026-03-22',
+          },
+          {
+            id: 99,
+            canonical_name: 'Berlin',
+            entity_type: 'place',
+            aliases: [],
+            mention_count: 1,
+            first_seen: '2026-01-01',
+            last_seen: '2026-03-22',
+          },
+        ],
+        total: 2,
+      })
+
+      const wrapper = mountComponent()
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      const personChip = wrapper.find('[data-testid="entry-entity-chip-42"]')
+      const placeChip = wrapper.find('[data-testid="entry-entity-chip-99"]')
+
+      // Tooltip surfaces the category (so colour-coding is discoverable
+      // without a legend) and the click action.
+      expect(personChip.attributes('title')).toBe(
+        "Person. Click to highlight 'Alice' in the text.",
+      )
+      expect(placeChip.attributes('title')).toBe(
+        "Place. Click to highlight 'Berlin' in the text.",
+      )
+    })
+
+    it('tokens overlay radio button tooltip names the tokenizer', async () => {
+      const wrapper = mountComponent()
+      await flushPromises()
+      // The overlay-mode radio group only renders in edit mode.
+      await switchToEditMode(wrapper)
+
+      // The tokens overlay shows real tiktoken cl100k_base output —
+      // this isn't an approximation. The tooltip says so.
+      const tokensInput = wrapper.find('[data-testid="overlay-radio-tokens"]')
+      const label = tokensInput.element.parentElement as HTMLElement | null
+      expect(label).not.toBeNull()
+      const title = label!.getAttribute('title') ?? ''
+      expect(title).toContain('cl100k_base')
+      expect(title).toContain('text-embedding-3-large')
+    })
+
     it('clicking an entity chip highlights the entity name in the text', async () => {
       const { fetchEntry } = await import('@/api/entries')
       vi.mocked(fetchEntry).mockResolvedValueOnce({
@@ -1543,6 +1603,48 @@ describe('EntryDetailView', () => {
         '[data-testid="review-toggle"]',
       )
       expect(reviewToggle.element.checked).toBe(false)
+    })
+
+    it('auto-enables review on entering edit mode when entry has doubts', async () => {
+      // Entries always open in read mode. Toggling to edit mode while
+      // the entry still has uncertain spans flips review on so the user
+      // doesn't have to click into it themselves — reviewing doubts is
+      // the priority job in edit mode.
+      const wrapper = await mountWithSpans([{ char_start: 6, char_end: 12 }])
+
+      await switchToEditMode(wrapper)
+
+      const reviewToggleEdit = wrapper.find<HTMLInputElement>(
+        '[data-testid="review-toggle"]',
+      )
+      expect(reviewToggleEdit.element.checked).toBe(true)
+    })
+
+    it('re-enables review each time edit mode is entered while doubts remain', async () => {
+      // Going edit → read → edit should re-arm the review toggle every
+      // time, even if the user manually disabled it.
+      const wrapper = await mountWithSpans([{ char_start: 6, char_end: 12 }])
+
+      await switchToEditMode(wrapper)
+      const review1 = wrapper.find<HTMLInputElement>(
+        '[data-testid="review-toggle"]',
+      )
+      expect(review1.element.checked).toBe(true)
+
+      // User manually turns review off.
+      await review1.setValue(false)
+      expect(review1.element.checked).toBe(false)
+
+      // Go back to read mode, then back to edit — review re-enables.
+      const readRadio = wrapper.find('[data-testid="view-mode-radio-read"]')
+      await readRadio.setValue(true)
+      await wrapper.vm.$nextTick()
+
+      await switchToEditMode(wrapper)
+      const review2 = wrapper.find<HTMLInputElement>(
+        '[data-testid="review-toggle"]',
+      )
+      expect(review2.element.checked).toBe(true)
     })
 
     it('verify-all-doubts saves dirty entry before verifying', async () => {
