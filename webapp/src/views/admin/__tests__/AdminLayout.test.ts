@@ -87,6 +87,17 @@ describe('AdminLayout', () => {
     expect(usersLink).toBeDefined()
   })
 
+  it('renders Server tab link pointing to /admin/server', async () => {
+    const router = createTestRouter()
+    router.push('/admin')
+    await router.isReady()
+    const wrapper = mountComponent(router)
+
+    const serverLink = wrapper.findAll('a').find((l) => l.text() === 'Server')
+    expect(serverLink).toBeDefined()
+    expect(serverLink!.attributes('href')).toBe('/admin/server')
+  })
+
   it('highlights active tab with violet styling', async () => {
     const router = createTestRouter()
     router.push('/admin')

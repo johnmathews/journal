@@ -5,6 +5,7 @@ const route = useRoute()
 
 const tabs = [
   { name: 'Users', routeName: 'admin-dashboard', path: '/admin' },
+  { name: 'Server', routeName: 'admin-server', path: '/admin/server' },
 ] as const
 </script>
 
