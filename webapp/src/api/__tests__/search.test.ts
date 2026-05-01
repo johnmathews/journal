@@ -25,7 +25,7 @@ describe('search API', () => {
   it('builds the expected URL with every param set', async () => {
     mockApiFetch.mockResolvedValue({
       query: 'vienna',
-      mode: 'semantic',
+      reranker: 'AnthropicReranker',
       limit: 20,
       offset: 0,
       items: [],
@@ -33,7 +33,6 @@ describe('search API', () => {
 
     await searchEntries({
       q: 'vienna',
-      mode: 'semantic',
       start_date: '2026-01-01',
       end_date: '2026-12-31',
       limit: 20,
@@ -44,7 +43,8 @@ describe('search API', () => {
     const url = mockApiFetch.mock.calls[0][0] as string
     expect(url.startsWith('/api/search?')).toBe(true)
     expect(url).toContain('q=vienna')
-    expect(url).toContain('mode=semantic')
+    // The retired `mode` param must not appear in the request URL.
+    expect(url).not.toContain('mode=')
     expect(url).toContain('start_date=2026-01-01')
     expect(url).toContain('end_date=2026-12-31')
     expect(url).toContain('limit=20')
@@ -54,7 +54,7 @@ describe('search API', () => {
   it('drops undefined and empty params from the URL', async () => {
     mockApiFetch.mockResolvedValue({
       query: 'atlas',
-      mode: 'keyword',
+      reranker: 'AnthropicReranker',
       limit: 10,
       offset: 0,
       items: [],
@@ -62,14 +62,12 @@ describe('search API', () => {
 
     await searchEntries({
       q: 'atlas',
-      mode: 'keyword',
       start_date: '',
       end_date: undefined,
     })
 
     const url = mockApiFetch.mock.calls[0][0] as string
     expect(url).toContain('q=atlas')
-    expect(url).toContain('mode=keyword')
     expect(url).not.toContain('start_date')
     expect(url).not.toContain('end_date')
   })
@@ -77,7 +75,7 @@ describe('search API', () => {
   it('sends URL without query string when all params are empty', async () => {
     mockApiFetch.mockResolvedValue({
       query: '',
-      mode: 'keyword',
+      reranker: 'AnthropicReranker',
       limit: 10,
       offset: 0,
       items: [],
@@ -85,7 +83,6 @@ describe('search API', () => {
 
     await searchEntries({
       q: '',
-      mode: undefined,
       start_date: undefined,
       end_date: undefined,
     })
@@ -98,7 +95,7 @@ describe('search API', () => {
   it('returns the response body unchanged', async () => {
     const payload = {
       query: 'vienna',
-      mode: 'keyword' as const,
+      reranker: 'AnthropicReranker',
       limit: 10,
       offset: 0,
       items: [
@@ -114,7 +111,7 @@ describe('search API', () => {
     }
     mockApiFetch.mockResolvedValue(payload)
 
-    const result = await searchEntries({ q: 'vienna', mode: 'keyword' })
+    const result = await searchEntries({ q: 'vienna' })
     expect(result).toEqual(payload)
   })
 })

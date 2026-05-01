@@ -24,7 +24,7 @@ const mockSearch = vi.mocked(searchEntries)
 function fakeResponse(
   overrides: Partial<{
     query: string
-    mode: 'semantic' | 'keyword'
+    reranker: string
     items: Array<{
       entry_id: number
       entry_date: string
@@ -43,7 +43,7 @@ function fakeResponse(
 ) {
   return {
     query: overrides.query ?? 'vienna',
-    mode: overrides.mode ?? ('semantic' as const),
+    reranker: overrides.reranker ?? 'AnthropicReranker',
     limit: 20,
     offset: 0,
     items: overrides.items ?? [],
@@ -59,7 +59,6 @@ describe('useSearchStore', () => {
   it('initial state is empty', () => {
     const store = useSearchStore()
     expect(store.query).toBe('')
-    expect(store.mode).toBe('keyword')
     expect(store.items).toEqual([])
     expect(store.hasRun).toBe(false)
     expect(store.hasResults).toBe(false)
@@ -113,14 +112,11 @@ describe('useSearchStore', () => {
   })
 
   it('runSearch accepts partial overrides and calls the API with them', async () => {
-    mockSearch.mockResolvedValue(
-      fakeResponse({ mode: 'keyword', query: 'atlas' }),
-    )
+    mockSearch.mockResolvedValue(fakeResponse({ query: 'atlas' }))
 
     const store = useSearchStore()
     await store.runSearch({
       q: 'atlas',
-      mode: 'keyword',
       start_date: '2026-03-01',
       end_date: '2026-03-31',
       limit: 10,
@@ -128,7 +124,6 @@ describe('useSearchStore', () => {
     })
 
     expect(store.query).toBe('atlas')
-    expect(store.mode).toBe('keyword')
     expect(store.startDate).toBe('2026-03-01')
     expect(store.endDate).toBe('2026-03-31')
     expect(store.limit).toBe(10)
@@ -136,7 +131,6 @@ describe('useSearchStore', () => {
 
     expect(mockSearch).toHaveBeenCalledWith({
       q: 'atlas',
-      mode: 'keyword',
       limit: 10,
       offset: 20,
       start_date: '2026-03-01',
@@ -203,12 +197,11 @@ describe('useSearchStore', () => {
     )
 
     const store = useSearchStore()
-    await store.runSearch({ q: 'vienna', mode: 'keyword' })
+    await store.runSearch({ q: 'vienna' })
     expect(store.hasResults).toBe(true)
 
     store.reset()
     expect(store.query).toBe('')
-    expect(store.mode).toBe('keyword')
     expect(store.items).toEqual([])
     expect(store.hasRun).toBe(false)
   })

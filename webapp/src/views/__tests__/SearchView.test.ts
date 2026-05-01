@@ -31,6 +31,42 @@ function mountView() {
   })
 }
 
+interface ItemOpts {
+  entry_id?: number
+  entry_date?: string
+  text?: string
+  score?: number
+  snippet?: string | null
+  matching_chunks?: Array<{
+    text: string
+    score: number
+    chunk_index: number | null
+    char_start: number | null
+    char_end: number | null
+  }>
+}
+
+function fakeItem(o: ItemOpts = {}) {
+  return {
+    entry_id: o.entry_id ?? 1,
+    entry_date: o.entry_date ?? '2026-03-22',
+    text: o.text ?? 'Vienna trip',
+    score: o.score ?? 0.9,
+    snippet: o.snippet ?? null,
+    matching_chunks: o.matching_chunks ?? [],
+  }
+}
+
+function fakeResponse(items: ReturnType<typeof fakeItem>[]) {
+  return {
+    query: 'vienna',
+    reranker: 'AnthropicReranker',
+    limit: 20,
+    offset: 0,
+    items,
+  }
+}
+
 describe('SearchView', () => {
   enableAutoUnmount(beforeEach)
 
@@ -46,6 +82,16 @@ describe('SearchView', () => {
     expect(wrapper.find('[data-testid="search-results"]').exists()).toBe(false)
   })
 
+  it('does not render the retired mode toggle', () => {
+    const wrapper = mountView()
+    expect(wrapper.find('[data-testid="search-mode-keyword"]').exists()).toBe(
+      false,
+    )
+    expect(wrapper.find('[data-testid="search-mode-semantic"]').exists()).toBe(
+      false,
+    )
+  })
+
   it('submitting with an empty query does not fire a request', async () => {
     const wrapper = mountView()
     await wrapper.find('[data-testid="search-form"]').trigger('submit')
@@ -53,23 +99,17 @@ describe('SearchView', () => {
     expect(mockSearch).not.toHaveBeenCalled()
   })
 
-  it('submitting a query calls the API with keyword mode by default', async () => {
-    mockSearch.mockResolvedValue({
-      query: 'vienna',
-      mode: 'keyword',
-      limit: 20,
-      offset: 0,
-      items: [
-        {
+  it('submitting a query calls the API without a mode parameter', async () => {
+    mockSearch.mockResolvedValue(
+      fakeResponse([
+        fakeItem({
           entry_id: 1,
           entry_date: '2026-03-22',
-          text: 'Vienna trip',
           score: 1.0,
           snippet: 'today was \x02Vienna\x03 trip',
-          matching_chunks: [],
-        },
-      ],
-    })
+        }),
+      ]),
+    )
 
     const wrapper = mountView()
     await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
@@ -79,7 +119,8 @@ describe('SearchView', () => {
     expect(mockSearch).toHaveBeenCalledTimes(1)
     const call = mockSearch.mock.calls[0][0]
     expect(call.q).toBe('vienna')
-    expect(call.mode).toBe('keyword')
+    // `mode` was retired — the request must not include it.
+    expect(call).not.toHaveProperty('mode')
 
     const rows = wrapper.findAll('[data-testid="search-result-row"]')
     expect(rows).toHaveLength(1)
@@ -87,49 +128,8 @@ describe('SearchView', () => {
     expect(rows[0].text()).toContain('100%')
   })
 
-  it('switching to semantic mode runs a semantic search', async () => {
-    mockSearch.mockResolvedValue({
-      query: 'vienna',
-      mode: 'semantic',
-      limit: 20,
-      offset: 0,
-      items: [
-        {
-          entry_id: 2,
-          entry_date: '2026-03-23',
-          text: 'Vienna today',
-          score: 0.85,
-          snippet: null,
-          matching_chunks: [
-            {
-              text: 'Vienna today was great',
-              score: 0.85,
-              chunk_index: 0,
-              char_start: 0,
-              char_end: 22,
-            },
-          ],
-        },
-      ],
-    })
-
-    const wrapper = mountView()
-    await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
-    await wrapper.find('[data-testid="search-mode-semantic"]').trigger('click')
-    await flushPromises()
-
-    const call = mockSearch.mock.calls[0][0]
-    expect(call.mode).toBe('semantic')
-  })
-
   it('renders the empty state when the server returns zero items', async () => {
-    mockSearch.mockResolvedValue({
-      query: 'nothing',
-      mode: 'semantic',
-      limit: 20,
-      offset: 0,
-      items: [],
-    })
+    mockSearch.mockResolvedValue(fakeResponse([]))
 
     const wrapper = mountView()
     await wrapper.find('[data-testid="search-query-input"]').setValue('nothing')
@@ -157,13 +157,7 @@ describe('SearchView', () => {
   })
 
   it('applies a date range filter when submitting', async () => {
-    mockSearch.mockResolvedValue({
-      query: 'vienna',
-      mode: 'semantic',
-      limit: 20,
-      offset: 0,
-      items: [],
-    })
+    mockSearch.mockResolvedValue(fakeResponse([]))
 
     const wrapper = mountView()
     await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
@@ -179,19 +173,11 @@ describe('SearchView', () => {
     expect(call.end_date).toBe('2026-03-31')
   })
 
-  it('result click-through links include ?chunk=N for semantic hits', async () => {
-    mockSearch.mockResolvedValue({
-      query: 'vienna',
-      mode: 'semantic',
-      limit: 20,
-      offset: 0,
-      items: [
-        {
+  it('result link includes ?chunk=N when the dense retriever found a chunk', async () => {
+    mockSearch.mockResolvedValue(
+      fakeResponse([
+        fakeItem({
           entry_id: 42,
-          entry_date: '2026-03-22',
-          text: 'Vienna',
-          score: 0.9,
-          snippet: null,
           matching_chunks: [
             {
               text: 'Vienna',
@@ -201,38 +187,33 @@ describe('SearchView', () => {
               char_end: 16,
             },
           ],
-        },
-      ],
-    })
+        }),
+      ]),
+    )
 
     const wrapper = mountView()
     await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
     await wrapper.find('[data-testid="search-form"]').trigger('submit')
     await flushPromises()
 
-    const link = wrapper.find('[data-testid="search-result-link"]')
-    const href = link.attributes('href') as string
+    const href = wrapper
+      .find('[data-testid="search-result-link"]')
+      .attributes('href') as string
     expect(href).toContain('/entries/42')
     expect(href).toContain('chunk=3')
   })
 
-  it('keyword result click-through has no ?chunk param (no per-chunk match)', async () => {
-    mockSearch.mockResolvedValue({
-      query: 'vienna',
-      mode: 'keyword',
-      limit: 20,
-      offset: 0,
-      items: [
-        {
+  it('result link omits ?chunk= when only BM25 hit (no per-chunk match)', async () => {
+    mockSearch.mockResolvedValue(
+      fakeResponse([
+        fakeItem({
           entry_id: 7,
-          entry_date: '2026-03-22',
-          text: 'Vienna',
           score: 1.0,
           snippet: '\x02Vienna\x03',
           matching_chunks: [],
-        },
-      ],
-    })
+        }),
+      ]),
+    )
 
     const wrapper = mountView()
     await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
@@ -246,122 +227,106 @@ describe('SearchView', () => {
     expect(href).not.toContain('chunk=')
   })
 
-  it('clicking a mode button triggers a search when there is a query', async () => {
-    mockSearch.mockResolvedValue({
-      query: 'vienna',
-      mode: 'semantic',
-      limit: 20,
-      offset: 0,
-      items: [],
-    })
-
-    const wrapper = mountView()
-    await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
-    await wrapper.find('[data-testid="search-mode-semantic"]').trigger('click')
-    await flushPromises()
-
-    expect(mockSearch).toHaveBeenCalledTimes(1)
-    expect(mockSearch.mock.calls[0][0].mode).toBe('semantic')
-  })
-
-  it('clicking a mode button does not trigger a search when query is empty', async () => {
-    const wrapper = mountView()
-    await wrapper.find('[data-testid="search-mode-semantic"]').trigger('click')
-    await flushPromises()
-
-    expect(mockSearch).not.toHaveBeenCalled()
-  })
-
-  it('shows semantic match explanation for semantic results', async () => {
-    mockSearch.mockResolvedValue({
-      query: 'travel',
-      mode: 'semantic',
-      limit: 20,
-      offset: 0,
-      items: [
-        {
-          entry_id: 10,
-          entry_date: '2026-03-22',
-          text: 'We went on a trip to Vienna',
-          score: 0.82,
-          snippet: null,
-          matching_chunks: [
-            {
-              text: 'We went on a trip to Vienna',
-              score: 0.82,
-              chunk_index: 0,
-              char_start: 0,
-              char_end: 27,
-            },
-          ],
-        },
-      ],
-    })
-
-    const wrapper = mountView()
-    await wrapper.find('[data-testid="search-query-input"]').setValue('travel')
-    await wrapper.find('[data-testid="search-mode-semantic"]').trigger('click')
-    await flushPromises()
-
-    const explanation = wrapper.find('[data-testid="semantic-explanation"]')
-    expect(explanation.exists()).toBe(true)
-    expect(explanation.text()).toContain('Matched by meaning')
-    expect(explanation.text()).toContain('82%')
-  })
-
-  it('does not show semantic explanation for keyword results', async () => {
-    mockSearch.mockResolvedValue({
-      query: 'vienna',
-      mode: 'keyword',
-      limit: 20,
-      offset: 0,
-      items: [
-        {
-          entry_id: 10,
-          entry_date: '2026-03-22',
-          text: 'Vienna trip',
+  it('renders "Matched by keywords" when only BM25 contributed', async () => {
+    mockSearch.mockResolvedValue(
+      fakeResponse([
+        fakeItem({
           score: 1.0,
           snippet: '\x02Vienna\x03 trip',
           matching_chunks: [],
-        },
-      ],
-    })
+        }),
+      ]),
+    )
 
     const wrapper = mountView()
     await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
     await wrapper.find('[data-testid="search-form"]').trigger('submit')
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="semantic-explanation"]').exists()).toBe(
-      false,
+    const explanation = wrapper.find('[data-testid="match-explanation"]')
+    expect(explanation.exists()).toBe(true)
+    expect(explanation.text()).toContain('Matched by keywords')
+  })
+
+  it('renders "Matched by meaning" when only dense contributed', async () => {
+    mockSearch.mockResolvedValue(
+      fakeResponse([
+        fakeItem({
+          entry_id: 10,
+          score: 0.82,
+          snippet: null,
+          matching_chunks: [
+            {
+              text: 'Trip to Vienna',
+              score: 0.82,
+              chunk_index: 0,
+              char_start: 0,
+              char_end: 14,
+            },
+          ],
+        }),
+      ]),
     )
+
+    const wrapper = mountView()
+    await wrapper.find('[data-testid="search-query-input"]').setValue('travel')
+    await wrapper.find('[data-testid="search-form"]').trigger('submit')
+    await flushPromises()
+
+    const explanation = wrapper.find('[data-testid="match-explanation"]')
+    expect(explanation.exists()).toBe(true)
+    expect(explanation.text()).toContain('Matched by meaning')
+    expect(explanation.text()).toContain('82%')
+  })
+
+  it('renders combined "keywords and meaning" when both signals are present', async () => {
+    mockSearch.mockResolvedValue(
+      fakeResponse([
+        fakeItem({
+          score: 0.95,
+          snippet: '\x02Vienna\x03 trip',
+          matching_chunks: [
+            {
+              text: 'Vienna trip yesterday',
+              score: 0.88,
+              chunk_index: 0,
+              char_start: 0,
+              char_end: 21,
+            },
+          ],
+        }),
+      ]),
+    )
+
+    const wrapper = mountView()
+    await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
+    await wrapper.find('[data-testid="search-form"]').trigger('submit')
+    await flushPromises()
+
+    const explanation = wrapper.find('[data-testid="match-explanation"]')
+    expect(explanation.exists()).toBe(true)
+    expect(explanation.text()).toContain('keywords and meaning')
   })
 
   it('Next button fires a new search with the advanced offset', async () => {
-    // Return exactly `limit` items so canNext flips on.
-    const twentyItems = Array.from({ length: 20 }, (_, i) => ({
-      entry_id: i + 1,
-      entry_date: `2026-03-${String(i + 1).padStart(2, '0')}`,
-      text: `Entry ${i + 1}`,
-      score: 0.5,
-      snippet: null,
-      matching_chunks: [
-        {
-          text: `Entry ${i + 1}`,
-          score: 0.5,
-          chunk_index: 0,
-          char_start: 0,
-          char_end: 10,
-        },
-      ],
-    }))
-    mockSearch.mockResolvedValue({
-      query: 'e',
-      mode: 'semantic',
-      limit: 20,
-      offset: 0,
-      items: twentyItems,
-    })
+    const twentyItems = Array.from({ length: 20 }, (_, i) =>
+      fakeItem({
+        entry_id: i + 1,
+        entry_date: `2026-03-${String(i + 1).padStart(2, '0')}`,
+        text: `Entry ${i + 1}`,
+        score: 0.5,
+        matching_chunks: [
+          {
+            text: `Entry ${i + 1}`,
+            score: 0.5,
+            chunk_index: 0,
+            char_start: 0,
+            char_end: 10,
+          },
+        ],
+      }),
+    )
+    mockSearch.mockResolvedValue(fakeResponse(twentyItems))
 
     const wrapper = mountView()
     await wrapper.find('[data-testid="search-query-input"]').setValue('e')

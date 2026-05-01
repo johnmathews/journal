@@ -2,21 +2,21 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { ApiRequestError } from '@/api/client'
 import { searchEntries } from '@/api/search'
-import type {
-  SearchMode,
-  SearchRequestParams,
-  SearchResultItem,
-} from '@/types/search'
+import type { SearchRequestParams, SearchResultItem } from '@/types/search'
 
 /**
  * Search state store.
  *
- * Keeps the last query, mode, and date range reactive across
- * navigation so the user can click into an entry and come back to
- * the results without losing their place. Results themselves are
- * also cached — a `runSearch()` call with the same params is still
- * a fresh fetch, but the previous result set stays visible while
- * the new one loads.
+ * Keeps the last query and date range reactive across navigation so
+ * the user can click into an entry and come back to the results
+ * without losing their place. Results are also cached — a
+ * `runSearch()` call with the same params still issues a fresh
+ * fetch, but the previous result set stays visible while the new
+ * one loads.
+ *
+ * The keyword/semantic mode toggle was removed when the server
+ * shipped hybrid search. The single search call now always runs
+ * BM25 + dense + RRF + rerank server-side.
  */
 export const useSearchStore = defineStore('search', () => {
   // Query + filter state. These mirror the REST params but are
@@ -24,7 +24,6 @@ export const useSearchStore = defineStore('search', () => {
   // triggering a fetch on every keystroke — the view calls
   // `runSearch()` when the user submits.
   const query = ref('')
-  const mode = ref<SearchMode>('keyword')
   const startDate = ref<string | null>(null)
   const endDate = ref<string | null>(null)
 
@@ -36,7 +35,6 @@ export const useSearchStore = defineStore('search', () => {
   // Result state.
   const items = ref<SearchResultItem[]>([])
   const lastRunQuery = ref('')
-  const lastRunMode = ref<SearchMode>('keyword')
   const loading = ref(false)
   const error = ref<string | null>(null)
   // True once the user has actually run at least one search. Lets
@@ -56,7 +54,6 @@ export const useSearchStore = defineStore('search', () => {
   async function runSearch(
     partial: Partial<{
       q: string
-      mode: SearchMode
       start_date: string | null
       end_date: string | null
       limit: number
@@ -64,7 +61,6 @@ export const useSearchStore = defineStore('search', () => {
     }> = {},
   ): Promise<void> {
     if (partial.q !== undefined) query.value = partial.q
-    if (partial.mode !== undefined) mode.value = partial.mode
     if (partial.start_date !== undefined) startDate.value = partial.start_date
     if (partial.end_date !== undefined) endDate.value = partial.end_date
     if (partial.limit !== undefined) limit.value = partial.limit
@@ -84,7 +80,6 @@ export const useSearchStore = defineStore('search', () => {
     try {
       const params: SearchRequestParams = {
         q: trimmed,
-        mode: mode.value,
         limit: limit.value,
         offset: offset.value,
       }
@@ -94,7 +89,6 @@ export const useSearchStore = defineStore('search', () => {
       const response = await searchEntries(params)
       items.value = response.items
       lastRunQuery.value = response.query
-      lastRunMode.value = response.mode
       hasRun.value = true
     } catch (e) {
       // Prefer the server's error message when it's an
@@ -115,14 +109,12 @@ export const useSearchStore = defineStore('search', () => {
 
   function reset(): void {
     query.value = ''
-    mode.value = 'keyword'
     startDate.value = null
     endDate.value = null
     limit.value = 20
     offset.value = 0
     items.value = []
     lastRunQuery.value = ''
-    lastRunMode.value = 'keyword'
     loading.value = false
     error.value = null
     hasRun.value = false
@@ -130,14 +122,12 @@ export const useSearchStore = defineStore('search', () => {
 
   return {
     query,
-    mode,
     startDate,
     endDate,
     limit,
     offset,
     items,
     lastRunQuery,
-    lastRunMode,
     loading,
     error,
     hasRun,
