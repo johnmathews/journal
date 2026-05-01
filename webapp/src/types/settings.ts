@@ -4,7 +4,22 @@ export interface ServerSettings {
     model: string
   }
   transcription: {
+    provider: string
     model: string
+    fallback: {
+      enabled: boolean
+      model: string
+    }
+    shadow: {
+      enabled: boolean
+      provider: string | null
+      model: string | null
+    }
+    retry: {
+      max_attempts: number
+      base_delay_seconds: number
+      max_delay_seconds: number
+    }
   }
   transcript_formatting: {
     model: string
