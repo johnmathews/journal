@@ -696,6 +696,46 @@ const moodScoringEnabled = computed(
                 </dd>
               </div>
               <div class="flex justify-between sm:block">
+                <dt class="text-gray-600 dark:text-gray-300">Provider</dt>
+                <dd
+                  class="font-medium text-gray-900 dark:text-gray-100"
+                  data-testid="transcription-provider"
+                >
+                  {{ store.settings.transcription.provider }}
+                </dd>
+              </div>
+              <div class="flex justify-between sm:block">
+                <dt class="text-gray-600 dark:text-gray-300">Fallback</dt>
+                <dd
+                  class="font-medium text-gray-900 dark:text-gray-100"
+                  data-testid="transcription-fallback"
+                >
+                  <template
+                    v-if="store.settings.transcription.fallback.enabled"
+                  >
+                    enabled —
+                    {{ store.settings.transcription.fallback.model }} (after
+                    {{ store.settings.transcription.retry.max_attempts }}
+                    retries)
+                  </template>
+                  <template v-else>disabled</template>
+                </dd>
+              </div>
+              <div class="flex justify-between sm:block">
+                <dt class="text-gray-600 dark:text-gray-300">Shadow</dt>
+                <dd
+                  class="font-medium text-gray-900 dark:text-gray-100"
+                  data-testid="transcription-shadow"
+                >
+                  <template v-if="store.settings.transcription.shadow.enabled">
+                    {{ store.settings.transcription.shadow.provider }} /
+                    {{ store.settings.transcription.shadow.model }} (logging
+                    diffs only)
+                  </template>
+                  <template v-else>off</template>
+                </dd>
+              </div>
+              <div class="flex justify-between sm:block">
                 <dt class="text-gray-600 dark:text-gray-300">
                   Paragraph Formatting
                 </dt>
