@@ -18,6 +18,7 @@ export type JobType =
   | 'ingest_audio'
   | 'mood_score_entry'
   | 'reprocess_embeddings'
+  | 'save_entry_pipeline'
 
 /**
  * Response from the job-submission endpoints (POST /api/entities/extract,

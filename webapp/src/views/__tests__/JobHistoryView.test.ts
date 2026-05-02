@@ -328,11 +328,14 @@ describe('JobHistoryView', () => {
     expect(wrapper.text()).toContain('force')
   })
 
-  it('shows date range params', async () => {
+  it('shows date range params as a chip', async () => {
     const wrapper = await mountView([
       makeJob({ params: { start_date: '2026-01-01', end_date: '2026-03-01' } }),
     ])
-    expect(wrapper.text()).toContain('2026-01-01 to 2026-03-01')
+    const chip = wrapper.find('[data-testid="param-chip-date_range"]')
+    expect(chip.exists()).toBe(true)
+    expect(chip.text()).toContain('2026-01-01')
+    expect(chip.text()).toContain('2026-03-01')
   })
 
   it('displays all job type labels correctly', async () => {
@@ -387,6 +390,7 @@ describe('JobHistoryView', () => {
           word_count: 250,
           chunk_count: 5,
           page_count: 3,
+          warnings: ['low contrast'],
           entry_date: '2026-04-13',
           source_type: 'photo',
           follow_up_jobs: {},
@@ -418,7 +422,7 @@ describe('JobHistoryView', () => {
     const wrapper = await mountView([
       makeJob({
         status: 'succeeded',
-        result: { entities_created: 5 },
+        result: { entities_created: 5, entities_matched: 2 },
       }),
     ])
     await wrapper
@@ -535,6 +539,94 @@ describe('JobHistoryView', () => {
     // Should show "Entry #75" not raw JSON
     expect(wrapper.text()).toContain('Entry #75')
     expect(wrapper.text()).not.toContain('{"entry_id":75}')
+  })
+
+  it('renders reprocess_embeddings result as static (not expandable) when only chunk_count', async () => {
+    const wrapper = await mountView([
+      makeJob({
+        type: 'reprocess_embeddings',
+        status: 'succeeded',
+        result: { entry_id: 78, chunk_count: 9 },
+      }),
+    ])
+    expect(
+      wrapper.find('[data-testid="job-details-toggle-j-1"]').exists(),
+    ).toBe(false)
+    const staticEl = wrapper.find('[data-testid="job-details-static-j-1"]')
+    expect(staticEl.exists()).toBe(true)
+    expect(staticEl.text()).toContain('Chunk Count: 9')
+    expect(staticEl.text()).not.toContain('+')
+  })
+
+  it('renders mood_score_entry result as static when only scores_written', async () => {
+    const wrapper = await mountView([
+      makeJob({
+        type: 'mood_score_entry',
+        status: 'succeeded',
+        result: { entry_id: 78, scores_written: 7 },
+      }),
+    ])
+    expect(
+      wrapper.find('[data-testid="job-details-toggle-j-1"]').exists(),
+    ).toBe(false)
+    expect(
+      wrapper.find('[data-testid="job-details-static-j-1"]').exists(),
+    ).toBe(true)
+  })
+
+  it('keeps entity_extraction expandable when it has multiple result fields', async () => {
+    const wrapper = await mountView([
+      makeJob({
+        type: 'entity_extraction',
+        status: 'succeeded',
+        result: {
+          entries_processed: 1,
+          entities_created: 3,
+          entities_matched: 9,
+        },
+      }),
+    ])
+    expect(
+      wrapper.find('[data-testid="job-details-toggle-j-1"]').exists(),
+    ).toBe(true)
+  })
+
+  it('keeps row expandable when result has follow_up_jobs', async () => {
+    const wrapper = await mountView([
+      makeJob({
+        type: 'ingest_images',
+        status: 'succeeded',
+        result: {
+          entry_id: 1,
+          chunk_count: 5,
+          word_count: 100,
+          follow_up_jobs: { mood_scoring: 'mood-1' },
+        },
+      }),
+    ])
+    expect(
+      wrapper.find('[data-testid="job-details-toggle-j-1"]').exists(),
+    ).toBe(true)
+  })
+
+  it('shows a "full" popover trigger for long error messages', async () => {
+    const longError =
+      'Connection refused after 3 attempts: tried 10.0.0.1:5432, then 10.0.0.2:5432, then localhost:5432'
+    const wrapper = await mountView([
+      makeJob({ status: 'failed', error_message: longError }),
+    ])
+    expect(
+      wrapper.find('[data-testid="job-error-full-popover"]').exists(),
+    ).toBe(true)
+  })
+
+  it('does not show "full" popover for short error messages', async () => {
+    const wrapper = await mountView([
+      makeJob({ status: 'failed', error_message: 'timeout' }),
+    ])
+    expect(
+      wrapper.find('[data-testid="job-error-full-popover"]').exists(),
+    ).toBe(false)
   })
 
   it('shows entry_id in expanded details when it is the only field', async () => {

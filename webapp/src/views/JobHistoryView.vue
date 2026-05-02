@@ -8,6 +8,8 @@ import {
   type JobListResponse,
 } from '@/api/jobs'
 import type { Job, JobType, JobStatus } from '@/types/job'
+import JobParamsCell from '@/components/JobParamsCell.vue'
+import JsonPopover from '@/components/JsonPopover.vue'
 
 const jobs = ref<Job[]>([])
 const total = ref(0)
@@ -149,6 +151,8 @@ function jobLabel(type: JobType): string {
       return 'Mood scoring'
     case 'reprocess_embeddings':
       return 'Reprocess embeddings'
+    case 'save_entry_pipeline':
+      return 'Entry pipeline'
     default:
       return type
   }
@@ -167,6 +171,8 @@ function typeBadgeClass(type: JobType): string {
       return 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/20 dark:text-cyan-300'
     case 'reprocess_embeddings':
       return 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300'
+    case 'save_entry_pipeline':
+      return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300'
     default:
       return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
   }
@@ -232,17 +238,6 @@ function duration(job: Job): string {
   return `${(ms / 1000).toFixed(1)}s`
 }
 
-function paramsLabel(job: Job): string {
-  const p = job.params
-  const parts: string[] = []
-  if (p.stale_only) parts.push('stale only')
-  if (p.mode) parts.push(String(p.mode))
-  if (p.start_date || p.end_date) {
-    parts.push([p.start_date, p.end_date].filter(Boolean).join(' to '))
-  }
-  return parts.join(', ') || '-'
-}
-
 /** Extract entry_id from params or result, preferring result for richer data */
 function entryId(job: Job): number | null {
   const fromResult = job.result?.entry_id
@@ -262,6 +257,40 @@ function visibleResultEntries(
     ([k]) => !HIDDEN_RESULT_KEYS.has(k),
   )
   return filtered.length > 0 ? filtered : Object.entries(result)
+}
+
+/** Keys covered by the bespoke ingestion summary line. Any other
+ *  scalar in the result only appears in the expanded view. */
+const INGESTION_SUMMARY_KEYS = new Set([
+  'word_count',
+  'chunk_count',
+  'page_count',
+  'recording_count',
+])
+
+/** Whether expanding the row reveals anything the collapsed summary
+ *  doesn't already show. Drives both click affordance and the "+" icon. */
+function isExpandable(job: Job): boolean {
+  if (job.status !== 'succeeded' || !job.result) return false
+  const result = job.result
+  const followUps = result.follow_up_jobs
+  if (
+    followUps &&
+    typeof followUps === 'object' &&
+    Object.keys(followUps as Record<string, unknown>).length > 0
+  ) {
+    return true
+  }
+  for (const v of Object.values(result)) {
+    if (Array.isArray(v) && v.length > 0) return true
+  }
+  const visibleScalars = visibleResultEntries(result).filter(
+    ([, v]) => typeof v === 'number' || typeof v === 'string',
+  )
+  if (job.type === 'ingest_images' || job.type === 'ingest_audio') {
+    return visibleScalars.some(([k]) => !INGESTION_SUMMARY_KEYS.has(k))
+  }
+  return visibleScalars.length >= 2
 }
 
 function prevPage() {
@@ -421,10 +450,8 @@ function nextPage() {
             </td>
 
             <!-- Params column (no longer shows entry_id — that's in Entry column) -->
-            <td
-              class="px-4 py-3 text-gray-600 dark:text-gray-300 max-w-[200px] truncate"
-            >
-              {{ paramsLabel(job) }}
+            <td class="px-4 py-3 text-gray-600 dark:text-gray-300 align-middle">
+              <JobParamsCell :job="job" />
             </td>
 
             <!-- Created column with relative time -->
@@ -453,9 +480,21 @@ function nextPage() {
               class="px-4 py-3 text-gray-600 dark:text-gray-300 max-w-[400px]"
             >
               <template v-if="job.status === 'failed' && job.error_message">
-                <span class="text-red-500 dark:text-red-400">{{
-                  job.error_message
-                }}</span>
+                <div class="flex items-start gap-1.5">
+                  <span
+                    class="text-red-500 dark:text-red-400 truncate"
+                    :title="job.error_message"
+                    >{{ job.error_message }}</span
+                  >
+                  <JsonPopover
+                    v-if="job.error_message.length > 80"
+                    :content="job.error_message"
+                    title="Full error"
+                    trigger-label="full"
+                    trigger-class="!text-red-500 !border-red-200 dark:!border-red-800/40 hover:!bg-red-50 dark:hover:!bg-red-900/20"
+                    data-testid="job-error-full-popover"
+                  />
+                </div>
               </template>
               <template v-else-if="job.status === 'running'">
                 <span v-if="job.progress_total > 0"
@@ -464,7 +503,16 @@ function nextPage() {
                 <span v-else class="text-violet-500">Running...</span>
               </template>
               <template v-else-if="job.status === 'succeeded' && job.result">
+                <!-- Static summary when nothing extra to reveal -->
+                <div
+                  v-if="!isExpandable(job)"
+                  class="truncate"
+                  :data-testid="`job-details-static-${job.id}`"
+                >
+                  {{ resultSummary(job.result, job.type as JobType) }}
+                </div>
                 <button
+                  v-else
                   type="button"
                   class="text-left w-full group"
                   :data-testid="`job-details-toggle-${job.id}`"
