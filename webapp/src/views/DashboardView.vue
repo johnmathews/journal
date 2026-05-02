@@ -144,6 +144,18 @@ const showCharts = computed(
   () => store.totalEntriesInRange >= MIN_ENTRIES_FOR_CHARTS,
 )
 
+const allMoodDimensionsHidden = computed(
+  () =>
+    store.moodDimensions.length > 0 &&
+    store.hiddenMoodDimensions.size === store.moodDimensions.length,
+)
+
+const allEntityTrendsHidden = computed(
+  () =>
+    store.entityTrendEntities.length > 0 &&
+    store.hiddenEntityTrends.size === store.entityTrendEntities.length,
+)
+
 function isTileVisible(id: DashboardTileId): boolean {
   return store.visibleTiles.includes(id)
 }
@@ -671,8 +683,11 @@ const WEEKDAY_LABELS = ['Mon', '', 'Wed', '', 'Fri', '', 'Sun']
 
 // --- Entity trends chart ---
 
-// Track which entity is "focused" in the Topic Trends legend (null = all full opacity)
-let entityTrendsFocusedIndex: number | null = null
+function entityColorFor(entity: string): string {
+  const idx = store.entityTrendEntities.indexOf(entity)
+  const safeIdx = idx >= 0 ? idx : 0
+  return MOOD_LINE_COLORS[safeIdx % MOOD_LINE_COLORS.length]
+}
 
 function renderEntityTrendsChart(): void {
   if (!entityTrendsChartCanvas.value) return
@@ -686,8 +701,15 @@ function renderEntityTrendsChart(): void {
   }
 
   const colors = getChartColors()
+  const visibleEntities = entities.filter(
+    (e) => !store.hiddenEntityTrends.has(e),
+  )
+  if (visibleEntities.length === 0) {
+    entityTrendsChart = null
+    return
+  }
 
-  // Pivot: collect unique periods, build one series per entity
+  // Pivot: collect unique periods, build one series per visible entity
   const periodSet = new Set<string>()
   for (const b of trendBins) periodSet.add(b.period)
   const periods = Array.from(periodSet).sort()
@@ -702,23 +724,15 @@ function renderEntityTrendsChart(): void {
     m.set(b.period, b.mention_count)
   }
 
-  const FULL_OPACITY = 0.85
-  const DIM_OPACITY = 0.12
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const datasets: any[] = entities.map((entity, i) => {
+  const datasets: any[] = visibleEntities.map((entity) => {
     const entityData = byEntity.get(entity)
-    const color = MOOD_LINE_COLORS[i % MOOD_LINE_COLORS.length]
-    const isFocused =
-      entityTrendsFocusedIndex === null || entityTrendsFocusedIndex === i
+    const color = entityColorFor(entity)
     return {
       label: entity,
       data: periods.map((p) => entityData?.get(p) ?? 0),
-      backgroundColor: adjustColorOpacity(
-        color,
-        isFocused ? FULL_OPACITY : DIM_OPACITY,
-      ),
-      borderColor: adjustColorOpacity(color, isFocused ? 1 : DIM_OPACITY),
+      backgroundColor: adjustColorOpacity(color, 0.85),
+      borderColor: color,
       borderWidth: 1,
       borderRadius: 2,
     }
@@ -731,53 +745,7 @@ function renderEntityTrendsChart(): void {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: {
-          display: true,
-          position: 'bottom',
-          onClick: (_event, legendItem) => {
-            const clickedIndex = legendItem.datasetIndex!
-            if (entityTrendsFocusedIndex === clickedIndex) {
-              // Already focused on this one → restore all
-              entityTrendsFocusedIndex = null
-            } else {
-              entityTrendsFocusedIndex = clickedIndex
-            }
-            // Re-render to apply opacity changes
-            renderEntityTrendsChart()
-          },
-          labels: {
-            color: colors.textColor.light,
-            usePointStyle: true,
-            pointStyle: 'rectRounded',
-            padding: 16,
-            font: { size: 11 },
-            generateLabels: (chart) => {
-              return chart.data.datasets.map((ds, i) => {
-                const color = MOOD_LINE_COLORS[i % MOOD_LINE_COLORS.length]
-                const isFocused =
-                  entityTrendsFocusedIndex === null ||
-                  entityTrendsFocusedIndex === i
-                return {
-                  text: ds.label ?? '',
-                  datasetIndex: i,
-                  fillStyle: adjustColorOpacity(
-                    color,
-                    isFocused ? FULL_OPACITY : DIM_OPACITY,
-                  ),
-                  strokeStyle: adjustColorOpacity(
-                    color,
-                    isFocused ? 1 : DIM_OPACITY,
-                  ),
-                  fontColor: isFocused
-                    ? colors.textColor.light
-                    : adjustColorOpacity(colors.textColor.light, 0.35),
-                  hidden: false,
-                  lineWidth: 1,
-                }
-              })
-            },
-          },
-        },
+        legend: { display: false },
         tooltip: {
           backgroundColor: colors.tooltipBgColor.light,
           titleColor: colors.tooltipTitleColor.light,
@@ -917,7 +885,7 @@ watch(
 )
 
 watch(
-  () => store.entityTrends,
+  [() => store.entityTrends, () => store.hiddenEntityTrends],
   () => renderEntityTrendsChart(),
   { deep: false },
 )
@@ -2111,7 +2079,7 @@ async function onMoodCorrelationTypeChange(
           <!-- Dimension toggles -->
           <div
             v-if="store.moodDimensions.length"
-            class="flex flex-wrap gap-2 mb-3"
+            class="flex flex-wrap items-center gap-2 mb-3"
             role="group"
             aria-label="Mood dimensions"
             data-testid="dashboard-mood-toggles"
@@ -2144,6 +2112,29 @@ async function onMoodCorrelationTypeChange(
                 >{{ d.scale_type === 'bipolar' ? '±1' : '0..1' }}</span
               >
             </button>
+            <span
+              class="ml-auto inline-flex items-center gap-1 text-[0.65rem] uppercase tracking-wide text-gray-500 dark:text-gray-400"
+            >
+              <button
+                type="button"
+                class="px-1.5 py-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700/40 disabled:opacity-30 disabled:cursor-default"
+                :disabled="store.hiddenMoodDimensions.size === 0"
+                data-testid="dashboard-mood-show-all"
+                @click="store.showAllMoodDimensions()"
+              >
+                All
+              </button>
+              <span aria-hidden="true">·</span>
+              <button
+                type="button"
+                class="px-1.5 py-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700/40 disabled:opacity-30 disabled:cursor-default"
+                :disabled="allMoodDimensionsHidden"
+                data-testid="dashboard-mood-hide-all"
+                @click="store.hideAllMoodDimensions()"
+              >
+                None
+              </button>
+            </span>
           </div>
 
           <div
@@ -2176,6 +2167,22 @@ async function onMoodCorrelationTypeChange(
               to score historical entries, or ingest a new entry with mood
               scoring enabled.
             </p>
+          </div>
+
+          <div
+            v-else-if="allMoodDimensionsHidden"
+            class="py-8 text-center text-gray-600 dark:text-gray-300 text-sm"
+            data-testid="dashboard-mood-all-hidden"
+          >
+            All dimensions hidden.
+            <button
+              type="button"
+              class="ml-1 text-violet-600 dark:text-violet-400 hover:underline"
+              data-testid="dashboard-mood-all-hidden-show-all"
+              @click="store.showAllMoodDimensions()"
+            >
+              Show all
+            </button>
           </div>
 
           <div
@@ -2452,16 +2459,87 @@ async function onMoodCorrelationTypeChange(
             No {{ store.entityTrendsType }} entity trends found in this range.
           </div>
 
-          <div
-            v-else
-            class="h-72 relative"
-            data-testid="dashboard-entity-trends-content"
-          >
-            <canvas
-              ref="entityTrendsChartCanvas"
-              data-testid="dashboard-entity-trends-chart"
-            ></canvas>
-          </div>
+          <template v-else>
+            <!-- Entity toggles -->
+            <div
+              class="flex flex-wrap items-center gap-2 mb-3"
+              role="group"
+              aria-label="Topic trends entities"
+              data-testid="dashboard-entity-trends-toggles"
+            >
+              <button
+                v-for="entity in store.entityTrendEntities"
+                :key="entity"
+                type="button"
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
+                :class="
+                  store.hiddenEntityTrends.has(entity)
+                    ? 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60 opacity-40'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700/60'
+                "
+                :data-testid="`dashboard-entity-trends-toggle-${entity}`"
+                :aria-pressed="!store.hiddenEntityTrends.has(entity)"
+                @click="store.toggleEntityTrend(entity)"
+              >
+                <span
+                  class="inline-block w-2 h-2 rounded-full"
+                  :style="{ backgroundColor: entityColorFor(entity) }"
+                  aria-hidden="true"
+                ></span>
+                {{ entity }}
+              </button>
+              <span
+                class="ml-auto inline-flex items-center gap-1 text-[0.65rem] uppercase tracking-wide text-gray-500 dark:text-gray-400"
+              >
+                <button
+                  type="button"
+                  class="px-1.5 py-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700/40 disabled:opacity-30 disabled:cursor-default"
+                  :disabled="store.hiddenEntityTrends.size === 0"
+                  data-testid="dashboard-entity-trends-show-all"
+                  @click="store.showAllEntityTrends()"
+                >
+                  All
+                </button>
+                <span aria-hidden="true">·</span>
+                <button
+                  type="button"
+                  class="px-1.5 py-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700/40 disabled:opacity-30 disabled:cursor-default"
+                  :disabled="allEntityTrendsHidden"
+                  data-testid="dashboard-entity-trends-hide-all"
+                  @click="store.hideAllEntityTrends()"
+                >
+                  None
+                </button>
+              </span>
+            </div>
+
+            <div
+              v-if="allEntityTrendsHidden"
+              class="py-8 text-center text-gray-600 dark:text-gray-300 text-sm"
+              data-testid="dashboard-entity-trends-all-hidden"
+            >
+              All entities hidden.
+              <button
+                type="button"
+                class="ml-1 text-violet-600 dark:text-violet-400 hover:underline"
+                data-testid="dashboard-entity-trends-all-hidden-show-all"
+                @click="store.showAllEntityTrends()"
+              >
+                Show all
+              </button>
+            </div>
+
+            <div
+              v-else
+              class="h-72 relative"
+              data-testid="dashboard-entity-trends-content"
+            >
+              <canvas
+                ref="entityTrendsChartCanvas"
+                data-testid="dashboard-entity-trends-chart"
+              ></canvas>
+            </div>
+          </template>
         </section>
 
         <!-- Mood-Entity Correlation -->

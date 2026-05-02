@@ -322,34 +322,38 @@ describe('useDashboardStore — mood surface', () => {
     expect(store.moodError).toBe('Failed to load mood data')
   })
 
-  it('toggleMoodDimension isolates clicked dimension (Grafana-style)', async () => {
+  it('toggleMoodDimension flips a single dimension independently', async () => {
     mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
-
-    // Click joy_sadness → isolate it (agency hidden)
-    store.toggleMoodDimension('joy_sadness')
-    expect(store.hiddenMoodDimensions.has('agency')).toBe(true)
-    expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(false)
-
-    // joy_sadness isolated → click joy_sadness again → restore all
-    store.toggleMoodDimension('joy_sadness')
-    expect(store.hiddenMoodDimensions.size).toBe(0)
-  })
-
-  it('toggleMoodDimension switches isolation when clicking a different dimension', async () => {
-    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
-    const store = useDashboardStore()
-    await store.loadMoodDimensions()
-
-    // Isolate joy_sadness
-    store.toggleMoodDimension('joy_sadness')
-    expect(store.hiddenMoodDimensions.has('agency')).toBe(true)
-
-    // Click agency while joy_sadness is isolated → switch to agency
-    store.toggleMoodDimension('agency')
+    // Default-isolate puts joy_sadness in hidden, agency visible.
     expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(true)
     expect(store.hiddenMoodDimensions.has('agency')).toBe(false)
+
+    // Toggling joy_sadness shows it without affecting agency.
+    store.toggleMoodDimension('joy_sadness')
+    expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(false)
+    expect(store.hiddenMoodDimensions.has('agency')).toBe(false)
+
+    // Toggling joy_sadness again hides it; agency still visible.
+    store.toggleMoodDimension('joy_sadness')
+    expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(true)
+    expect(store.hiddenMoodDimensions.has('agency')).toBe(false)
+  })
+
+  it('toggleMoodDimension supports any subset', async () => {
+    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    const store = useDashboardStore()
+    await store.loadMoodDimensions()
+    store.showAllMoodDimensions()
+    // Hide both → empty chart
+    store.toggleMoodDimension('joy_sadness')
+    store.toggleMoodDimension('agency')
+    expect(store.hiddenMoodDimensions.size).toBe(2)
+    // Show one back → exactly one visible, one hidden
+    store.toggleMoodDimension('joy_sadness')
+    expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(false)
+    expect(store.hiddenMoodDimensions.has('agency')).toBe(true)
   })
 
   it('toggleMoodDimension creates a new Set so Vue reactivity fires', async () => {
@@ -362,6 +366,25 @@ describe('useDashboardStore — mood surface', () => {
     // Must be a different Set instance — mutating in place would
     // not trigger watchers in the DashboardView.
     expect(after).not.toBe(before)
+  })
+
+  it('showAllMoodDimensions clears the hidden set', async () => {
+    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    const store = useDashboardStore()
+    await store.loadMoodDimensions()
+    expect(store.hiddenMoodDimensions.size).toBeGreaterThan(0)
+    store.showAllMoodDimensions()
+    expect(store.hiddenMoodDimensions.size).toBe(0)
+  })
+
+  it('hideAllMoodDimensions hides every loaded dimension', async () => {
+    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    const store = useDashboardStore()
+    await store.loadMoodDimensions()
+    store.hideAllMoodDimensions()
+    expect(store.hiddenMoodDimensions.size).toBe(2)
+    expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(true)
+    expect(store.hiddenMoodDimensions.has('agency')).toBe(true)
   })
 
   it('reset wipes mood state back to defaults', async () => {
@@ -727,6 +750,100 @@ describe('useDashboardStore — entity trends', () => {
     expect(store.entityTrendsLoading).toBe(false)
     expect(store.entityTrendsError).toBeNull()
     expect(store.entityTrendsHasLoaded).toBe(false)
+    expect(store.hiddenEntityTrends.size).toBe(0)
+  })
+
+  it('toggleEntityTrend flips a single entity independently', async () => {
+    mockEntityTrends.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      entity_type: 'topic',
+      entities: ['meditation', 'running', 'reading'],
+      bins: [],
+    })
+    const store = useDashboardStore()
+    await store.loadEntityTrends('topic')
+
+    store.toggleEntityTrend('meditation')
+    expect(store.hiddenEntityTrends.has('meditation')).toBe(true)
+    expect(store.hiddenEntityTrends.has('running')).toBe(false)
+
+    store.toggleEntityTrend('reading')
+    expect(store.hiddenEntityTrends.size).toBe(2)
+
+    store.toggleEntityTrend('meditation')
+    expect(store.hiddenEntityTrends.has('meditation')).toBe(false)
+    expect(store.hiddenEntityTrends.has('reading')).toBe(true)
+  })
+
+  it('toggleEntityTrend creates a new Set so Vue reactivity fires', async () => {
+    mockEntityTrends.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      entity_type: 'topic',
+      entities: ['meditation'],
+      bins: [],
+    })
+    const store = useDashboardStore()
+    await store.loadEntityTrends('topic')
+    const before = store.hiddenEntityTrends
+    store.toggleEntityTrend('meditation')
+    expect(store.hiddenEntityTrends).not.toBe(before)
+  })
+
+  it('showAllEntityTrends and hideAllEntityTrends bulk-set visibility', async () => {
+    mockEntityTrends.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      entity_type: 'topic',
+      entities: ['a', 'b', 'c'],
+      bins: [],
+    })
+    const store = useDashboardStore()
+    await store.loadEntityTrends('topic')
+
+    store.hideAllEntityTrends()
+    expect(store.hiddenEntityTrends.size).toBe(3)
+    expect(store.hiddenEntityTrends.has('a')).toBe(true)
+    expect(store.hiddenEntityTrends.has('b')).toBe(true)
+    expect(store.hiddenEntityTrends.has('c')).toBe(true)
+
+    store.showAllEntityTrends()
+    expect(store.hiddenEntityTrends.size).toBe(0)
+  })
+
+  it('loadEntityTrends prunes stale hidden entries on reload', async () => {
+    const store = useDashboardStore()
+    mockEntityTrends.mockResolvedValueOnce({
+      from: null,
+      to: null,
+      bin: 'week',
+      entity_type: 'topic',
+      entities: ['a', 'b', 'c'],
+      bins: [],
+    })
+    await store.loadEntityTrends('topic')
+    store.toggleEntityTrend('a')
+    store.toggleEntityTrend('b')
+    expect(store.hiddenEntityTrends.size).toBe(2)
+
+    // Reload with a different entity set — only entities still in
+    // the new list should remain hidden.
+    mockEntityTrends.mockResolvedValueOnce({
+      from: null,
+      to: null,
+      bin: 'week',
+      entity_type: 'person',
+      entities: ['a', 'd'],
+      bins: [],
+    })
+    await store.loadEntityTrends('person')
+    expect(store.hiddenEntityTrends.has('a')).toBe(true)
+    expect(store.hiddenEntityTrends.has('b')).toBe(false)
+    expect(store.hiddenEntityTrends.size).toBe(1)
   })
 
   it('loadEntityTrends populates state on success', async () => {
@@ -804,11 +921,15 @@ describe('useDashboardStore — entity trends', () => {
     await store.loadEntityTrends()
     expect(store.entityTrendsHasLoaded).toBe(true)
 
+    store.toggleEntityTrend('x')
+    expect(store.hiddenEntityTrends.size).toBe(1)
+
     store.reset()
     expect(store.entityTrends).toEqual([])
     expect(store.entityTrendEntities).toEqual([])
     expect(store.entityTrendsType).toBe('topic')
     expect(store.entityTrendsHasLoaded).toBe(false)
+    expect(store.hiddenEntityTrends.size).toBe(0)
   })
 })
 

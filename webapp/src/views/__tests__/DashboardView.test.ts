@@ -548,36 +548,77 @@ describe('DashboardView — mood chart', () => {
     expect(agencyText).toContain('0..1')
   })
 
-  it('clicking a toggle isolates that dimension and re-renders', async () => {
+  it('clicking a toggle flips that dimension only and re-renders', async () => {
     const wrapper = await setupWithMoodData()
-    // Chart.js called twice: once for writing + word (2 charts),
-    // once for the mood chart.
     const callsBeforeToggle = chartConstructorSpy.mock.calls.length
 
+    // Default-isolate: joy_sadness starts hidden (dimmed), agency visible.
+    const dimmedClass = (testid: string): boolean =>
+      wrapper
+        .find(`[data-testid="${testid}"]`)
+        .classes()
+        .some((c) => c.includes('opacity-40'))
+    expect(dimmedClass('dashboard-mood-toggle-joy_sadness')).toBe(true)
+    expect(dimmedClass('dashboard-mood-toggle-agency')).toBe(false)
+
+    // Click joy_sadness → it becomes visible; agency unchanged.
     await wrapper
       .find('[data-testid="dashboard-mood-toggle-joy_sadness"]')
       .trigger('click')
     await flushPromises()
 
-    // The mood chart was destroyed and recreated.
     expect(chartConstructorSpy.mock.calls.length).toBeGreaterThan(
       callsBeforeToggle,
     )
-    // Grafana-style isolate: clicked dimension stays visible,
-    // the OTHER dimension is dimmed (opacity-40).
-    expect(
+    expect(dimmedClass('dashboard-mood-toggle-joy_sadness')).toBe(false)
+    expect(dimmedClass('dashboard-mood-toggle-agency')).toBe(false)
+
+    // Click joy_sadness again → it becomes hidden; agency still unchanged.
+    await wrapper
+      .find('[data-testid="dashboard-mood-toggle-joy_sadness"]')
+      .trigger('click')
+    await flushPromises()
+    expect(dimmedClass('dashboard-mood-toggle-joy_sadness')).toBe(true)
+    expect(dimmedClass('dashboard-mood-toggle-agency')).toBe(false)
+  })
+
+  it('All / None bulk buttons toggle every dimension at once', async () => {
+    const wrapper = await setupWithMoodData()
+    const dimmedClass = (testid: string): boolean =>
       wrapper
-        .find('[data-testid="dashboard-mood-toggle-agency"]')
+        .find(`[data-testid="${testid}"]`)
         .classes()
-        .some((c) => c.includes('opacity-40')),
+        .some((c) => c.includes('opacity-40'))
+
+    // Click "All" → no dimensions hidden.
+    await wrapper
+      .find('[data-testid="dashboard-mood-show-all"]')
+      .trigger('click')
+    await flushPromises()
+    expect(dimmedClass('dashboard-mood-toggle-joy_sadness')).toBe(false)
+    expect(dimmedClass('dashboard-mood-toggle-agency')).toBe(false)
+
+    // Click "None" → every dimension hidden + empty state appears.
+    await wrapper
+      .find('[data-testid="dashboard-mood-hide-all"]')
+      .trigger('click')
+    await flushPromises()
+    expect(dimmedClass('dashboard-mood-toggle-joy_sadness')).toBe(true)
+    expect(dimmedClass('dashboard-mood-toggle-agency')).toBe(true)
+    expect(
+      wrapper.find('[data-testid="dashboard-mood-all-hidden"]').exists(),
     ).toBe(true)
-    // The clicked dimension should NOT have the dimmed class.
+
+    // Click "Show all" link inside the empty state → restored.
+    await wrapper
+      .find('[data-testid="dashboard-mood-all-hidden-show-all"]')
+      .trigger('click')
+    await flushPromises()
     expect(
-      wrapper
-        .find('[data-testid="dashboard-mood-toggle-joy_sadness"]')
-        .classes()
-        .some((c) => c.includes('opacity-40')),
+      wrapper.find('[data-testid="dashboard-mood-all-hidden"]').exists(),
     ).toBe(false)
+    expect(dimmedClass('dashboard-mood-toggle-joy_sadness')).toBe(false)
+    expect(dimmedClass('dashboard-mood-toggle-agency')).toBe(false)
   })
 
   it('shows the empty state when mood_trends returns no bins', async () => {
@@ -678,11 +719,11 @@ describe('DashboardView — mood chart', () => {
     expect(lastConfig.options.scales.y.max).toBe(1)
   })
 
-  it('mood chart y-axis stays [-1, +1] after isolating a single series', async () => {
+  it('mood chart y-axis stays [-1, +1] after toggling a single series', async () => {
     const wrapper = await setupWithMoodData()
     chartConstructorSpy.mockClear()
 
-    // Isolate joy_sadness (a bipolar series with positive values ~0.4)
+    // Toggle joy_sadness on (a bipolar series with positive values ~0.4)
     await wrapper
       .find('[data-testid="dashboard-mood-toggle-joy_sadness"]')
       .trigger('click')

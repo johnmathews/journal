@@ -146,6 +146,10 @@ export const useDashboardStore = defineStore('dashboard', () => {
   const entityTrendsLoading = ref(false)
   const entityTrendsError = ref<string | null>(null)
   const entityTrendsHasLoaded = ref(false)
+  // Entity names hidden in the Topic Trends chart. Multi-select:
+  // each chip toggles independently. Pruned to the current entity
+  // list on every reload so stale names don't accumulate.
+  const hiddenEntityTrends = ref<Set<string>>(new Set())
 
   // Mood-entity correlation state
   const moodCorrelationItems = ref<MoodEntityCorrelationItem[]>([])
@@ -262,23 +266,47 @@ export const useDashboardStore = defineStore('dashboard', () => {
   }
 
   /**
-   * Grafana-style isolate: click a dimension to show ONLY that
-   * dimension; click it again (when isolated) to restore all.
-   * Clicking a different dimension while one is isolated switches
-   * to the new one.
+   * Plain multi-select toggle: click a chip to flip that one
+   * dimension's visibility. Other dimensions are unaffected, so
+   * the user can pick any subset (one, several, all, or none).
+   * A new Set is assigned each time so Vue reactivity fires.
    */
   function toggleMoodDimension(name: string): void {
-    const allNames = moodDimensions.value.map((d) => d.name)
-    const hidden = hiddenMoodDimensions.value
-
-    // Currently isolated on this exact dimension → restore all
-    if (hidden.size === allNames.length - 1 && !hidden.has(name)) {
-      hiddenMoodDimensions.value = new Set()
-      return
+    const next = new Set(hiddenMoodDimensions.value)
+    if (next.has(name)) {
+      next.delete(name)
+    } else {
+      next.add(name)
     }
+    hiddenMoodDimensions.value = next
+  }
 
-    // Otherwise (all visible, or a different dimension is isolated) → isolate clicked
-    hiddenMoodDimensions.value = new Set(allNames.filter((n) => n !== name))
+  function showAllMoodDimensions(): void {
+    hiddenMoodDimensions.value = new Set()
+  }
+
+  function hideAllMoodDimensions(): void {
+    hiddenMoodDimensions.value = new Set(
+      moodDimensions.value.map((d) => d.name),
+    )
+  }
+
+  function toggleEntityTrend(name: string): void {
+    const next = new Set(hiddenEntityTrends.value)
+    if (next.has(name)) {
+      next.delete(name)
+    } else {
+      next.add(name)
+    }
+    hiddenEntityTrends.value = next
+  }
+
+  function showAllEntityTrends(): void {
+    hiddenEntityTrends.value = new Set()
+  }
+
+  function hideAllEntityTrends(): void {
+    hiddenEntityTrends.value = new Set(entityTrendEntities.value)
   }
 
   function periodEndDate(periodStart: string, binSize: DashboardBin): string {
@@ -387,6 +415,14 @@ export const useDashboardStore = defineStore('dashboard', () => {
       })
       entityTrends.value = response.bins
       entityTrendEntities.value = response.entities
+      // Prune hidden entries that no longer appear in the new list
+      // (e.g. after switching entity type or range).
+      const valid = new Set(response.entities)
+      const pruned = new Set<string>()
+      for (const name of hiddenEntityTrends.value) {
+        if (valid.has(name)) pruned.add(name)
+      }
+      hiddenEntityTrends.value = pruned
       entityTrendsHasLoaded.value = true
     } catch (e) {
       if (e instanceof ApiRequestError) {
@@ -649,6 +685,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     entityTrendsLoading.value = false
     entityTrendsError.value = null
     entityTrendsHasLoaded.value = false
+    hiddenEntityTrends.value = new Set()
     moodCorrelationItems.value = []
     moodCorrelationOverallAvg.value = 0
     moodCorrelationDimension.value = 'agency'
@@ -685,6 +722,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
     loadMoodDimensions,
     loadMoodTrends,
     toggleMoodDimension,
+    showAllMoodDimensions,
+    hideAllMoodDimensions,
     drillPeriod,
     drillDimension,
     drillEntries,
@@ -712,7 +751,11 @@ export const useDashboardStore = defineStore('dashboard', () => {
     entityTrendsLoading,
     entityTrendsError,
     entityTrendsHasLoaded,
+    hiddenEntityTrends,
     loadEntityTrends,
+    toggleEntityTrend,
+    showAllEntityTrends,
+    hideAllEntityTrends,
     // Mood-entity correlation surface
     moodCorrelationItems,
     moodCorrelationOverallAvg,
