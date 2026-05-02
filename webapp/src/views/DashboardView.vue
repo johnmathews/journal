@@ -744,9 +744,15 @@ function renderEntityTrendsChart(): void {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      // Override the global `nearest` + `intersect: false` defaults: in
+      // a stacked bar that resolves hover to the closest dataset anchor
+      // (often a zero-valued one), so the tooltip names a series that
+      // isn't drawn under the cursor.
+      interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
         tooltip: {
+          filter: (item) => (item.parsed?.y ?? 0) > 0,
           backgroundColor: colors.tooltipBgColor.light,
           titleColor: colors.tooltipTitleColor.light,
           bodyColor: colors.tooltipBodyColor.light,

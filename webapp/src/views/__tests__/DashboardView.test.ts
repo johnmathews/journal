@@ -1230,6 +1230,65 @@ describe('DashboardView — entity trends', () => {
 
     expect(mockEntityTrends).toHaveBeenCalledTimes(1)
   })
+
+  // Regression: hovering a stacked bar segment used to surface the wrong
+  // dataset (often a zero-value one) because the global tooltip defaults
+  // are `mode: 'nearest'` + `intersect: false`. The stacked Topic Trends
+  // chart needs to opt into `interaction: { mode: 'index', intersect:
+  // false }` and filter zero-valued items out of the tooltip body.
+  it('stacked entity trends chart uses index mode and filters zero values', async () => {
+    setupWritingStats()
+    mockEntityTrends.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      entity_type: 'topic',
+      entities: ['agentic', 'faith', 'mcp'],
+      bins: [
+        // 'mcp' has no row for 2026-04-06 — pivots to 0, the
+        // exact case that misled the old tooltip.
+        { period: '2026-04-06', entity: 'agentic', mention_count: 3 },
+        { period: '2026-04-06', entity: 'faith', mention_count: 1 },
+      ],
+    })
+    mountView()
+    await flushPromises()
+
+    // Find the constructor call that built the stacked bar chart.
+    const stackedCall = chartConstructorSpy.mock.calls.find((call) => {
+      const cfg = call[1] as {
+        type?: string
+        options?: { scales?: { x?: { stacked?: boolean } } }
+      }
+      return cfg?.type === 'bar' && cfg?.options?.scales?.x?.stacked === true
+    })
+    expect(stackedCall).toBeDefined()
+    const opts = (
+      stackedCall![1] as {
+        options: {
+          interaction?: { mode?: string; intersect?: boolean }
+          plugins?: {
+            tooltip?: {
+              filter?: (item: { parsed: { y: number } }) => boolean
+            }
+          }
+        }
+      }
+    ).options
+
+    // 1. `mode: 'index'` makes hover hit-testing pick the column,
+    //    not the nearest dataset anchor — so cursor position
+    //    inside a segment maps to that column's stack.
+    expect(opts.interaction?.mode).toBe('index')
+    expect(opts.interaction?.intersect).toBe(false)
+
+    // 2. The tooltip `filter` skips zero-valued entries so the
+    //    body only lists segments actually drawn in the column.
+    const filter = opts.plugins?.tooltip?.filter
+    expect(typeof filter).toBe('function')
+    expect(filter!({ parsed: { y: 0 } })).toBe(false)
+    expect(filter!({ parsed: { y: 1 } })).toBe(true)
+  })
 })
 
 describe('DashboardView — mood-entity correlation', () => {
