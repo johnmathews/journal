@@ -63,6 +63,7 @@ function fakeResponse(items: ReturnType<typeof fakeItem>[]) {
     reranker: 'AnthropicReranker',
     limit: 20,
     offset: 0,
+    sort: 'relevance' as const,
     items,
   }
 }
@@ -306,6 +307,91 @@ describe('SearchView', () => {
     const explanation = wrapper.find('[data-testid="match-explanation"]')
     expect(explanation.exists()).toBe(true)
     expect(explanation.text()).toContain('keywords and meaning')
+  })
+
+  it('range preset defaults to "all" with empty date inputs', () => {
+    const wrapper = mountView()
+    const select = wrapper.find('[data-testid="search-range-preset"]')
+      .element as HTMLSelectElement
+    expect(select.value).toBe('all')
+    expect(
+      (
+        wrapper.find('[data-testid="search-start-date"]')
+          .element as HTMLInputElement
+      ).value,
+    ).toBe('')
+  })
+
+  it('selecting a preset populates the date inputs', async () => {
+    mockSearch.mockResolvedValue(fakeResponse([]))
+
+    const wrapper = mountView()
+    await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
+    await wrapper
+      .find('[data-testid="search-range-preset"]')
+      .setValue('last_1_month')
+    // Picking a preset should fill From/To.
+    const start = wrapper.find('[data-testid="search-start-date"]')
+      .element as HTMLInputElement
+    const end = wrapper.find('[data-testid="search-end-date"]')
+      .element as HTMLInputElement
+    expect(start.value).not.toBe('')
+    expect(end.value).not.toBe('')
+
+    await wrapper.find('[data-testid="search-form"]').trigger('submit')
+    await flushPromises()
+
+    const call = mockSearch.mock.calls[0][0]
+    expect(call.start_date).toBe(start.value)
+    expect(call.end_date).toBe(end.value)
+  })
+
+  it('editing a date input flips the preset to "custom"', async () => {
+    const wrapper = mountView()
+    await wrapper
+      .find('[data-testid="search-range-preset"]')
+      .setValue('last_3_months')
+    expect(
+      (
+        wrapper.find('[data-testid="search-range-preset"]')
+          .element as HTMLSelectElement
+      ).value,
+    ).toBe('last_3_months')
+
+    await wrapper
+      .find('[data-testid="search-start-date"]')
+      .setValue('2026-01-01')
+
+    expect(
+      (
+        wrapper.find('[data-testid="search-range-preset"]')
+          .element as HTMLSelectElement
+      ).value,
+    ).toBe('custom')
+  })
+
+  it('submits the chosen sort to the API', async () => {
+    mockSearch.mockResolvedValue(fakeResponse([]))
+
+    const wrapper = mountView()
+    await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
+    await wrapper.find('[data-testid="search-sort"]').setValue('date_desc')
+    await wrapper.find('[data-testid="search-form"]').trigger('submit')
+    await flushPromises()
+
+    expect(mockSearch.mock.calls[0][0]).toMatchObject({ sort: 'date_desc' })
+  })
+
+  it('omits sort from the request when "Relevance" is selected', async () => {
+    mockSearch.mockResolvedValue(fakeResponse([]))
+
+    const wrapper = mountView()
+    await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
+    await wrapper.find('[data-testid="search-form"]').trigger('submit')
+    await flushPromises()
+
+    const call = mockSearch.mock.calls[0][0]
+    expect(call).not.toHaveProperty('sort')
   })
 
   it('Next button fires a new search with the advanced offset', async () => {

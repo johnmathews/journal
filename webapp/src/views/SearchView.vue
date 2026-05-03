@@ -2,7 +2,12 @@
 import { computed, ref } from 'vue'
 import { useSearchStore } from '@/stores/search'
 import { renderSnippetHtml } from '@/utils/searchSnippet'
-import type { SearchResultItem } from '@/types/search'
+import {
+  SEARCH_RANGE_OPTIONS,
+  presetToDates,
+  type SearchRangePreset,
+} from '@/utils/dateRange'
+import type { SearchResultItem, SearchSort } from '@/types/search'
 
 const store = useSearchStore()
 
@@ -13,12 +18,39 @@ const store = useSearchStore()
 const queryInput = ref(store.query)
 const startDateInput = ref(store.startDate ?? '')
 const endDateInput = ref(store.endDate ?? '')
+const sortInput = ref<SearchSort>(store.sort)
+
+// "All time" is the natural default — empty date inputs mean
+// "unbounded" on the server, so resuming with an empty store maps
+// cleanly to the preset.
+const rangePreset = ref<SearchRangePreset>(
+  startDateInput.value || endDateInput.value ? 'custom' : 'all',
+)
+
+function applyPreset(preset: SearchRangePreset): void {
+  rangePreset.value = preset
+  if (preset === 'custom') {
+    return // leave whatever the user typed alone
+  }
+  const { from, to } = presetToDates(preset)
+  startDateInput.value = from ?? ''
+  endDateInput.value = to ?? ''
+}
+
+// User-edited dates flip the preset to "custom" so the dropdown
+// stays honest about what's actually being submitted.
+function onDateInput(): void {
+  if (rangePreset.value !== 'custom') {
+    rangePreset.value = 'custom'
+  }
+}
 
 function submit(): void {
   store.runSearch({
     q: queryInput.value,
     start_date: startDateInput.value || null,
     end_date: endDateInput.value || null,
+    sort: sortInput.value,
     offset: 0,
   })
 }
@@ -122,6 +154,32 @@ function matchExplanation(item: SearchResultItem): string {
       <div>
         <label
           class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
+          for="search-range"
+          >Range</label
+        >
+        <select
+          id="search-range"
+          :value="rangePreset"
+          data-testid="search-range-preset"
+          class="form-select text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          @change="
+            applyPreset(
+              ($event.target as HTMLSelectElement).value as SearchRangePreset,
+            )
+          "
+        >
+          <option
+            v-for="opt in SEARCH_RANGE_OPTIONS"
+            :key="opt.value"
+            :value="opt.value"
+          >
+            {{ opt.label }}
+          </option>
+        </select>
+      </div>
+      <div>
+        <label
+          class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
           for="search-start"
           >From</label
         >
@@ -131,6 +189,7 @@ function matchExplanation(item: SearchResultItem): string {
           type="date"
           data-testid="search-start-date"
           class="form-input text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          @input="onDateInput"
         />
       </div>
       <div>
@@ -145,7 +204,25 @@ function matchExplanation(item: SearchResultItem): string {
           type="date"
           data-testid="search-end-date"
           class="form-input text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          @input="onDateInput"
         />
+      </div>
+      <div>
+        <label
+          class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
+          for="search-sort"
+          >Sort</label
+        >
+        <select
+          id="search-sort"
+          v-model="sortInput"
+          data-testid="search-sort"
+          class="form-select text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+        >
+          <option value="relevance">Relevance</option>
+          <option value="date_desc">Newest first</option>
+          <option value="date_asc">Oldest first</option>
+        </select>
       </div>
       <button
         type="submit"

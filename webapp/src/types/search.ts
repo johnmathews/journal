@@ -37,15 +37,25 @@ export interface SearchResultItem {
   matching_chunks: SearchChunkMatch[]
 }
 
+/**
+ * Result ordering. `relevance` (default) preserves the server's L2
+ * rerank score order. The two date sorts apply across the full
+ * reranked candidate set before pagination, so ordering is stable
+ * across pages.
+ */
+export type SearchSort = 'relevance' | 'date_desc' | 'date_asc'
+
 export interface SearchRequestParams
   extends PaginationParams, DateFilterParams {
   q: string
+  sort?: SearchSort
 }
 
 export interface SearchResponse {
   query: string
   limit: number
   offset: number
+  sort: SearchSort
   /**
    * Class name of the active L2 reranker on the server (e.g.
    * `AnthropicReranker`, `NoopReranker`). Useful for debugging and

@@ -2,7 +2,11 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { ApiRequestError } from '@/api/client'
 import { searchEntries } from '@/api/search'
-import type { SearchRequestParams, SearchResultItem } from '@/types/search'
+import type {
+  SearchRequestParams,
+  SearchResultItem,
+  SearchSort,
+} from '@/types/search'
 
 /**
  * Search state store.
@@ -26,6 +30,7 @@ export const useSearchStore = defineStore('search', () => {
   const query = ref('')
   const startDate = ref<string | null>(null)
   const endDate = ref<string | null>(null)
+  const sort = ref<SearchSort>('relevance')
 
   // Pagination state. `limit` is fixed for now — 20 lines up with
   // the entries list. Server clamps to [1, 50].
@@ -58,11 +63,13 @@ export const useSearchStore = defineStore('search', () => {
       end_date: string | null
       limit: number
       offset: number
+      sort: SearchSort
     }> = {},
   ): Promise<void> {
     if (partial.q !== undefined) query.value = partial.q
     if (partial.start_date !== undefined) startDate.value = partial.start_date
     if (partial.end_date !== undefined) endDate.value = partial.end_date
+    if (partial.sort !== undefined) sort.value = partial.sort
     if (partial.limit !== undefined) limit.value = partial.limit
     if (partial.offset !== undefined) offset.value = partial.offset
 
@@ -85,6 +92,9 @@ export const useSearchStore = defineStore('search', () => {
       }
       if (startDate.value) params.start_date = startDate.value
       if (endDate.value) params.end_date = endDate.value
+      // Only send `sort` when non-default, so the server's default-
+      // relevance behaviour is exercised on plain searches.
+      if (sort.value !== 'relevance') params.sort = sort.value
 
       const response = await searchEntries(params)
       items.value = response.items
@@ -111,6 +121,7 @@ export const useSearchStore = defineStore('search', () => {
     query.value = ''
     startDate.value = null
     endDate.value = null
+    sort.value = 'relevance'
     limit.value = 20
     offset.value = 0
     items.value = []
@@ -124,6 +135,7 @@ export const useSearchStore = defineStore('search', () => {
     query,
     startDate,
     endDate,
+    sort,
     limit,
     offset,
     items,

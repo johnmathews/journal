@@ -46,6 +46,7 @@ function fakeResponse(
     reranker: overrides.reranker ?? 'AnthropicReranker',
     limit: 20,
     offset: 0,
+    sort: 'relevance' as const,
     items: overrides.items ?? [],
   }
 }
@@ -178,6 +179,50 @@ describe('useSearchStore', () => {
     await store.runSearch({ q: 'vienna' })
 
     expect(store.error).toBe('Search failed')
+  })
+
+  it('runSearch omits sort param when relevance (server default)', async () => {
+    mockSearch.mockResolvedValue(fakeResponse())
+
+    const store = useSearchStore()
+    await store.runSearch({ q: 'vienna' })
+
+    const call = mockSearch.mock.calls[0][0]
+    expect(call).not.toHaveProperty('sort')
+    expect(store.sort).toBe('relevance')
+  })
+
+  it('runSearch sends sort param when set to a non-default', async () => {
+    mockSearch.mockResolvedValue(fakeResponse())
+
+    const store = useSearchStore()
+    await store.runSearch({ q: 'vienna', sort: 'date_desc' })
+
+    expect(store.sort).toBe('date_desc')
+    expect(mockSearch.mock.calls[0][0]).toMatchObject({ sort: 'date_desc' })
+  })
+
+  it('runSearch keeps the previously chosen sort across pagination', async () => {
+    mockSearch.mockResolvedValue(fakeResponse())
+
+    const store = useSearchStore()
+    await store.runSearch({ q: 'vienna', sort: 'date_asc' })
+    mockSearch.mockClear()
+
+    await store.runSearch({ offset: 20 })
+
+    expect(store.sort).toBe('date_asc')
+    expect(mockSearch.mock.calls[0][0]).toMatchObject({
+      sort: 'date_asc',
+      offset: 20,
+    })
+  })
+
+  it('reset clears the sort back to relevance', async () => {
+    const store = useSearchStore()
+    store.sort = 'date_desc'
+    store.reset()
+    expect(store.sort).toBe('relevance')
   })
 
   it('reset restores the initial state', async () => {
