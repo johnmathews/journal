@@ -2,12 +2,6 @@
 import { onMounted, computed } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import {
-  ocrCostPer1000Words,
-  ocrDualPassCostPer1000Words,
-  audioCostPer1000Words,
-  chunkingCostPer1000Words,
-  moodScoringCostPer1000Words,
-  entityExtractionCostPer1000Words,
   totalImageIngestionCostPer1000Words,
   totalAudioIngestionCostPer1000Words,
   totalEditCostPer1000Words,
@@ -43,64 +37,21 @@ const statusColor = computed(() => {
   }
 })
 
-function runtimeSettingValue(key: string): boolean | string | undefined {
-  return store.settings?.runtime.find((s) => s.key === key)?.value
-}
-
 const isDualPass = computed(() => {
   if (!store.settings) return false
-  return runtimeSettingValue('ocr_dual_pass') === true
+  return (
+    store.settings.runtime.find((s) => s.key === 'ocr_dual_pass')?.value === true
+  )
 })
 
 const p = computed(() => store.pricingConfig)
 
-const ocrCostPerK = computed(() => {
-  if (!store.settings) return null
-  if (isDualPass.value) return ocrDualPassCostPer1000Words(p.value)
-  return ocrCostPer1000Words(store.settings.ocr.model, p.value)
-})
-
-const audioCostPerK = computed(() => {
-  if (!store.settings) return null
-  const formattingEnabled =
-    (store.settings.runtime.find((s) => s.key === 'transcript_formatting')
-      ?.value as boolean) ?? false
-  return audioCostPer1000Words(
-    store.settings.transcription.model,
-    formattingEnabled,
-    formattingEnabled ? store.settings.transcript_formatting.model : null,
-    p.value,
-  )
-})
-
-const chunkingCostPerK = computed(() => {
-  if (!store.settings) return null
-  return chunkingCostPer1000Words(store.settings.embedding.model, p.value)
-})
-
-const moodCostPerK = computed(() => {
-  if (!store.settings) return null
-  return moodScoringCostPer1000Words(
-    store.settings.features.mood_scorer_model,
-    p.value,
-  )
-})
-
-const entityCostPerK = computed(() => {
-  if (!store.settings) return null
-  return entityExtractionCostPer1000Words(
-    store.settings.entity_extraction.model,
-    store.settings.embedding.model,
-    p.value,
-  )
-})
-
-const imageIngestionTotal = computed(() => {
+const imageGrandTotal = computed(() => {
   if (!store.settings) return null
   const moodModel = store.settings.features.mood_scoring
     ? store.settings.features.mood_scorer_model
     : null
-  return totalImageIngestionCostPer1000Words(
+  const ingestion = totalImageIngestionCostPer1000Words(
     isDualPass.value ? DUAL_PASS_MODELS.primary : store.settings.ocr.model,
     store.settings.embedding.model,
     moodModel,
@@ -108,9 +59,17 @@ const imageIngestionTotal = computed(() => {
     isDualPass.value ? DUAL_PASS_MODELS.secondary : undefined,
     p.value,
   )
+  const edit = totalEditCostPer1000Words(
+    store.settings.embedding.model,
+    moodModel,
+    store.settings.entity_extraction.model,
+    p.value,
+  )
+  if (ingestion === null || edit === null) return null
+  return ingestion + edit
 })
 
-const audioIngestionTotal = computed(() => {
+const audioGrandTotal = computed(() => {
   if (!store.settings) return null
   const formattingEnabled =
     (store.settings.runtime.find((s) => s.key === 'transcript_formatting')
@@ -118,7 +77,7 @@ const audioIngestionTotal = computed(() => {
   const moodModel = store.settings.features.mood_scoring
     ? store.settings.features.mood_scorer_model
     : null
-  return totalAudioIngestionCostPer1000Words(
+  const ingestion = totalAudioIngestionCostPer1000Words(
     store.settings.transcription.model,
     formattingEnabled,
     formattingEnabled ? store.settings.transcript_formatting.model : null,
@@ -127,31 +86,14 @@ const audioIngestionTotal = computed(() => {
     store.settings.entity_extraction.model,
     p.value,
   )
-})
-
-const editTotal = computed(() => {
-  if (!store.settings) return null
-  const moodModel = store.settings.features.mood_scoring
-    ? store.settings.features.mood_scorer_model
-    : null
-  return totalEditCostPer1000Words(
+  const edit = totalEditCostPer1000Words(
     store.settings.embedding.model,
     moodModel,
     store.settings.entity_extraction.model,
     p.value,
   )
-})
-
-const imageGrandTotal = computed(() => {
-  if (imageIngestionTotal.value === null || editTotal.value === null)
-    return null
-  return imageIngestionTotal.value + editTotal.value
-})
-
-const audioGrandTotal = computed(() => {
-  if (audioIngestionTotal.value === null || editTotal.value === null)
-    return null
-  return audioIngestionTotal.value + editTotal.value
+  if (ingestion === null || edit === null) return null
+  return ingestion + edit
 })
 </script>
 
@@ -314,162 +256,44 @@ const audioGrandTotal = computed(() => {
         </div>
       </section>
 
-      <!-- Total Cost -->
+      <!-- Cost teaser → full breakdown lives on the Pricing tab -->
       <section
         v-if="store.settings"
         class="mb-8"
-        data-testid="section-total-cost"
+        data-testid="section-cost-teaser"
       >
-        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
-          Estimated Cost per 1,000 Words
-        </h2>
-        <div
-          class="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs"
+        <RouterLink
+          to="/admin/pricing"
+          class="flex items-center justify-between gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs hover:border-violet-400 dark:hover:border-violet-500"
+          data-testid="cost-teaser-link"
         >
-          <p class="text-xs text-gray-600 dark:text-gray-300 mb-4">
-            Ingestion + one text edit. Costs update with current settings.
-          </p>
-          <div class="space-y-3 text-sm">
-            <!-- Image ingestion subtotal -->
-            <div>
-              <div
-                class="flex justify-between text-gray-600 dark:text-gray-300 mb-1"
-              >
-                <span class="font-medium text-gray-700 dark:text-gray-300"
-                  >Image Ingestion</span
-                >
-                <span
-                  class="font-medium text-gray-900 dark:text-gray-100"
-                  data-testid="image-ingestion-subtotal"
-                  >{{ formatCost(imageIngestionTotal) }}</span
-                >
-              </div>
-              <div
-                class="ml-3 space-y-0.5 text-xs text-gray-600 dark:text-gray-300"
-              >
-                <div class="flex justify-between">
-                  <span>OCR{{ isDualPass ? ' (dual-pass)' : '' }}</span>
-                  <span>{{ formatCost(ocrCostPerK) }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span>Chunking & Embedding</span>
-                  <span>{{ formatCost(chunkingCostPerK) }}</span>
-                </div>
-                <div
-                  v-if="store.settings.features.mood_scoring"
-                  class="flex justify-between"
-                >
-                  <span>Mood Scoring</span>
-                  <span>{{ formatCost(moodCostPerK) }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span>Entity Extraction</span>
-                  <span>{{ formatCost(entityCostPerK) }}</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Audio ingestion subtotal -->
-            <div>
-              <div
-                class="flex justify-between text-gray-600 dark:text-gray-300 mb-1"
-              >
-                <span class="font-medium text-gray-700 dark:text-gray-300"
-                  >Audio Ingestion</span
-                >
-                <span
-                  class="font-medium text-gray-900 dark:text-gray-100"
-                  data-testid="audio-ingestion-subtotal"
-                  >{{ formatCost(audioIngestionTotal) }}</span
-                >
-              </div>
-              <div
-                class="ml-3 space-y-0.5 text-xs text-gray-600 dark:text-gray-300"
-              >
-                <div class="flex justify-between">
-                  <span>Transcription</span>
-                  <span>{{ formatCost(audioCostPerK) }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span>Chunking & Embedding</span>
-                  <span>{{ formatCost(chunkingCostPerK) }}</span>
-                </div>
-                <div
-                  v-if="store.settings.features.mood_scoring"
-                  class="flex justify-between"
-                >
-                  <span>Mood Scoring</span>
-                  <span>{{ formatCost(moodCostPerK) }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span>Entity Extraction</span>
-                  <span>{{ formatCost(entityCostPerK) }}</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Edit subtotal -->
-            <div>
-              <div
-                class="flex justify-between text-gray-600 dark:text-gray-300 mb-1"
-              >
-                <span class="font-medium text-gray-700 dark:text-gray-300"
-                  >First Edit</span
-                >
-                <span
-                  class="font-medium text-gray-900 dark:text-gray-100"
-                  data-testid="edit-subtotal"
-                  >{{ formatCost(editTotal) }}</span
-                >
-              </div>
-              <div
-                class="ml-3 space-y-0.5 text-xs text-gray-600 dark:text-gray-300"
-              >
-                <div class="flex justify-between">
-                  <span>Chunking & Embedding</span>
-                  <span>{{ formatCost(chunkingCostPerK) }}</span>
-                </div>
-                <div
-                  v-if="store.settings.features.mood_scoring"
-                  class="flex justify-between"
-                >
-                  <span>Mood Scoring</span>
-                  <span>{{ formatCost(moodCostPerK) }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span>Entity Extraction</span>
-                  <span>{{ formatCost(entityCostPerK) }}</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Grand totals -->
-            <div
-              class="pt-2 space-y-1 border-t border-gray-200 dark:border-gray-700"
+          <div class="min-w-0">
+            <p
+              class="text-xs text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-1"
             >
-              <div class="flex justify-between">
-                <span class="font-semibold text-gray-800 dark:text-gray-200"
-                  >Total (image + edit)</span
-                >
-                <span
-                  class="font-semibold text-gray-900 dark:text-gray-100"
-                  data-testid="image-grand-total"
-                  >{{ formatCost(imageGrandTotal) }}</span
-                >
-              </div>
-              <div class="flex justify-between">
-                <span class="font-semibold text-gray-800 dark:text-gray-200"
-                  >Total (audio + edit)</span
-                >
-                <span
-                  class="font-semibold text-gray-900 dark:text-gray-100"
-                  data-testid="audio-grand-total"
-                  >{{ formatCost(audioGrandTotal) }}</span
-                >
-              </div>
-            </div>
+              Estimated cost per 1,000 words
+            </p>
+            <p class="text-sm text-gray-700 dark:text-gray-200">
+              <span class="font-medium">Image:</span>
+              <span
+                class="font-mono ml-1"
+                data-testid="cost-teaser-image-total"
+                >{{ formatCost(imageGrandTotal) }}</span
+              >
+              <span class="mx-2 text-gray-400 dark:text-gray-500">·</span>
+              <span class="font-medium">Audio:</span>
+              <span
+                class="font-mono ml-1"
+                data-testid="cost-teaser-audio-total"
+                >{{ formatCost(audioGrandTotal) }}</span
+              >
+            </p>
           </div>
-        </div>
+          <span
+            class="text-xs text-violet-600 dark:text-violet-400 whitespace-nowrap shrink-0"
+            >See breakdown →</span
+          >
+        </RouterLink>
       </section>
 
       <!-- Quick links -->

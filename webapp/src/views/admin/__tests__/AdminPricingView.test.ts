@@ -315,6 +315,100 @@ describe('AdminPricingView', () => {
     ).toBe(true)
   })
 
+  it('renders the cost breakdown with grand totals', async () => {
+    const wrapper = await mountView([
+      sampleLlm,
+      sampleEmbedding,
+      sampleTranscription,
+    ])
+    expect(wrapper.find('[data-testid="section-total-cost"]').exists()).toBe(
+      true,
+    )
+    expect(
+      wrapper.find('[data-testid="image-ingestion-subtotal"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="audio-ingestion-subtotal"]').exists(),
+    ).toBe(true)
+    expect(wrapper.find('[data-testid="edit-subtotal"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="image-grand-total"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('[data-testid="audio-grand-total"]').exists()).toBe(
+      true,
+    )
+  })
+
+  it('breakdown updates reactively when pricing is saved', async () => {
+    // Saving a pricing change should immediately update the breakdown
+    // because the cost computeds depend on store.pricingConfig, which
+    // is derived from the same settings.pricing array that updatePricing
+    // replaces. No router navigation or refresh required.
+    //
+    // Use settings whose models all live in DEFAULT_MODEL_PRICING so the
+    // grand total is a real $ figure, not '—'. The test embedding row
+    // is the one we mutate; bumping it from $0.13 to $99/MTok is
+    // dramatic enough to change the formatted output even with rounding.
+    mockFetchSettings.mockResolvedValue({
+      ...makeSettings([sampleEmbedding]),
+      ocr: { provider: 'gemini', model: 'gemini-2.5-pro' },
+    })
+    mockFetchHealth.mockResolvedValue({
+      status: 'ok',
+      checks: [],
+      ingestion: {
+        total_entries: 0,
+        total_words: 0,
+        total_chunks: 0,
+        avg_words_per_entry: 0,
+        avg_chunks_per_entry: 0,
+        last_ingested_at: null,
+        entries_last_7d: 0,
+        entries_last_30d: 0,
+        by_source_type: {},
+        row_counts: { entries: 0, entry_pages: 0, chunks: 0 },
+      },
+      queries: {
+        total_queries: 0,
+        uptime_seconds: 0,
+        started_at: '2026-04-14T09:00:00Z',
+        by_type: {},
+      },
+    })
+    const router = makeRouter()
+    await router.push('/admin/pricing')
+    await router.isReady()
+    const wrapper = mount(AdminPricingView, {
+      global: { plugins: [createPinia(), router] },
+    })
+    await flushPromises()
+
+    const before = wrapper.find('[data-testid="image-grand-total"]').text()
+    expect(before).not.toBe('—') // sanity — make sure we're starting with a real number
+
+    mockUpdatePricing.mockResolvedValue({
+      updated: ['text-embedding-3-large'],
+      pricing: [{ ...sampleEmbedding, input_cost_per_mtok: 99 }],
+    })
+    await wrapper
+      .find('[data-testid="pricing-edit-text-embedding-3-large"]')
+      .trigger('click')
+    await flushPromises()
+    await wrapper
+      .find('[data-testid="pricing-input-text-embedding-3-large"]')
+      .setValue('99')
+    await wrapper
+      .find('[data-testid="pricing-output-text-embedding-3-large"]')
+      .setValue('0')
+    await wrapper
+      .find('[data-testid="pricing-save-text-embedding-3-large"]')
+      .trigger('click')
+    await flushPromises()
+
+    const after = wrapper.find('[data-testid="image-grand-total"]').text()
+    expect(after).not.toBe(before)
+  })
+
   it('preserves pricing list when API returns 207 partial-success body', async () => {
     // The API client surfaces a 207 as a normal resolved promise with the
     // updated pricing array (and possibly errors). The view simply uses the

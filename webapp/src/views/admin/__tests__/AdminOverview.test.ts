@@ -175,24 +175,29 @@ describe('AdminOverview', () => {
     expect(stats.text()).toContain('18 entries')
   })
 
-  it('renders the total cost section with grand totals', async () => {
+  it('renders a cost teaser linking to the pricing tab', async () => {
+    const wrapper = await mountView()
+    const teaser = wrapper.find('[data-testid="section-cost-teaser"]')
+    expect(teaser.exists()).toBe(true)
+    expect(
+      wrapper.find('[data-testid="cost-teaser-image-total"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="cost-teaser-audio-total"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="cost-teaser-link"]').attributes('href'),
+    ).toBe('/admin/pricing')
+  })
+
+  it('does not render the full cost breakdown on overview', async () => {
     const wrapper = await mountView()
     expect(wrapper.find('[data-testid="section-total-cost"]').exists()).toBe(
-      true,
+      false,
     )
     expect(
       wrapper.find('[data-testid="image-ingestion-subtotal"]').exists(),
-    ).toBe(true)
-    expect(
-      wrapper.find('[data-testid="audio-ingestion-subtotal"]').exists(),
-    ).toBe(true)
-    expect(wrapper.find('[data-testid="edit-subtotal"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="image-grand-total"]').exists()).toBe(
-      true,
-    )
-    expect(wrapper.find('[data-testid="audio-grand-total"]').exists()).toBe(
-      true,
-    )
+    ).toBe(false)
   })
 
   it('renders quick links to other admin tabs', async () => {
