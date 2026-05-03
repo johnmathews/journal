@@ -382,6 +382,34 @@ describe('SearchView', () => {
     expect(mockSearch.mock.calls[0][0]).toMatchObject({ sort: 'date_desc' })
   })
 
+  it('changing sort after a search auto-resubmits with the new sort', async () => {
+    mockSearch.mockResolvedValue(fakeResponse([]))
+
+    const wrapper = mountView()
+    await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
+    await wrapper.find('[data-testid="search-form"]').trigger('submit')
+    await flushPromises()
+    expect(mockSearch).toHaveBeenCalledTimes(1)
+
+    mockSearch.mockClear()
+    await wrapper.find('[data-testid="search-sort"]').setValue('date_desc')
+    await flushPromises()
+
+    expect(mockSearch).toHaveBeenCalledTimes(1)
+    expect(mockSearch.mock.calls[0][0]).toMatchObject({
+      sort: 'date_desc',
+      q: 'vienna',
+      offset: 0,
+    })
+  })
+
+  it('changing sort before any search does not fire a request', async () => {
+    const wrapper = mountView()
+    await wrapper.find('[data-testid="search-sort"]').setValue('date_desc')
+    await flushPromises()
+    expect(mockSearch).not.toHaveBeenCalled()
+  })
+
   it('omits sort from the request when "Relevance" is selected', async () => {
     mockSearch.mockResolvedValue(fakeResponse([]))
 

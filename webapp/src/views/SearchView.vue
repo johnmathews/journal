@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useSearchStore } from '@/stores/search'
 import { renderSnippetHtml } from '@/utils/searchSnippet'
 import {
@@ -54,6 +54,17 @@ function submit(): void {
     offset: 0,
   })
 }
+
+// Auto-resubmit when the user picks a different sort order — the
+// dropdown reads as a live control, not "change-then-press-Search".
+// The server-side cache makes this near-free for the common case
+// (same query, same filters), so we don't end up paying a full
+// pipeline run for each toggle. We only fire after at least one
+// search has run; otherwise initial mount or store-restore would
+// fire a request with an empty query.
+watch(sortInput, () => {
+  if (store.hasRun) submit()
+})
 
 function nextPage(): void {
   store.runSearch({ offset: store.offset + store.limit })
