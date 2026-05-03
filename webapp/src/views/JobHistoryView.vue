@@ -323,7 +323,7 @@ function nextPage() {
     <div class="flex flex-wrap gap-3 mb-4" data-testid="job-history-filters">
       <select
         v-model="filterStatus"
-        class="text-sm rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 px-3 py-1.5"
+        class="text-sm min-w-32 rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 px-3 py-1.5"
         data-testid="filter-status"
       >
         <option value="">All statuses</option>
@@ -335,7 +335,7 @@ function nextPage() {
 
       <select
         v-model="filterType"
-        class="text-sm rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 px-3 py-1.5"
+        class="text-sm min-w-44 rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 px-3 py-1.5"
         data-testid="filter-type"
       >
         <option value="">All types</option>
