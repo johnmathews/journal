@@ -394,6 +394,67 @@ describe('SearchView', () => {
     expect(call).not.toHaveProperty('sort')
   })
 
+  it('shows a spinner inside the Search button while loading', async () => {
+    // Hold the request open so we can assert the loading state.
+    let resolve!: (v: ReturnType<typeof fakeResponse>) => void
+    mockSearch.mockReturnValueOnce(
+      new Promise((r) => {
+        resolve = r
+      }),
+    )
+
+    const wrapper = mountView()
+    await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
+    await wrapper.find('[data-testid="search-form"]').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="search-submit-spinner"]').exists()).toBe(
+      true,
+    )
+    expect(
+      (
+        wrapper.find('[data-testid="search-submit"]')
+          .element as HTMLButtonElement
+      ).disabled,
+    ).toBe(true)
+    expect(wrapper.find('[data-testid="search-submit"]').text()).toContain(
+      'Searching',
+    )
+
+    resolve(fakeResponse([]))
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="search-submit-spinner"]').exists()).toBe(
+      false,
+    )
+    expect(wrapper.find('[data-testid="search-submit"]').text()).toBe('Search')
+  })
+
+  it('shows the centred loading state while the first search is in flight', async () => {
+    let resolve!: (v: ReturnType<typeof fakeResponse>) => void
+    mockSearch.mockReturnValueOnce(
+      new Promise((r) => {
+        resolve = r
+      }),
+    )
+
+    const wrapper = mountView()
+    await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
+    await wrapper.find('[data-testid="search-form"]').trigger('submit')
+    await flushPromises()
+
+    const loading = wrapper.find('[data-testid="loading-state"]')
+    expect(loading.exists()).toBe(true)
+    // Spinner svg lives inside the loading state block.
+    expect(loading.find('svg').exists()).toBe(true)
+    expect(loading.text()).toContain('Searching')
+
+    resolve(fakeResponse([]))
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="loading-state"]').exists()).toBe(false)
+  })
+
   it('Next button fires a new search with the advanced offset', async () => {
     const twentyItems = Array.from({ length: 20 }, (_, i) =>
       fakeItem({

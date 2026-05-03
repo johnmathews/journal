@@ -226,20 +226,63 @@ function matchExplanation(item: SearchResultItem): string {
       </div>
       <button
         type="submit"
-        class="btn bg-violet-500 hover:bg-violet-600 text-white"
+        class="btn bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
         data-testid="search-submit"
+        :disabled="store.loading"
       >
-        Search
+        <svg
+          v-if="store.loading"
+          class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          data-testid="search-submit-spinner"
+        >
+          <circle
+            class="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            stroke-width="4"
+          />
+          <path
+            class="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+          />
+        </svg>
+        {{ store.loading ? 'Searching…' : 'Search' }}
       </button>
     </form>
 
     <!-- Loading / error / empty states -->
     <div
       v-if="store.loading && !store.hasResults"
-      class="py-16 text-center text-gray-600 dark:text-gray-300"
+      class="py-16 flex flex-col items-center justify-center gap-3 text-gray-600 dark:text-gray-300"
       data-testid="loading-state"
     >
-      Searching…
+      <svg
+        class="animate-spin h-8 w-8 text-violet-500"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <circle
+          class="opacity-25"
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          stroke-width="4"
+        />
+        <path
+          class="opacity-75"
+          fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+        />
+      </svg>
+      <div>Searching…</div>
     </div>
 
     <div
