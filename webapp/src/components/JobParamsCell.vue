@@ -105,12 +105,13 @@ const hasAnyParams = computed(() => Object.keys(props.job.params).length > 0)
     >
       {{ chip.label }}
     </span>
-    <JsonPopover
-      v-if="hasAnyParams"
-      :content="job.params"
-      title="Raw params"
-      trigger-label="raw"
-      data-testid="job-params-raw-popover"
-    />
+    <span v-if="hasAnyParams" class="ml-auto">
+      <JsonPopover
+        :content="job.params"
+        title="Raw params"
+        trigger-label="raw"
+        data-testid="job-params-raw-popover"
+      />
+    </span>
   </div>
 </template>

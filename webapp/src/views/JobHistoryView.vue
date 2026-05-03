@@ -195,7 +195,7 @@ function formatTime(iso: string | null): string {
   if (!iso) return '-'
   const d = new Date(iso)
   return d.toLocaleString('en-GB', {
-    day: '2-digit',
+    day: 'numeric',
     month: 'short',
     year: 'numeric',
     hour: '2-digit',
@@ -526,7 +526,7 @@ function nextPage() {
                     {{ resultSummary(job.result, job.type as JobType) }}
                     <span
                       class="ml-1 text-xs text-gray-400 dark:text-gray-500 group-hover:text-violet-500"
-                      >+</span
+                      >...</span
                     >
                   </div>
 

@@ -66,3 +66,27 @@ reproduces the issue, then fix the code to make it pass.
 ## Backend
 
 The webapp connects to journal-server's REST API at /api/*. During development, Vite proxies these requests to localhost:8400 where the journal-server runs.
+
+## Local Full-Stack Quickstart
+
+The webapp can't be exercised meaningfully without a backend — protected routes 401, dashboards stay empty, etc. Use this runbook whenever you need to verify UI work in a real browser. Full details with SQL snippets and a fake-jobs seeder live in [`docs/development.md`](docs/development.md#local-full-stack-quickstart).
+
+```bash
+# 1. ChromaDB
+cd ../journal-server && docker compose -f docker-compose.dev.yml up -d
+
+# 2. Backend (separate terminal) — needs a .env (see docs/development.md)
+cd ../journal-server && uv sync && uv run python -m journal.mcp_server
+
+# 3. Webapp (another terminal)
+cd journal-webapp && npm install && npm run dev   # http://localhost:5173
+```
+
+To get past auth, register at `/register` then mark the user verified in SQLite (SMTP isn't wired up in dev):
+
+```bash
+sqlite3 ../journal-server/journal.db \
+  "UPDATE users SET email_verified = 1 WHERE email = 'dev@local.dev';"
+```
+
+Standard local creds used in our docs: `dev@local.dev` / `devpassword123`.
