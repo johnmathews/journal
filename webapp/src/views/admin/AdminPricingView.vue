@@ -213,9 +213,7 @@ async function savePricing(model: string, category: string) {
     <template v-else-if="store.settings">
       <!-- Estimated Cost per 1,000 Words (derived from current rates + runtime settings) -->
       <section class="mb-8" data-testid="section-total-cost">
-        <h3
-          class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4"
-        >
+        <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
           Estimated Cost per 1,000 Words
         </h3>
         <div

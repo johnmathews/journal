@@ -40,7 +40,8 @@ const statusColor = computed(() => {
 const isDualPass = computed(() => {
   if (!store.settings) return false
   return (
-    store.settings.runtime.find((s) => s.key === 'ocr_dual_pass')?.value === true
+    store.settings.runtime.find((s) => s.key === 'ocr_dual_pass')?.value ===
+    true
   )
 })
 
