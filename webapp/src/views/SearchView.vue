@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useSearchStore } from '@/stores/search'
-import { fetchStats } from '@/api/entries'
 import { renderSnippetHtml } from '@/utils/searchSnippet'
 import {
+  ALL_TIME_START,
   SEARCH_RANGE_OPTIONS,
   presetToDates,
   todayIso,
@@ -22,53 +22,35 @@ const startDateInput = ref(store.startDate ?? '')
 const endDateInput = ref(store.endDate ?? '')
 const sortInput = ref<SearchSort>(store.sort)
 
-// "All time" is the natural default — empty date inputs mean
-// "unbounded" on the server, so resuming with an empty store maps
-// cleanly to the preset.
+// "All time" is the natural default — the preset populates the
+// inputs with the journal's known date bounds, so resuming with an
+// empty store maps cleanly to the preset.
 const rangePreset = ref<SearchRangePreset>(
   startDateInput.value || endDateInput.value ? 'custom' : 'all',
 )
-
-// Earliest entry date in the journal — used to populate the "From"
-// field when the user picks "All time". Lazily fetched once per
-// mount; if the request fails we fall back to leaving the field
-// empty (which the API treats as unbounded — same observable result).
-const earliestEntryDate = ref<string | null>(null)
 
 function applyPreset(preset: SearchRangePreset): void {
   rangePreset.value = preset
   if (preset === 'custom') {
     return // leave whatever the user typed alone
   }
-  if (preset === 'all') {
-    startDateInput.value = earliestEntryDate.value ?? ''
-    endDateInput.value = earliestEntryDate.value ? todayIso() : ''
-    return
-  }
   const { from, to } = presetToDates(preset)
   startDateInput.value = from ?? ''
   endDateInput.value = to ?? ''
 }
 
-onMounted(async () => {
-  try {
-    const stats = await fetchStats()
-    earliestEntryDate.value = stats.date_range_start
-    // Backfill the inputs if the user is still on the default "All
-    // time" preset and hasn't typed anything — otherwise leave their
-    // in-flight selection untouched.
-    if (
-      rangePreset.value === 'all' &&
-      !startDateInput.value &&
-      !endDateInput.value &&
-      earliestEntryDate.value
-    ) {
-      startDateInput.value = earliestEntryDate.value
-      endDateInput.value = todayIso()
-    }
-  } catch {
-    // Stats endpoint failed; leave the inputs empty for "All time".
-    // The submit path treats empty as unbounded, so search still works.
+// Backfill the inputs on mount if the user is still on the default
+// "All time" preset and hasn't typed anything. The store may have
+// restored empty strings from a fresh session — without this, the
+// fields would render blank until the user opened the dropdown.
+onMounted(() => {
+  if (
+    rangePreset.value === 'all' &&
+    !startDateInput.value &&
+    !endDateInput.value
+  ) {
+    startDateInput.value = ALL_TIME_START
+    endDateInput.value = todayIso()
   }
 })
 

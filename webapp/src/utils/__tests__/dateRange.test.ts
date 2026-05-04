@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { presetToDates, SEARCH_RANGE_OPTIONS } from '../dateRange'
+import {
+  ALL_TIME_START,
+  presetToDates,
+  SEARCH_RANGE_OPTIONS,
+  todayIso,
+} from '../dateRange'
 
 describe('SEARCH_RANGE_OPTIONS', () => {
   it('starts with All time and ends with Custom', () => {
@@ -26,8 +31,19 @@ describe('presetToDates', () => {
   // - 1 month would clamp to Mar 3 in JS Date arithmetic).
   const NOW = new Date('2026-05-15T12:00:00Z')
 
-  it('returns null/null for "all"', () => {
-    expect(presetToDates('all', NOW)).toEqual({ from: null, to: null })
+  it('anchors "all" at ALL_TIME_START → today', () => {
+    expect(presetToDates('all', NOW)).toEqual({
+      from: ALL_TIME_START,
+      to: '2026-05-15',
+    })
+  })
+
+  it('exposes ALL_TIME_START as 2026-01-01', () => {
+    expect(ALL_TIME_START).toBe('2026-01-01')
+  })
+
+  it('todayIso returns a YYYY-MM-DD string', () => {
+    expect(todayIso()).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 
   it('returns null/null for "custom" — caller owns the dates', () => {

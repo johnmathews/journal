@@ -45,9 +45,17 @@ export function todayIso(): string {
 }
 
 /**
+ * Earliest date the journal could plausibly contain entries for.
+ * Used as the "From" anchor for the "All time" preset. The server
+ * treats `end_date` as inclusive (`entry_date <= ?`), so "today"
+ * is the right `to` for "All time".
+ */
+export const ALL_TIME_START = '2026-01-01'
+
+/**
  * Resolve a preset to concrete `from` / `to` ISO date strings.
  *
- * - `all`: both null (the API treats missing dates as "no bound").
+ * - `all`: anchored at `ALL_TIME_START` → today.
  * - `custom`: both null — the caller is responsible for whatever
  *   the user typed into the date inputs.
  * - The relative presets anchor `to` at today and walk `from` back.
@@ -56,10 +64,13 @@ export function presetToDates(
   preset: SearchRangePreset,
   now: Date = new Date(),
 ): { from: string | null; to: string | null } {
-  if (preset === 'all' || preset === 'custom') {
+  if (preset === 'custom') {
     return { from: null, to: null }
   }
   const to = isoDate(now)
+  if (preset === 'all') {
+    return { from: ALL_TIME_START, to }
+  }
   const from = new Date(now)
   switch (preset) {
     case 'last_1_month':
