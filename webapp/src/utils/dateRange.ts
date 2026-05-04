@@ -39,6 +39,11 @@ function isoDate(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
+/** Today as a local-timezone ISO date string. */
+export function todayIso(): string {
+  return isoDate(new Date())
+}
+
 /**
  * Resolve a preset to concrete `from` / `to` ISO date strings.
  *

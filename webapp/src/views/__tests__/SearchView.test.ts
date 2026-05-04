@@ -7,9 +7,25 @@ import SearchView from '../SearchView.vue'
 vi.mock('@/api/search', () => ({
   searchEntries: vi.fn(),
 }))
+vi.mock('@/api/entries', () => ({
+  fetchStats: vi.fn(),
+}))
 
 import { searchEntries } from '@/api/search'
+import { fetchStats } from '@/api/entries'
 const mockSearch = vi.mocked(searchEntries)
+const mockStats = vi.mocked(fetchStats)
+
+function fakeStats(start: string | null = null) {
+  return {
+    total_entries: start ? 5 : 0,
+    date_range_start: start,
+    date_range_end: start,
+    total_words: 0,
+    avg_words_per_entry: 0,
+    entries_per_month: 0,
+  }
+}
 
 const router = createRouter({
   history: createWebHistory(),
@@ -74,6 +90,9 @@ describe('SearchView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    // Default: no entries — keeps "All time" inputs empty so existing
+    // tests that assert "" still pass.
+    mockStats.mockResolvedValue(fakeStats(null))
   })
 
   it('mounts and shows the initial state before any search', () => {
@@ -320,6 +339,29 @@ describe('SearchView', () => {
           .element as HTMLInputElement
       ).value,
     ).toBe('')
+  })
+
+  it('"All time" populates From with the earliest entry date and To with today', async () => {
+    mockStats.mockResolvedValue(fakeStats('2024-01-15'))
+
+    const wrapper = mountView()
+    await flushPromises() // let the onMounted stats fetch settle
+
+    // The default preset is "all", so the inputs should backfill on mount.
+    const start = wrapper.find('[data-testid="search-start-date"]')
+      .element as HTMLInputElement
+    const end = wrapper.find('[data-testid="search-end-date"]')
+      .element as HTMLInputElement
+    expect(start.value).toBe('2024-01-15')
+    expect(end.value).not.toBe('')
+
+    // Switching away and back should still populate.
+    await wrapper
+      .find('[data-testid="search-range-preset"]')
+      .setValue('last_1_month')
+    await wrapper.find('[data-testid="search-range-preset"]').setValue('all')
+    expect(start.value).toBe('2024-01-15')
+    expect(end.value).not.toBe('')
   })
 
   it('selecting a preset populates the date inputs', async () => {

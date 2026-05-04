@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useSearchStore } from '@/stores/search'
+import { fetchStats } from '@/api/entries'
 import { renderSnippetHtml } from '@/utils/searchSnippet'
 import {
   SEARCH_RANGE_OPTIONS,
   presetToDates,
+  todayIso,
   type SearchRangePreset,
 } from '@/utils/dateRange'
 import type { SearchResultItem, SearchSort } from '@/types/search'
@@ -27,15 +29,48 @@ const rangePreset = ref<SearchRangePreset>(
   startDateInput.value || endDateInput.value ? 'custom' : 'all',
 )
 
+// Earliest entry date in the journal — used to populate the "From"
+// field when the user picks "All time". Lazily fetched once per
+// mount; if the request fails we fall back to leaving the field
+// empty (which the API treats as unbounded — same observable result).
+const earliestEntryDate = ref<string | null>(null)
+
 function applyPreset(preset: SearchRangePreset): void {
   rangePreset.value = preset
   if (preset === 'custom') {
     return // leave whatever the user typed alone
   }
+  if (preset === 'all') {
+    startDateInput.value = earliestEntryDate.value ?? ''
+    endDateInput.value = earliestEntryDate.value ? todayIso() : ''
+    return
+  }
   const { from, to } = presetToDates(preset)
   startDateInput.value = from ?? ''
   endDateInput.value = to ?? ''
 }
+
+onMounted(async () => {
+  try {
+    const stats = await fetchStats()
+    earliestEntryDate.value = stats.date_range_start
+    // Backfill the inputs if the user is still on the default "All
+    // time" preset and hasn't typed anything — otherwise leave their
+    // in-flight selection untouched.
+    if (
+      rangePreset.value === 'all' &&
+      !startDateInput.value &&
+      !endDateInput.value &&
+      earliestEntryDate.value
+    ) {
+      startDateInput.value = earliestEntryDate.value
+      endDateInput.value = todayIso()
+    }
+  } catch {
+    // Stats endpoint failed; leave the inputs empty for "All time".
+    // The submit path treats empty as unbounded, so search still works.
+  }
+})
 
 // User-edited dates flip the preset to "custom" so the dropdown
 // stays honest about what's actually being submitted.
