@@ -108,4 +108,10 @@ describe('MOOD_GROUPS constant', () => {
       }
     }
   })
+
+  it('every group has a non-empty plain-English description', () => {
+    for (const g of MOOD_GROUPS) {
+      expect(g.description.length).toBeGreaterThan(20)
+    }
+  })
 })

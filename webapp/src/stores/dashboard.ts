@@ -20,6 +20,7 @@ import type {
   DashboardTileId,
   EntityTrendBin,
   MoodDimension,
+  MoodDimensionsMeta,
   MoodEntityCorrelationItem,
   MoodTrendBin,
   TileSpan,
@@ -102,6 +103,15 @@ export const useDashboardStore = defineStore('dashboard', () => {
   // mount and cached for the session; `moodBins` is refreshed
   // on every range/bin change.
   const moodDimensions = ref<MoodDimension[]>([])
+  // Server-supplied metadata about the toml file (operator-managed
+  // version string, optional description). Exposed alongside
+  // `moodDimensions` because both come from the same endpoint and
+  // both are surfaced on the admin "Moods" page. Empty-string fields
+  // when scoring is disabled or the toml omits the `[meta]` block.
+  const moodDimensionsMeta = ref<MoodDimensionsMeta>({
+    version: '',
+    description: '',
+  })
   const moodBins = ref<MoodTrendBin[]>([])
   // Dimensions the user has selected for display in the chart.
   // Contract:
@@ -223,6 +233,10 @@ export const useDashboardStore = defineStore('dashboard', () => {
     try {
       const response = await fetchMoodDimensions()
       moodDimensions.value = response.dimensions
+      moodDimensionsMeta.value = response.meta ?? {
+        version: '',
+        description: '',
+      }
       if (!moodDefaultsApplied && response.dimensions.length > 0) {
         const hasAgency = response.dimensions.some(
           (d) => d.name === DEFAULT_ISOLATED_MOOD,
@@ -238,6 +252,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
       // of a loud error. The separate `moodError` below only
       // fires on mood-trends failures so the writing chart is
       // unaffected by mood-pipeline hiccups.
+      moodDimensionsMeta.value = { version: '', description: '' }
       moodDimensions.value = []
     }
   }
@@ -708,6 +723,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     error.value = null
     hasLoaded.value = false
     moodDimensions.value = []
+    moodDimensionsMeta.value = { version: '', description: '' }
     moodBins.value = []
     selectedMoodDimensions.value = new Set()
     moodDefaultsApplied = false
@@ -761,6 +777,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     loadWritingStats,
     // Mood surface
     moodDimensions,
+    moodDimensionsMeta,
     moodBins,
     selectedMoodDimensions,
     moodLoading,

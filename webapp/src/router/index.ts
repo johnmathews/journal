@@ -129,6 +129,11 @@ const router = createRouter({
           name: 'admin-server',
           component: () => import('@/views/admin/AdminServerView.vue'),
         },
+        {
+          path: 'moods',
+          name: 'admin-moods',
+          component: () => import('@/views/admin/AdminMoodsView.vue'),
+        },
       ],
     },
   ],

@@ -52,6 +52,11 @@ function createTestRouter() {
             name: 'admin-server',
             component: { template: '<div/>' },
           },
+          {
+            path: 'moods',
+            name: 'admin-moods',
+            component: { template: '<div/>' },
+          },
         ],
       },
     ],
@@ -92,7 +97,7 @@ describe('AdminLayout', () => {
     expect(nav.exists()).toBe(true)
   })
 
-  it('renders all five tabs in order with correct paths', async () => {
+  it('renders all six tabs in order with correct paths', async () => {
     const router = createTestRouter()
     router.push('/admin')
     await router.isReady()
@@ -105,12 +110,14 @@ describe('AdminLayout', () => {
       'Runtime',
       'Pricing',
       'Server',
+      'Moods',
     ])
     expect(links[0].attributes('href')).toBe('/admin')
     expect(links[1].attributes('href')).toBe('/admin/users')
     expect(links[2].attributes('href')).toBe('/admin/runtime')
     expect(links[3].attributes('href')).toBe('/admin/pricing')
     expect(links[4].attributes('href')).toBe('/admin/server')
+    expect(links[5].attributes('href')).toBe('/admin/moods')
   })
 
   it('highlights the Overview tab when at /admin', async () => {

@@ -24,6 +24,7 @@ import {
   isDisplayInverted,
 } from '@/utils/mood-display'
 import { groupDimensions } from '@/utils/mood-groups'
+import BaseTooltip from '@/components/BaseTooltip.vue'
 
 // Prevent tree-shaking of Chart.js registration side-effect.
 void getChartColors
@@ -2157,32 +2158,36 @@ async function onMoodCorrelationTypeChange(
               :key="g.group.id"
               class="flex flex-wrap items-center gap-2"
             >
-              <button
-                v-if="g.group.label"
-                type="button"
-                class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[0.65rem] font-semibold uppercase tracking-wide border transition-colors text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-800/40 hover:bg-gray-100 dark:hover:bg-gray-700/40"
-                :data-testid="`dashboard-mood-group-${g.group.id}`"
-                :aria-pressed="
-                  store.moodGroupSelectionState(g.group.members) === 'all'
-                    ? 'true'
-                    : store.moodGroupSelectionState(g.group.members) === 'some'
-                      ? 'mixed'
-                      : 'false'
-                "
-                @click="store.toggleMoodGroup(g.group.members)"
-              >
-                <span
-                  class="inline-block w-2.5 h-2.5 rounded-full border border-gray-400 dark:border-gray-500"
-                  :class="{
-                    'bg-violet-500 border-violet-500':
-                      store.moodGroupSelectionState(g.group.members) === 'all',
-                    'bg-gradient-to-r from-violet-500 from-50% to-transparent to-50% border-violet-500':
-                      store.moodGroupSelectionState(g.group.members) === 'some',
-                  }"
-                  aria-hidden="true"
-                ></span>
-                {{ g.group.label }}
-              </button>
+              <BaseTooltip v-if="g.group.label" :text="g.group.description">
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[0.65rem] font-semibold uppercase tracking-wide border transition-colors text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-800/40 hover:bg-gray-100 dark:hover:bg-gray-700/40"
+                  :data-testid="`dashboard-mood-group-${g.group.id}`"
+                  :aria-pressed="
+                    store.moodGroupSelectionState(g.group.members) === 'all'
+                      ? 'true'
+                      : store.moodGroupSelectionState(g.group.members) ===
+                          'some'
+                        ? 'mixed'
+                        : 'false'
+                  "
+                  @click="store.toggleMoodGroup(g.group.members)"
+                >
+                  <span
+                    class="inline-block w-2.5 h-2.5 rounded-full border border-gray-400 dark:border-gray-500"
+                    :class="{
+                      'bg-violet-500 border-violet-500':
+                        store.moodGroupSelectionState(g.group.members) ===
+                        'all',
+                      'bg-gradient-to-r from-violet-500 from-50% to-transparent to-50% border-violet-500':
+                        store.moodGroupSelectionState(g.group.members) ===
+                        'some',
+                    }"
+                    aria-hidden="true"
+                  ></span>
+                  {{ g.group.label }}
+                </button>
+              </BaseTooltip>
               <button
                 v-for="d in g.members"
                 :key="d.name"

@@ -81,8 +81,27 @@ export interface MoodDimension {
   notes: string
 }
 
+/**
+ * Metadata about the mood-dimensions config file as a whole. Surfaced
+ * on the admin "Moods" page so operators can see which definitions are
+ * live without SSH'ing into the server. Empty strings when scoring is
+ * disabled or the toml has no `[meta]` block — callers should treat
+ * empty `version` as "unknown" rather than as an error.
+ */
+export interface MoodDimensionsMeta {
+  version: string
+  description: string
+}
+
 export interface MoodDimensionsResponse {
   dimensions: MoodDimension[]
+  /**
+   * Present on every response from a current server, but typed as
+   * optional so historical fixtures and tests written before this
+   * field existed don't all need updating. Callers should treat
+   * missing `meta` as `{ version: '', description: '' }`.
+   */
+  meta?: MoodDimensionsMeta
 }
 
 /**

@@ -9,6 +9,7 @@ const tabs = [
   { name: 'Runtime', routeName: 'admin-runtime', path: '/admin/runtime' },
   { name: 'Pricing', routeName: 'admin-pricing', path: '/admin/pricing' },
   { name: 'Server', routeName: 'admin-server', path: '/admin/server' },
+  { name: 'Moods', routeName: 'admin-moods', path: '/admin/moods' },
 ] as const
 </script>
 

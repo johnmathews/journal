@@ -23,6 +23,13 @@ export interface MoodGroup {
   label: string
   /** Dimension names in this group, in toml order. */
   members: readonly string[]
+  /**
+   * Plain-English explanation of the group. Shown as a hover tooltip on
+   * the dashboard chip and as body copy on the admin "Moods" page. Keep
+   * to 1–2 sentences so the tooltip stays readable; longer prose belongs
+   * in the per-dimension `notes`.
+   */
+  description: string
 }
 
 export const MOOD_GROUPS: readonly MoodGroup[] = [
@@ -30,25 +37,38 @@ export const MOOD_GROUPS: readonly MoodGroup[] = [
     id: 'affect',
     label: 'Affect axes',
     members: ['joy_sadness', 'energy_fatigue'],
+    description:
+      'How the entry feels overall — both how good or bad (joy ↔ sadness) and how energetic or drained (energetic ↔ tired). The two classic dimensions of mood.',
   },
   {
     id: 'needs',
     label: 'Psychological needs',
     members: ['agency', 'fulfillment', 'connection'],
+    description:
+      'How fulfilled three core psychological needs feel: agency (control, capability), fulfillment (meaning, rightness), and connection (closeness with specific people).',
   },
   {
     id: 'negative',
     label: 'Active negative affect',
     members: ['frustration'],
+    description:
+      'Anger, irritation, and the family of feelings around blocked goals or things going wrong. Distinct from sadness, which sits on the joy axis.',
   },
   {
     id: 'stance',
     label: 'Stance',
     members: ['proactive_reactive'],
+    description:
+      'Less a feeling, more a description of how the day was structured: were you setting the agenda (proactive), or being pushed around by events (reactive)?',
   },
 ]
 
-const OTHER_GROUP: MoodGroup = { id: 'other', label: '', members: [] }
+const OTHER_GROUP: MoodGroup = {
+  id: 'other',
+  label: '',
+  members: [],
+  description: '',
+}
 
 export interface GroupedDimensions {
   group: MoodGroup
