@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import { ApiRequestError } from '@/api/client'
 import {
   reloadMoodDimensions,
@@ -251,7 +252,15 @@ function formatTimestamp(iso: string): string {
           </h2>
           <p class="text-sm text-gray-600 dark:text-gray-300">
             Re-read <code>MOOD_DIMENSIONS_PATH</code> and rebuild the mood
-            scoring service. 409 if mood scoring is disabled.
+            scoring service. Also refreshes the
+            <RouterLink
+              to="/admin/moods"
+              class="text-violet-600 dark:text-violet-400 hover:underline"
+              >Moods</RouterLink
+            >
+            tab — reload that page (or sign out and back in) afterwards so the
+            webapp re-fetches the cached dimension list. 409 if mood scoring is
+            disabled.
           </p>
         </div>
         <button
