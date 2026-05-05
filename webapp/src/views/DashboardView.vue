@@ -18,6 +18,11 @@ import {
 } from '@/types/insights'
 import { getChartColors } from '@/utils/chartjs-config'
 import { adjustColorOpacity } from '@/utils/mosaic'
+import {
+  displayLabel,
+  displayScore,
+  isDisplayInverted,
+} from '@/utils/mood-display'
 
 // Prevent tree-shaking of Chart.js registration side-effect.
 void getChartColors
@@ -291,6 +296,25 @@ function renderWordChart(): void {
 
 // --- Mood chart with variance bands ---
 
+/** Display label for the drill-down panel header — uses the active
+ *  dimension's `displayLabel` so frustration drill-downs read as "calm". */
+const drillDimensionLabel = computed<string>(() => {
+  const name = store.drillDimension
+  if (!name) return ''
+  const d = store.moodDimensions.find((m) => m.name === name)
+  return d ? displayLabel(d) : name
+})
+
+/** Inverts an individual entry score for display when the drilled-into
+ *  dimension is display-inverted; passes through otherwise. */
+function drillEntryDisplayScore(score: number): number {
+  const name = store.drillDimension
+  if (!name) return score
+  const d = store.moodDimensions.find((m) => m.name === name)
+  if (!d) return score
+  return displayScore(d, score) ?? score
+}
+
 function pivotMoodBins(): {
   periods: string[]
   series: Record<string, (number | null)[]>
@@ -318,15 +342,19 @@ function pivotMoodBins(): {
   const minSeries: Record<string, (number | null)[]> = {}
   const maxSeries: Record<string, (number | null)[]> = {}
   for (const d of store.moodDimensions) {
-    series[d.name] = periods.map(
-      (p) => byPeriod.get(p)?.get(d.name)?.avg ?? null,
+    series[d.name] = periods.map((p) =>
+      displayScore(d, byPeriod.get(p)?.get(d.name)?.avg ?? null),
     )
-    minSeries[d.name] = periods.map(
-      (p) => byPeriod.get(p)?.get(d.name)?.min ?? null,
-    )
-    maxSeries[d.name] = periods.map(
-      (p) => byPeriod.get(p)?.get(d.name)?.max ?? null,
-    )
+    // For display-inverted dimensions, the stored min becomes the upper
+    // bound of the band after inversion (because `1 - small` is large), so
+    // we feed each through `displayScore` AND swap them.
+    const lo = (p: string) =>
+      displayScore(d, byPeriod.get(p)?.get(d.name)?.min ?? null)
+    const hi = (p: string) =>
+      displayScore(d, byPeriod.get(p)?.get(d.name)?.max ?? null)
+    const inverted = isDisplayInverted(d.name)
+    minSeries[d.name] = periods.map((p) => (inverted ? hi(p) : lo(p)))
+    maxSeries[d.name] = periods.map((p) => (inverted ? lo(p) : hi(p)))
   }
   return { periods, series, minSeries, maxSeries }
 }
@@ -789,10 +817,18 @@ function renderMoodCorrelationChart(): void {
   }
 
   const colors = getChartColors()
-  const overallAvg = store.moodCorrelationOverallAvg
+  // Look up the active dimension so display-inverted ones (frustration → calm)
+  // render with `1 - score` and a flipped above/below-average colouring.
+  const activeDim = store.moodDimensions.find(
+    (d) => d.name === store.moodCorrelationDimension,
+  )
+  const toDisplay = (s: number): number =>
+    activeDim ? (displayScore(activeDim, s) ?? s) : s
+  const overallAvg = toDisplay(store.moodCorrelationOverallAvg)
+  const itemScores = items.map((it) => toDisplay(it.avg_score))
 
-  const barColors = items.map((it) =>
-    it.avg_score >= overallAvg ? '#22c55e' : '#ef4444',
+  const barColors = itemScores.map((s) =>
+    s >= overallAvg ? '#22c55e' : '#ef4444',
   )
 
   moodCorrelationChart = new Chart(moodCorrelationChartCanvas.value, {
@@ -802,7 +838,7 @@ function renderMoodCorrelationChart(): void {
       datasets: [
         {
           label: 'Avg score',
-          data: items.map((it) => it.avg_score),
+          data: itemScores,
           backgroundColor: barColors,
           borderColor: barColors,
           borderWidth: 1,
@@ -824,7 +860,8 @@ function renderMoodCorrelationChart(): void {
           callbacks: {
             label: (ctx) => {
               const item = items[ctx.dataIndex]
-              return `Score: ${item.avg_score.toFixed(3)} (${item.entry_count} entries)`
+              const shown = itemScores[ctx.dataIndex]
+              return `Score: ${shown.toFixed(3)} (${item.entry_count} entries)`
             },
           },
         },
@@ -2112,7 +2149,7 @@ async function onMoodCorrelationTypeChange(
                 }"
                 aria-hidden="true"
               ></span>
-              {{ d.positive_pole }}
+              {{ displayLabel(d) }}
               <span
                 class="text-gray-600 dark:text-gray-300 font-mono text-[0.65rem]"
                 >{{ d.scale_type === 'bipolar' ? '±1' : '0..1' }}</span
@@ -2212,7 +2249,7 @@ async function onMoodCorrelationTypeChange(
               <h3
                 class="text-sm font-semibold text-gray-800 dark:text-gray-100"
               >
-                {{ store.drillDimension }} — {{ formatDate(store.drillPeriod) }}
+                {{ drillDimensionLabel }} — {{ formatDate(store.drillPeriod) }}
               </h3>
               <button
                 type="button"
@@ -2274,12 +2311,12 @@ async function onMoodCorrelationTypeChange(
                     <td
                       class="py-2 pr-4 whitespace-nowrap font-mono text-xs"
                       :class="
-                        entry.score >= 0
+                        drillEntryDisplayScore(entry.score) >= 0
                           ? 'text-green-600 dark:text-green-400'
                           : 'text-red-600 dark:text-red-400'
                       "
                     >
-                      {{ formatScore(entry.score) }}
+                      {{ formatScore(drillEntryDisplayScore(entry.score)) }}
                     </td>
                     <td class="py-2 text-gray-600 dark:text-gray-300 text-xs">
                       {{ entry.rationale || 'No rationale available' }}
@@ -2698,7 +2735,7 @@ async function onMoodCorrelationTypeChange(
                   :aria-pressed="store.moodCorrelationDimension === d.name"
                   @click="onMoodCorrelationDimensionChange(d.name)"
                 >
-                  {{ d.positive_pole }}
+                  {{ displayLabel(d) }}
                 </button>
               </div>
             </div>

@@ -799,7 +799,10 @@ describe('DashboardView — mood chart', () => {
     // Drill-down panel should now be visible
     const panel = wrapper.find('[data-testid="dashboard-drilldown"]')
     expect(panel.exists()).toBe(true)
-    expect(panel.text()).toContain('joy_sadness')
+    // Header renders the dimension's display label (positive_pole),
+    // not the snake_case `name`.
+    expect(panel.text()).toContain('joy')
+    expect(panel.text()).not.toContain('joy_sadness')
     expect(panel.text()).toContain('Positive day')
 
     // Close button clears drill-down
