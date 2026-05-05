@@ -224,7 +224,14 @@ describe('useDashboardStore — mood surface', () => {
     expect(store.moodBins).toEqual([])
     expect(store.moodScoringEnabled).toBe(false)
     expect(store.hasMoodData).toBe(false)
-    expect(store.hiddenMoodDimensions.size).toBe(0)
+    expect(store.selectedMoodDimensions.size).toBe(0)
+  })
+
+  it('isMoodDimensionVisible treats empty selection as show-all', () => {
+    const store = useDashboardStore()
+    expect(store.selectedMoodDimensions.size).toBe(0)
+    expect(store.isMoodDimensionVisible('joy_sadness')).toBe(true)
+    expect(store.isMoodDimensionVisible('anything')).toBe(true)
   })
 
   it('loadMoodDimensions populates state and flips the enabled flag', async () => {
@@ -246,23 +253,33 @@ describe('useDashboardStore — mood surface', () => {
     mockMoodDims.mockResolvedValue({ dimensions: dims })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
-    // Only agency should be visible (isolated)
-    expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(true)
-    expect(store.hiddenMoodDimensions.has('anxiety_eagerness')).toBe(true)
-    expect(store.hiddenMoodDimensions.has('proactive_reactive')).toBe(true)
-    expect(store.hiddenMoodDimensions.has('fulfillment')).toBe(true)
-    expect(store.hiddenMoodDimensions.has('agency')).toBe(false)
+    // Only agency should be selected (the only-visible).
+    expect(store.selectedMoodDimensions.size).toBe(1)
+    expect(store.selectedMoodDimensions.has('agency')).toBe(true)
+    expect(store.isMoodDimensionVisible('agency')).toBe(true)
+    expect(store.isMoodDimensionVisible('joy_sadness')).toBe(false)
+  })
+
+  it('loadMoodDimensions starts with empty selection if agency is absent', async () => {
+    mockMoodDims.mockResolvedValue({
+      dimensions: [{ ...fakeDimensions[0], name: 'joy_sadness' }],
+    })
+    const store = useDashboardStore()
+    await store.loadMoodDimensions()
+    // No agency — fall through to "show all" (empty selection).
+    expect(store.selectedMoodDimensions.size).toBe(0)
+    expect(store.isMoodDimensionVisible('joy_sadness')).toBe(true)
   })
 
   it('loadMoodDimensions does not reapply defaults on subsequent calls', async () => {
     mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
-    // Clear hidden set (simulating user restoring all)
-    store.hiddenMoodDimensions.clear()
-    // Second load should not reapply defaults
+    // User clears the selection (show all).
+    store.showAllMoodDimensions()
+    // Second load should not reapply defaults — selection stays empty.
     await store.loadMoodDimensions()
-    expect(store.hiddenMoodDimensions.size).toBe(0)
+    expect(store.selectedMoodDimensions.size).toBe(0)
   })
 
   it('loadMoodDimensions swallows errors and leaves state empty', async () => {
@@ -326,19 +343,20 @@ describe('useDashboardStore — mood surface', () => {
     mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
-    // Default-isolate puts joy_sadness in hidden, agency visible.
-    expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(true)
-    expect(store.hiddenMoodDimensions.has('agency')).toBe(false)
+    // Default-isolate selects only agency.
+    expect(store.selectedMoodDimensions.has('agency')).toBe(true)
+    expect(store.selectedMoodDimensions.has('joy_sadness')).toBe(false)
+    expect(store.isMoodDimensionVisible('joy_sadness')).toBe(false)
 
-    // Toggling joy_sadness shows it without affecting agency.
+    // Toggling joy_sadness adds it to the selection (now 2 visible).
     store.toggleMoodDimension('joy_sadness')
-    expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(false)
-    expect(store.hiddenMoodDimensions.has('agency')).toBe(false)
+    expect(store.selectedMoodDimensions.has('joy_sadness')).toBe(true)
+    expect(store.selectedMoodDimensions.has('agency')).toBe(true)
 
-    // Toggling joy_sadness again hides it; agency still visible.
+    // Toggling joy_sadness again removes it; agency still selected.
     store.toggleMoodDimension('joy_sadness')
-    expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(true)
-    expect(store.hiddenMoodDimensions.has('agency')).toBe(false)
+    expect(store.selectedMoodDimensions.has('joy_sadness')).toBe(false)
+    expect(store.selectedMoodDimensions.has('agency')).toBe(true)
   })
 
   it('toggleMoodDimension supports any subset', async () => {
@@ -346,45 +364,104 @@ describe('useDashboardStore — mood surface', () => {
     const store = useDashboardStore()
     await store.loadMoodDimensions()
     store.showAllMoodDimensions()
-    // Hide both → empty chart
+    // Build a 2-of-2 selection.
     store.toggleMoodDimension('joy_sadness')
     store.toggleMoodDimension('agency')
-    expect(store.hiddenMoodDimensions.size).toBe(2)
-    // Show one back → exactly one visible, one hidden
-    store.toggleMoodDimension('joy_sadness')
-    expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(false)
-    expect(store.hiddenMoodDimensions.has('agency')).toBe(true)
+    expect(store.selectedMoodDimensions.size).toBe(2)
+    // Drop one → exactly one selected.
+    store.toggleMoodDimension('agency')
+    expect(store.selectedMoodDimensions.has('joy_sadness')).toBe(true)
+    expect(store.selectedMoodDimensions.has('agency')).toBe(false)
   })
 
   it('toggleMoodDimension creates a new Set so Vue reactivity fires', async () => {
     mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
-    const before = store.hiddenMoodDimensions
+    const before = store.selectedMoodDimensions
     store.toggleMoodDimension('joy_sadness')
-    const after = store.hiddenMoodDimensions
+    const after = store.selectedMoodDimensions
     // Must be a different Set instance — mutating in place would
     // not trigger watchers in the DashboardView.
     expect(after).not.toBe(before)
   })
 
-  it('showAllMoodDimensions clears the hidden set', async () => {
+  it('deselecting the last selected dimension falls back to show-all (Bug A regression)', async () => {
     mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
-    expect(store.hiddenMoodDimensions.size).toBeGreaterThan(0)
-    store.showAllMoodDimensions()
-    expect(store.hiddenMoodDimensions.size).toBe(0)
+    // Default selection has only agency.
+    expect(store.selectedMoodDimensions.size).toBe(1)
+    // Click agency to deselect.
+    store.toggleMoodDimension('agency')
+    expect(store.selectedMoodDimensions.size).toBe(0)
+    // Empty selection means "show all" — every dimension visible.
+    expect(store.isMoodDimensionVisible('agency')).toBe(true)
+    expect(store.isMoodDimensionVisible('joy_sadness')).toBe(true)
   })
 
-  it('hideAllMoodDimensions hides every loaded dimension', async () => {
+  it('showAllMoodDimensions clears the selection', async () => {
     mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
-    store.hideAllMoodDimensions()
-    expect(store.hiddenMoodDimensions.size).toBe(2)
-    expect(store.hiddenMoodDimensions.has('joy_sadness')).toBe(true)
-    expect(store.hiddenMoodDimensions.has('agency')).toBe(true)
+    expect(store.selectedMoodDimensions.size).toBeGreaterThan(0)
+    store.showAllMoodDimensions()
+    expect(store.selectedMoodDimensions.size).toBe(0)
+    expect(store.isMoodDimensionVisible('joy_sadness')).toBe(true)
+    expect(store.isMoodDimensionVisible('agency')).toBe(true)
+  })
+
+  it('moodGroupSelectionState reports tristate correctly', async () => {
+    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    const store = useDashboardStore()
+    await store.loadMoodDimensions()
+    // Default selection: only agency.
+    expect(store.moodGroupSelectionState(['agency'])).toBe('all')
+    expect(store.moodGroupSelectionState(['joy_sadness'])).toBe('none')
+    expect(store.moodGroupSelectionState(['agency', 'joy_sadness'])).toBe(
+      'some',
+    )
+    expect(store.moodGroupSelectionState([])).toBe('none')
+  })
+
+  it('toggleMoodGroup adds all when none selected, removes all when any selected', async () => {
+    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    const store = useDashboardStore()
+    await store.loadMoodDimensions()
+    store.showAllMoodDimensions()
+    // None → adds all members.
+    store.toggleMoodGroup(['joy_sadness', 'agency'])
+    expect(store.selectedMoodDimensions.size).toBe(2)
+    // All → removes all.
+    store.toggleMoodGroup(['joy_sadness', 'agency'])
+    expect(store.selectedMoodDimensions.size).toBe(0)
+    // Partial → also removes all (collapses to clean state).
+    store.toggleMoodDimension('joy_sadness')
+    expect(store.moodGroupSelectionState(['joy_sadness', 'agency'])).toBe(
+      'some',
+    )
+    store.toggleMoodGroup(['joy_sadness', 'agency'])
+    expect(store.moodGroupSelectionState(['joy_sadness', 'agency'])).toBe(
+      'none',
+    )
+  })
+
+  it('toggleMoodGroup creates a new Set so Vue reactivity fires', async () => {
+    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    const store = useDashboardStore()
+    await store.loadMoodDimensions()
+    const before = store.selectedMoodDimensions
+    store.toggleMoodGroup(['joy_sadness'])
+    expect(store.selectedMoodDimensions).not.toBe(before)
+  })
+
+  it('toggleMoodGroup is a no-op for an empty member list', async () => {
+    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    const store = useDashboardStore()
+    await store.loadMoodDimensions()
+    const before = store.selectedMoodDimensions
+    store.toggleMoodGroup([])
+    expect(store.selectedMoodDimensions).toBe(before)
   })
 
   it('reset wipes mood state back to defaults', async () => {
@@ -414,7 +491,7 @@ describe('useDashboardStore — mood surface', () => {
     expect(store.moodDimensions).toEqual([])
     expect(store.moodBins).toEqual([])
     expect(store.moodScoringEnabled).toBe(false)
-    expect(store.hiddenMoodDimensions.size).toBe(0)
+    expect(store.selectedMoodDimensions.size).toBe(0)
     expect(store.moodHasLoaded).toBe(false)
   })
 

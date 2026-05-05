@@ -103,10 +103,17 @@ export const useDashboardStore = defineStore('dashboard', () => {
   // on every range/bin change.
   const moodDimensions = ref<MoodDimension[]>([])
   const moodBins = ref<MoodTrendBin[]>([])
-  // Dimensions the user has toggled OFF in the chart UI. Stored
-  // as a Set<string> so flipping a toggle is O(1). Not
-  // persisted across sessions — defaults to isolating agency.
-  const hiddenMoodDimensions = ref<Set<string>>(new Set())
+  // Dimensions the user has selected for display in the chart.
+  // Contract:
+  //   empty set       → show all dimensions (default behaviour, matches
+  //                     the user-visible "no selection means show all"
+  //                     mental model)
+  //   non-empty set   → show only the named subset
+  // Stored as a Set<string> so per-pill toggles are O(1). Not persisted
+  // across sessions — first load isolates `agency` (single-line "what
+  // happened to my sense of agency this week?" view); subsequent reloads
+  // (e.g. after a config edit) leave the user's selection alone.
+  const selectedMoodDimensions = ref<Set<string>>(new Set())
   const DEFAULT_ISOLATED_MOOD = 'agency'
   let moodDefaultsApplied = false
   const moodLoading = ref(false)
@@ -217,11 +224,12 @@ export const useDashboardStore = defineStore('dashboard', () => {
       const response = await fetchMoodDimensions()
       moodDimensions.value = response.dimensions
       if (!moodDefaultsApplied && response.dimensions.length > 0) {
-        hiddenMoodDimensions.value = new Set(
-          response.dimensions
-            .map((d) => d.name)
-            .filter((n) => n !== DEFAULT_ISOLATED_MOOD),
+        const hasAgency = response.dimensions.some(
+          (d) => d.name === DEFAULT_ISOLATED_MOOD,
         )
+        selectedMoodDimensions.value = hasAgency
+          ? new Set([DEFAULT_ISOLATED_MOOD])
+          : new Set()
         moodDefaultsApplied = true
       }
     } catch {
@@ -266,29 +274,70 @@ export const useDashboardStore = defineStore('dashboard', () => {
   }
 
   /**
+   * True when `name` should be drawn in the chart. Empty selection is
+   * treated as "show all" so the chart never silently hides everything.
+   */
+  function isMoodDimensionVisible(name: string): boolean {
+    return (
+      selectedMoodDimensions.value.size === 0 ||
+      selectedMoodDimensions.value.has(name)
+    )
+  }
+
+  /**
    * Plain multi-select toggle: click a chip to flip that one
-   * dimension's visibility. Other dimensions are unaffected, so
-   * the user can pick any subset (one, several, all, or none).
-   * A new Set is assigned each time so Vue reactivity fires.
+   * dimension's selection state. Other dimensions are unaffected, so
+   * the user can pick any subset. A new Set is assigned each time so
+   * Vue reactivity fires.
    */
   function toggleMoodDimension(name: string): void {
-    const next = new Set(hiddenMoodDimensions.value)
+    const next = new Set(selectedMoodDimensions.value)
     if (next.has(name)) {
       next.delete(name)
     } else {
       next.add(name)
     }
-    hiddenMoodDimensions.value = next
+    selectedMoodDimensions.value = next
   }
 
+  /** Clear the selection — the chart falls back to showing every dimension. */
   function showAllMoodDimensions(): void {
-    hiddenMoodDimensions.value = new Set()
+    selectedMoodDimensions.value = new Set()
   }
 
-  function hideAllMoodDimensions(): void {
-    hiddenMoodDimensions.value = new Set(
-      moodDimensions.value.map((d) => d.name),
-    )
+  /**
+   * Tristate: 'all' if every member is in the selection, 'none' if no
+   * member is in the selection, 'some' otherwise. Empty input is 'none'.
+   */
+  function moodGroupSelectionState(
+    memberNames: readonly string[],
+  ): 'all' | 'some' | 'none' {
+    if (memberNames.length === 0) return 'none'
+    let selectedCount = 0
+    for (const name of memberNames) {
+      if (selectedMoodDimensions.value.has(name)) selectedCount += 1
+    }
+    if (selectedCount === 0) return 'none'
+    if (selectedCount === memberNames.length) return 'all'
+    return 'some'
+  }
+
+  /**
+   * Bulk action for a group of dimensions. If any member is currently
+   * selected, remove all members from the selection (collapse to clean
+   * "none" state). Otherwise add every member. Always lands the group
+   * in a uniform state — never partial.
+   */
+  function toggleMoodGroup(memberNames: readonly string[]): void {
+    if (memberNames.length === 0) return
+    const next = new Set(selectedMoodDimensions.value)
+    const anySelected = memberNames.some((n) => next.has(n))
+    if (anySelected) {
+      for (const name of memberNames) next.delete(name)
+    } else {
+      for (const name of memberNames) next.add(name)
+    }
+    selectedMoodDimensions.value = next
   }
 
   function toggleEntityTrend(name: string): void {
@@ -660,7 +709,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     hasLoaded.value = false
     moodDimensions.value = []
     moodBins.value = []
-    hiddenMoodDimensions.value = new Set()
+    selectedMoodDimensions.value = new Set()
     moodDefaultsApplied = false
     moodLoading.value = false
     moodError.value = null
@@ -713,7 +762,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     // Mood surface
     moodDimensions,
     moodBins,
-    hiddenMoodDimensions,
+    selectedMoodDimensions,
     moodLoading,
     moodError,
     moodHasLoaded,
@@ -721,9 +770,11 @@ export const useDashboardStore = defineStore('dashboard', () => {
     moodScoringEnabled,
     loadMoodDimensions,
     loadMoodTrends,
+    isMoodDimensionVisible,
     toggleMoodDimension,
     showAllMoodDimensions,
-    hideAllMoodDimensions,
+    moodGroupSelectionState,
+    toggleMoodGroup,
     drillPeriod,
     drillDimension,
     drillEntries,

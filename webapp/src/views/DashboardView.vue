@@ -23,6 +23,7 @@ import {
   displayScore,
   isDisplayInverted,
 } from '@/utils/mood-display'
+import { groupDimensions } from '@/utils/mood-groups'
 
 // Prevent tree-shaking of Chart.js registration side-effect.
 void getChartColors
@@ -149,11 +150,28 @@ const showCharts = computed(
   () => store.totalEntriesInRange >= MIN_ENTRIES_FOR_CHARTS,
 )
 
-const allMoodDimensionsHidden = computed(
-  () =>
-    store.moodDimensions.length > 0 &&
-    store.hiddenMoodDimensions.size === store.moodDimensions.length,
+/**
+ * Mood dimensions bucketed into the four conceptual groups (affect axes /
+ * psychological needs / active negative affect / stance) per the toml's
+ * leading comment. Each row in the chart's toggle UI renders one entry from
+ * this list. Iterating preserves the toml's ordering, which the chart relies
+ * on for line colour assignment.
+ */
+const groupedMoodDimensions = computed(() =>
+  groupDimensions(store.moodDimensions),
 )
+
+/**
+ * Stable index for each dimension across the flat (un-grouped) toml order.
+ * The chart's line colours are assigned by this index so the colour
+ * associated with `joy_sadness` doesn't depend on which group it ended up
+ * rendered in. Built once per `moodDimensions` change.
+ */
+const moodDimensionIndex = computed<Map<string, number>>(() => {
+  const m = new Map<string, number>()
+  store.moodDimensions.forEach((d, i) => m.set(d.name, i))
+  return m
+})
 
 const allEntityTrendsHidden = computed(
   () =>
@@ -376,7 +394,7 @@ function renderMoodChart(): void {
   const datasets: any[] = []
 
   for (const d of allDimensions) {
-    if (store.hiddenMoodDimensions.has(d.name)) continue
+    if (!store.isMoodDimensionVisible(d.name)) continue
     const fullIndex = allDimensions.indexOf(d)
     const color = MOOD_LINE_COLORS[fullIndex % MOOD_LINE_COLORS.length]
     const bandColor = adjustColorOpacity(color, 0.1)
@@ -912,10 +930,17 @@ watch(
   { deep: false },
 )
 
+// `flush: 'post'` is essential here: when the v-if/v-else branches in
+// the mood-trends card flip (e.g. loading → loaded, or — historically —
+// the all-hidden empty state → chart), Vue mounts/unmounts the canvas
+// element. The default `flush: 'pre'` would fire this watcher *before*
+// Vue patches the DOM, so `moodChartCanvas.value` would still be `null`
+// and `renderMoodChart` would silently no-op. Running post-flush
+// guarantees the canvas ref is live when we draw.
 watch(
-  [() => store.moodBins, () => store.hiddenMoodDimensions],
+  [() => store.moodBins, () => store.selectedMoodDimensions],
   () => renderMoodChart(),
-  { deep: false },
+  { deep: false, flush: 'post' },
 )
 
 watch(
@@ -2119,65 +2144,88 @@ async function onMoodCorrelationTypeChange(
             </div>
           </header>
 
-          <!-- Dimension toggles -->
+          <!-- Dimension toggles, grouped per mood-dimensions.toml comment -->
           <div
             v-if="store.moodDimensions.length"
-            class="flex flex-wrap items-center gap-2 mb-3"
+            class="space-y-1.5 mb-3"
             role="group"
             aria-label="Mood dimensions"
             data-testid="dashboard-mood-toggles"
           >
-            <button
-              v-for="(d, i) in store.moodDimensions"
-              :key="d.name"
-              type="button"
-              class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
-              :class="
-                store.hiddenMoodDimensions.has(d.name)
-                  ? 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60 opacity-40'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700/60'
-              "
-              :data-testid="`dashboard-mood-toggle-${d.name}`"
-              :aria-pressed="!store.hiddenMoodDimensions.has(d.name)"
-              @click="toggleDimension(d.name)"
-            >
-              <span
-                class="inline-block w-2 h-2 rounded-full"
-                :style="{
-                  backgroundColor:
-                    MOOD_LINE_COLORS[i % MOOD_LINE_COLORS.length],
-                }"
-                aria-hidden="true"
-              ></span>
-              {{ displayLabel(d) }}
-              <span
-                class="text-gray-600 dark:text-gray-300 font-mono text-[0.65rem]"
-                >{{ d.scale_type === 'bipolar' ? '±1' : '0..1' }}</span
-              >
-            </button>
-            <span
-              class="ml-auto inline-flex items-center gap-1 text-[0.65rem] uppercase tracking-wide text-gray-500 dark:text-gray-400"
+            <div
+              v-for="g in groupedMoodDimensions"
+              :key="g.group.id"
+              class="flex flex-wrap items-center gap-2"
             >
               <button
+                v-if="g.group.label"
                 type="button"
-                class="px-1.5 py-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700/40 disabled:opacity-30 disabled:cursor-default"
-                :disabled="store.hiddenMoodDimensions.size === 0"
+                class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[0.65rem] font-semibold uppercase tracking-wide border transition-colors text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60 bg-gray-50 dark:bg-gray-800/40 hover:bg-gray-100 dark:hover:bg-gray-700/40"
+                :data-testid="`dashboard-mood-group-${g.group.id}`"
+                :aria-pressed="
+                  store.moodGroupSelectionState(g.group.members) === 'all'
+                    ? 'true'
+                    : store.moodGroupSelectionState(g.group.members) === 'some'
+                      ? 'mixed'
+                      : 'false'
+                "
+                @click="store.toggleMoodGroup(g.group.members)"
+              >
+                <span
+                  class="inline-block w-2.5 h-2.5 rounded-full border border-gray-400 dark:border-gray-500"
+                  :class="{
+                    'bg-violet-500 border-violet-500':
+                      store.moodGroupSelectionState(g.group.members) === 'all',
+                    'bg-gradient-to-r from-violet-500 from-50% to-transparent to-50% border-violet-500':
+                      store.moodGroupSelectionState(g.group.members) === 'some',
+                  }"
+                  aria-hidden="true"
+                ></span>
+                {{ g.group.label }}
+              </button>
+              <button
+                v-for="d in g.members"
+                :key="d.name"
+                type="button"
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
+                :class="
+                  store.isMoodDimensionVisible(d.name)
+                    ? 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700/60'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60 opacity-40'
+                "
+                :data-testid="`dashboard-mood-toggle-${d.name}`"
+                :aria-pressed="store.isMoodDimensionVisible(d.name)"
+                @click="toggleDimension(d.name)"
+              >
+                <span
+                  class="inline-block w-2 h-2 rounded-full"
+                  :style="{
+                    backgroundColor:
+                      MOOD_LINE_COLORS[
+                        (moodDimensionIndex.get(d.name) ?? 0) %
+                          MOOD_LINE_COLORS.length
+                      ],
+                  }"
+                  aria-hidden="true"
+                ></span>
+                {{ displayLabel(d) }}
+                <span
+                  class="text-gray-600 dark:text-gray-300 font-mono text-[0.65rem]"
+                  >{{ d.scale_type === 'bipolar' ? '±1' : '0..1' }}</span
+                >
+              </button>
+            </div>
+            <div class="flex justify-end">
+              <button
+                type="button"
+                class="px-1.5 py-0.5 rounded text-[0.65rem] uppercase tracking-wide text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/40 disabled:opacity-30 disabled:cursor-default"
+                :disabled="store.selectedMoodDimensions.size === 0"
                 data-testid="dashboard-mood-show-all"
                 @click="store.showAllMoodDimensions()"
               >
                 All
               </button>
-              <span aria-hidden="true">·</span>
-              <button
-                type="button"
-                class="px-1.5 py-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700/40 disabled:opacity-30 disabled:cursor-default"
-                :disabled="allMoodDimensionsHidden"
-                data-testid="dashboard-mood-hide-all"
-                @click="store.hideAllMoodDimensions()"
-              >
-                None
-              </button>
-            </span>
+            </div>
           </div>
 
           <div
@@ -2210,22 +2258,6 @@ async function onMoodCorrelationTypeChange(
               to score historical entries, or ingest a new entry with mood
               scoring enabled.
             </p>
-          </div>
-
-          <div
-            v-else-if="allMoodDimensionsHidden"
-            class="py-8 text-center text-gray-600 dark:text-gray-300 text-sm"
-            data-testid="dashboard-mood-all-hidden"
-          >
-            All dimensions hidden.
-            <button
-              type="button"
-              class="ml-1 text-violet-600 dark:text-violet-400 hover:underline"
-              data-testid="dashboard-mood-all-hidden-show-all"
-              @click="store.showAllMoodDimensions()"
-            >
-              Show all
-            </button>
           </div>
 
           <div

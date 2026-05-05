@@ -582,7 +582,7 @@ describe('DashboardView — mood chart', () => {
     expect(dimmedClass('dashboard-mood-toggle-agency')).toBe(false)
   })
 
-  it('All / None bulk buttons toggle every dimension at once', async () => {
+  it('"All" button clears the selection and shows every dimension', async () => {
     const wrapper = await setupWithMoodData()
     const dimmedClass = (testid: string): boolean =>
       wrapper
@@ -590,35 +590,103 @@ describe('DashboardView — mood chart', () => {
         .classes()
         .some((c) => c.includes('opacity-40'))
 
-    // Click "All" → no dimensions hidden.
+    // Default selection isolates agency, so joy_sadness starts dimmed.
+    expect(dimmedClass('dashboard-mood-toggle-joy_sadness')).toBe(true)
+
+    // Click "All" → selection clears → every pill bright (no dimming).
     await wrapper
       .find('[data-testid="dashboard-mood-show-all"]')
       .trigger('click')
     await flushPromises()
     expect(dimmedClass('dashboard-mood-toggle-joy_sadness')).toBe(false)
     expect(dimmedClass('dashboard-mood-toggle-agency')).toBe(false)
+  })
 
-    // Click "None" → every dimension hidden + empty state appears.
-    await wrapper
-      .find('[data-testid="dashboard-mood-hide-all"]')
-      .trigger('click')
-    await flushPromises()
-    expect(dimmedClass('dashboard-mood-toggle-joy_sadness')).toBe(true)
-    expect(dimmedClass('dashboard-mood-toggle-agency')).toBe(true)
+  it('"None" button no longer exists — drop confirmed', async () => {
+    const wrapper = await setupWithMoodData()
     expect(
-      wrapper.find('[data-testid="dashboard-mood-all-hidden"]').exists(),
-    ).toBe(true)
+      wrapper.find('[data-testid="dashboard-mood-hide-all"]').exists(),
+    ).toBe(false)
+  })
 
-    // Click "Show all" link inside the empty state → restored.
+  it('"All" is disabled when selection is empty, enabled when not', async () => {
+    const wrapper = await setupWithMoodData()
+    const allBtn = wrapper.find('[data-testid="dashboard-mood-show-all"]')
+    // Default selection has agency → All is enabled.
+    expect(allBtn.attributes('disabled')).toBeUndefined()
+    // Click All to clear → now disabled.
+    await allBtn.trigger('click')
+    await flushPromises()
+    expect(allBtn.attributes('disabled')).toBeDefined()
+  })
+
+  it('Bug A regression: deselecting the only selected pill does NOT show empty state', async () => {
+    const wrapper = await setupWithMoodData()
+    // Default selection has only agency.
+    // Click agency → selection becomes empty → "show all" semantics kick in.
     await wrapper
-      .find('[data-testid="dashboard-mood-all-hidden-show-all"]')
+      .find('[data-testid="dashboard-mood-toggle-agency"]')
       .trigger('click')
     await flushPromises()
+    // The all-hidden empty state must not appear (it was removed).
     expect(
       wrapper.find('[data-testid="dashboard-mood-all-hidden"]').exists(),
     ).toBe(false)
-    expect(dimmedClass('dashboard-mood-toggle-joy_sadness')).toBe(false)
-    expect(dimmedClass('dashboard-mood-toggle-agency')).toBe(false)
+    // The chart container is still visible.
+    expect(
+      wrapper.find('[data-testid="dashboard-mood-chart-container"]').exists(),
+    ).toBe(true)
+  })
+
+  it('renders one row per group label in toml order', async () => {
+    const wrapper = await setupWithMoodData()
+    // The two fakeDimensions in the test fixture are joy_sadness (affect)
+    // and agency (needs) — so we expect two group rows.
+    const affect = wrapper.find('[data-testid="dashboard-mood-group-affect"]')
+    const needs = wrapper.find('[data-testid="dashboard-mood-group-needs"]')
+    expect(affect.exists()).toBe(true)
+    expect(needs.exists()).toBe(true)
+    expect(affect.text()).toContain('Affect axes')
+    expect(needs.text()).toContain('Psychological needs')
+  })
+
+  it('clicking a group label adds all its members to the selection when none are selected', async () => {
+    const wrapper = await setupWithMoodData()
+    // Clear selection first so every group starts in "none" state.
+    await wrapper
+      .find('[data-testid="dashboard-mood-show-all"]')
+      .trigger('click')
+    await flushPromises()
+    // Click affect group → joy_sadness should now be the only selected.
+    await wrapper
+      .find('[data-testid="dashboard-mood-group-affect"]')
+      .trigger('click')
+    await flushPromises()
+    const dimmed = (testid: string): boolean =>
+      wrapper
+        .find(`[data-testid="${testid}"]`)
+        .classes()
+        .some((c) => c.includes('opacity-40'))
+    // joy_sadness selected → not dimmed; agency not selected → dimmed.
+    expect(dimmed('dashboard-mood-toggle-joy_sadness')).toBe(false)
+    expect(dimmed('dashboard-mood-toggle-agency')).toBe(true)
+  })
+
+  it('clicking a group label a second time removes its members from the selection', async () => {
+    const wrapper = await setupWithMoodData()
+    // Default: agency selected. Click needs group → removes agency.
+    await wrapper
+      .find('[data-testid="dashboard-mood-group-needs"]')
+      .trigger('click')
+    await flushPromises()
+    // Selection is now empty → empty-selection semantics: every pill bright.
+    const dimmed = (testid: string): boolean =>
+      wrapper
+        .find(`[data-testid="${testid}"]`)
+        .classes()
+        .some((c) => c.includes('opacity-40'))
+    expect(dimmed('dashboard-mood-toggle-agency')).toBe(false)
+    expect(dimmed('dashboard-mood-toggle-joy_sadness')).toBe(false)
   })
 
   it('shows the empty state when mood_trends returns no bins', async () => {
@@ -742,9 +810,11 @@ describe('DashboardView — mood chart', () => {
   it('mood chart animates on first render but not after toggling', async () => {
     const wrapper = await setupWithMoodData()
 
-    // First render: animation should be undefined (Chart.js default = animate)
+    // First render: animation should be undefined (Chart.js default = animate).
+    // Inspect the *first* chart construction, since the post-flush watcher
+    // legitimately re-renders after the explicit onMounted call.
     const firstCalls = chartConstructorSpy.mock.calls
-    const firstConfig = firstCalls[firstCalls.length - 1][1] as {
+    const firstConfig = firstCalls[0][1] as {
       options: { animation?: false }
     }
     expect(firstConfig.options.animation).toBeUndefined()
