@@ -1,407 +1,179 @@
-# Implementation Plan: Journal Webapp + Backend Changes
+# Mood Trends Chart — Improvement Plan
 
-## Overview
+## Work units
 
-Two repositories are affected:
-- **journal-server** (backend): Data model migration, REST API, service layer changes
-- **journal-webapp** (frontend): New Vue 3 project from scratch
+### Unit 1 [Critical] — Fix Bug B: render race after DOM mount
 
-Work units are ordered by dependency. Backend changes must land first since the frontend
-depends on the REST API.
+**Problem:** `watch([store.moodBins, store.hiddenMoodDimensions], renderMoodChart)`
+in `DashboardView.vue` runs at Vue's default `flush: 'pre'`, so it fires before
+Vue patches the DOM. After a transition that mounts/unmounts the canvas (e.g.
+the "all hidden" → "show all" path), `moodChartCanvas.value` is `null` when the
+watcher fires, render early-exits, no re-trigger.
 
----
+**Change:**
+- `DashboardView.vue` line ~915: change the watcher options to `{ deep: false, flush: 'post' }`.
 
-## Phase A: Backend Changes (journal-server)
+**Tests:**
+- New test in `DashboardView.test.ts`: after a transition that toggles the canvas
+  v-if branch, the chart re-renders. Easiest probe: spy on the chart constructor
+  via the existing chart.js mock.
 
-### Work Unit 1: Data Model Migration
-**Priority:** Critical
-**Dependencies:** None
-
-**Changes:**
-- `src/journal/db/migrations/0002_multi_page_and_correction.sql` (NEW)
-  - `ALTER TABLE entries ADD COLUMN final_text TEXT`
-  - `ALTER TABLE entries ADD COLUMN chunk_count INTEGER NOT NULL DEFAULT 0`
-  - Backfill: `UPDATE entries SET final_text = raw_text`
-  - Create `entry_pages` table (id, entry_id, page_number, raw_text, source_file_id, created_at)
-  - Migrate existing OCR entries into `entry_pages` (one page per entry, page_number=1)
-  - Drop old FTS5 triggers and table
-  - Recreate FTS5 on `final_text` with new triggers (UPDATE trigger scoped to `final_text` column)
-  - Rebuild FTS index from existing data
-
-- `src/journal/models.py` (MODIFY)
-  - Add `final_text: str` and `chunk_count: int = 0` to `Entry` dataclass
-  - Add `EntryPage` dataclass (id, entry_id, page_number, raw_text, source_file_id, created_at)
-  - Rename `SearchResult.raw_text` to `SearchResult.text` (it now carries `final_text`)
-
-- `src/journal/db/repository.py` (MODIFY)
-  - Update `_row_to_entry` to include `final_text` and `chunk_count`
-  - Update `create_entry` to accept and store `final_text` (defaults to `raw_text`)
-  - Add methods: `update_final_text()`, `add_entry_page()`, `get_entry_pages()`, `update_chunk_count()`
-
-- Tests: Update all existing tests that create/assert on Entry objects
-
-**Acceptance criteria:**
-- Migration runs cleanly on existing database
-- All existing tests pass with updated Entry fields
-- New repository methods have tests
-
-### Work Unit 2: Service Layer — Multi-Page Ingestion + OCR Correction
-**Priority:** Critical
-**Dependencies:** Work Unit 1
-
-**Changes:**
-- `src/journal/services/ingestion.py` (MODIFY)
-  - Modify `ingest_image`: set `final_text = raw_text`, insert `entry_pages` row, update `chunk_count` after processing
-  - Modify `ingest_voice`: set `final_text = raw_text`, update `chunk_count`
-  - Modify `ingest_image_from_url`: same changes as `ingest_image`
-  - Modify `ingest_voice_from_url`: same changes as `ingest_voice`
-  - Modify `_process_text` (or callers): return chunk count so callers can store it
-  - Add `ingest_multi_page_entry(images: list[tuple[bytes, str]], date: str) -> Entry`:
-    OCR each image, concatenate texts, create single entry + pages, chunk and embed
-  - Add `update_entry_text(entry_id: int, final_text: str) -> Entry`:
-    Update SQLite, delete old ChromaDB chunks, re-chunk, re-embed, update chunk_count
-
-- `src/journal/services/query.py` (MODIFY)
-  - `search_entries`: use `entry.final_text` in SearchResult
-  - Add `get_entry_pages(entry_id: int) -> list[EntryPage]`
-
-**Acceptance criteria:**
-- `ingest_multi_page_entry` creates one entry with N pages, correct combined text
-- `update_entry_text` updates final_text, re-embeds, updates chunk_count
-- Search returns `final_text` content, not `raw_text`
-- Existing single-image and voice ingestion still work
-
-### Work Unit 3: REST API Endpoints
-**Priority:** Critical
-**Dependencies:** Work Unit 2
-
-**Changes:**
-- `src/journal/api.py` (NEW)
-  - `GET /api/entries` — list entries with pagination, date filtering
-    Response: `{ items: [EntrySummary], total, limit, offset }`
-    EntrySummary: id, entry_date, source_type, page_count, word_count, chunk_count, created_at
-  - `GET /api/entries/{id}` — single entry with full text
-    Response: EntryDetail (id, entry_date, source_type, raw_text, final_text, page_count,
-    word_count, chunk_count, language, created_at, updated_at)
-  - `PATCH /api/entries/{id}` — update final_text, triggers re-processing
-    Request: `{ final_text: string }`
-    Response: updated EntryDetail
-  - `GET /api/stats` — statistics summary
-    Response: Statistics object
-  - Error format: `{ error: string, message: string }` with 400/404/500 codes
-  - Register all routes via `mcp.custom_route()` decorator
-
-- `src/journal/config.py` (MODIFY)
-  - Add `api_cors_origins: list[str]` from `API_CORS_ORIGINS` env var
-
-- `src/journal/mcp_server.py` (MODIFY)
-  - Import and call route registration from `api.py`
-  - Replace `mcp.run()` with manual Starlette app construction + CORS middleware + uvicorn
-  - CORS allows configurable origins (default: none; dev: `http://localhost:5173`)
-
-- `docker-compose.yml` (MODIFY)
-  - Add `API_CORS_ORIGINS` environment variable
-
-- `tests/test_api.py` (NEW)
-  - Test all 4 endpoints using Starlette TestClient
-  - Test pagination, date filtering, 404 responses, validation errors
-  - Test that PATCH triggers re-embedding (verify chunk_count changes)
-
-**Acceptance criteria:**
-- All 4 endpoints return correct JSON responses
-- CORS headers present in responses when configured
-- MCP server still works alongside REST endpoints
-- All tests pass
-
-### Work Unit 4: MCP Tool + CLI Updates
-**Priority:** High
-**Dependencies:** Work Unit 2
-
-**Changes:**
-- `src/journal/mcp_server.py` (MODIFY)
-  - All tools use `final_text` in output instead of `raw_text`
-  - New tool: `journal_ingest_multi_page` (accept multiple images)
-  - New tool: `journal_update_entry_text` (edit final_text, trigger re-processing)
-
-- `src/journal/cli.py` (MODIFY)
-  - All commands display `final_text` in output
-  - Update `cmd_ingest` to show `final_text` preview
-
-**Acceptance criteria:**
-- MCP tools return final_text content
-- New tools work correctly
-- CLI displays final_text
-
-### Work Unit 5: Backend Documentation + Journal
-**Priority:** Medium
-**Dependencies:** Work Units 1-4
-
-**Changes:**
-- `docs/architecture.md` (MODIFY)
-  - Document multi-page entry model
-  - Document REST API layer alongside MCP
-  - Update data flow diagrams
-  - Document `raw_text` vs `final_text` distinction
-
-- `docs/api.md` (MODIFY)
-  - Add REST API endpoint reference (alongside MCP tools)
-  - Document CORS configuration
-
-- `docs/configuration.md` (MODIFY)
-  - Add `API_CORS_ORIGINS` env var documentation
-
-- `journal/YYMMDD-multi-page-and-rest-api.md` (NEW)
-  - Development journal entry documenting the changes
-
-**Acceptance criteria:**
-- All new features documented
-- Architecture docs reflect new data model
-- API reference covers REST endpoints
+**Acceptance:** unit test asserts that flipping from the "no canvas" branch to
+the canvas branch triggers a `renderMoodChart` call after DOM update.
 
 ---
 
-## Phase B: Frontend (journal-webapp)
+### Unit 2 [Critical] — Fix Bug A: selection semantics
 
-### Work Unit 6: Project Setup
-**Priority:** Critical
-**Dependencies:** None (can start in parallel with backend work)
+**Problem:** Empty selection currently triggers an "All dimensions hidden" empty
+state, contradicting the user's mental model of "no selection = show all".
 
-**Changes:**
-- Initialize git repo in `/Users/john/projects/journal/journal-webapp`
-- Scaffold Vue 3 + Vite 8 + TypeScript project via `npm create vue@latest`
-  - Enable: TypeScript, Vue Router, Pinia, Vitest, ESLint, Prettier
-- Install PrimeVue 4.5.x + @primeuix/themes + tailwindcss-primeui
-- Install Chart.js (peer dependency for future charts)
-- Configure PrimeVue with Aura preset in main.ts
-- Configure ESLint 9 flat config
-- Set up path alias (`@/*` -> `./src/*`)
-- Create directory structure:
-  ```
-  src/
-    api/            — API client layer
-    assets/         — Static resources
-    components/     — Global reusable components
-    composables/    — Composition functions
-    layouts/        — Page layout components
-    router/         — Route configuration
-    stores/         — Pinia stores
-    types/          — TypeScript type definitions
-    utils/          — Pure utility functions
-    views/          — Page components
-    App.vue         — Root component with layout
-    main.ts         — App entry point
-  ```
-- Create GitHub Actions workflow for GHCR image push
-- Create Dockerfile (nginx-based for static SPA)
-- Create docker-compose.yml for local dev
+**State model change** in `src/stores/dashboard.ts`:
+- Rename `hiddenMoodDimensions: Set<string>` → `selectedMoodDimensions: Set<string>`
+- Contract: **empty set = show all dimensions**; non-empty = show only the named subset
+- Default initialization on first `loadMoodDimensions`: `new Set(['agency'])` (matches the existing
+  `DEFAULT_ISOLATED_MOOD` behaviour — agency-only on first load). Keep a one-shot guard so reloads after a config edit don't reset the user's selection mid-session.
+- Rename actions:
+  - `toggleMoodDimension(name)` — add/remove `name` from selection
+  - `showAllMoodDimensions()` — keep, now clears the selection (empty = show-all)
+  - `hideAllMoodDimensions()` → **delete** (no coherent meaning under selection semantics; per design decision (2) the "None" affordance is removed)
+- Helper computed/getter in the store: `isMoodDimensionVisible(name)` — `true` if selection is empty OR contains `name`.
 
-**Acceptance criteria:**
-- `npm run dev` starts the app on localhost:5173
-- `npm run build` produces production build
-- `npm run test:unit` runs (with no tests yet, exits cleanly)
-- `npm run lint` passes
-- Git repo initialized with initial commit
+**Template change** in `src/views/DashboardView.vue`:
+- Per-pill state binding flips: `aria-pressed`, dimmed style, and chip click semantics now use `store.isMoodDimensionVisible(d.name)`.
+- **Drop** the `v-else-if="allMoodDimensionsHidden"` empty-state branch and its `dashboard-mood-all-hidden` test ID + the inner "Show all" link.
+- **Drop** the `None` button (`dashboard-mood-hide-all`). Keep `All` as a "reset to default → show all" affordance, disabled when selection is already empty.
+- **Drop** the `allMoodDimensionsHidden` computed in the view setup.
 
-### Work Unit 7: API Client Layer + Types
-**Priority:** Critical
-**Dependencies:** Work Unit 3 (REST API must be defined), Work Unit 6
+**Render function change** at line 379:
+- Replace `if (store.hiddenMoodDimensions.has(d.name)) continue` with
+  `if (!store.isMoodDimensionVisible(d.name)) continue`.
 
-**Changes:**
-- `src/types/entry.ts` (NEW)
-  - `EntrySummary` interface matching GET /api/entries response items
-  - `EntryDetail` interface matching GET /api/entries/{id} response
-  - `EntryListResponse` interface (items, total, limit, offset)
-  - `Statistics` interface matching GET /api/stats response
-  - `PaginationParams`, `DateFilterParams` types
+**Tests:**
+- `dashboard.test.ts`:
+  - Default selection contains only `agency` (preserves existing behaviour).
+  - `toggleMoodDimension` flips membership both ways, creates new Set for reactivity.
+  - `showAllMoodDimensions` clears selection (size === 0).
+  - `isMoodDimensionVisible` returns true for empty selection (any name).
+  - `isMoodDimensionVisible` returns true only for selected names when non-empty.
+- `DashboardView.test.ts`:
+  - Deselecting the last selected pill leaves the chart visible (regression test for Bug A).
+  - The empty-state DOM (`dashboard-mood-all-hidden`) no longer exists.
+  - The `None` button (`dashboard-mood-hide-all`) no longer exists.
+  - The `All` button is disabled when selection is empty, enabled otherwise.
 
-- `src/api/client.ts` (NEW)
-  - Base fetch wrapper with error handling
-  - `API_BASE_URL` from env var (Vite's `import.meta.env.VITE_API_URL`)
-
-- `src/api/entries.ts` (NEW)
-  - `fetchEntries(params): Promise<EntryListResponse>`
-  - `fetchEntry(id): Promise<EntryDetail>`
-  - `updateEntryText(id, finalText): Promise<EntryDetail>`
-  - `fetchStats(): Promise<Statistics>`
-
-- `src/stores/entries.ts` (NEW) — Pinia store
-  - State: entries list, current entry, loading flags, pagination state
-  - Actions: loadEntries, loadEntry, saveEntryText
-  - Getters: computed pagination info
-
-- Tests:
-  - Unit tests for API client functions (with MSW mocks)
-  - Unit tests for Pinia store
-
-**Acceptance criteria:**
-- API functions return typed responses
-- Pinia store manages loading/error/success states
-- Tests cover happy path and error cases
-
-### Work Unit 8: Entry List Table View
-**Priority:** Critical
-**Dependencies:** Work Unit 7
-
-**Changes:**
-- `src/views/EntryListView.vue` (NEW)
-  - PrimeVue DataTable with columns: Date, Pages, Words, Chunks, Date Ingested
-  - Server-side pagination (lazy loading via DataTable's `lazy` prop)
-  - Date range filtering (PrimeVue DatePicker for start/end)
-  - Sortable columns
-  - Click row to navigate to entry detail
-  - Loading skeleton while fetching
-
-- `src/layouts/DefaultLayout.vue` (NEW)
-  - App shell with navigation sidebar (initially just "Entries" link)
-  - Responsive layout (sidebar collapses on mobile)
-  - Extensible — future nav items (Dashboards, Settings) slot in here
-
-- `src/router/index.ts` (MODIFY)
-  - Route: `/` -> EntryListView
-  - Route: `/entries/:id` -> EntryDetailView (Work Unit 9)
-
-- `src/App.vue` (MODIFY)
-  - Use DefaultLayout as wrapper
-
-- Tests:
-  - Component test for EntryListView with mocked API responses
-  - Test pagination, loading state, row click navigation
-
-**Acceptance criteria:**
-- Table displays entries with all 5 columns
-- Pagination works (page forward/back, rows per page)
-- Date filtering works
-- Clicking a row navigates to detail view
-- Loading state shown while fetching
-
-### Work Unit 9: Entry Detail + OCR Correction View
-**Priority:** Critical
-**Dependencies:** Work Unit 8
-
-**Changes:**
-- `src/views/EntryDetailView.vue` (NEW)
-  - Header: entry date, source type, word count, chunk count
-  - PrimeVue Splitter with two panels:
-    - Left panel: `raw_text` (read-only Textarea, label: "Original OCR")
-    - Right panel: `final_text` (editable Textarea, label: "Corrected Text")
-  - Save button: calls PATCH endpoint, shows success/error toast
-  - Visual indicator when `final_text` differs from `raw_text` (e.g., "Modified" badge)
-  - Back button to return to list
-  - PrimeVue Toast for save confirmation
-
-- `src/composables/useEntryEditor.ts` (NEW)
-  - Manages editor state: original text, edited text, dirty tracking, save logic
-  - Handles the PATCH call and updates the Pinia store on success
-
-- Tests:
-  - Component test: renders both panels with correct text
-  - Component test: editing text marks as dirty, save button enables
-  - Component test: save calls API and shows toast
-  - Test unsaved changes warning (browser beforeunload)
-
-**Acceptance criteria:**
-- Side-by-side view shows raw_text and final_text
-- Editing final_text and saving triggers re-processing
-- Success/error feedback via toast
-- Dirty state tracked (warn on unsaved navigation)
-
-### Work Unit 10: Frontend Documentation + Journal
-**Priority:** Medium
-**Dependencies:** Work Units 6-9
-
-**Changes:**
-- `docs/architecture.md` (NEW)
-  - Frontend architecture overview
-  - Component hierarchy
-  - API integration pattern
-  - State management approach
-  - Testing strategy
-
-- `docs/development.md` (NEW)
-  - Local development setup
-  - Project structure guide
-  - Adding new views/features guide
-  - Environment variables reference
-
-- `docs/future-features.md` (NEW)
-  - Planned features requiring backend changes:
-    - **Dashboards**: mood trends charts, writing frequency, word count trends
-      (backend: REST endpoints for mood_trends, topic_frequency)
-    - **People/places/tags viewer**: browse extracted entities
-      (backend: REST endpoints for people, places, tags with entry links)
-    - **Search UI**: semantic + keyword search with result highlighting
-      (backend: REST search endpoint wrapping existing QueryService)
-    - **Voice note playback**: play original audio alongside transcript
-      (backend: serve source files via REST, or store URLs)
-    - **Multi-page ingestion UI**: drag-and-drop multiple images, reorder pages
-      (backend: multi-page ingestion endpoint already planned)
-    - **Authentication**: JWT or session-based auth for all endpoints
-      (backend: auth middleware on REST + MCP endpoints)
-    - **Export**: download entries as PDF/markdown
-      (backend: export endpoint with format parameter)
-
-- `journal/YYMMDD-initial-webapp-setup.md` (NEW)
-  - Development journal entry
-
-- `README.md` (NEW)
-  - Project overview, setup instructions, development guide
-
-**Acceptance criteria:**
-- All docs complete and accurate
-- Future features documented with backend change requirements
-- README sufficient for a new developer to get started
-
-### Work Unit 11: CI/CD + Docker
-**Priority:** High
-**Dependencies:** Work Unit 6
-
-**Changes:**
-- `.github/workflows/ci.yml` (NEW)
-  - Trigger: push to main
-  - Steps: install deps, lint, test, build
-  - Push Docker image to `ghcr.io/johnmathews/journal-webapp`
-
-- `Dockerfile` (NEW)
-  - Multi-stage: node build stage + nginx serve stage
-  - Serve built SPA from nginx
-  - Environment variable injection for API URL at runtime
-
-- `docker-compose.yml` (NEW)
-  - webapp service pointing to Dockerfile
-  - Port mapping (e.g., 8402:80)
-  - `VITE_API_URL` env var pointing to journal-server
-
-- `.dockerignore` (NEW)
-- `.gitignore` (NEW/MODIFY)
-
-**Acceptance criteria:**
-- `docker compose up` serves the webapp
-- GitHub Actions workflow builds and pushes image
-- Production build works with configurable API URL
+**Acceptance:** existing toggle behaviour preserved (agency-only default still ships on first load), Bug A reproduction no longer reaches the empty state.
 
 ---
 
-## Execution Order
+### Unit 3 [High] — Group-toggle UI
 
-```
-Phase A (backend):  WU1 → WU2 → WU3 ──→ WU4 → WU5
-                                  ↑
-Phase B (frontend): WU6 ──→ WU7 ─┘→ WU8 → WU9 → WU10
-                     └──→ WU11 (parallel with WU7+)
+**Mapping module:** new `src/utils/mood-groups.ts`:
+
+```ts
+export interface MoodGroup {
+  id: 'affect' | 'needs' | 'negative' | 'stance' | 'other'
+  label: string
+  members: string[] // dimension names in toml order within the group
+}
+
+export const MOOD_GROUPS: readonly MoodGroup[] = [
+  { id: 'affect',   label: 'Affect axes',           members: ['joy_sadness', 'energy_fatigue'] },
+  { id: 'needs',    label: 'Psychological needs',   members: ['agency', 'fulfillment', 'connection'] },
+  { id: 'negative', label: 'Active negative affect', members: ['frustration'] },
+  { id: 'stance',   label: 'Stance',                members: ['proactive_reactive'] },
+]
 ```
 
-WU6 (frontend project setup) can start immediately in parallel with backend work.
-WU7 (API client) needs WU3 (REST API design) to be finalized but not necessarily deployed.
-WU11 (CI/CD) can run in parallel with feature development.
+Plus a derived helper:
 
-## Resolved Decisions
+```ts
+export function groupDimensions(dimensions: MoodDimension[]): {
+  group: MoodGroup
+  members: MoodDimension[] // only those present in `dimensions`, in toml order
+}[]
+```
 
-1. **Multi-page ingestion**: Explicit batching via new MCP tool / REST endpoint.
-   Auto-grouping by date may come later as an enhancement.
+Iterates `MOOD_GROUPS` in declaration order; within each group preserves the order from the input `dimensions` list (which comes from the server in toml order). Any dimensions not in any group go into a final `'other'` group with an empty label (rendered without a header). Graceful degradation if the toml adds a new dimension and the webapp const hasn't caught up.
 
-2. **Chunk count backfill**: Implement a `journal backfill-chunks` CLI command that
-   queries ChromaDB and updates SQLite. Run once after deploying the migration.
+**Group action helpers** in `src/stores/dashboard.ts`:
 
-3. **Webapp deployment**: Same media VM as journal-server. Built via GitHub Actions,
-   pushed to `ghcr.io/johnmathews/journal-webapp`. The docker-compose stack on the
-   media VM pulls the image.
+```ts
+function moodGroupSelectionState(memberNames: string[]): 'all' | 'some' | 'none'
+function toggleMoodGroup(memberNames: string[]): void
+```
+
+`toggleMoodGroup` semantics:
+- If any member of `memberNames` is in `selectedMoodDimensions` → remove all members from the selection.
+- If no member is selected → add all members.
+- (Clicking always brings the group to a uniform state; never leaves it partial.)
+
+This composes naturally with the existing per-pill toggle so the user can build any subset.
+
+**Template change** in `src/views/DashboardView.vue`:
+
+Replace the single dimension row with a column containing one row per group; each row has a clickable group label followed by the group's dimension pills. The `All` action sits on its own line at the end.
+
+**Group label visual:** small chip matching the dimension chip style but with a muted neutral background; the leading marker shows tristate:
+- empty circle → `none` of group selected (group hidden because selection narrowed to other groups, OR baseline empty-selection-shows-all)
+- filled circle → `all` group members in selection
+- half-filled → `some` selected
+
+Subtle styling, not a focal point — the per-dimension pills remain primary.
+
+**Tests:**
+- `mood-groups.test.ts` (new): `groupDimensions` orders correctly; ungrouped names fall into `other`; missing members are filtered out.
+- `dashboard.test.ts`: `toggleMoodGroup` adds when none selected; removes when any selected; `moodGroupSelectionState` returns correct tristate.
+- `DashboardView.test.ts`:
+  - Clicking the "Affect axes" group label adds `joy_sadness` + `energy_fatigue` to selection.
+  - Clicking it again removes both.
+  - Clicking it when one member is already selected removes both (uniform state).
+  - Group labels render in toml order.
+
+**Acceptance:** four group sections render in toml order; group click toggles all members; per-pill toggles still work; tab order through pills is unchanged within rows.
+
+---
+
+### Unit 4 [High] — Playwright verification
+
+Standalone unit. Runs after Units 1–3 are merged on the worktree branch.
+
+**Steps:**
+1. Start journal-server backend (`uv run python -m journal.mcp_server` from `../../../../server`).
+2. Start `npm run dev` in the worktree.
+3. Use Playwright MCP tools to log in (`dev@local.dev` / `devpassword123`).
+4. Navigate to `/dashboard`. Capture screenshots:
+   - `mood-trends-default.png` — initial state (agency-only, default).
+   - `mood-trends-bug-a-fixed.png` — click agency pill (deselect it), confirm chart still rendered with all dimensions visible.
+   - `mood-trends-bug-b-fixed.png` — return to agency-only, click All, confirm chart shows everything (no blank state).
+   - `mood-trends-group-toggle.png` — click "Psychological needs" group label, confirm only those three dimensions render.
+   - `mood-trends-multi-group.png` — click "Affect axes" group, confirm both groups' members visible together.
+5. Save screenshots to `journal/screenshots/2026-05-05-mood-trends/`.
+6. Capture `browser_console_messages` after each step; report any errors.
+
+**Acceptance:** all five screenshots saved; no console errors related to chart rendering; visual state matches expected behaviour for each scenario.
+
+---
+
+### Unit 5 [Medium] — Journal entry
+
+- Write `journal/260505-mood-trends-grouping-and-bug-fixes.md` covering the state-model refactor, the bug fixes, the group UI, and the screenshots.
+- No `docs/` updates needed — the chart is user-facing UI, not a documented surface contract.
+
+**Acceptance:** journal entry written and references screenshots.
+
+## Sequencing
+
+1. Units 1 + 2 + 3 are independent at the test-design level but converge on the same `DashboardView.vue` chunk. Implement in this order in a single sweep so test churn is bounded:
+   - **1 first** (watcher fix is a single-line change, low blast radius)
+   - **2 second** (state-model refactor — cascades through tests)
+   - **3 third** (group UI on top of the new state model)
+2. Run `npm run test:unit` after each unit; full coverage run at the end.
+3. **Unit 4** (Playwright) runs after the test suite is green.
+4. **Unit 5** (journal) runs last, after screenshots exist.
+
+## Out of scope
+
+- Persisting the selection across sessions (currently in-memory only — same as today; noting for future).
+- Changing the toml or backend to surface group metadata.
+- Refactoring the 2.8k-line `DashboardView.vue` into smaller components (separate concern, separate session).

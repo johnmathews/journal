@@ -1,86 +1,99 @@
-# Evaluation Report: Journal Webapp (Greenfield)
+# Mood Trends Chart — Focused Evaluation
 
-## Executive Summary
+## Executive summary
 
-The journal-webapp is a new project — the directory is empty. This evaluation covers the
-technology research and backend audit needed to plan the frontend build. The backend
-(journal-server) is well-structured with clean Protocol-based abstractions but needs data
-model changes (multi-page entries, OCR correction) and a REST API layer before a webapp
-can connect to it.
+Tightly-scoped UX work on the dashboard's Mood Trends chart. Two bugs reproduced
+from screenshots, both root-caused. New requirement: surface the four conceptual
+groups from `mood-dimensions.toml` (affect axes / psychological needs / active
+negative affect / stance) as bulk-toggle group labels above the per-dimension pills.
 
-## Technology Assessment
+## Files in scope
 
-### Frontend Stack
+- `src/views/DashboardView.vue` — chart card, dimension pills, render function (single 2.8k-line file; mood-trends section is lines ~2095–2240, render fn lines 362–471, watcher lines 915–919)
+- `src/stores/dashboard.ts` — `hiddenMoodDimensions` Set state, `toggleMoodDimension` / `showAllMoodDimensions` / `hideAllMoodDimensions` actions
+- `src/utils/mood-display.ts` — `displayLabel` helper for the `frustration→calm` inversion (must be preserved)
+- `src/stores/__tests__/dashboard.test.ts` — store-level tests of toggle actions
+- `src/views/__tests__/DashboardView.test.ts` — component tests of the toggle UI
 
-| Decision          | Choice                      | Rationale                                                  |
-|-------------------|-----------------------------|------------------------------------------------------------|
-| Framework         | Vue 3.5+ with TypeScript    | User requirement                                           |
-| Build tool        | Vite 8 (Rolldown bundler)   | 10-30x faster builds, official Vue tooling                 |
-| UI components     | PrimeVue 4.5.x (Aura theme) | Best-in-class DataTable, chart components, extensible      |
-| Styling           | PrimeVue styled + tailwindcss-primeui | Polished components out of the box, Tailwind utilities available |
-| State management  | Pinia                       | Official Vue state management, Composition API style       |
-| Router            | Vue Router 4                | Standard for Vue 3 SPAs                                    |
-| Testing           | Vitest + Vue Test Utils + Playwright | Fast unit/component tests + real browser E2E       |
-| API mocking       | MSW (Mock Service Worker)   | Intercepts network requests in tests                       |
-| Charts (future)   | PrimeVue Chart (Chart.js)   | Built into PrimeVue, covers bar/line/pie/radar             |
-| OCR review UI     | PrimeVue Splitter + Textarea | Side-by-side original vs editable, simple and sufficient   |
+No backend changes (per user). The grouping data is currently a comment in
+`server/config/mood-dimensions.toml` (lines 42–46). Mapping must live in webapp.
 
-### Backend Integration
+## Bug A — "deselect the only visible series → empty state"
 
-**Key discovery:** The `mcp` Python SDK (which journal-server already uses) includes a
-`@mcp.custom_route()` decorator that registers Starlette routes on the same ASGI app as the
-MCP server. REST endpoints can run on the **same port (8400)** in the **same process** with
-**no new dependencies**.
+**[VERIFIED via code reading]** Reproduction: agency is the only visible
+dimension by default (store applies `DEFAULT_ISOLATED_MOOD = 'agency'` and adds
+the rest to `hiddenMoodDimensions`). User clicks the agency pill →
+`toggleMoodDimension('agency')` adds it to the hidden set → now all 7 are hidden →
+`allMoodDimensionsHidden` computed becomes `true` → template falls into the
+`v-else-if="allMoodDimensionsHidden"` branch (line 2216) showing "All dimensions
+hidden / Show all".
 
-This is simpler than adding FastAPI (which would require managing lifespan conflicts and ASGI
-mounting complexity).
+**Root cause:** the state model is "hidden set" (`hiddenMoodDimensions`). Empty
+hidden set means "all visible". Full hidden set is treated as a special "all
+hidden" state. The user's mental model is "selected set" — empty selection
+should mean "show all" (the default), not "show nothing".
 
-### Backend Data Model Gaps
+**Fix:** invert the state model to a `selectedMoodDimensions` Set with the
+contract: empty = show all; non-empty = show only these. The "all hidden" branch
+disappears entirely. Bug A becomes structurally impossible.
 
-The current backend is missing several things the webapp needs:
+## Bug B — clicking "Show all" leaves the chart blank
 
-1. **No multi-page entries.** Each image creates a separate `entries` row. Need an
-   `entry_pages` table to group images into one logical entry.
+**[VERIFIED via code reading]** When the empty state is showing, the
+`<canvas ref="moodChartCanvas">` is **not in the DOM** (it's behind the `v-else`
+at line 2231). Clicking `Show all` calls `store.showAllMoodDimensions()` which
+empties the hidden set. The `watch([..., () => store.hiddenMoodDimensions], ...)`
+at line 915 fires synchronously (Vue 3 default `flush: 'pre'` runs watchers
+*before* the DOM patch). At that moment, `moodChartCanvas.value` is still `null`
+because Vue hasn't yet mounted the v-else branch. `renderMoodChart()` early-returns
+on line 363 (`if (!moodChartCanvas.value) return`). After Vue patches the DOM,
+nothing triggers another render → blank canvas.
 
-2. **No `final_text`.** Only `raw_text` exists. Need an editable `final_text` column where
-   `final_text` starts as a copy of `raw_text`. All downstream features (FTS5, ChromaDB
-   embeddings, search, analytics) must switch to `final_text`.
+**Fix:** add `flush: 'post'` to the watcher (or wrap render in `await nextTick()`).
+The selection-semantic refactor from Bug A also incidentally removes the empty
+state branch, eliminating the v-if-mount race for the all-hidden → all-visible
+transition specifically. But other transitions (loading → loaded, hidden tile →
+visible tile) have the same race latent today; `flush: 'post'` is the durable
+fix.
 
-3. **No chunk count in SQLite.** Chunks are only in ChromaDB. Need a denormalized
-   `chunk_count` column on `entries` to avoid cross-system queries on every list view.
+## New feature — grouped toggles
 
-4. **No REST API.** The backend only speaks MCP protocol. The webapp needs standard
-   HTTP/JSON endpoints.
+Groups (per toml lines 42–46):
 
-5. **FTS5 indexes `raw_text`.** Must be rebuilt to index `final_text`.
+| Group                   | Dimensions                          | Scale    |
+|-------------------------|-------------------------------------|----------|
+| Affect axes             | joy_sadness, energy_fatigue         | bipolar  |
+| Psychological needs     | agency, fulfillment, connection     | unipolar |
+| Active negative affect  | frustration                         | unipolar |
+| Stance                  | proactive_reactive                  | bipolar  |
 
-## Backend Audit (journal-server)
+**Design:** hierarchical layout. A small group label sits above each row of
+dimension pills, separated by visual gaps. The group label is itself a
+clickable bulk-action: if any of the group's members are in the selection,
+click clears them from the selection; otherwise click adds them all.
 
-### Strengths
+**Group state visual:** the dot/check on the group label reflects partial vs
+full inclusion (analogous to a tristate checkbox), but kept lightweight — no
+need for a full tri-state widget.
 
-- Clean layered architecture with Protocol interfaces
-- External services (Anthropic, OpenAI, ChromaDB) are swappable
-- SQLite migration system works well (PRAGMA user_version)
-- Comprehensive test infrastructure with in-memory vector store
-- `VectorStore.delete_entry()` already exists, making re-embedding straightforward
+**Mapping placement:** new `src/utils/mood-groups.ts` with a const ordered
+array of `{ id, label, members: string[] }`. Order matches toml. Dimensions
+loaded from the server that aren't in any group fall through to a final
+"Other" group rendered without a label (graceful degradation if the toml
+adds a new dimension and the webapp const isn't updated yet).
 
-### Relevant Architecture Details
+## Test coverage
 
-- **Service layer is stateless.** `IngestionService` and `QueryService` hold provider
-  references but no mutable state. Adding REST handlers that call the same services is trivial.
-- **`_process_text` already takes text as a parameter.** Switching from `raw_text` to
-  `final_text` requires no signature change — just passing a different field.
-- **FTS5 triggers fire on UPDATE.** The existing `entries_au` trigger handles re-indexing
-  automatically when `final_text` is updated in SQLite.
-- **ChromaDB chunk IDs follow `{entry_id}-{chunk_index}` pattern.** Deletion by entry_id
-  is already implemented via metadata filter.
+Existing dashboard store + view tests cover the current `hiddenMoodDimensions`
+semantics in detail. They will need a coordinated update — this is not a
+silent rename; the contract changes. Plan in Phase 2 covers the migration.
 
-## Assessment Summary
+Coverage thresholds enforced by pre-push and CI: 85% statements / branches /
+functions / lines (see `vitest.config.ts`). Adding the group-toggle UI must
+not push any of these below threshold.
 
-| Dimension                | Rating | Notes                                                |
-|--------------------------|--------|------------------------------------------------------|
-| Backend readiness        | 3/5    | Well-structured but needs schema changes + REST API  |
-| Frontend readiness       | 0/5    | Empty directory, everything to build                 |
-| Technology fit           | 5/5    | PrimeVue DataTable is ideal for data-heavy table app |
-| Integration complexity   | 3/5    | custom_route simplifies REST; schema migration is moderate |
-| Extensibility for future | 4/5    | PrimeVue charts, Pinia stores, Protocol interfaces all support growth |
+## Risk assessment
+
+Low. All changes are local to the dashboard mood-trends card. No API contract
+changes, no schema changes, no other consumers of the affected store actions.
+The renamed action set is private to this component.
