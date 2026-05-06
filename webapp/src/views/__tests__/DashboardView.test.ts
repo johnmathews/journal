@@ -1346,6 +1346,10 @@ describe('DashboardView — entity trends', () => {
           plugins?: {
             tooltip?: {
               filter?: (item: { parsed: { y: number } }) => boolean
+              itemSort?: (
+                a: { datasetIndex: number },
+                b: { datasetIndex: number },
+              ) => number
             }
           }
         }
@@ -1364,6 +1368,23 @@ describe('DashboardView — entity trends', () => {
     expect(typeof filter).toBe('function')
     expect(filter!({ parsed: { y: 0 } })).toBe(false)
     expect(filter!({ parsed: { y: 1 } })).toBe(true)
+
+    // 3. `itemSort` reverses dataset order so the tooltip lists
+    //    segments top-to-bottom matching the visual stack —
+    //    Chart.js draws higher datasetIndex on top of the bar,
+    //    so descending datasetIndex puts the visual top first.
+    const itemSort = opts.plugins?.tooltip?.itemSort
+    expect(typeof itemSort).toBe('function')
+    expect(itemSort!({ datasetIndex: 0 }, { datasetIndex: 2 })).toBeGreaterThan(
+      0,
+    )
+    expect(itemSort!({ datasetIndex: 2 }, { datasetIndex: 0 })).toBeLessThan(0)
+    const sorted = [
+      { datasetIndex: 0 },
+      { datasetIndex: 1 },
+      { datasetIndex: 2 },
+    ].sort(itemSort!)
+    expect(sorted.map((s) => s.datasetIndex)).toEqual([2, 1, 0])
   })
 })
 

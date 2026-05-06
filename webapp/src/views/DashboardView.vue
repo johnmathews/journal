@@ -800,6 +800,10 @@ function renderEntityTrendsChart(): void {
         legend: { display: false },
         tooltip: {
           filter: (item) => (item.parsed?.y ?? 0) > 0,
+          // Reverse default order so the tooltip lists segments
+          // top-to-bottom matching the visual stack (highest
+          // datasetIndex is drawn on top of the bar).
+          itemSort: (a, b) => b.datasetIndex - a.datasetIndex,
           backgroundColor: colors.tooltipBgColor.light,
           titleColor: colors.tooltipTitleColor.light,
           bodyColor: colors.tooltipBodyColor.light,
