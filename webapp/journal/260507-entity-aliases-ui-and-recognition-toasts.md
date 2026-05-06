@@ -122,3 +122,21 @@ all four metrics above the 85% gate.
    webapp now requires a server with Slice A + B running; older
    server versions won't have the alias endpoints or the
    `reembed_job_id` field.
+
+## Wrap-up follow-ups
+
+During `/done` after the slice landed, two small follow-ups went in:
+
+1. **`docs/architecture.md`** — note alias-management actions on the
+   entities store (`addAlias`, `removeAlias`), the `reembed_job_id`
+   tracking pipeline in `updateCurrentEntity`, the new
+   `ApiRequestError.body` field, and the new `entities.ts` API
+   functions.
+2. **`docker-compose.yml`** — swap `chromadb/chroma:latest` for
+   `ghcr.io/johnmathews/journal-chromadb:latest` (the journal-server
+   side of the project ships a chromadb image with `curl` baked in).
+   The healthcheck command uses `curl`, and the upstream chromadb
+   image doesn't include it, so the healthcheck would fail forever
+   and `journal-server`'s `depends_on: service_healthy` would
+   deadlock. Pre-existing issue, caught here by the /done healthcheck
+   validation step.

@@ -90,7 +90,6 @@ describe('AliasCollisionDialog', () => {
 
     mountDialog()
     await flushPromises()
-
     ;(
       document.querySelector(
         '[data-testid="alias-collision-confirm"]',
@@ -139,9 +138,7 @@ describe('AliasCollisionDialog', () => {
     ).click()
     await flushPromises()
 
-    const err = document.querySelector(
-      '[data-testid="alias-collision-error"]',
-    )
+    const err = document.querySelector('[data-testid="alias-collision-error"]')
     expect(err?.textContent).toContain('boom')
   })
 

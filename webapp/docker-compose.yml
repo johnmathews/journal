@@ -31,7 +31,12 @@ services:
         condition: service_healthy
 
   journal-chromadb:
-    image: chromadb/chroma:latest
+    # journal-server publishes a chromadb image that bakes in `curl` so
+    # the healthcheck below works. Upstream `chromadb/chroma:latest`
+    # does not include curl, which would cause the healthcheck to fail
+    # forever and the journal-server `depends_on: service_healthy` to
+    # deadlock. See journal-server/Dockerfile.chromadb.
+    image: ghcr.io/johnmathews/journal-chromadb:latest
     ports:
       - "8401:8000"
     volumes:
