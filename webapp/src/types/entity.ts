@@ -28,6 +28,13 @@ export interface Entity {
   first_seen: string
   created_at: string
   updated_at: string
+  // Quarantine state. The detail endpoint always emits these
+  // fields; older clients can ignore them safely. When the
+  // entity is not quarantined, `is_quarantined` is false and
+  // both string fields are empty.
+  is_quarantined?: boolean
+  quarantine_reason?: string
+  quarantined_at?: string
 }
 
 export interface EntitySummary {
@@ -39,6 +46,17 @@ export interface EntitySummary {
   first_seen: string
   last_seen: string
   quotes?: string[]
+  // Quarantine state mirrors the server's entity-summary shape.
+  // Active-list responses always set `is_quarantined` to false;
+  // the dedicated quarantined-list endpoint sets it to true.
+  is_quarantined?: boolean
+  quarantine_reason?: string
+  quarantined_at?: string
+}
+
+export interface QuarantinedEntitiesResponse {
+  items: EntitySummary[]
+  total: number
 }
 
 export interface EntityMention {

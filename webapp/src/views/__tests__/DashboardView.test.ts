@@ -552,34 +552,35 @@ describe('DashboardView — mood chart', () => {
     const wrapper = await setupWithMoodData()
     const callsBeforeToggle = chartConstructorSpy.mock.calls.length
 
-    // Default-isolate: joy_sadness starts hidden (dimmed), agency visible.
+    // Default selection is the affect-axes group: joy_sadness visible,
+    // agency dimmed.
     const dimmedClass = (testid: string): boolean =>
       wrapper
         .find(`[data-testid="${testid}"]`)
         .classes()
         .some((c) => c.includes('opacity-40'))
-    expect(dimmedClass('dashboard-mood-toggle-joy_sadness')).toBe(true)
-    expect(dimmedClass('dashboard-mood-toggle-agency')).toBe(false)
+    expect(dimmedClass('dashboard-mood-toggle-joy_sadness')).toBe(false)
+    expect(dimmedClass('dashboard-mood-toggle-agency')).toBe(true)
 
-    // Click joy_sadness → it becomes visible; agency unchanged.
+    // Click agency → it becomes visible; joy_sadness unchanged.
     await wrapper
-      .find('[data-testid="dashboard-mood-toggle-joy_sadness"]')
+      .find('[data-testid="dashboard-mood-toggle-agency"]')
       .trigger('click')
     await flushPromises()
 
     expect(chartConstructorSpy.mock.calls.length).toBeGreaterThan(
       callsBeforeToggle,
     )
-    expect(dimmedClass('dashboard-mood-toggle-joy_sadness')).toBe(false)
     expect(dimmedClass('dashboard-mood-toggle-agency')).toBe(false)
+    expect(dimmedClass('dashboard-mood-toggle-joy_sadness')).toBe(false)
 
-    // Click joy_sadness again → it becomes hidden; agency still unchanged.
+    // Click agency again → it becomes hidden; joy_sadness still unchanged.
     await wrapper
-      .find('[data-testid="dashboard-mood-toggle-joy_sadness"]')
+      .find('[data-testid="dashboard-mood-toggle-agency"]')
       .trigger('click')
     await flushPromises()
-    expect(dimmedClass('dashboard-mood-toggle-joy_sadness')).toBe(true)
-    expect(dimmedClass('dashboard-mood-toggle-agency')).toBe(false)
+    expect(dimmedClass('dashboard-mood-toggle-agency')).toBe(true)
+    expect(dimmedClass('dashboard-mood-toggle-joy_sadness')).toBe(false)
   })
 
   it('"All" button clears the selection and shows every dimension', async () => {
@@ -590,8 +591,8 @@ describe('DashboardView — mood chart', () => {
         .classes()
         .some((c) => c.includes('opacity-40'))
 
-    // Default selection isolates agency, so joy_sadness starts dimmed.
-    expect(dimmedClass('dashboard-mood-toggle-joy_sadness')).toBe(true)
+    // Default selects the affect-axes group, so agency starts dimmed.
+    expect(dimmedClass('dashboard-mood-toggle-agency')).toBe(true)
 
     // Click "All" → selection clears → every pill bright (no dimming).
     await wrapper
@@ -612,7 +613,7 @@ describe('DashboardView — mood chart', () => {
   it('"All" is disabled when selection is empty, enabled when not', async () => {
     const wrapper = await setupWithMoodData()
     const allBtn = wrapper.find('[data-testid="dashboard-mood-show-all"]')
-    // Default selection has agency → All is enabled.
+    // Default selection has the affect-axes group → All is enabled.
     expect(allBtn.attributes('disabled')).toBeUndefined()
     // Click All to clear → now disabled.
     await allBtn.trigger('click')
@@ -622,10 +623,11 @@ describe('DashboardView — mood chart', () => {
 
   it('Bug A regression: deselecting the only selected pill does NOT show empty state', async () => {
     const wrapper = await setupWithMoodData()
-    // Default selection has only agency.
-    // Click agency → selection becomes empty → "show all" semantics kick in.
+    // Default selection has only joy_sadness (the only affect-group member
+    // present in the test fixture).
+    // Click joy_sadness → selection becomes empty → "show all" semantics kick in.
     await wrapper
-      .find('[data-testid="dashboard-mood-toggle-agency"]')
+      .find('[data-testid="dashboard-mood-toggle-joy_sadness"]')
       .trigger('click')
     await flushPromises()
     // The all-hidden empty state must not appear (it was removed).
@@ -674,9 +676,10 @@ describe('DashboardView — mood chart', () => {
 
   it('clicking a group label a second time removes its members from the selection', async () => {
     const wrapper = await setupWithMoodData()
-    // Default: agency selected. Click needs group → removes agency.
+    // Default: joy_sadness (affect group) selected. Click affect group →
+    // removes joy_sadness.
     await wrapper
-      .find('[data-testid="dashboard-mood-group-needs"]')
+      .find('[data-testid="dashboard-mood-group-affect"]')
       .trigger('click')
     await flushPromises()
     // Selection is now empty → empty-selection semantics: every pill bright.

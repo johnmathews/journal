@@ -12,6 +12,7 @@ import {
 } from '@/api/dashboard'
 import { fetchEntityDistribution, fetchMoodDrilldown } from '@/api/insights'
 import { fetchPreferences, updatePreferences } from '@/api/preferences'
+import { MOOD_GROUPS } from '@/utils/mood-groups'
 import type {
   CalendarDay,
   DashboardBin,
@@ -120,11 +121,11 @@ export const useDashboardStore = defineStore('dashboard', () => {
   //                     mental model)
   //   non-empty set   → show only the named subset
   // Stored as a Set<string> so per-pill toggles are O(1). Not persisted
-  // across sessions — first load isolates `agency` (single-line "what
-  // happened to my sense of agency this week?" view); subsequent reloads
-  // (e.g. after a config edit) leave the user's selection alone.
+  // across sessions — first load preselects the "affect axes" group
+  // (joy_sadness + energy_fatigue: the two classic dimensions of mood);
+  // subsequent reloads (e.g. after a config edit) leave the user's
+  // selection alone.
   const selectedMoodDimensions = ref<Set<string>>(new Set())
-  const DEFAULT_ISOLATED_MOOD = 'agency'
   let moodDefaultsApplied = false
   const moodLoading = ref(false)
   const moodError = ref<string | null>(null)
@@ -238,12 +239,12 @@ export const useDashboardStore = defineStore('dashboard', () => {
         description: '',
       }
       if (!moodDefaultsApplied && response.dimensions.length > 0) {
-        const hasAgency = response.dimensions.some(
-          (d) => d.name === DEFAULT_ISOLATED_MOOD,
+        const affectGroup = MOOD_GROUPS.find((g) => g.id === 'affect')
+        const availableNames = new Set(response.dimensions.map((d) => d.name))
+        const defaultMembers = (affectGroup?.members ?? []).filter((name) =>
+          availableNames.has(name),
         )
-        selectedMoodDimensions.value = hasAgency
-          ? new Set([DEFAULT_ISOLATED_MOOD])
-          : new Set()
+        selectedMoodDimensions.value = new Set(defaultMembers)
         moodDefaultsApplied = true
       }
     } catch {

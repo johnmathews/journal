@@ -15,6 +15,9 @@ vi.mock('@/api/entities', () => ({
   mergeEntities: vi.fn(),
   fetchMergeCandidates: vi.fn(),
   resolveMergeCandidate: vi.fn(),
+  fetchQuarantinedEntities: vi.fn(),
+  quarantineEntity: vi.fn(),
+  releaseQuarantine: vi.fn(),
 }))
 
 describe('entities store', () => {
@@ -770,6 +773,143 @@ describe('entities store', () => {
       expect(store.mergeCandidates).toHaveLength(1)
       expect(store.mergeCandidates[0].id).toBe(7)
       expect(store.mergeCandidatesTotal).toBe(1)
+    })
+  })
+
+  describe('quarantine', () => {
+    it('loadQuarantined populates the list and clears the loading flag', async () => {
+      const { fetchQuarantinedEntities } = await import('@/api/entities')
+      vi.mocked(fetchQuarantinedEntities).mockResolvedValue({
+        items: [
+          {
+            id: 9,
+            entity_type: 'person',
+            canonical_name: 'Suspicious',
+            aliases: [],
+            mention_count: 0,
+            first_seen: '2026-01-01',
+            last_seen: '',
+            is_quarantined: true,
+            quarantine_reason: 'noisy',
+            quarantined_at: '2026-04-01T00:00:00Z',
+          },
+        ],
+        total: 1,
+      })
+
+      const store = useEntitiesStore()
+      await store.loadQuarantined()
+
+      expect(store.quarantinedEntities).toHaveLength(1)
+      expect(store.quarantinedEntities[0].canonical_name).toBe('Suspicious')
+      expect(store.quarantinedLoading).toBe(false)
+    })
+
+    it('loadQuarantined sets error on failure', async () => {
+      const { fetchQuarantinedEntities } = await import('@/api/entities')
+      vi.mocked(fetchQuarantinedEntities).mockRejectedValue(new Error('boom'))
+
+      const store = useEntitiesStore()
+      await store.loadQuarantined()
+
+      expect(store.error).toBe('boom')
+      expect(store.quarantinedLoading).toBe(false)
+    })
+
+    it('loadQuarantined falls back to a generic message for non-Error rejection', async () => {
+      const { fetchQuarantinedEntities } = await import('@/api/entities')
+      vi.mocked(fetchQuarantinedEntities).mockRejectedValue('plain')
+
+      const store = useEntitiesStore()
+      await store.loadQuarantined()
+
+      expect(store.error).toBe('Failed to load quarantined entities')
+    })
+
+    it('releaseEntityQuarantine drops the entity from the quarantined list and clears the banner on the open entity', async () => {
+      const { releaseQuarantine } = await import('@/api/entities')
+      vi.mocked(releaseQuarantine).mockResolvedValue({
+        id: 9,
+        entity_type: 'person',
+        canonical_name: 'Suspicious',
+        description: '',
+        aliases: [],
+        first_seen: '2026-01-01',
+        created_at: '',
+        updated_at: '',
+        is_quarantined: false,
+        quarantine_reason: '',
+        quarantined_at: '',
+      })
+
+      const store = useEntitiesStore()
+      store.quarantinedEntities = [
+        {
+          id: 9,
+          entity_type: 'person',
+          canonical_name: 'Suspicious',
+          aliases: [],
+          mention_count: 0,
+          first_seen: '2026-01-01',
+          last_seen: '',
+          is_quarantined: true,
+          quarantine_reason: 'noisy',
+          quarantined_at: '2026-04-01T00:00:00Z',
+        },
+        {
+          id: 10,
+          entity_type: 'person',
+          canonical_name: 'Other',
+          aliases: [],
+          mention_count: 0,
+          first_seen: '',
+          last_seen: '',
+          is_quarantined: true,
+          quarantine_reason: 'x',
+          quarantined_at: '',
+        },
+      ]
+      store.currentEntity = {
+        id: 9,
+        entity_type: 'person',
+        canonical_name: 'Suspicious',
+        description: '',
+        aliases: [],
+        first_seen: '2026-01-01',
+        created_at: '',
+        updated_at: '',
+        is_quarantined: true,
+        quarantine_reason: 'noisy',
+        quarantined_at: '2026-04-01T00:00:00Z',
+      }
+
+      await store.releaseEntityQuarantine(9)
+
+      expect(releaseQuarantine).toHaveBeenCalledWith(9)
+      expect(store.quarantinedEntities.map((e) => e.id)).toEqual([10])
+      // Banner state on the currently-open entity is flipped off
+      // so the UI updates without a refetch.
+      expect(store.currentEntity?.is_quarantined).toBe(false)
+      expect(store.currentEntity?.quarantine_reason).toBe('')
+      expect(store.currentEntity?.quarantined_at).toBe('')
+    })
+
+    it('releaseEntityQuarantine surfaces and re-throws API errors', async () => {
+      const { releaseQuarantine } = await import('@/api/entities')
+      vi.mocked(releaseQuarantine).mockRejectedValue(new Error('nope'))
+
+      const store = useEntitiesStore()
+      await expect(store.releaseEntityQuarantine(1)).rejects.toThrow('nope')
+      expect(store.error).toBe('nope')
+    })
+
+    it('releaseEntityQuarantine falls back to a generic message for non-Error rejection', async () => {
+      const { releaseQuarantine } = await import('@/api/entities')
+      vi.mocked(releaseQuarantine).mockRejectedValue('plain')
+
+      const store = useEntitiesStore()
+      await expect(store.releaseEntityQuarantine(1)).rejects.toBeDefined()
+      expect(store.error).toBe('Failed to release quarantine')
     })
   })
 })

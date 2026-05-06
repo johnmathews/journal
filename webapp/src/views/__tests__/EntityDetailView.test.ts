@@ -61,6 +61,9 @@ vi.mock('@/api/entities', () => ({
   fetchMergeCandidates: vi.fn().mockResolvedValue({ items: [], total: 0 }),
   resolveMergeCandidate: vi.fn(),
   fetchMergeHistory: vi.fn(),
+  fetchQuarantinedEntities: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+  quarantineEntity: vi.fn(),
+  releaseQuarantine: vi.fn().mockResolvedValue({}),
 }))
 
 const router = createRouter({
@@ -370,6 +373,110 @@ describe('EntityDetailView', () => {
 
     await wrapper.find('[data-testid="delete-button"]').trigger('click')
     expect(deleteEntity).not.toHaveBeenCalled()
+  })
+
+  describe('quarantine banner', () => {
+    function quarantinedEntity() {
+      return {
+        id: 42,
+        entity_type: 'person' as const,
+        canonical_name: 'Ritsya',
+        description: 'my daughter',
+        aliases: ['Ritzya'],
+        first_seen: '2026-01-02',
+        created_at: '2026-01-02T00:00:00Z',
+        updated_at: '2026-04-01T00:00:00Z',
+        is_quarantined: true,
+        quarantine_reason: 'merged duplicate',
+        quarantined_at: '2026-04-01T08:00:00Z',
+      }
+    }
+
+    it('renders the warning banner with reason and timestamp when the entity is quarantined', async () => {
+      const { fetchEntity } = await import('@/api/entities')
+      vi.mocked(fetchEntity).mockResolvedValueOnce(quarantinedEntity())
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      const banner = wrapper.find('[data-testid="quarantine-banner"]')
+      expect(banner.exists()).toBe(true)
+      expect(banner.text()).toContain('Quarantined')
+      expect(banner.text()).toContain('merged duplicate')
+      // Timestamp formatter renders the year as a sanity check.
+      expect(
+        wrapper.find('[data-testid="quarantine-banner-when"]').text(),
+      ).toContain('2026')
+
+      const releaseBtn = wrapper.find(
+        '[data-testid="release-quarantine-button"]',
+      )
+      expect(releaseBtn.exists()).toBe(true)
+      expect(releaseBtn.text()).toContain('Release')
+    })
+
+    it('does not render the banner for a non-quarantined entity', async () => {
+      // Default fixture has no quarantine flags.
+      const wrapper = mountView()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="quarantine-banner"]').exists()).toBe(
+        false,
+      )
+    })
+
+    it('clicking Release calls the API and hides the banner without a refetch', async () => {
+      const { fetchEntity, releaseQuarantine } = await import('@/api/entities')
+      vi.mocked(fetchEntity).mockResolvedValueOnce(quarantinedEntity())
+      vi.mocked(releaseQuarantine).mockResolvedValueOnce({
+        id: 42,
+        entity_type: 'person',
+        canonical_name: 'Ritsya',
+        description: '',
+        aliases: [],
+        first_seen: '2026-01-02',
+        created_at: '',
+        updated_at: '',
+        is_quarantined: false,
+        quarantine_reason: '',
+        quarantined_at: '',
+      })
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="quarantine-banner"]').exists()).toBe(
+        true,
+      )
+
+      await wrapper
+        .find('[data-testid="release-quarantine-button"]')
+        .trigger('click')
+      await flushPromises()
+
+      expect(releaseQuarantine).toHaveBeenCalledWith(42)
+      expect(wrapper.find('[data-testid="quarantine-banner"]').exists()).toBe(
+        false,
+      )
+    })
+
+    it('renders banner without timestamp when quarantined_at is empty', async () => {
+      const { fetchEntity } = await import('@/api/entities')
+      vi.mocked(fetchEntity).mockResolvedValueOnce({
+        ...quarantinedEntity(),
+        quarantined_at: '',
+      })
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="quarantine-banner"]').exists()).toBe(
+        true,
+      )
+      expect(
+        wrapper.find('[data-testid="quarantine-banner-when"]').exists(),
+      ).toBe(false)
+    })
   })
 
   it('re-fetches when the :id route param changes (without remounting)', async () => {

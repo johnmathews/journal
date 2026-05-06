@@ -7,7 +7,10 @@ import {
   fetchEntityRelationships,
   fetchEntryEntities,
   fetchMergeCandidates,
+  fetchQuarantinedEntities,
   mergeEntities,
+  quarantineEntity,
+  releaseQuarantine,
   resolveMergeCandidate,
   triggerEntityExtraction,
   updateEntity,
@@ -170,6 +173,51 @@ describe('entities API client', () => {
     const url = fetchSpy.mock.calls[0][0] as string
     expect(url).toContain('/api/entities/merge-candidates')
     expect(url).toContain('status=pending')
+  })
+
+  it('fetchQuarantinedEntities GETs /api/entities/quarantined', async () => {
+    const payload = { items: [], total: 0 }
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(payload),
+    } as Response)
+
+    const resp = await fetchQuarantinedEntities()
+
+    expect(fetchSpy.mock.calls[0][0]).toBe('/api/entities/quarantined')
+    expect(resp).toEqual(payload)
+  })
+
+  it('quarantineEntity POSTs to /api/entities/{id}/quarantine with reason', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ id: 7, is_quarantined: true }),
+    } as Response)
+
+    await quarantineEntity(7, 'too noisy')
+
+    const [url, init] = fetchSpy.mock.calls[0]
+    expect(url).toBe('/api/entities/7/quarantine')
+    expect((init as RequestInit).method).toBe('POST')
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      reason: 'too noisy',
+    })
+  })
+
+  it('releaseQuarantine POSTs to /api/entities/{id}/release-quarantine', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ id: 7, is_quarantined: false }),
+    } as Response)
+
+    await releaseQuarantine(7)
+
+    const [url, init] = fetchSpy.mock.calls[0]
+    expect(url).toBe('/api/entities/7/release-quarantine')
+    expect((init as RequestInit).method).toBe('POST')
+    // Body is an empty object — server tolerates either missing
+    // body or `{}`; we send the latter for consistency.
+    expect((init as RequestInit).body).toBe('{}')
   })
 
   it('resolveMergeCandidate PATCHes the candidate', async () => {

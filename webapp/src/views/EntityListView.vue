@@ -12,6 +12,13 @@ import { displayName, displayAliases } from '@/utils/entityName'
 
 const store = useEntitiesStore()
 
+// Active vs Quarantined view. The two modes load different
+// endpoints — the regular /api/entities call hides quarantined
+// entities by design, so we use the dedicated quarantined-list
+// endpoint when this tab is active.
+type ListMode = 'active' | 'quarantined'
+const listMode = ref<ListMode>('active')
+
 // Sorting state — default: last_seen descending (most recent at top)
 type SortKey =
   | 'canonical_name'
@@ -39,8 +46,12 @@ function sortIndicator(key: SortKey): string {
   return sortAsc.value ? ' \u25B2' : ' \u25BC'
 }
 
+const visibleEntities = computed<EntitySummary[]>(() =>
+  listMode.value === 'quarantined' ? store.quarantinedEntities : store.entities,
+)
+
 const sortedEntities = computed(() => {
-  const items = [...store.entities]
+  const items = [...visibleEntities.value]
   const key = sortKey.value
   const dir = sortAsc.value ? 1 : -1
   return items.sort((a: EntitySummary, b: EntitySummary) => {
@@ -53,6 +64,29 @@ const sortedEntities = computed(() => {
   })
 })
 
+// Quarantine timestamps land as ISO strings. We render a short
+// "2 days ago" string so the operator can see at a glance how
+// stale a quarantine is. Falls back to the raw value on parse
+// failure.
+function relativeFromNow(iso: string): string {
+  if (!iso) return ''
+  const t = Date.parse(iso)
+  if (Number.isNaN(t)) return iso
+  const diffMs = Date.now() - t
+  const diffSec = Math.round(diffMs / 1000)
+  if (diffSec < 60) return 'just now'
+  const diffMin = Math.round(diffSec / 60)
+  if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`
+  const diffHr = Math.round(diffMin / 60)
+  if (diffHr < 24) return `${diffHr} hour${diffHr === 1 ? '' : 's'} ago`
+  const diffDay = Math.round(diffHr / 24)
+  if (diffDay < 30) return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`
+  const diffMo = Math.round(diffDay / 30)
+  if (diffMo < 12) return `${diffMo} month${diffMo === 1 ? '' : 's'} ago`
+  const diffYr = Math.round(diffMo / 12)
+  return `${diffYr} year${diffYr === 1 ? '' : 's'} ago`
+}
+
 // Local state for the batch-extraction modal. `showBatchModal`
 // flips on when the user clicks "Run extraction"; the modal
 // handles its own configure → running → done lifecycle and
@@ -61,6 +95,9 @@ const showBatchModal = ref(false)
 
 function onJobSucceeded(): void {
   store.loadEntities({ offset: 0 })
+  // Newly-quarantined entities can land via the extraction job.
+  // Refresh both lists + the badge so the new state is visible.
+  store.loadQuarantined()
 }
 
 // Local filter state. Kept out of the store so switching tabs doesn't
@@ -82,6 +119,12 @@ watch(selectedType, () => {
 })
 
 function applyFilters() {
+  // Type/search filters only apply to the active list — the
+  // quarantined endpoint does not accept them. Filtering the
+  // quarantined list happens client-side via `sortedEntities`
+  // when the user types in the search box (the array is
+  // already small in practice).
+  if (listMode.value !== 'active') return
   store.loadEntities({
     type: selectedType.value === 'all' ? undefined : selectedType.value,
     search: searchQuery.value.trim() || undefined,
@@ -89,9 +132,23 @@ function applyFilters() {
   })
 }
 
+function setListMode(mode: ListMode) {
+  if (listMode.value === mode) return
+  listMode.value = mode
+  clearSelection()
+  if (mode === 'quarantined') {
+    store.loadQuarantined()
+  } else {
+    store.loadEntities({ offset: 0 })
+  }
+}
+
 onMounted(() => {
   store.loadEntities({ offset: 0 })
   store.loadMergeCandidates()
+  // Load quarantined eagerly so the tab badge shows up without
+  // the user having to click into it. The list is small.
+  store.loadQuarantined()
 })
 
 function typeBadgeClass(type: EntityType): string {
@@ -125,8 +182,11 @@ function nextPage() {
   store.loadEntities({ offset })
 }
 
-const canPrev = computed(() => (store.currentParams.offset || 0) > 0)
+const canPrev = computed(
+  () => listMode.value === 'active' && (store.currentParams.offset || 0) > 0,
+)
 const canNext = computed(() => {
+  if (listMode.value !== 'active') return false
   const limit = store.currentParams.limit || 50
   const offset = store.currentParams.offset || 0
   return offset + limit < store.total
@@ -163,7 +223,7 @@ const merging = ref(false)
 const mergeError = ref<string | null>(null)
 
 const selectedEntities = computed(() =>
-  store.entities.filter((e) => selected.value.has(e.id)),
+  visibleEntities.value.filter((e) => selected.value.has(e.id)),
 )
 
 function openMergeModal() {
@@ -212,10 +272,33 @@ async function executeMerge() {
     showMergeModal.value = false
     clearSelection()
     store.loadEntities({ offset: 0 })
+    // Merging a quarantined entity into a clean survivor is a
+    // valid flow — refresh the quarantined list so absorbed rows
+    // disappear from that tab too.
+    store.loadQuarantined()
   } catch (e) {
     mergeError.value = e instanceof Error ? e.message : 'Merge failed'
   } finally {
     merging.value = false
+  }
+}
+
+// --- Release from quarantined tab ---
+const releasingId = ref<number | null>(null)
+
+async function releaseRow(id: number) {
+  releasingId.value = id
+  try {
+    await store.releaseEntityQuarantine(id)
+    // Refresh the active list so the released entity reappears
+    // there with its mention/last_seen counts. The store's
+    // releaseEntityQuarantine has already pruned it from the
+    // quarantined list.
+    if (listMode.value === 'active') {
+      store.loadEntities({ offset: 0 })
+    }
+  } finally {
+    releasingId.value = null
   }
 }
 </script>
@@ -361,8 +444,51 @@ async function executeMerge() {
       </button>
     </div>
 
+    <!-- Active / Quarantined mode tabs -->
+    <div
+      class="flex flex-wrap gap-2 mb-3"
+      role="radiogroup"
+      aria-label="Active or quarantined entities"
+      data-testid="entity-mode-tabs"
+    >
+      <button
+        type="button"
+        class="px-3 py-1 rounded-full text-xs font-medium border transition-colors flex items-center gap-2"
+        :class="
+          listMode === 'active'
+            ? 'bg-violet-500 text-white border-violet-500'
+            : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60 hover:text-gray-800 dark:hover:text-gray-100'
+        "
+        data-testid="mode-tab-active"
+        @click="setListMode('active')"
+      >
+        Active
+      </button>
+      <button
+        type="button"
+        class="px-3 py-1 rounded-full text-xs font-medium border transition-colors flex items-center gap-2"
+        :class="
+          listMode === 'quarantined'
+            ? 'bg-amber-500 text-white border-amber-500'
+            : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60 hover:text-gray-800 dark:hover:text-gray-100'
+        "
+        data-testid="mode-tab-quarantined"
+        @click="setListMode('quarantined')"
+      >
+        Quarantined
+        <span
+          v-if="store.quarantinedEntities.length > 0"
+          class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-amber-600 text-white text-[10px] font-bold"
+          data-testid="quarantined-badge"
+        >
+          {{ store.quarantinedEntities.length }}
+        </span>
+      </button>
+    </div>
+
     <!-- Type filter tabs -->
     <div
+      v-if="listMode === 'active'"
       class="flex flex-wrap gap-2 mb-4"
       role="radiogroup"
       aria-label="Filter by entity type"
@@ -398,11 +524,23 @@ async function executeMerge() {
 
     <!-- Loading / empty / error states -->
     <div
-      v-if="store.loading && !store.hasEntities"
+      v-if="listMode === 'active' ? store.loading && !store.hasEntities : false"
       class="py-16 text-center text-gray-600 dark:text-gray-300"
       data-testid="loading-state"
     >
       Loading entities…
+    </div>
+
+    <div
+      v-else-if="
+        listMode === 'quarantined' &&
+        store.quarantinedLoading &&
+        store.quarantinedEntities.length === 0
+      "
+      class="py-16 text-center text-gray-600 dark:text-gray-300"
+      data-testid="loading-state"
+    >
+      Loading quarantined entities…
     </div>
 
     <div
@@ -414,11 +552,17 @@ async function executeMerge() {
     </div>
 
     <div
-      v-else-if="!store.hasEntities"
+      v-else-if="sortedEntities.length === 0"
       class="py-16 text-center text-gray-600 dark:text-gray-300"
       data-testid="empty-state"
     >
-      No entities yet. Click 'Run extraction' above to populate them.
+      <template v-if="listMode === 'quarantined'">
+        No quarantined entities. Anything flagged by extraction will appear
+        here.
+      </template>
+      <template v-else>
+        No entities yet. Click 'Run extraction' above to populate them.
+      </template>
     </div>
 
     <!-- Entity table -->
@@ -468,6 +612,21 @@ async function executeMerge() {
             >
               Last seen{{ sortIndicator('last_seen') }}
             </th>
+            <template v-if="listMode === 'quarantined'">
+              <th
+                class="px-4 py-3 text-left font-semibold select-none"
+                data-testid="col-quarantine-reason"
+              >
+                Reason
+              </th>
+              <th
+                class="px-4 py-3 text-left font-semibold select-none"
+                data-testid="col-quarantine-when"
+              >
+                Quarantined
+              </th>
+              <th class="px-4 py-3 text-right font-semibold select-none"></th>
+            </template>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100 dark:divide-gray-700/60">
@@ -525,6 +684,33 @@ async function executeMerge() {
             <td class="px-4 py-3 text-gray-600 dark:text-gray-300">
               {{ entity.last_seen || '—' }}
             </td>
+            <template v-if="listMode === 'quarantined'">
+              <td
+                class="px-4 py-3 text-gray-600 dark:text-gray-300 max-w-[16rem] truncate"
+                :title="entity.quarantine_reason || ''"
+                data-testid="quarantine-reason-cell"
+              >
+                {{ entity.quarantine_reason || '—' }}
+              </td>
+              <td
+                class="px-4 py-3 text-gray-600 dark:text-gray-300"
+                :title="entity.quarantined_at || ''"
+                data-testid="quarantine-when-cell"
+              >
+                {{ relativeFromNow(entity.quarantined_at || '') || '—' }}
+              </td>
+              <td class="px-4 py-3 text-right">
+                <button
+                  type="button"
+                  class="btn text-xs py-1 bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  :disabled="releasingId === entity.id"
+                  data-testid="release-row-button"
+                  @click="releaseRow(entity.id)"
+                >
+                  {{ releasingId === entity.id ? 'Releasing…' : 'Release' }}
+                </button>
+              </td>
+            </template>
           </tr>
         </tbody>
       </table>
@@ -532,7 +718,7 @@ async function executeMerge() {
 
     <!-- Pagination -->
     <div
-      v-if="store.hasEntities"
+      v-if="listMode === 'active' && store.hasEntities"
       class="mt-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300"
     >
       <div data-testid="entity-page-info">

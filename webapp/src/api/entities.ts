@@ -11,6 +11,7 @@ import type {
   EntryEntitiesResponse,
   MergeCandidatesResponse,
   MergeHistoryResponse,
+  QuarantinedEntitiesResponse,
 } from '@/types/entity'
 import type { JobSubmissionResponse } from '@/types/job'
 import { apiFetch } from './client'
@@ -120,6 +121,32 @@ export function fetchMergeHistory(
   return apiFetch<MergeHistoryResponse>(
     `/api/entities/${entityId}/merge-history`,
   )
+}
+
+// --- Quarantine ---
+
+// Returns every entity the authed user has flagged as quarantined.
+// The dedicated endpoint exists because GET /api/entities filters
+// quarantined entities out by default (and does not accept an
+// include_quarantined query param). Each item is shaped as a full
+// entity record with is_quarantined / quarantine_reason /
+// quarantined_at populated.
+export function fetchQuarantinedEntities(): Promise<QuarantinedEntitiesResponse> {
+  return apiFetch<QuarantinedEntitiesResponse>('/api/entities/quarantined')
+}
+
+export function quarantineEntity(id: number, reason: string): Promise<Entity> {
+  return apiFetch<Entity>(`/api/entities/${id}/quarantine`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  })
+}
+
+export function releaseQuarantine(id: number): Promise<Entity> {
+  return apiFetch<Entity>(`/api/entities/${id}/release-quarantine`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
 }
 
 // Trigger the batch extraction job. Pass entry_id for a single entry

@@ -17,7 +17,9 @@ import {
   fetchEntityMentions,
   fetchEntityRelationships,
   fetchMergeCandidates,
+  fetchQuarantinedEntities,
   mergeEntities as mergeEntitiesApi,
+  releaseQuarantine as releaseQuarantineApi,
   resolveMergeCandidate,
   updateEntity as updateEntityApi,
 } from '@/api/entities'
@@ -204,6 +206,55 @@ export const useEntitiesStore = defineStore('entities', () => {
     mergeCandidatesTotal.value = Math.max(0, mergeCandidatesTotal.value - 1)
   }
 
+  // --- Quarantine ---
+  //
+  // Quarantined entities are kept in their own list — the regular
+  // /api/entities endpoint hides them. We load on demand from the
+  // EntityListView's "Quarantined" tab and from the badge that
+  // surfaces the count.
+  const quarantinedEntities = ref<EntitySummary[]>([])
+  const quarantinedLoading = ref(false)
+
+  async function loadQuarantined() {
+    quarantinedLoading.value = true
+    error.value = null
+    try {
+      const resp = await fetchQuarantinedEntities()
+      quarantinedEntities.value = resp.items
+    } catch (e) {
+      error.value =
+        e instanceof Error ? e.message : 'Failed to load quarantined entities'
+    } finally {
+      quarantinedLoading.value = false
+    }
+  }
+
+  async function releaseEntityQuarantine(id: number): Promise<void> {
+    error.value = null
+    try {
+      await releaseQuarantineApi(id)
+      // Drop from the quarantined list immediately so the UI updates.
+      quarantinedEntities.value = quarantinedEntities.value.filter(
+        (e) => e.id !== id,
+      )
+      // Mirror the change on the detail entity if it's the one
+      // currently open. Server emits these fields; we make it
+      // explicit so the banner disappears without a refetch.
+      if (currentEntity.value?.id === id) {
+        currentEntity.value = {
+          ...currentEntity.value,
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
+        }
+      }
+    } catch (e) {
+      error.value =
+        e instanceof Error ? e.message : 'Failed to release quarantine'
+      throw e
+    }
+  }
+
   return {
     entities,
     currentEntity,
@@ -230,5 +281,9 @@ export const useEntitiesStore = defineStore('entities', () => {
     loadMergeCandidates,
     dismissMergeCandidate,
     acceptMergeCandidate,
+    quarantinedEntities,
+    quarantinedLoading,
+    loadQuarantined,
+    releaseEntityQuarantine,
   }
 })

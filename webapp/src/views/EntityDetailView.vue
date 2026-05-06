@@ -128,6 +128,38 @@ async function saveEdit() {
   }
 }
 
+// --- Quarantine release ---
+//
+// The currently-loaded entity carries `is_quarantined` plus the
+// reason/timestamp so the banner can render even if the user
+// landed on the detail view directly (the active-list endpoint
+// does not include quarantined entities). Releasing flips the
+// flag locally and goes back to the server.
+const releasing = ref(false)
+
+async function releaseFromQuarantine() {
+  if (!store.currentEntity) return
+  releasing.value = true
+  try {
+    await store.releaseEntityQuarantine(store.currentEntity.id)
+  } finally {
+    releasing.value = false
+  }
+}
+
+function formatDateTime(iso: string): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 // --- Deleting ---
 const deleting = ref(false)
 
@@ -308,6 +340,50 @@ async function confirmDelete() {
               Cancel
             </button>
           </div>
+        </div>
+
+        <!-- Quarantine banner -->
+        <div
+          v-if="!editing && store.currentEntity.is_quarantined"
+          class="mb-4 flex flex-wrap items-start gap-3 rounded-lg border border-amber-300 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-500/10 px-4 py-3"
+          data-testid="quarantine-banner"
+        >
+          <svg
+            class="w-5 h-5 mt-0.5 flex-shrink-0 text-amber-600 dark:text-amber-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+            />
+          </svg>
+          <div
+            class="flex-1 min-w-0 text-sm text-amber-800 dark:text-amber-200"
+          >
+            <div class="font-semibold">
+              Quarantined<template v-if="store.currentEntity.quarantine_reason">
+                — {{ store.currentEntity.quarantine_reason }}</template
+              >
+            </div>
+            <div
+              v-if="store.currentEntity.quarantined_at"
+              class="text-xs mt-0.5 text-amber-700 dark:text-amber-300"
+              data-testid="quarantine-banner-when"
+            >
+              Since {{ formatDateTime(store.currentEntity.quarantined_at) }}
+            </div>
+          </div>
+          <button
+            type="button"
+            class="btn text-xs py-1 bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="releasing"
+            data-testid="release-quarantine-button"
+            @click="releaseFromQuarantine"
+          >
+            {{ releasing ? 'Releasing…' : 'Release from quarantine' }}
+          </button>
         </div>
 
         <template v-if="!editing">

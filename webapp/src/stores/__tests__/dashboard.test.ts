@@ -208,6 +208,15 @@ describe('useDashboardStore — mood surface', () => {
       notes: '...',
     },
     {
+      name: 'energy_fatigue',
+      positive_pole: 'energetic',
+      negative_pole: 'fatigued',
+      scale_type: 'bipolar' as const,
+      score_min: -1.0,
+      score_max: 1.0,
+      notes: '...',
+    },
+    {
       name: 'agency',
       positive_pole: 'agency',
       negative_pole: 'apathy',
@@ -238,37 +247,63 @@ describe('useDashboardStore — mood surface', () => {
     mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
-    expect(store.moodDimensions).toHaveLength(2)
+    expect(store.moodDimensions).toHaveLength(3)
     expect(store.moodScoringEnabled).toBe(true)
   })
 
-  it('loadMoodDimensions isolates agency by default on first load', async () => {
+  it('loadMoodDimensions selects the affect-axes group by default on first load', async () => {
     const dims = [
       { ...fakeDimensions[0], name: 'joy_sadness' },
-      { ...fakeDimensions[1], name: 'agency' },
-      { ...fakeDimensions[0], name: 'anxiety_eagerness' },
+      { ...fakeDimensions[1], name: 'energy_fatigue' },
+      { ...fakeDimensions[2], name: 'agency' },
       { ...fakeDimensions[0], name: 'proactive_reactive' },
       { ...fakeDimensions[0], name: 'fulfillment' },
     ]
     mockMoodDims.mockResolvedValue({ dimensions: dims })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
-    // Only agency should be selected (the only-visible).
-    expect(store.selectedMoodDimensions.size).toBe(1)
-    expect(store.selectedMoodDimensions.has('agency')).toBe(true)
-    expect(store.isMoodDimensionVisible('agency')).toBe(true)
-    expect(store.isMoodDimensionVisible('joy_sadness')).toBe(false)
+    // Only the affect-axes group members should be selected.
+    expect(store.selectedMoodDimensions).toEqual(
+      new Set(['joy_sadness', 'energy_fatigue']),
+    )
+    expect(store.isMoodDimensionVisible('joy_sadness')).toBe(true)
+    expect(store.isMoodDimensionVisible('energy_fatigue')).toBe(true)
+    expect(store.isMoodDimensionVisible('agency')).toBe(false)
+    expect(store.isMoodDimensionVisible('proactive_reactive')).toBe(false)
   })
 
-  it('loadMoodDimensions starts with empty selection if agency is absent', async () => {
+  it('loadMoodDimensions ends with empty selection when response.dimensions is empty', async () => {
+    mockMoodDims.mockResolvedValue({ dimensions: [] })
+    const store = useDashboardStore()
+    await store.loadMoodDimensions()
+    expect(store.selectedMoodDimensions.size).toBe(0)
+  })
+
+  it('loadMoodDimensions falls back to empty selection when affect-group members are absent', async () => {
     mockMoodDims.mockResolvedValue({
-      dimensions: [{ ...fakeDimensions[0], name: 'joy_sadness' }],
+      dimensions: [
+        { ...fakeDimensions[2], name: 'agency' },
+        { ...fakeDimensions[0], name: 'fulfillment' },
+      ],
     })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
-    // No agency — fall through to "show all" (empty selection).
+    // No affect-group members present — graceful "show-all" empty selection.
     expect(store.selectedMoodDimensions.size).toBe(0)
-    expect(store.isMoodDimensionVisible('joy_sadness')).toBe(true)
+    expect(store.isMoodDimensionVisible('agency')).toBe(true)
+    expect(store.isMoodDimensionVisible('fulfillment')).toBe(true)
+  })
+
+  it('loadMoodDimensions selects only the available affect member when one is missing', async () => {
+    mockMoodDims.mockResolvedValue({
+      dimensions: [
+        { ...fakeDimensions[0], name: 'joy_sadness' },
+        { ...fakeDimensions[2], name: 'agency' },
+      ],
+    })
+    const store = useDashboardStore()
+    await store.loadMoodDimensions()
+    expect(store.selectedMoodDimensions).toEqual(new Set(['joy_sadness']))
   })
 
   it('loadMoodDimensions does not reapply defaults on subsequent calls', async () => {
@@ -343,20 +378,23 @@ describe('useDashboardStore — mood surface', () => {
     mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
-    // Default-isolate selects only agency.
-    expect(store.selectedMoodDimensions.has('agency')).toBe(true)
-    expect(store.selectedMoodDimensions.has('joy_sadness')).toBe(false)
-    expect(store.isMoodDimensionVisible('joy_sadness')).toBe(false)
-
-    // Toggling joy_sadness adds it to the selection (now 2 visible).
-    store.toggleMoodDimension('joy_sadness')
+    // Default selection is the affect-axes group (joy_sadness + energy_fatigue).
     expect(store.selectedMoodDimensions.has('joy_sadness')).toBe(true)
-    expect(store.selectedMoodDimensions.has('agency')).toBe(true)
+    expect(store.selectedMoodDimensions.has('energy_fatigue')).toBe(true)
+    expect(store.selectedMoodDimensions.has('agency')).toBe(false)
+    expect(store.isMoodDimensionVisible('agency')).toBe(false)
 
-    // Toggling joy_sadness again removes it; agency still selected.
-    store.toggleMoodDimension('joy_sadness')
-    expect(store.selectedMoodDimensions.has('joy_sadness')).toBe(false)
+    // Toggling agency adds it to the selection (now 3 visible).
+    store.toggleMoodDimension('agency')
     expect(store.selectedMoodDimensions.has('agency')).toBe(true)
+    expect(store.selectedMoodDimensions.has('joy_sadness')).toBe(true)
+    expect(store.selectedMoodDimensions.has('energy_fatigue')).toBe(true)
+
+    // Toggling agency again removes it; affect group still selected.
+    store.toggleMoodDimension('agency')
+    expect(store.selectedMoodDimensions.has('agency')).toBe(false)
+    expect(store.selectedMoodDimensions.has('joy_sadness')).toBe(true)
+    expect(store.selectedMoodDimensions.has('energy_fatigue')).toBe(true)
   })
 
   it('toggleMoodDimension supports any subset', async () => {
@@ -390,14 +428,16 @@ describe('useDashboardStore — mood surface', () => {
     mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
-    // Default selection has only agency.
-    expect(store.selectedMoodDimensions.size).toBe(1)
-    // Click agency to deselect.
-    store.toggleMoodDimension('agency')
+    // Default selection is the affect-axes group (two members).
+    expect(store.selectedMoodDimensions.size).toBe(2)
+    // Click both members to deselect.
+    store.toggleMoodDimension('joy_sadness')
+    store.toggleMoodDimension('energy_fatigue')
     expect(store.selectedMoodDimensions.size).toBe(0)
     // Empty selection means "show all" — every dimension visible.
     expect(store.isMoodDimensionVisible('agency')).toBe(true)
     expect(store.isMoodDimensionVisible('joy_sadness')).toBe(true)
+    expect(store.isMoodDimensionVisible('energy_fatigue')).toBe(true)
   })
 
   it('showAllMoodDimensions clears the selection', async () => {
@@ -415,10 +455,12 @@ describe('useDashboardStore — mood surface', () => {
     mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
-    // Default selection: only agency.
-    expect(store.moodGroupSelectionState(['agency'])).toBe('all')
-    expect(store.moodGroupSelectionState(['joy_sadness'])).toBe('none')
-    expect(store.moodGroupSelectionState(['agency', 'joy_sadness'])).toBe(
+    // Default selection: affect-axes group (joy_sadness + energy_fatigue).
+    expect(
+      store.moodGroupSelectionState(['joy_sadness', 'energy_fatigue']),
+    ).toBe('all')
+    expect(store.moodGroupSelectionState(['agency'])).toBe('none')
+    expect(store.moodGroupSelectionState(['joy_sadness', 'agency'])).toBe(
       'some',
     )
     expect(store.moodGroupSelectionState([])).toBe('none')
