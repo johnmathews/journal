@@ -557,8 +557,17 @@ async function releaseRow(id: number) {
       data-testid="empty-state"
     >
       <template v-if="listMode === 'quarantined'">
-        No quarantined entities. Anything flagged by extraction will appear
-        here.
+        <p class="mb-3 font-medium text-gray-700 dark:text-gray-200">
+          No quarantined entities.
+        </p>
+        <p class="mx-auto max-w-prose text-sm">
+          When entity extraction runs, any entity whose name no longer appears
+          in the text of any entry that mentions it gets quarantined here. This
+          usually means the LLM hallucinated the name, or the underlying entry
+          was edited and the entity is now stale. Review them here before
+          deleting them permanently — or merge them into a clean entity if the
+          underlying meaning is still valid.
+        </p>
       </template>
       <template v-else>
         No entities yet. Click 'Run extraction' above to populate them.

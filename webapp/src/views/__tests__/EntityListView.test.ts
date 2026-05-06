@@ -1296,9 +1296,7 @@ describe('EntityListView', () => {
             last_seen: '',
             is_quarantined: true,
             quarantine_reason: 'h',
-            quarantined_at: new Date(
-              now - 24 * 60 * 60 * 1000,
-            ).toISOString(),
+            quarantined_at: new Date(now - 24 * 60 * 60 * 1000).toISOString(),
           },
           {
             id: 98,
