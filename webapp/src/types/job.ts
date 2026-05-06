@@ -19,6 +19,7 @@ export type JobType =
   | 'mood_score_entry'
   | 'reprocess_embeddings'
   | 'save_entry_pipeline'
+  | 'entity_reembed'
 
 /**
  * Response from the job-submission endpoints (POST /api/entities/extract,

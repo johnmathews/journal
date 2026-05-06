@@ -4,10 +4,14 @@ import { useRouter } from 'vue-router'
 import { useEntitiesStore } from '@/stores/entities'
 import {
   ENTITY_TYPES,
+  type AliasCollisionResponse,
   type EntityType,
   type EntityMention,
 } from '@/types/entity'
-import { displayName, displayAliases } from '@/utils/entityName'
+import { displayName } from '@/utils/entityName'
+import { ApiRequestError } from '@/api/client'
+import AliasCollisionDialog from '@/components/entities/AliasCollisionDialog.vue'
+import EntityMergeIntoDialog from '@/components/entities/EntityMergeIntoDialog.vue'
 
 const props = defineProps<{
   id: string
@@ -160,6 +164,65 @@ function formatDateTime(iso: string): string {
   })
 }
 
+// --- Alias editing ---
+//
+// Aliases can be added/removed inline from the detail view. Add can
+// fail with HTTP 409 when the alias is already mapped to a different
+// entity for this user; we surface the AliasCollisionDialog so the
+// user can choose to merge.
+const newAliasInput = ref('')
+const aliasError = ref<string | null>(null)
+const addingAlias = ref(false)
+const removingAlias = ref<string | null>(null)
+const collision = ref<AliasCollisionResponse | null>(null)
+const collisionDialogOpen = ref(false)
+
+async function addAlias(): Promise<void> {
+  const trimmed = newAliasInput.value.trim()
+  if (!trimmed) return
+  if (!store.currentEntity) return
+  aliasError.value = null
+  addingAlias.value = true
+  try {
+    await store.addAlias(trimmed)
+    newAliasInput.value = ''
+  } catch (e) {
+    if (e instanceof ApiRequestError && e.status === 409 && e.body) {
+      // Server returns 409 + structured body on collision.
+      collision.value = e.body as unknown as AliasCollisionResponse
+      collisionDialogOpen.value = true
+    } else {
+      aliasError.value = e instanceof Error ? e.message : 'Failed to add alias'
+    }
+  } finally {
+    addingAlias.value = false
+  }
+}
+
+async function removeAlias(alias: string): Promise<void> {
+  if (!store.currentEntity) return
+  removingAlias.value = alias
+  aliasError.value = null
+  try {
+    await store.removeAlias(alias)
+  } catch (e) {
+    aliasError.value = e instanceof Error ? e.message : 'Failed to remove alias'
+  } finally {
+    removingAlias.value = null
+  }
+}
+
+function onAliasMerged(): void {
+  // The entity the user was editing has been absorbed; the dialog
+  // will route to the survivor's detail view, which re-runs onMounted
+  // / loadEntity. Clear the local input here for cleanliness.
+  newAliasInput.value = ''
+  collision.value = null
+}
+
+// --- Manual merge into another entity ---
+const mergeIntoDialogOpen = ref(false)
+
 // --- Deleting ---
 const deleting = ref(false)
 
@@ -227,6 +290,13 @@ async function confirmDelete() {
             </span>
 
             <div class="ml-auto flex items-center gap-2">
+              <button
+                class="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
+                data-testid="merge-into-button"
+                @click="mergeIntoDialogOpen = true"
+              >
+                Merge into…
+              </button>
               <button
                 class="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
                 data-testid="edit-button"
@@ -388,13 +458,72 @@ async function confirmDelete() {
 
         <template v-if="!editing">
           <div
-            v-if="store.currentEntity.aliases.length"
             class="text-sm text-gray-600 dark:text-gray-300"
             data-testid="entity-aliases"
           >
-            Aliases: {{ displayAliases(store.currentEntity.aliases) }}
+            <div class="font-semibold mb-1">Aliases</div>
+            <div
+              v-if="!store.currentEntity.aliases.length"
+              class="italic text-gray-500 dark:text-gray-400 mb-2"
+              data-testid="entity-aliases-empty"
+            >
+              No aliases yet.
+            </div>
+            <div
+              v-else
+              class="flex flex-wrap gap-1.5 mb-2"
+              data-testid="entity-aliases-chips"
+            >
+              <span
+                v-for="alias in store.currentEntity.aliases"
+                :key="alias"
+                class="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-full text-xs"
+                data-testid="entity-alias-chip"
+              >
+                {{ alias }}
+                <button
+                  type="button"
+                  class="text-gray-400 hover:text-red-500 disabled:opacity-50"
+                  :aria-label="`Remove alias ${alias}`"
+                  :disabled="removingAlias === alias"
+                  data-testid="entity-alias-remove"
+                  @click="removeAlias(alias)"
+                >
+                  ×
+                </button>
+              </span>
+            </div>
+            <form
+              class="flex items-center gap-2"
+              data-testid="entity-alias-form"
+              @submit.prevent="addAlias"
+            >
+              <input
+                v-model="newAliasInput"
+                type="text"
+                placeholder="Add alias…"
+                class="form-input form-input-sm flex-1 min-w-0"
+                :disabled="addingAlias"
+                data-testid="entity-alias-input"
+              />
+              <button
+                type="submit"
+                class="btn-sm bg-violet-500 text-white hover:bg-violet-600 disabled:opacity-50"
+                :disabled="addingAlias || !newAliasInput.trim()"
+                data-testid="entity-alias-add"
+              >
+                {{ addingAlias ? 'Adding…' : 'Add' }}
+              </button>
+            </form>
+            <div
+              v-if="aliasError"
+              class="mt-2 p-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded text-xs"
+              data-testid="entity-alias-error"
+            >
+              {{ aliasError }}
+            </div>
           </div>
-          <div class="text-sm text-gray-600 dark:text-gray-300 mt-1">
+          <div class="text-sm text-gray-600 dark:text-gray-300 mt-3">
             {{ store.mentions.length }} mentions
             <template v-if="store.currentEntity.first_seen">
               · first seen {{ formatDate(store.currentEntity.first_seen) }}
@@ -408,6 +537,21 @@ async function confirmDelete() {
           </div>
         </template>
       </div>
+
+      <AliasCollisionDialog
+        v-model="collisionDialogOpen"
+        :collision="collision"
+        :current-entity-id="store.currentEntity.id"
+        :current-entity-name="store.currentEntity.canonical_name"
+        :current-entity-type="store.currentEntity.entity_type"
+        @merged="onAliasMerged"
+      />
+      <EntityMergeIntoDialog
+        v-model="mergeIntoDialogOpen"
+        :current-entity-id="store.currentEntity.id"
+        :current-entity-name="store.currentEntity.canonical_name"
+        :current-entity-type="store.currentEntity.entity_type"
+      />
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Related entities -->

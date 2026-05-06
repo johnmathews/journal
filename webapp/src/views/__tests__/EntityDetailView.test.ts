@@ -18,6 +18,9 @@ vi.mock('@/api/entities', () => ({
     created_at: '2026-01-02T00:00:00Z',
     updated_at: '2026-04-01T00:00:00Z',
   }),
+  addEntityAlias: vi.fn(),
+  removeEntityAlias: vi.fn(),
+  lookupAliasOwner: vi.fn(),
   fetchEntityMentions: vi.fn().mockResolvedValue({
     entity_id: 42,
     mentions: [
@@ -373,6 +376,161 @@ describe('EntityDetailView', () => {
 
     await wrapper.find('[data-testid="delete-button"]').trigger('click')
     expect(deleteEntity).not.toHaveBeenCalled()
+  })
+
+  describe('alias editing', () => {
+    function entityWithAliases(aliases: string[]) {
+      return {
+        id: 42,
+        entity_type: 'person' as const,
+        canonical_name: 'Ritsya',
+        description: 'my daughter',
+        aliases,
+        first_seen: '2026-01-02',
+        created_at: '2026-01-02T00:00:00Z',
+        updated_at: '2026-04-01T00:00:00Z',
+      }
+    }
+
+    it('renders an alias chip with a remove button per alias', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+
+      const chips = wrapper.findAll('[data-testid="entity-alias-chip"]')
+      expect(chips).toHaveLength(1)
+      expect(chips[0].text()).toContain('Ritzya')
+      expect(
+        chips[0].find('[data-testid="entity-alias-remove"]').exists(),
+      ).toBe(true)
+    })
+
+    it('renders an empty-state message when the entity has no aliases', async () => {
+      const { fetchEntity } = await import('@/api/entities')
+      vi.mocked(fetchEntity).mockResolvedValueOnce(entityWithAliases([]))
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      expect(
+        wrapper.find('[data-testid="entity-aliases-empty"]').exists(),
+      ).toBe(true)
+    })
+
+    it('submits the add-alias form, calls the API, and updates the chip list', async () => {
+      const { addEntityAlias } = await import('@/api/entities')
+      vi.mocked(addEntityAlias).mockResolvedValueOnce(
+        entityWithAliases(['Ritzya', 'Rits']),
+      )
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      await wrapper.find('[data-testid="entity-alias-input"]').setValue('Rits')
+      await wrapper.find('[data-testid="entity-alias-form"]').trigger('submit')
+      await flushPromises()
+
+      expect(addEntityAlias).toHaveBeenCalledWith(42, 'Rits')
+      // Chip list should now show two aliases.
+      expect(wrapper.findAll('[data-testid="entity-alias-chip"]')).toHaveLength(
+        2,
+      )
+    })
+
+    it('does not call the API when the input is whitespace', async () => {
+      const { addEntityAlias } = await import('@/api/entities')
+      vi.mocked(addEntityAlias).mockClear()
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      await wrapper.find('[data-testid="entity-alias-input"]').setValue('   ')
+      await wrapper.find('[data-testid="entity-alias-form"]').trigger('submit')
+      await flushPromises()
+
+      expect(addEntityAlias).not.toHaveBeenCalled()
+    })
+
+    it('clicking remove on a chip calls the API and refreshes the list', async () => {
+      const { removeEntityAlias } = await import('@/api/entities')
+      vi.mocked(removeEntityAlias).mockResolvedValueOnce(entityWithAliases([]))
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      await wrapper.find('[data-testid="entity-alias-remove"]').trigger('click')
+      await flushPromises()
+
+      expect(removeEntityAlias).toHaveBeenCalledWith(42, 'Ritzya')
+      expect(
+        wrapper.find('[data-testid="entity-aliases-empty"]').exists(),
+      ).toBe(true)
+    })
+
+    it('renders an inline error when the add fails with a non-409', async () => {
+      const { ApiRequestError } = await import('@/api/client')
+      const { addEntityAlias } = await import('@/api/entities')
+      vi.mocked(addEntityAlias).mockRejectedValueOnce(
+        new ApiRequestError(500, 'server_error', 'Boom'),
+      )
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      await wrapper.find('[data-testid="entity-alias-input"]').setValue('Rits')
+      await wrapper.find('[data-testid="entity-alias-form"]').trigger('submit')
+      await flushPromises()
+
+      const err = wrapper.find('[data-testid="entity-alias-error"]')
+      expect(err.exists()).toBe(true)
+      expect(err.text()).toContain('Boom')
+    })
+
+    it('clicking "Merge into…" opens the merge-into dialog', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+
+      await wrapper.find('[data-testid="merge-into-button"]').trigger('click')
+      await flushPromises()
+
+      expect(
+        document.querySelector('[data-testid="merge-into-dialog"]'),
+      ).toBeTruthy()
+    })
+
+    it('opens the collision dialog with the existing entity context on a 409', async () => {
+      const { ApiRequestError } = await import('@/api/client')
+      const { addEntityAlias } = await import('@/api/entities')
+      const collisionBody = {
+        error: 'alias already maps to a different entity',
+        alias: 'Mum',
+        existing_entity_id: 7,
+        existing_canonical_name: 'Sarah',
+        existing_entity_type: 'person',
+      }
+      vi.mocked(addEntityAlias).mockRejectedValueOnce(
+        new ApiRequestError(
+          409,
+          'collision',
+          'alias already maps to a different entity',
+          collisionBody,
+        ),
+      )
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      await wrapper.find('[data-testid="entity-alias-input"]').setValue('Mum')
+      await wrapper.find('[data-testid="entity-alias-form"]').trigger('submit')
+      await flushPromises()
+
+      expect(
+        document.querySelector('[data-testid="alias-collision-dialog"]'),
+      ).toBeTruthy()
+      expect(
+        document.querySelector('[data-testid="alias-collision-dialog"]')
+          ?.textContent,
+      ).toContain('Sarah')
+    })
   })
 
   describe('quarantine banner', () => {

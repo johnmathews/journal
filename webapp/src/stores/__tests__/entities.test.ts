@@ -18,6 +18,8 @@ vi.mock('@/api/entities', () => ({
   fetchQuarantinedEntities: vi.fn(),
   quarantineEntity: vi.fn(),
   releaseQuarantine: vi.fn(),
+  addEntityAlias: vi.fn(),
+  removeEntityAlias: vi.fn(),
 }))
 
 describe('entities store', () => {
@@ -947,6 +949,229 @@ describe('entities store', () => {
       const store = useEntitiesStore()
       await expect(store.releaseEntityQuarantine(1)).rejects.toBeDefined()
       expect(store.error).toBe('Failed to release quarantine')
+    })
+  })
+
+  describe('alias actions', () => {
+    function entity(aliases: string[]): Entity {
+      return {
+        id: 7,
+        entity_type: 'person',
+        canonical_name: 'Sarah',
+        description: 'my mother',
+        aliases,
+        first_seen: '2026-01-01',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+      }
+    }
+
+    it('addAlias calls API and updates currentEntity + entities list', async () => {
+      const {
+        addEntityAlias,
+        fetchEntity,
+        fetchEntityMentions,
+        fetchEntityRelationships,
+      } = await import('@/api/entities')
+      vi.mocked(fetchEntity).mockResolvedValue(entity([]))
+      vi.mocked(fetchEntityMentions).mockResolvedValue({
+        entity_id: 7,
+        mentions: [],
+        total: 0,
+      })
+      vi.mocked(fetchEntityRelationships).mockResolvedValue({
+        entity_id: 7,
+        outgoing: [],
+        incoming: [],
+      })
+      vi.mocked(addEntityAlias).mockResolvedValue(entity(['mum']))
+
+      const store = useEntitiesStore()
+      await store.loadEntity(7)
+      // Seed the entities list so the index update path runs.
+      store.entities = [
+        {
+          id: 7,
+          entity_type: 'person',
+          canonical_name: 'Sarah',
+          aliases: [],
+          mention_count: 0,
+          first_seen: '2026-01-01',
+          last_seen: '',
+        },
+      ]
+
+      const result = await store.addAlias('Mum')
+      expect(addEntityAlias).toHaveBeenCalledWith(7, 'Mum')
+      expect(result.aliases).toEqual(['mum'])
+      expect(store.currentEntity?.aliases).toEqual(['mum'])
+      expect(store.entities[0].aliases).toEqual(['mum'])
+    })
+
+    it('addAlias throws when no entity is loaded', async () => {
+      const store = useEntitiesStore()
+      await expect(store.addAlias('x')).rejects.toThrow('No entity selected')
+    })
+
+    it('addAlias propagates API errors', async () => {
+      const {
+        addEntityAlias,
+        fetchEntity,
+        fetchEntityMentions,
+        fetchEntityRelationships,
+      } = await import('@/api/entities')
+      vi.mocked(fetchEntity).mockResolvedValue(entity([]))
+      vi.mocked(fetchEntityMentions).mockResolvedValue({
+        entity_id: 7,
+        mentions: [],
+        total: 0,
+      })
+      vi.mocked(fetchEntityRelationships).mockResolvedValue({
+        entity_id: 7,
+        outgoing: [],
+        incoming: [],
+      })
+      vi.mocked(addEntityAlias).mockRejectedValue(new Error('boom'))
+
+      const store = useEntitiesStore()
+      await store.loadEntity(7)
+      await expect(store.addAlias('x')).rejects.toThrow('boom')
+    })
+
+    it('removeAlias calls API and updates currentEntity + entities list', async () => {
+      const {
+        removeEntityAlias,
+        fetchEntity,
+        fetchEntityMentions,
+        fetchEntityRelationships,
+      } = await import('@/api/entities')
+      vi.mocked(fetchEntity).mockResolvedValue(entity(['mum', 'mother']))
+      vi.mocked(fetchEntityMentions).mockResolvedValue({
+        entity_id: 7,
+        mentions: [],
+        total: 0,
+      })
+      vi.mocked(fetchEntityRelationships).mockResolvedValue({
+        entity_id: 7,
+        outgoing: [],
+        incoming: [],
+      })
+      vi.mocked(removeEntityAlias).mockResolvedValue(entity(['mother']))
+
+      const store = useEntitiesStore()
+      await store.loadEntity(7)
+      store.entities = [
+        {
+          id: 7,
+          entity_type: 'person',
+          canonical_name: 'Sarah',
+          aliases: ['mum', 'mother'],
+          mention_count: 0,
+          first_seen: '2026-01-01',
+          last_seen: '',
+        },
+      ]
+
+      await store.removeAlias('mum')
+      expect(removeEntityAlias).toHaveBeenCalledWith(7, 'mum')
+      expect(store.currentEntity?.aliases).toEqual(['mother'])
+      expect(store.entities[0].aliases).toEqual(['mother'])
+    })
+
+    it('removeAlias throws when no entity is loaded', async () => {
+      const store = useEntitiesStore()
+      await expect(store.removeAlias('x')).rejects.toThrow('No entity selected')
+    })
+  })
+
+  describe('updateCurrentEntity reembed job tracking', () => {
+    function entity(): Entity {
+      return {
+        id: 7,
+        entity_type: 'person',
+        canonical_name: 'Sarah',
+        description: 'old',
+        aliases: [],
+        first_seen: '2026-01-01',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+      }
+    }
+
+    it('passes reembed_job_id to jobsStore.trackJob when present', async () => {
+      const {
+        updateEntity,
+        fetchEntity,
+        fetchEntityMentions,
+        fetchEntityRelationships,
+      } = await import('@/api/entities')
+      vi.mocked(fetchEntity).mockResolvedValue(entity())
+      vi.mocked(fetchEntityMentions).mockResolvedValue({
+        entity_id: 7,
+        mentions: [],
+        total: 0,
+      })
+      vi.mocked(fetchEntityRelationships).mockResolvedValue({
+        entity_id: 7,
+        outgoing: [],
+        incoming: [],
+      })
+      vi.mocked(updateEntity).mockResolvedValue({
+        ...entity(),
+        description: 'new',
+        reembed_job_id: 'reembed-job-abc',
+      })
+
+      const { useJobsStore } = await import('@/stores/jobs')
+      const jobs = useJobsStore()
+      const trackSpy = vi.spyOn(jobs, 'trackJob')
+
+      const store = useEntitiesStore()
+      await store.loadEntity(7)
+      await store.updateCurrentEntity({ description: 'new' })
+
+      expect(trackSpy).toHaveBeenCalledWith(
+        'reembed-job-abc',
+        'entity_reembed',
+        { entity_id: 7 },
+      )
+      // The transport-only field must be stripped from currentEntity.
+      expect(store.currentEntity).not.toHaveProperty('reembed_job_id')
+    })
+
+    it('does not call trackJob when no reembed_job_id is returned', async () => {
+      const {
+        updateEntity,
+        fetchEntity,
+        fetchEntityMentions,
+        fetchEntityRelationships,
+      } = await import('@/api/entities')
+      vi.mocked(fetchEntity).mockResolvedValue(entity())
+      vi.mocked(fetchEntityMentions).mockResolvedValue({
+        entity_id: 7,
+        mentions: [],
+        total: 0,
+      })
+      vi.mocked(fetchEntityRelationships).mockResolvedValue({
+        entity_id: 7,
+        outgoing: [],
+        incoming: [],
+      })
+      // No reembed_job_id (description unchanged at the server's view).
+      vi.mocked(updateEntity).mockResolvedValue({
+        ...entity(),
+        canonical_name: 'Sarah Jane',
+      })
+
+      const { useJobsStore } = await import('@/stores/jobs')
+      const jobs = useJobsStore()
+      const trackSpy = vi.spyOn(jobs, 'trackJob')
+
+      const store = useEntitiesStore()
+      await store.loadEntity(7)
+      await store.updateCurrentEntity({ canonical_name: 'Sarah Jane' })
+
+      expect(trackSpy).not.toHaveBeenCalled()
     })
   })
 })

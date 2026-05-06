@@ -13,13 +13,22 @@ export function setUnauthorizedHandler(handler: UnauthorizedHandler): void {
 }
 
 export class ApiRequestError extends Error {
+  /**
+   * Full parsed JSON response body, when available. Useful when the
+   * server's error response carries structured data the caller needs
+   * to react to — e.g. the 409 from add-alias returns the existing
+   * entity's id and name so the webapp can offer a merge.
+   */
+  public body: Record<string, unknown> | null
   constructor(
     public status: number,
     public errorCode: string,
     message: string,
+    body: Record<string, unknown> | null = null,
   ) {
     super(message)
     this.name = 'ApiRequestError'
+    this.body = body
   }
 }
 
@@ -59,14 +68,16 @@ export async function apiFetch<T>(
 
     let errorCode = 'unknown'
     let message = `HTTP ${response.status}`
+    let parsedBody: Record<string, unknown> | null = null
     try {
       const body = await response.json()
+      parsedBody = body as Record<string, unknown>
       errorCode = body.error || errorCode
       message = body.message || body.error || message
     } catch {
       // ignore parse errors
     }
-    throw new ApiRequestError(response.status, errorCode, message)
+    throw new ApiRequestError(response.status, errorCode, message, parsedBody)
   }
 
   // Handle 204 No Content (e.g. logout)

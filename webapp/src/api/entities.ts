@@ -1,4 +1,5 @@
 import type {
+  AliasLookupResponse,
   Entity,
   EntityDeleteResponse,
   EntityListParams,
@@ -68,11 +69,20 @@ export function fetchEntryEntities(
 
 // --- Entity management ---
 
+// PATCH /api/entities/{id} — when the patch changes the description,
+// the server enqueues an async ``entity_reembed`` job (refreshes the
+// entity's stored embedding so future recognition reflects the new
+// description) and returns the job id in `reembed_job_id`. The
+// webapp tracks that job through the global jobs store / toast
+// pipeline. The field is omitted on PATCHes that don't change the
+// description.
+export type UpdateEntityResponse = Entity & { reembed_job_id?: string }
+
 export function updateEntity(
   id: number,
   patch: EntityUpdateRequest,
-): Promise<Entity> {
-  return apiFetch<Entity>(`/api/entities/${id}`, {
+): Promise<UpdateEntityResponse> {
+  return apiFetch<UpdateEntityResponse>(`/api/entities/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
   })
@@ -91,6 +101,46 @@ export function mergeEntities(
     method: 'POST',
     body: JSON.stringify(request),
   })
+}
+
+// --- Aliases ---
+
+// Adds an alias to an entity. Resolves with the updated Entity on
+// success (server returns 201 with the full entity record). Throws
+// `ApiRequestError` on failure; status 409 means the alias is
+// already attached to a different entity, in which case the caller
+// can read `error.body` for `existing_entity_id`,
+// `existing_canonical_name`, and `existing_entity_type` to offer a
+// merge.
+export function addEntityAlias(
+  entityId: number,
+  alias: string,
+): Promise<Entity> {
+  return apiFetch<Entity>(`/api/entities/${entityId}/aliases`, {
+    method: 'POST',
+    body: JSON.stringify({ alias }),
+  })
+}
+
+export function removeEntityAlias(
+  entityId: number,
+  alias: string,
+): Promise<Entity> {
+  // Server stores the alias in lowercased / whitespace-stripped form;
+  // we encode the user-supplied string and let the server normalize.
+  return apiFetch<Entity>(
+    `/api/entities/${entityId}/aliases/${encodeURIComponent(alias)}`,
+    { method: 'DELETE' },
+  )
+}
+
+// Inline collision check before submit. Returns `{ entity_id: null }`
+// when the alias is unowned for this user. Type-agnostic — useful
+// for the webapp to warn before letting the user attach the alias.
+export function lookupAliasOwner(alias: string): Promise<AliasLookupResponse> {
+  return apiFetch<AliasLookupResponse>(
+    `/api/entities/aliases/lookup?alias=${encodeURIComponent(alias)}`,
+  )
 }
 
 // --- Merge candidates ---

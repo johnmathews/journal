@@ -105,6 +105,8 @@ function jobLabel(type: JobType): string {
       return 'Mood scoring'
     case 'reprocess_embeddings':
       return 'Re-embedding'
+    case 'entity_reembed':
+      return 'Entity recognition refresh'
     default:
       return type
   }

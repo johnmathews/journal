@@ -11,6 +11,7 @@ import type {
   MergeCandidate,
 } from '@/types/entity'
 import {
+  addEntityAlias as addEntityAliasApi,
   deleteEntity as deleteEntityApi,
   fetchEntities,
   fetchEntity,
@@ -20,6 +21,7 @@ import {
   fetchQuarantinedEntities,
   mergeEntities as mergeEntitiesApi,
   releaseQuarantine as releaseQuarantineApi,
+  removeEntityAlias as removeEntityAliasApi,
   resolveMergeCandidate,
   updateEntity as updateEntityApi,
 } from '@/api/entities'
@@ -105,8 +107,22 @@ export const useEntitiesStore = defineStore('entities', () => {
     try {
       if (!currentEntity.value) throw new Error('No entity selected')
       const updated = await updateEntityApi(currentEntity.value.id, patch)
-      currentEntity.value = updated
-      // Update in list if present
+      // The server returns `reembed_job_id` when a description change
+      // triggered the async entity_reembed job. Plug it into the
+      // global jobs store so AppNotifications shows the toast and
+      // polls until terminal. Done lazily-imported to avoid a
+      // circular import between the entities and jobs stores.
+      const reembedJobId = updated.reembed_job_id
+      if (reembedJobId) {
+        const { useJobsStore } = await import('@/stores/jobs')
+        useJobsStore().trackJob(reembedJobId, 'entity_reembed', {
+          entity_id: currentEntity.value.id,
+        })
+      }
+      // Strip the transport-only field before storing in state.
+      const { reembed_job_id: _ignored, ...entityFields } = updated
+      void _ignored
+      currentEntity.value = entityFields as Entity
       const idx = entities.value.findIndex((e) => e.id === updated.id)
       if (idx !== -1) {
         entities.value[idx] = {
@@ -116,11 +132,46 @@ export const useEntitiesStore = defineStore('entities', () => {
           aliases: updated.aliases,
         }
       }
-      return updated
+      return entityFields as Entity
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to update entity'
       throw e
     }
+  }
+
+  // --- Alias management ---
+
+  // Adds an alias to the entity currently open in the detail view.
+  // Throws on failure; the caller (EntityDetailView) inspects the
+  // ApiRequestError to surface a 409 collision dialog.
+  async function addAlias(alias: string): Promise<Entity> {
+    error.value = null
+    if (!currentEntity.value) throw new Error('No entity selected')
+    const updated = await addEntityAliasApi(currentEntity.value.id, alias)
+    currentEntity.value = updated
+    const idx = entities.value.findIndex((e) => e.id === updated.id)
+    if (idx !== -1) {
+      entities.value[idx] = {
+        ...entities.value[idx],
+        aliases: updated.aliases,
+      }
+    }
+    return updated
+  }
+
+  async function removeAlias(alias: string): Promise<Entity> {
+    error.value = null
+    if (!currentEntity.value) throw new Error('No entity selected')
+    const updated = await removeEntityAliasApi(currentEntity.value.id, alias)
+    currentEntity.value = updated
+    const idx = entities.value.findIndex((e) => e.id === updated.id)
+    if (idx !== -1) {
+      entities.value[idx] = {
+        ...entities.value[idx],
+        aliases: updated.aliases,
+      }
+    }
+    return updated
   }
 
   async function removeEntity(id: number): Promise<void> {
@@ -276,6 +327,8 @@ export const useEntitiesStore = defineStore('entities', () => {
     loadEntity,
     clearCurrent,
     updateCurrentEntity,
+    addAlias,
+    removeAlias,
     removeEntity,
     mergeEntities,
     mergeCandidates,

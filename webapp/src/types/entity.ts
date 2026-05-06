@@ -151,6 +151,30 @@ export interface EntityMergeRequest {
   absorbed_ids: number[]
 }
 
+// --- Alias management ---
+//
+// POST /api/entities/{id}/aliases adds an alias. The 201 response is
+// the updated Entity. A 409 response means the alias is already
+// mapped to a different entity for this user; the body has the
+// fields below so the webapp can offer the user a "merge into the
+// existing entity" flow.
+export interface AliasCollisionResponse {
+  error: string
+  alias: string
+  existing_entity_id: number
+  existing_canonical_name: string
+  existing_entity_type: EntityType
+}
+
+// GET /api/entities/aliases/lookup?alias=X — non-mutating collision
+// check used for inline warning before submit. `entity_id` is null
+// when no entity owns the alias yet.
+export interface AliasLookupResponse {
+  entity_id: number | null
+  canonical_name?: string
+  entity_type?: EntityType
+}
+
 export interface EntityMergeResponse {
   survivor: Entity
   absorbed_ids: number[]
