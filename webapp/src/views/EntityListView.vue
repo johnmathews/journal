@@ -5,7 +5,10 @@ import {
   ENTITY_TYPES,
   type EntityType,
   type EntitySummary,
+  type EntityMention,
+  type MergeCandidate,
 } from '@/types/entity'
+import { fetchEntityMentions } from '@/api/entities'
 import BatchJobModal from '@/components/BatchJobModal.vue'
 import BaseModal from '@/components/BaseModal.vue'
 import { displayName, displayAliases } from '@/utils/entityName'
@@ -144,7 +147,11 @@ function setListMode(mode: ListMode) {
 }
 
 onMounted(() => {
-  store.loadEntities({ offset: 0 })
+  // Explicit undefined for type/search resets any filter that leaked
+  // in via the store's currentParams from a prior visit — without
+  // this, the search box renders empty but the API call still carries
+  // the previous search term, so the list looks mysteriously filtered.
+  store.loadEntities({ type: undefined, search: undefined, offset: 0 })
   store.loadMergeCandidates()
   // Load quarantined eagerly so the tab badge shows up without
   // the user having to click into it. The list is small.
@@ -239,6 +246,97 @@ function openMergeModal() {
 
 // --- Merge review ---
 const showMergeReview = ref(false)
+
+// Inline "show context" expander on each merge candidate row.
+// Reviewing "Pull Ups ~ Bar (77%)" without context is risky — "Bar"
+// could be a pull-up bar (merge!) or a wine bar (don't!). Cache the
+// mention quotes per entity ID so toggling expand/collapse on a row
+// doesn't re-fetch on every click. We also cache the response's
+// `total` because the merge-candidates endpoint embeds bare Entity
+// records without aggregated mention_count, so the embedded
+// `mention_count` is unreliable here — the mentions endpoint is the
+// authoritative source.
+const expandedCandidates = ref<Set<number>>(new Set())
+const mentionsByEntity = ref<Map<number, EntityMention[]>>(new Map())
+const mentionTotalByEntity = ref<Map<number, number>>(new Map())
+const loadingMentionsFor = ref<Set<number>>(new Set())
+const MENTION_PREVIEW_LIMIT = 3
+
+function isCandidateExpanded(candidateId: number): boolean {
+  return expandedCandidates.value.has(candidateId)
+}
+
+function isLoadingMentions(entityId: number): boolean {
+  return loadingMentionsFor.value.has(entityId)
+}
+
+function getEntityMentions(entityId: number): EntityMention[] {
+  return mentionsByEntity.value.get(entityId) ?? []
+}
+
+function getMentionCount(entity: EntitySummary): number {
+  // Prefer the authoritative total from the mentions endpoint (loaded
+  // when the row is expanded). The embedded entity from the
+  // merge-candidates response carries 0 because the server takes a
+  // shortcut and doesn't aggregate. Fall back to the embedded value
+  // if it's been populated (e.g. by a future server enrichment).
+  const fetched = mentionTotalByEntity.value.get(entity.id)
+  if (fetched !== undefined) return fetched
+  return entity.mention_count
+}
+
+async function loadMentionsForEntity(entityId: number): Promise<void> {
+  if (mentionsByEntity.value.has(entityId)) return
+  if (loadingMentionsFor.value.has(entityId)) return
+  const nextLoading = new Set(loadingMentionsFor.value)
+  nextLoading.add(entityId)
+  loadingMentionsFor.value = nextLoading
+  try {
+    const resp = await fetchEntityMentions(entityId, {
+      limit: MENTION_PREVIEW_LIMIT,
+    })
+    const nextMap = new Map(mentionsByEntity.value)
+    nextMap.set(entityId, resp.mentions)
+    mentionsByEntity.value = nextMap
+    const nextTotals = new Map(mentionTotalByEntity.value)
+    nextTotals.set(entityId, resp.total)
+    mentionTotalByEntity.value = nextTotals
+  } finally {
+    const cleared = new Set(loadingMentionsFor.value)
+    cleared.delete(entityId)
+    loadingMentionsFor.value = cleared
+  }
+}
+
+function toggleCandidateExpand(candidate: MergeCandidate): void {
+  const next = new Set(expandedCandidates.value)
+  if (next.has(candidate.id)) {
+    next.delete(candidate.id)
+    expandedCandidates.value = next
+    return
+  }
+  next.add(candidate.id)
+  expandedCandidates.value = next
+  // Fetch both sides in parallel; cache prevents repeat work.
+  void loadMentionsForEntity(candidate.entity_a.id)
+  void loadMentionsForEntity(candidate.entity_b.id)
+}
+
+function dateRange(entity: EntitySummary): string {
+  // Derive end-date from the fetched mentions when the embedded
+  // entity record has no `last_seen` (the merge-candidates endpoint
+  // doesn't populate it — see comment above the cache refs).
+  const fetched = mentionsByEntity.value.get(entity.id) ?? []
+  const fetchedLatest = fetched.reduce<string>(
+    (acc, m) => (m.entry_date && m.entry_date > acc ? m.entry_date : acc),
+    '',
+  )
+  const last = entity.last_seen || fetchedLatest
+  const first = entity.first_seen
+  if (!first && !last) return ''
+  if (!last || first === last) return first || last
+  return `${first || '—'} → ${last}`
+}
 
 async function acceptCandidate(
   candidateId: number,
@@ -389,53 +487,158 @@ async function deleteRow(entity: EntitySummary) {
         <div
           v-for="candidate in store.mergeCandidates"
           :key="candidate.id"
-          class="flex items-center gap-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-700/40 rounded-lg px-4 py-3 text-sm"
+          class="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-700/40 rounded-lg text-sm overflow-hidden"
           :data-testid="`merge-candidate-${candidate.id}`"
         >
-          <div class="flex-1">
-            <span class="font-medium text-gray-800 dark:text-gray-100">
-              {{ displayName(candidate.entity_a.canonical_name) }}
-            </span>
-            <span
-              class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize mx-1"
-              :class="typeBadgeClass(candidate.entity_a.entity_type)"
+          <div class="flex items-center gap-3 px-4 py-3">
+            <button
+              type="button"
+              class="text-amber-700 dark:text-amber-300 hover:text-amber-800 dark:hover:text-amber-200 shrink-0"
+              :aria-expanded="isCandidateExpanded(candidate.id)"
+              :aria-label="
+                isCandidateExpanded(candidate.id)
+                  ? 'Hide context'
+                  : 'Show context'
+              "
+              :data-testid="`toggle-candidate-context-${candidate.id}`"
+              @click="toggleCandidateExpand(candidate)"
             >
-              {{ candidate.entity_a.entity_type }}
-            </span>
-            <span class="text-gray-600 dark:text-gray-300 mx-1">~</span>
-            <span class="font-medium text-gray-800 dark:text-gray-100">
-              {{ displayName(candidate.entity_b.canonical_name) }}
-            </span>
-            <span
-              class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize mx-1"
-              :class="typeBadgeClass(candidate.entity_b.entity_type)"
+              <svg
+                class="w-4 h-4 transition-transform"
+                :class="{ 'rotate-90': isCandidateExpanded(candidate.id) }"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+            <div class="flex-1">
+              <span class="font-medium text-gray-800 dark:text-gray-100">
+                {{ displayName(candidate.entity_a.canonical_name) }}
+              </span>
+              <span
+                class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize mx-1"
+                :class="typeBadgeClass(candidate.entity_a.entity_type)"
+              >
+                {{ candidate.entity_a.entity_type }}
+              </span>
+              <span class="text-gray-600 dark:text-gray-300 mx-1">~</span>
+              <span class="font-medium text-gray-800 dark:text-gray-100">
+                {{ displayName(candidate.entity_b.canonical_name) }}
+              </span>
+              <span
+                class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize mx-1"
+                :class="typeBadgeClass(candidate.entity_b.entity_type)"
+              >
+                {{ candidate.entity_b.entity_type }}
+              </span>
+              <span class="text-xs text-gray-600 dark:text-gray-300 ml-2">
+                {{ (candidate.similarity * 100).toFixed(0) }}% similar
+              </span>
+            </div>
+            <button
+              class="btn text-xs py-1 bg-violet-500 hover:bg-violet-600 text-white"
+              data-testid="accept-candidate"
+              @click="
+                acceptCandidate(
+                  candidate.id,
+                  candidate.entity_a,
+                  candidate.entity_b,
+                )
+              "
             >
-              {{ candidate.entity_b.entity_type }}
-            </span>
-            <span class="text-xs text-gray-600 dark:text-gray-300 ml-2">
-              {{ (candidate.similarity * 100).toFixed(0) }}% similar
-            </span>
+              Merge
+            </button>
+            <button
+              class="btn text-xs py-1 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300"
+              data-testid="dismiss-candidate"
+              @click="dismissCandidate(candidate.id)"
+            >
+              Dismiss
+            </button>
           </div>
-          <button
-            class="btn text-xs py-1 bg-violet-500 hover:bg-violet-600 text-white"
-            data-testid="accept-candidate"
-            @click="
-              acceptCandidate(
-                candidate.id,
-                candidate.entity_a,
-                candidate.entity_b,
-              )
-            "
+          <div
+            v-if="isCandidateExpanded(candidate.id)"
+            class="grid grid-cols-1 md:grid-cols-2 gap-4 px-4 pb-4 pt-1 border-t border-amber-200/70 dark:border-amber-700/30"
+            :data-testid="`merge-candidate-context-${candidate.id}`"
           >
-            Merge
-          </button>
-          <button
-            class="btn text-xs py-1 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300"
-            data-testid="dismiss-candidate"
-            @click="dismissCandidate(candidate.id)"
-          >
-            Dismiss
-          </button>
+            <div
+              v-for="side in [candidate.entity_a, candidate.entity_b]"
+              :key="side.id"
+              class="bg-white/60 dark:bg-gray-800/40 border border-amber-100 dark:border-amber-700/30 rounded-md p-3"
+              data-testid="merge-candidate-side"
+            >
+              <div class="flex items-baseline gap-2 mb-2">
+                <RouterLink
+                  :to="{ name: 'entity-detail', params: { id: side.id } }"
+                  class="font-medium text-violet-600 dark:text-violet-400 hover:underline"
+                >
+                  {{ displayName(side.canonical_name) }}
+                </RouterLink>
+                <span
+                  class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize"
+                  :class="typeBadgeClass(side.entity_type)"
+                >
+                  {{ side.entity_type }}
+                </span>
+              </div>
+              <div
+                class="text-xs text-gray-600 dark:text-gray-300 mb-2 flex flex-wrap gap-x-3 gap-y-1"
+              >
+                <span data-testid="side-mention-count">
+                  {{ getMentionCount(side) }}
+                  {{ getMentionCount(side) === 1 ? 'mention' : 'mentions' }}
+                </span>
+                <span v-if="dateRange(side)" data-testid="side-date-range">
+                  {{ dateRange(side) }}
+                </span>
+                <span v-if="side.aliases.length" class="italic">
+                  ({{ displayAliases(side.aliases) }})
+                </span>
+              </div>
+              <div
+                v-if="isLoadingMentions(side.id)"
+                class="text-xs text-gray-500 dark:text-gray-400"
+                data-testid="side-mentions-loading"
+              >
+                Loading quotes…
+              </div>
+              <ul
+                v-else-if="getEntityMentions(side.id).length"
+                class="space-y-1.5"
+              >
+                <li
+                  v-for="m in getEntityMentions(side.id)"
+                  :key="m.id"
+                  class="text-xs text-gray-700 dark:text-gray-200"
+                  data-testid="side-mention-quote"
+                >
+                  <RouterLink
+                    :to="{
+                      name: 'entry-detail',
+                      params: { id: m.entry_id },
+                      query: { highlight: side.canonical_name },
+                    }"
+                    class="block hover:bg-amber-100/50 dark:hover:bg-amber-500/5 rounded px-1 -mx-1 py-0.5"
+                  >
+                    <span class="text-[10px] text-gray-500 dark:text-gray-400">
+                      {{ m.entry_date }}
+                    </span>
+                    <span class="italic ml-2">"{{ m.quote }}"</span>
+                  </RouterLink>
+                </li>
+              </ul>
+              <div
+                v-else
+                class="text-xs italic text-gray-500 dark:text-gray-400"
+                data-testid="side-mentions-empty"
+              >
+                No mention quotes recorded.
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -61,6 +61,11 @@ const router = createRouter({
       name: 'entity-detail',
       component: { template: '<div />' },
     },
+    {
+      path: '/entries/:id',
+      name: 'entry-detail',
+      component: { template: '<div />' },
+    },
   ],
 })
 
@@ -956,6 +961,135 @@ describe('EntityListView', () => {
 
       expect(resolveMergeCandidate).toHaveBeenCalledWith(100, 'dismissed')
     })
+
+    it('expanding a candidate fetches mentions for both entities and renders quotes', async () => {
+      const { fetchEntities, fetchMergeCandidates, fetchEntityMentions } =
+        await import('@/api/entities')
+      vi.mocked(fetchEntities).mockResolvedValueOnce(twoEntities)
+      vi.mocked(fetchMergeCandidates).mockResolvedValueOnce(candidateFixture)
+      const mentionsSpy = vi.mocked(fetchEntityMentions)
+      mentionsSpy.mockReset()
+      // The merge-candidates server response embeds entities without
+      // populating `mention_count` (it's bare `Entity`, not
+      // `EntitySummary`). The component prefers `total` from the
+      // mentions endpoint, so we assert against those values here.
+      mentionsSpy.mockImplementation(async (id: number) => ({
+        entity_id: id,
+        total: id === 1 ? 12 : 2,
+        mentions: [
+          {
+            id: id * 10,
+            entity_id: id,
+            entry_id: 999,
+            entry_date: '2026-03-15',
+            quote:
+              id === 1 ? 'Ritsya stopped by today' : 'saw Ritzya at the gym',
+            confidence: 0.9,
+            extraction_run_id: 'run-1',
+            created_at: '2026-03-15T00:00:00Z',
+          },
+        ],
+      }))
+
+      const wrapper = mountView()
+      await flushPromises()
+      await wrapper.find('[data-testid="toggle-merge-review"]').trigger('click')
+
+      // Initially no context block rendered
+      expect(
+        wrapper.find('[data-testid="merge-candidate-context-100"]').exists(),
+      ).toBe(false)
+
+      await wrapper
+        .find('[data-testid="toggle-candidate-context-100"]')
+        .trigger('click')
+      await flushPromises()
+
+      // Both entities had mentions fetched in parallel
+      expect(mentionsSpy).toHaveBeenCalledWith(1, { limit: 3 })
+      expect(mentionsSpy).toHaveBeenCalledWith(3, { limit: 3 })
+
+      const ctx = wrapper.find('[data-testid="merge-candidate-context-100"]')
+      expect(ctx.exists()).toBe(true)
+      const sides = wrapper.findAll('[data-testid="merge-candidate-side"]')
+      expect(sides).toHaveLength(2)
+
+      const quotes = wrapper.findAll('[data-testid="side-mention-quote"]')
+      expect(quotes).toHaveLength(2)
+      expect(quotes[0].text()).toContain('Ritsya stopped by today')
+      expect(quotes[1].text()).toContain('saw Ritzya at the gym')
+
+      // Mention counts and date ranges from EntitySummary are visible
+      const counts = wrapper.findAll('[data-testid="side-mention-count"]')
+      expect(counts[0].text()).toContain('12')
+      expect(counts[1].text()).toContain('2')
+    })
+
+    it('toggling expand off and on does not refetch (cache hit)', async () => {
+      const { fetchEntities, fetchMergeCandidates, fetchEntityMentions } =
+        await import('@/api/entities')
+      vi.mocked(fetchEntities).mockResolvedValueOnce(twoEntities)
+      vi.mocked(fetchMergeCandidates).mockResolvedValueOnce(candidateFixture)
+      const mentionsSpy = vi.mocked(fetchEntityMentions)
+      mentionsSpy.mockReset()
+      mentionsSpy.mockResolvedValue({
+        entity_id: 0,
+        total: 0,
+        mentions: [],
+      })
+
+      const wrapper = mountView()
+      await flushPromises()
+      await wrapper.find('[data-testid="toggle-merge-review"]').trigger('click')
+
+      // First expand: fetches both sides
+      await wrapper
+        .find('[data-testid="toggle-candidate-context-100"]')
+        .trigger('click')
+      await flushPromises()
+      expect(mentionsSpy).toHaveBeenCalledTimes(2)
+
+      // Collapse
+      await wrapper
+        .find('[data-testid="toggle-candidate-context-100"]')
+        .trigger('click')
+      await flushPromises()
+      expect(
+        wrapper.find('[data-testid="merge-candidate-context-100"]').exists(),
+      ).toBe(false)
+
+      // Re-expand: still 2 calls, cache served the second open
+      await wrapper
+        .find('[data-testid="toggle-candidate-context-100"]')
+        .trigger('click')
+      await flushPromises()
+      expect(mentionsSpy).toHaveBeenCalledTimes(2)
+    })
+
+    it('shows an empty-state line when an entity has no mention quotes', async () => {
+      const { fetchEntities, fetchMergeCandidates, fetchEntityMentions } =
+        await import('@/api/entities')
+      vi.mocked(fetchEntities).mockResolvedValueOnce(twoEntities)
+      vi.mocked(fetchMergeCandidates).mockResolvedValueOnce(candidateFixture)
+      const mentionsSpy = vi.mocked(fetchEntityMentions)
+      mentionsSpy.mockReset()
+      mentionsSpy.mockResolvedValue({
+        entity_id: 0,
+        total: 0,
+        mentions: [],
+      })
+
+      const wrapper = mountView()
+      await flushPromises()
+      await wrapper.find('[data-testid="toggle-merge-review"]').trigger('click')
+      await wrapper
+        .find('[data-testid="toggle-candidate-context-100"]')
+        .trigger('click')
+      await flushPromises()
+
+      const empties = wrapper.findAll('[data-testid="side-mentions-empty"]')
+      expect(empties).toHaveLength(2)
+    })
   })
 
   // ---- Quarantined tab ----
@@ -1479,5 +1613,49 @@ describe('EntityListView', () => {
     expect(wrapper.find('[data-testid="selection-toolbar"]').exists()).toBe(
       false,
     )
+  })
+
+  it('does not leak filter state across remounts (regression)', async () => {
+    // Regression: the store's loadEntities merges params with currentParams,
+    // so a previous session's search/type filters used to leak into the next
+    // mount even though the local search box was empty. The component must
+    // explicitly reset filter params when it mounts.
+    vi.useFakeTimers()
+    try {
+      const pinia = createPinia()
+
+      const wrapper1 = mount(EntityListView, {
+        global: { plugins: [pinia, router] },
+      })
+      await flushPromises()
+
+      const { fetchEntities } = await import('@/api/entities')
+      const spy = vi.mocked(fetchEntities)
+
+      const input = wrapper1.find('[data-testid="entity-search"]')
+      await input.setValue('wave')
+      vi.advanceTimersByTime(300)
+      await flushPromises()
+
+      const filteredCall = spy.mock.calls[spy.mock.calls.length - 1][0]
+      expect(filteredCall?.search).toBe('wave')
+
+      wrapper1.unmount()
+      spy.mockClear()
+
+      const wrapper2 = mount(EntityListView, {
+        global: { plugins: [pinia, router] },
+      })
+      await flushPromises()
+
+      expect(spy).toHaveBeenCalled()
+      const remountCall = spy.mock.calls[0][0]
+      expect(remountCall?.search).toBeUndefined()
+      expect(remountCall?.type).toBeUndefined()
+      expect(remountCall?.offset).toBe(0)
+      wrapper2.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
