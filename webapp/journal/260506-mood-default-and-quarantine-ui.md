@@ -66,3 +66,27 @@ to Quarantined tab, click Release.
 Backend: `journal-server` commit (same date) ships server-side endpoints, schema
 migration, the post-extraction sanity sweep, smart-title-casing, the relaxed
 merge-candidate detector, and the corresponding documentation.
+
+## Follow-up — `ac00213` (empty-state copy)
+
+After deploy the Quarantined tab was empty in prod (good — nothing currently
+quarantined). User asked for richer empty-state copy explaining what would land here
+and what to do with it. Two-paragraph version: when extraction runs, entities whose
+canonical name no longer appears in any mention quote or entry text get quarantined
+here for review before deleting permanently — or merging into a clean entity if the
+underlying meaning is still valid.
+
+## Follow-up — `0a07566` (Hard-Delete button)
+
+Paired with the server-side `entity_merge_history` audit-trail fix. User wanted a
+direct way to permanently delete a quarantined entity from the Quarantined tab — the
+existing Delete button on the detail view required navigating in and back out.
+
+Per-row red Delete button next to the amber Release button. `window.confirm`
+prompt is explicit about irreversibility and recommends Merge instead if the
+underlying data is salvageable. Reuses the existing
+`DELETE /api/entities/:id` endpoint (cascades unchanged). Store's `removeEntity`
+now also prunes from `quarantinedEntities` so the row disappears immediately
+instead of waiting for a reload.
+
+Tests: 1322 passing (+3 over the main commit baseline of 1319).
