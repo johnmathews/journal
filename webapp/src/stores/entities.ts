@@ -128,6 +128,9 @@ export const useEntitiesStore = defineStore('entities', () => {
     try {
       await deleteEntityApi(id)
       entities.value = entities.value.filter((e) => e.id !== id)
+      quarantinedEntities.value = quarantinedEntities.value.filter(
+        (e) => e.id !== id,
+      )
       total.value = Math.max(0, total.value - 1)
       if (currentEntity.value?.id === id) {
         currentEntity.value = null

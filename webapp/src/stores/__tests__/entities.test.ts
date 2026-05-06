@@ -421,6 +421,43 @@ describe('entities store', () => {
       await expect(store.removeEntity(1)).rejects.toBe('string rejection')
       expect(store.error).toBe('Failed to delete entity')
     })
+
+    it('also prunes the quarantined list so a hard-delete from the Quarantined tab disappears immediately', async () => {
+      const { deleteEntity } = await import('@/api/entities')
+      vi.mocked(deleteEntity).mockResolvedValue({ deleted: true, id: 11 })
+
+      const store = useEntitiesStore()
+      store.quarantinedEntities = [
+        {
+          id: 11,
+          entity_type: 'place',
+          canonical_name: 'BadGhost',
+          aliases: [],
+          mention_count: 1,
+          first_seen: '2026-01-01',
+          last_seen: '2026-01-01',
+          is_quarantined: true,
+          quarantine_reason: 'canonical not in any quote',
+          quarantined_at: '2026-05-06T10:00:00Z',
+        },
+        {
+          id: 12,
+          entity_type: 'place',
+          canonical_name: 'OtherGhost',
+          aliases: [],
+          mention_count: 1,
+          first_seen: '2026-01-01',
+          last_seen: '2026-01-01',
+          is_quarantined: true,
+          quarantine_reason: 'unrelated',
+          quarantined_at: '2026-05-06T10:00:00Z',
+        },
+      ]
+
+      await store.removeEntity(11)
+
+      expect(store.quarantinedEntities.map((e) => e.id)).toEqual([12])
+    })
   })
 
   describe('mergeEntities', () => {

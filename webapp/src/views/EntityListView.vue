@@ -301,6 +301,28 @@ async function releaseRow(id: number) {
     releasingId.value = null
   }
 }
+
+// --- Hard delete from quarantined tab ---
+// Permanently removes the entity row plus (via FK cascade) all of its
+// mentions and relationships. Use only when the quarantined entity has no
+// salvageable identity — otherwise prefer "Merge into…" to carry the data
+// forward to a clean survivor.
+const deletingId = ref<number | null>(null)
+
+async function deleteRow(entity: EntitySummary) {
+  const confirmed = window.confirm(
+    `Permanently delete "${displayName(entity.canonical_name)}"?\n\n` +
+      'This removes the entity and all its mentions and relationships. ' +
+      'There is no undo. To preserve the underlying data, use Merge instead.',
+  )
+  if (!confirmed) return
+  deletingId.value = entity.id
+  try {
+    await store.removeEntity(entity.id)
+  } finally {
+    deletingId.value = null
+  }
+}
 </script>
 
 <template>
@@ -708,15 +730,28 @@ async function releaseRow(id: number) {
               >
                 {{ relativeFromNow(entity.quarantined_at || '') || '—' }}
               </td>
-              <td class="px-4 py-3 text-right">
+              <td class="px-4 py-3 text-right whitespace-nowrap">
                 <button
                   type="button"
                   class="btn text-xs py-1 bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  :disabled="releasingId === entity.id"
+                  :disabled="
+                    releasingId === entity.id || deletingId === entity.id
+                  "
                   data-testid="release-row-button"
                   @click="releaseRow(entity.id)"
                 >
                   {{ releasingId === entity.id ? 'Releasing…' : 'Release' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn text-xs py-1 ml-2 bg-red-500 hover:bg-red-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  :disabled="
+                    releasingId === entity.id || deletingId === entity.id
+                  "
+                  data-testid="delete-row-button"
+                  @click="deleteRow(entity)"
+                >
+                  {{ deletingId === entity.id ? 'Deleting…' : 'Delete' }}
                 </button>
               </td>
             </template>

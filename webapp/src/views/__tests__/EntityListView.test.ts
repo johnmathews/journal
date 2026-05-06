@@ -1176,6 +1176,62 @@ describe('EntityListView', () => {
       expect(releaseQuarantine).toHaveBeenCalledWith(50)
     })
 
+    it('clicking Delete on a quarantined row prompts for confirmation, calls deleteEntity, and removes the row', async () => {
+      const { fetchQuarantinedEntities, deleteEntity } =
+        await import('@/api/entities')
+      vi.mocked(fetchQuarantinedEntities).mockResolvedValue(quarantinedFixture)
+      vi.mocked(deleteEntity).mockResolvedValueOnce({ deleted: true, id: 50 })
+      const confirmSpy = vi.fn(() => true)
+      const originalConfirm = window.confirm
+      window.confirm = confirmSpy as unknown as typeof window.confirm
+
+      const wrapper = mountView()
+      await flushPromises()
+      await wrapper
+        .find('[data-testid="mode-tab-quarantined"]')
+        .trigger('click')
+      await flushPromises()
+
+      const deleteButtons = wrapper.findAll('[data-testid="delete-row-button"]')
+      expect(deleteButtons).toHaveLength(2)
+      await deleteButtons[0].trigger('click')
+      await flushPromises()
+
+      expect(confirmSpy).toHaveBeenCalledTimes(1)
+      expect(deleteEntity).toHaveBeenCalledWith(50)
+      // The row that was deleted (id 50) is gone; the other row remains.
+      const remaining = wrapper.findAll('[data-testid="entity-row"]')
+      expect(remaining).toHaveLength(1)
+      expect(remaining[0].text()).toContain('Garbage')
+      window.confirm = originalConfirm
+    })
+
+    it('clicking Delete and cancelling the confirm leaves the row in place', async () => {
+      const { fetchQuarantinedEntities, deleteEntity } =
+        await import('@/api/entities')
+      vi.mocked(fetchQuarantinedEntities).mockResolvedValue(quarantinedFixture)
+      vi.mocked(deleteEntity).mockClear()
+      const confirmSpy = vi.fn(() => false)
+      const originalConfirm = window.confirm
+      window.confirm = confirmSpy as unknown as typeof window.confirm
+
+      const wrapper = mountView()
+      await flushPromises()
+      await wrapper
+        .find('[data-testid="mode-tab-quarantined"]')
+        .trigger('click')
+      await flushPromises()
+
+      const deleteButtons = wrapper.findAll('[data-testid="delete-row-button"]')
+      await deleteButtons[0].trigger('click')
+      await flushPromises()
+
+      expect(confirmSpy).toHaveBeenCalledTimes(1)
+      expect(deleteEntity).not.toHaveBeenCalled()
+      expect(wrapper.findAll('[data-testid="entity-row"]')).toHaveLength(2)
+      window.confirm = originalConfirm
+    })
+
     it('shows an empty state with quarantine-specific copy when the list is empty', async () => {
       const wrapper = mountView()
       await flushPromises()
