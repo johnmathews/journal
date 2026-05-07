@@ -1070,31 +1070,10 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <!-- Side-by-side editor panels (static 50/50) -->
+        <!-- Side-by-side editor panels (static 50/50). Corrected Text
+             is on the LEFT (the user's primary editing surface);
+             Original OCR / Transcription is on the RIGHT for reference. -->
         <div ref="textPanelsRef" class="flex flex-col lg:flex-row gap-4">
-          <section
-            class="lg:flex-1 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
-          >
-            <h2
-              class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-3"
-            >
-              {{ isVoiceEntry ? 'Original Transcription' : 'Original OCR' }}
-            </h2>
-            <!--
-            Original text: read-only, renders highlighted HTML from the diff.
-            The HTML is produced by useDiffHighlight, which escapes every
-            chunk of user text via escapeHtml() before wrapping it in
-            <mark> spans. Safe to v-html.
-          -->
-            <!-- eslint-disable vue/no-v-html -->
-            <div
-              class="diff-surface w-full bg-gray-50 dark:bg-gray-900/40 text-gray-600 dark:text-gray-400 rounded-md border border-gray-200 dark:border-gray-700/60 px-3 py-2"
-              data-testid="ocr-display"
-              v-html="originalHtml"
-            />
-            <!-- eslint-enable vue/no-v-html -->
-          </section>
-
           <section
             ref="correctedPanelRef"
             class="lg:flex-1 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
@@ -1160,6 +1139,29 @@ onBeforeUnmount(() => {
                 </div>
               </template>
             </div>
+          </section>
+
+          <section
+            class="lg:flex-1 flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4"
+          >
+            <h2
+              class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-3"
+            >
+              {{ isVoiceEntry ? 'Original Transcription' : 'Original OCR' }}
+            </h2>
+            <!--
+            Original text: read-only, renders highlighted HTML from the diff.
+            The HTML is produced by useDiffHighlight, which escapes every
+            chunk of user text via escapeHtml() before wrapping it in
+            <mark> spans. Safe to v-html.
+          -->
+            <!-- eslint-disable vue/no-v-html -->
+            <div
+              class="diff-surface w-full bg-gray-50 dark:bg-gray-900/40 text-gray-600 dark:text-gray-400 rounded-md border border-gray-200 dark:border-gray-700/60 px-3 py-2"
+              data-testid="ocr-display"
+              v-html="originalHtml"
+            />
+            <!-- eslint-enable vue/no-v-html -->
           </section>
         </div>
       </template>
