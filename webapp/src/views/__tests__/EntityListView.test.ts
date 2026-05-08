@@ -40,6 +40,8 @@ vi.mock('@/api/entities', () => ({
   fetchMergeCandidates: vi.fn().mockResolvedValue({ items: [], total: 0 }),
   resolveMergeCandidate: vi.fn(),
   fetchMergeHistory: vi.fn(),
+  fetchPairDecisions: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+  deletePairDecision: vi.fn().mockResolvedValue({ id: 1, deleted: true }),
   // Quarantine endpoints — default to empty so the badge stays
   // hidden and the active-list tests don't double-render rows.
   fetchQuarantinedEntities: vi.fn().mockResolvedValue({ items: [], total: 0 }),
@@ -1125,6 +1127,116 @@ describe('EntityListView', () => {
 
       const empties = wrapper.findAll('[data-testid="side-mentions-empty"]')
       expect(empties).toHaveLength(2)
+    })
+  })
+
+  // ---- Past dismissals (WU6) ----
+
+  describe('past dismissals panel', () => {
+    afterEach(() => {
+      document.body.innerHTML = ''
+    })
+
+    const dismissalFixture = {
+      items: [
+        {
+          id: 42,
+          entity_a: {
+            id: 1,
+            entity_type: 'person' as const,
+            canonical_name: 'John Mathews',
+            aliases: [],
+            mention_count: 1,
+            first_seen: '',
+            last_seen: '',
+          },
+          entity_b: {
+            id: 2,
+            entity_type: 'person' as const,
+            canonical_name: "John Mathews' mother",
+            aliases: [],
+            mention_count: 1,
+            first_seen: '',
+            last_seen: '',
+          },
+          decision: 'rejected' as const,
+          decided_at: '2026-05-08T10:00:00Z',
+        },
+      ],
+      total: 1,
+    }
+
+    it('renders the panel with badge when dismissals exist', async () => {
+      const { fetchPairDecisions } = await import('@/api/entities')
+      vi.mocked(fetchPairDecisions).mockResolvedValueOnce(dismissalFixture)
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      const section = wrapper.find('[data-testid="past-dismissals-section"]')
+      expect(section.exists()).toBe(true)
+      expect(section.text()).toContain('1')
+      expect(section.text()).toContain('Past dismissals')
+    })
+
+    it('toggles the list on header click and shows pair', async () => {
+      const { fetchPairDecisions } = await import('@/api/entities')
+      vi.mocked(fetchPairDecisions).mockResolvedValueOnce(dismissalFixture)
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      // Collapsed initially.
+      expect(
+        wrapper.find('[data-testid="past-dismissals-list"]').exists(),
+      ).toBe(false)
+
+      await wrapper
+        .find('[data-testid="toggle-past-dismissals"]')
+        .trigger('click')
+
+      const list = wrapper.find('[data-testid="past-dismissals-list"]')
+      expect(list.exists()).toBe(true)
+      expect(list.text()).toContain('John Mathews')
+      expect(list.text()).toContain("John Mathews' mother")
+      expect(wrapper.find('[data-testid="past-dismissal-42"]').exists()).toBe(
+        true,
+      )
+    })
+
+    it('clicking Undo calls deletePairDecision and removes the row', async () => {
+      const { fetchPairDecisions, deletePairDecision } = await import(
+        '@/api/entities'
+      )
+      vi.mocked(fetchPairDecisions).mockResolvedValueOnce(dismissalFixture)
+
+      const wrapper = mountView()
+      await flushPromises()
+      await wrapper
+        .find('[data-testid="toggle-past-dismissals"]')
+        .trigger('click')
+
+      await wrapper
+        .find('[data-testid="undo-dismissal-42"]')
+        .trigger('click')
+      await flushPromises()
+
+      expect(deletePairDecision).toHaveBeenCalledWith(42)
+      expect(
+        wrapper.find('[data-testid="past-dismissal-42"]').exists(),
+      ).toBe(false)
+      // Section disappears once total drops to 0.
+      expect(
+        wrapper.find('[data-testid="past-dismissals-section"]').exists(),
+      ).toBe(false)
+    })
+
+    it('hides the section when there are no dismissals', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      expect(
+        wrapper.find('[data-testid="past-dismissals-section"]').exists(),
+      ).toBe(false)
     })
   })
 

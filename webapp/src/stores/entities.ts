@@ -9,6 +9,7 @@ import type {
   EntitySummary,
   EntityUpdateRequest,
   MergeCandidate,
+  PairDecision,
 } from '@/types/entity'
 import {
   addEntityAlias as addEntityAliasApi,
@@ -17,7 +18,9 @@ import {
   fetchEntity,
   fetchEntityMentions,
   fetchEntityRelationships,
+  deletePairDecision,
   fetchMergeCandidates,
+  fetchPairDecisions,
   fetchQuarantinedEntities,
   mergeEntities as mergeEntitiesApi,
   releaseQuarantine as releaseQuarantineApi,
@@ -260,6 +263,37 @@ export const useEntitiesStore = defineStore('entities', () => {
     mergeCandidatesTotal.value = Math.max(0, mergeCandidatesTotal.value - 1)
   }
 
+  // --- Pair decisions ("not a duplicate" — persisted across sessions) ---
+  //
+  // Surfaces the user's history of dismissed merge candidates so they
+  // can audit the system's accuracy and undo individual decisions.
+  // Loaded on demand by the EntityListView dismissals panel.
+
+  const pairDecisions = ref<PairDecision[]>([])
+  const pairDecisionsTotal = ref(0)
+  const pairDecisionsLoading = ref(false)
+
+  async function loadPairDecisions(): Promise<void> {
+    pairDecisionsLoading.value = true
+    error.value = null
+    try {
+      const resp = await fetchPairDecisions({ limit: 200 })
+      pairDecisions.value = resp.items
+      pairDecisionsTotal.value = resp.total
+    } catch (e) {
+      error.value =
+        e instanceof Error ? e.message : 'Failed to load past dismissals'
+    } finally {
+      pairDecisionsLoading.value = false
+    }
+  }
+
+  async function undoPairDecision(decisionId: number): Promise<void> {
+    await deletePairDecision(decisionId)
+    pairDecisions.value = pairDecisions.value.filter((d) => d.id !== decisionId)
+    pairDecisionsTotal.value = Math.max(0, pairDecisionsTotal.value - 1)
+  }
+
   // --- Quarantine ---
   //
   // Quarantined entities are kept in their own list — the regular
@@ -337,6 +371,11 @@ export const useEntitiesStore = defineStore('entities', () => {
     loadMergeCandidates,
     dismissMergeCandidate,
     acceptMergeCandidate,
+    pairDecisions,
+    pairDecisionsTotal,
+    pairDecisionsLoading,
+    loadPairDecisions,
+    undoPairDecision,
     quarantinedEntities,
     quarantinedLoading,
     loadQuarantined,

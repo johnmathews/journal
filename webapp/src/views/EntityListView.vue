@@ -152,10 +152,19 @@ onMounted(() => {
   // the previous search term, so the list looks mysteriously filtered.
   store.loadEntities({ type: undefined, search: undefined, offset: 0 })
   store.loadMergeCandidates()
+  store.loadPairDecisions()
   // Load quarantined eagerly so the tab badge shows up without
   // the user having to click into it. The list is small.
   store.loadQuarantined()
 })
+
+// "Past dismissals" panel — collapsed by default; lets the user audit
+// and undo decisions persisted in entity_pair_decisions (WU6).
+const showPastDismissals = ref(false)
+
+async function undoDismissal(decisionId: number): Promise<void> {
+  await store.undoPairDecision(decisionId)
+}
 
 function typeBadgeClass(type: EntityType): string {
   switch (type) {
@@ -637,6 +646,99 @@ async function deleteRow(entity: EntitySummary) {
                 No mention quotes recorded.
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Past dismissals panel — audit + undo persisted "not a duplicate" decisions -->
+    <div
+      v-if="store.pairDecisionsTotal > 0"
+      class="mb-4"
+      data-testid="past-dismissals-section"
+    >
+      <button
+        class="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:underline"
+        data-testid="toggle-past-dismissals"
+        @click="showPastDismissals = !showPastDismissals"
+      >
+        <span
+          class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-gray-400 dark:bg-gray-600 text-white text-xs font-bold"
+        >
+          {{ store.pairDecisionsTotal }}
+        </span>
+        Past dismissals
+        <svg
+          class="w-4 h-4 transition-transform"
+          :class="{ 'rotate-180': showPastDismissals }"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      <div
+        v-if="showPastDismissals"
+        class="mt-3 space-y-2"
+        data-testid="past-dismissals-list"
+      >
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+          Pairs you previously marked as "not a duplicate". Future extractions
+          skip these. Undo restores eligibility.
+        </p>
+        <div
+          v-for="decision in store.pairDecisions"
+          :key="decision.id"
+          class="bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/40 rounded-lg text-sm overflow-hidden"
+          :data-testid="`past-dismissal-${decision.id}`"
+        >
+          <div class="flex items-center gap-3 px-4 py-2.5">
+            <div class="flex-1">
+              <RouterLink
+                :to="{
+                  name: 'entity-detail',
+                  params: { id: decision.entity_a.id },
+                }"
+                class="font-medium text-gray-800 dark:text-gray-100 hover:underline"
+              >
+                {{ decision.entity_a.canonical_name }}
+              </RouterLink>
+              <span
+                class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize mx-1"
+                :class="typeBadgeClass(decision.entity_a.entity_type)"
+              >
+                {{ decision.entity_a.entity_type }}
+              </span>
+              <span class="text-gray-500 dark:text-gray-400 mx-1">≠</span>
+              <RouterLink
+                :to="{
+                  name: 'entity-detail',
+                  params: { id: decision.entity_b.id },
+                }"
+                class="font-medium text-gray-800 dark:text-gray-100 hover:underline"
+              >
+                {{ decision.entity_b.canonical_name }}
+              </RouterLink>
+              <span
+                class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize mx-1"
+                :class="typeBadgeClass(decision.entity_b.entity_type)"
+              >
+                {{ decision.entity_b.entity_type }}
+              </span>
+              <span class="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                {{ decision.decided_at.slice(0, 10) }}
+              </span>
+            </div>
+            <button
+              class="btn text-xs py-1 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300"
+              :data-testid="`undo-dismissal-${decision.id}`"
+              @click="undoDismissal(decision.id)"
+            >
+              Undo
+            </button>
           </div>
         </div>
       </div>

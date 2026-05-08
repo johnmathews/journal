@@ -15,6 +15,8 @@ vi.mock('@/api/entities', () => ({
   mergeEntities: vi.fn(),
   fetchMergeCandidates: vi.fn(),
   resolveMergeCandidate: vi.fn(),
+  fetchPairDecisions: vi.fn(),
+  deletePairDecision: vi.fn(),
   fetchQuarantinedEntities: vi.fn(),
   quarantineEntity: vi.fn(),
   releaseQuarantine: vi.fn(),
@@ -812,6 +814,77 @@ describe('entities store', () => {
       expect(store.mergeCandidates).toHaveLength(1)
       expect(store.mergeCandidates[0].id).toBe(7)
       expect(store.mergeCandidatesTotal).toBe(1)
+    })
+  })
+
+  describe('pair decisions (past dismissals)', () => {
+    const sampleDecision = {
+      id: 42,
+      entity_a: {
+        id: 1,
+        entity_type: 'person' as const,
+        canonical_name: 'John Mathews',
+        aliases: [],
+        mention_count: 1,
+        first_seen: '',
+        last_seen: '',
+      },
+      entity_b: {
+        id: 2,
+        entity_type: 'person' as const,
+        canonical_name: "John Mathews' mother",
+        aliases: [],
+        mention_count: 1,
+        first_seen: '',
+        last_seen: '',
+      },
+      decision: 'rejected' as const,
+      decided_at: '2026-05-08T10:00:00Z',
+    }
+
+    it('loadPairDecisions populates state', async () => {
+      const { fetchPairDecisions } = await import('@/api/entities')
+      vi.mocked(fetchPairDecisions).mockResolvedValue({
+        items: [sampleDecision],
+        total: 1,
+      })
+
+      const store = useEntitiesStore()
+      await store.loadPairDecisions()
+
+      expect(fetchPairDecisions).toHaveBeenCalledWith({ limit: 200 })
+      expect(store.pairDecisions).toHaveLength(1)
+      expect(store.pairDecisionsTotal).toBe(1)
+      expect(store.pairDecisionsLoading).toBe(false)
+    })
+
+    it('loadPairDecisions surfaces error and clears loading flag', async () => {
+      const { fetchPairDecisions } = await import('@/api/entities')
+      vi.mocked(fetchPairDecisions).mockRejectedValue(new Error('boom'))
+
+      const store = useEntitiesStore()
+      await store.loadPairDecisions()
+
+      expect(store.error).toBe('boom')
+      expect(store.pairDecisionsLoading).toBe(false)
+    })
+
+    it('undoPairDecision filters the decision out and decrements total', async () => {
+      const { deletePairDecision } = await import('@/api/entities')
+      vi.mocked(deletePairDecision).mockResolvedValue({
+        id: 42,
+        deleted: true,
+      })
+
+      const store = useEntitiesStore()
+      store.pairDecisions = [sampleDecision]
+      store.pairDecisionsTotal = 1
+
+      await store.undoPairDecision(42)
+
+      expect(deletePairDecision).toHaveBeenCalledWith(42)
+      expect(store.pairDecisions).toHaveLength(0)
+      expect(store.pairDecisionsTotal).toBe(0)
     })
   })
 

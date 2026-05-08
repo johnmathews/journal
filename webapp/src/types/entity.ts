@@ -217,6 +217,21 @@ export interface MergeHistoryResponse {
   history: MergeHistoryEntry[]
 }
 
+// --- Pair decisions ("not a duplicate" — persisted across sessions) ---
+
+export interface PairDecision {
+  id: number
+  entity_a: EntitySummary
+  entity_b: EntitySummary
+  decision: 'rejected'
+  decided_at: string
+}
+
+export interface PairDecisionsResponse {
+  items: PairDecision[]
+  total: number
+}
+
 // Extraction is triggered asynchronously: POST /api/entities/extract
 // returns a JobSubmissionResponse from src/types/job.ts, and the final
 // per-entry results land under Job.result once the background job

@@ -12,6 +12,7 @@ import type {
   EntryEntitiesResponse,
   MergeCandidatesResponse,
   MergeHistoryResponse,
+  PairDecisionsResponse,
   QuarantinedEntitiesResponse,
 } from '@/types/entity'
 import type { JobSubmissionResponse } from '@/types/job'
@@ -171,6 +172,23 @@ export function fetchMergeHistory(
   return apiFetch<MergeHistoryResponse>(
     `/api/entities/${entityId}/merge-history`,
   )
+}
+
+// --- Pair decisions (persistent "not a duplicate") ---
+
+export function fetchPairDecisions(
+  params: { limit?: number; offset?: number } = {},
+): Promise<PairDecisionsResponse> {
+  const query = buildQuery({ ...params })
+  return apiFetch<PairDecisionsResponse>(`/api/entities/pair-decisions${query}`)
+}
+
+export function deletePairDecision(
+  decisionId: number,
+): Promise<{ id: number; deleted: boolean }> {
+  return apiFetch(`/api/entities/pair-decisions/${decisionId}`, {
+    method: 'DELETE',
+  })
 }
 
 // --- Quarantine ---
