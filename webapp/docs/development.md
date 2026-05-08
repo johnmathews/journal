@@ -47,15 +47,19 @@ npm run dev                            # opens http://localhost:5173
 
 ### Required `.env` keys (for browsing the UI only)
 
-The backend refuses to start without `JOURNAL_API_TOKEN` and `JOURNAL_SECRET_KEY`. For local dev these can be any random strings — placeholders are fine. To allow self-service registration set `REGISTRATION_ENABLED=true`. API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are only needed for ingestion / semantic search; they can stay as `sk-...placeholder` values for everything else.
+The backend refuses to start without `JOURNAL_SECRET_KEY` (the legacy `JOURNAL_API_TOKEN` was retired with multi-user
+auth and is no longer read). For local dev the secret can be any random string — placeholders are fine. To allow
+self-service registration set `REGISTRATION_ENABLED=true`. API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
+`GOOGLE_API_KEY`) are only needed for ingestion / semantic search; they can stay as `...placeholder` values for
+everything else.
 
 A complete minimal local `.env`:
 
 ```
-JOURNAL_API_TOKEN=local-dev-token-placeholder-1234567890
 JOURNAL_SECRET_KEY=local-dev-secret-key-placeholder-1234567890
 ANTHROPIC_API_KEY=sk-ant-placeholder
 OPENAI_API_KEY=sk-placeholder
+GOOGLE_API_KEY=placeholder            # only needed when OCR_PROVIDER=gemini or for Gemini transcription
 CHROMADB_HOST=localhost
 CHROMADB_PORT=8401
 MCP_HOST=0.0.0.0
