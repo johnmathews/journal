@@ -11,7 +11,6 @@ import {
 import { fetchEntityMentions } from '@/api/entities'
 import BatchJobModal from '@/components/BatchJobModal.vue'
 import BaseModal from '@/components/BaseModal.vue'
-import { displayName, displayAliases } from '@/utils/entityName'
 
 const store = useEntitiesStore()
 
@@ -409,7 +408,7 @@ const deletingId = ref<number | null>(null)
 
 async function deleteRow(entity: EntitySummary) {
   const confirmed = window.confirm(
-    `Permanently delete "${displayName(entity.canonical_name)}"?\n\n` +
+    `Permanently delete "${entity.canonical_name}"?\n\n` +
       'This removes the entity and all its mentions and relationships. ' +
       'There is no undo. To preserve the underlying data, use Merge instead.',
   )
@@ -516,7 +515,7 @@ async function deleteRow(entity: EntitySummary) {
             </button>
             <div class="flex-1">
               <span class="font-medium text-gray-800 dark:text-gray-100">
-                {{ displayName(candidate.entity_a.canonical_name) }}
+                {{ candidate.entity_a.canonical_name }}
               </span>
               <span
                 class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize mx-1"
@@ -526,7 +525,7 @@ async function deleteRow(entity: EntitySummary) {
               </span>
               <span class="text-gray-600 dark:text-gray-300 mx-1">~</span>
               <span class="font-medium text-gray-800 dark:text-gray-100">
-                {{ displayName(candidate.entity_b.canonical_name) }}
+                {{ candidate.entity_b.canonical_name }}
               </span>
               <span
                 class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize mx-1"
@@ -575,7 +574,7 @@ async function deleteRow(entity: EntitySummary) {
                   :to="{ name: 'entity-detail', params: { id: side.id } }"
                   class="font-medium text-violet-600 dark:text-violet-400 hover:underline"
                 >
-                  {{ displayName(side.canonical_name) }}
+                  {{ side.canonical_name }}
                 </RouterLink>
                 <span
                   class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize"
@@ -595,7 +594,7 @@ async function deleteRow(entity: EntitySummary) {
                   {{ dateRange(side) }}
                 </span>
                 <span v-if="side.aliases.length" class="italic">
-                  ({{ displayAliases(side.aliases) }})
+                  ({{ side.aliases.join(', ') }})
                 </span>
               </div>
               <div
@@ -890,13 +889,13 @@ async function deleteRow(entity: EntitySummary) {
                 }"
                 class="text-violet-600 dark:text-violet-400 hover:underline font-medium"
               >
-                {{ displayName(entity.canonical_name) }}
+                {{ entity.canonical_name }}
               </RouterLink>
               <span
                 v-if="entity.aliases.length"
                 class="text-xs text-gray-600 dark:text-gray-300 ml-2"
               >
-                ({{ displayAliases(entity.aliases) }})
+                ({{ entity.aliases.join(', ') }})
               </span>
             </td>
             <td class="px-4 py-3">
@@ -1029,7 +1028,7 @@ async function deleteRow(entity: EntitySummary) {
             />
             <div class="flex-1">
               <span class="font-medium text-gray-800 dark:text-gray-100">
-                {{ displayName(entity.canonical_name) }}
+                {{ entity.canonical_name }}
               </span>
               <span
                 class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize ml-2"

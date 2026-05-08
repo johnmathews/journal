@@ -5,7 +5,6 @@ import BaseModal from '@/components/BaseModal.vue'
 import { fetchEntities } from '@/api/entities'
 import { useEntitiesStore } from '@/stores/entities'
 import type { EntitySummary, EntityType } from '@/types/entity'
-import { displayName } from '@/utils/entityName'
 
 // "Merge this entity into another one" — used from the entity detail
 // view when the user already knows the target. We restrict the search
@@ -119,9 +118,8 @@ async function confirmMerge(): Promise<void> {
     <div data-testid="merge-into-dialog">
       <p class="mb-2">
         Search for the entity you want to merge
-        <strong>{{ displayName(currentEntityName) }}</strong> into. The target
-        keeps its name; this entity's mentions, relationships, and aliases move
-        across.
+        <strong>{{ currentEntityName }}</strong> into. The target keeps its
+        name; this entity's mentions, relationships, and aliases move across.
       </p>
       <input
         v-model="search"
@@ -159,7 +157,7 @@ async function confirmMerge(): Promise<void> {
             :data-testid="`merge-into-radio-${cand.id}`"
           />
           <label :for="`merge-into-${cand.id}`" class="text-sm cursor-pointer">
-            {{ displayName(cand.canonical_name) }}
+            {{ cand.canonical_name }}
             <span class="text-xs text-gray-500 dark:text-gray-400">
               ({{ cand.mention_count }} mentions)
             </span>

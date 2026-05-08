@@ -8,7 +8,6 @@ import {
   type EntityType,
   type EntityMention,
 } from '@/types/entity'
-import { displayName } from '@/utils/entityName'
 import { ApiRequestError } from '@/api/client'
 import AliasCollisionDialog from '@/components/entities/AliasCollisionDialog.vue'
 import EntityMergeIntoDialog from '@/components/entities/EntityMergeIntoDialog.vue'
@@ -229,7 +228,7 @@ const deleting = ref(false)
 async function confirmDelete() {
   if (!store.currentEntity) return
   const confirmed = window.confirm(
-    `Delete entity "${displayName(store.currentEntity.canonical_name)}"? This will remove all its mentions and relationships.`,
+    `Delete entity "${store.currentEntity.canonical_name}"? This will remove all its mentions and relationships.`,
   )
   if (!confirmed) return
   deleting.value = true
@@ -279,7 +278,7 @@ async function confirmDelete() {
             <h1
               class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold"
             >
-              {{ displayName(store.currentEntity.canonical_name) }}
+              {{ store.currentEntity.canonical_name }}
             </h1>
             <span
               class="inline-flex text-xs font-medium rounded-full px-2.5 py-0.5 capitalize"
@@ -588,7 +587,7 @@ async function confirmDelete() {
                 }"
                 class="text-violet-600 dark:text-violet-400 hover:underline"
               >
-                {{ displayName(rel.object_name) }}
+                {{ rel.object_name }}
               </RouterLink>
               <span
                 class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize"
@@ -611,7 +610,7 @@ async function confirmDelete() {
                 }"
                 class="text-violet-600 dark:text-violet-400 hover:underline"
               >
-                {{ displayName(rel.subject_name) }}
+                {{ rel.subject_name }}
               </RouterLink>
               <span
                 class="inline-flex text-[10px] font-medium rounded-full px-2 py-0.5 capitalize"

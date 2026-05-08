@@ -16,7 +16,6 @@ import { fetchEntryEntities } from '@/api/entities'
 import { ApiRequestError } from '@/api/client'
 import type { Chunk, TokenSpan, UncertainSpan } from '@/types/entry'
 import type { EntryEntityRef, EntityType } from '@/types/entity'
-import { displayName } from '@/utils/entityName'
 
 const SOURCE_TYPE_LABELS: Record<string, string> = {
   photo: 'Photo',
@@ -493,7 +492,7 @@ function entityChipTooltip(chip: {
   canonical_name: string
 }): string {
   const category = ENTITY_CATEGORY_LABELS[chip.entity_type] ?? 'Other'
-  return `${category}. Click to highlight '${displayName(chip.canonical_name)}' in the text.`
+  return `${category}. Click to highlight '${chip.canonical_name}' in the text.`
 }
 
 onMounted(() => {
@@ -783,7 +782,7 @@ onBeforeUnmount(() => {
             :data-testid="`entry-entity-chip-${chip.id}`"
             @click="toggleEntityHighlight(chip)"
           >
-            {{ displayName(chip.canonical_name) }}
+            {{ chip.canonical_name }}
           </button>
         </div>
 

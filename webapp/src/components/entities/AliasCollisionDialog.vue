@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import BaseModal from '@/components/BaseModal.vue'
 import { useEntitiesStore } from '@/stores/entities'
 import type { AliasCollisionResponse, EntityType } from '@/types/entity'
-import { displayName } from '@/utils/entityName'
 
 // When the user attempts to add an alias to entity A, but the alias
 // is already attached to entity B, the server returns 409 with the
@@ -77,18 +76,16 @@ async function confirmMerge(): Promise<void> {
           collision.alias
         }}</code>
         already maps to
-        <strong>{{ displayName(collision.existing_canonical_name) }}</strong>
+        <strong>{{ collision.existing_canonical_name }}</strong>
         ({{ collision.existing_entity_type }}).
       </p>
       <p class="mb-3">
         Do you want to merge
-        <strong>{{ displayName(currentEntityName) }}</strong>
+        <strong>{{ currentEntityName }}</strong>
         into it? The combined entity will keep the name
-        <strong v-if="collision">{{
-          displayName(collision.existing_canonical_name)
-        }}</strong
+        <strong v-if="collision">{{ collision.existing_canonical_name }}</strong
         >, and all mentions and relationships from
-        <strong>{{ displayName(currentEntityName) }}</strong> will move across.
+        <strong>{{ currentEntityName }}</strong> will move across.
       </p>
       <div
         v-if="error"

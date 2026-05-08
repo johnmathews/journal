@@ -123,7 +123,6 @@ Typed fetch wrappers for the journal-server REST API.
 ### Utilities (`src/utils/`)
 Pure helper functions with no Vue or store dependencies.
 
-- **entityName.ts** — Display-only normalisation for entity names. `displayName(name)` title-cases words, preserves known acronyms (SQL, API, etc.) and special brand spellings (iPhone, GitHub, macOS, etc.), and replaces hyphens/underscores with spaces. `displayAliases(aliases)` applies `displayName` to each alias and joins with commas. Used in EntityListView, EntityDetailView, and EntryDetailView templates. Does not modify stored data — edit forms and text-matching logic use the raw `canonical_name`.
 - **chartjs-config.ts** — Chart.js global defaults and helper functions for dashboard charts
 - **mosaic.ts** — CSS/colour helpers ported from the Mosaic admin template
 - **searchSnippet.ts** — Converts FTS5 snippet marker characters (`\x02`/`\x03`) into `<mark>` HTML tags for rendering search result highlights
@@ -194,3 +193,15 @@ The webapp connects to journal-server's REST API:
 - **Production:** nginx proxies `/api/*` to the journal-server container
 
 The webapp never connects to the MCP protocol. MCP is for LLM clients (Claude, Nanoclaw); the webapp uses the REST API.
+
+### Display contract: the DB is the single source of truth
+
+Entity `canonical_name` and aliases are normalised on the **server** at write time
+(see journal-server's `services/entity_naming.py` and `config/entity-casing-exceptions.toml`).
+The webapp renders these strings **verbatim** — there is intentionally no client-side
+title-caser. If two views ever disagree about how an entity is displayed, that is a bug:
+both views read the same column from the same row, so the rendered string must match.
+
+To change how an entity is displayed (e.g. `iOS` instead of `IOS`), edit the server's
+`config/entity-casing-exceptions.toml` and re-run `journal renormalise-entity-casing
+--apply`. Do not add per-name formatting in the webapp.

@@ -105,6 +105,42 @@ describe('EntityListView', () => {
     expect(rows[1].text()).toContain('Blue Bottle')
   })
 
+  it('renders canonical_name verbatim from the API (no client title-casing)', async () => {
+    // Single source of truth for casing is the server. The webapp must NOT
+    // re-case names — the dashboard chart and the entities admin must show
+    // the exact same string for the same row.
+    const { fetchEntities } = await import('@/api/entities')
+    vi.mocked(fetchEntities).mockResolvedValueOnce({
+      items: [
+        {
+          id: 99,
+          entity_type: 'activity',
+          canonical_name: 'running',
+          aliases: ['night run'],
+          mention_count: 16,
+          first_seen: '2026-03-15',
+          last_seen: '2026-05-07',
+        },
+      ],
+      total: 1,
+      limit: 50,
+      offset: 0,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const rows = wrapper.findAll('[data-testid="entity-row"]')
+    expect(rows).toHaveLength(1)
+    const text = rows[0].text()
+    // Canonical name renders exactly as stored — lowercase 'running', not 'Running'.
+    expect(text).toContain('running')
+    expect(text).not.toContain('Running')
+    // Alias rendered verbatim too — lowercase 'night run', not 'Night Run'.
+    expect(text).toContain('night run')
+    expect(text).not.toContain('Night Run')
+  })
+
   it('filters by type when a type tab is clicked', async () => {
     const wrapper = mountView()
     await flushPromises()
