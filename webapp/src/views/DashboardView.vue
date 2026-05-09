@@ -16,7 +16,7 @@ import {
   INSIGHTS_ENTITY_TYPES,
   type InsightsEntityType,
 } from '@/types/insights'
-import { getChartColors } from '@/utils/chartjs-config'
+import { getChartColors, getThemedGridColor } from '@/utils/chartjs-config'
 import { adjustColorOpacity } from '@/utils/mosaic'
 import {
   displayLabel,
@@ -248,7 +248,7 @@ function renderWritingChart(): void {
         },
         y: {
           beginAtZero: true,
-          grid: { color: colors.gridColor.light },
+          grid: { color: getThemedGridColor() },
           ticks: { color: colors.textColor.light, precision: 0 },
         },
       },
@@ -305,7 +305,7 @@ function renderWordChart(): void {
         },
         y: {
           beginAtZero: true,
-          grid: { color: colors.gridColor.light },
+          grid: { color: getThemedGridColor() },
           ticks: { color: colors.textColor.light },
         },
       },
@@ -480,7 +480,7 @@ function renderMoodChart(): void {
         y: {
           min: -1,
           max: 1,
-          grid: { color: colors.gridColor.light },
+          grid: { color: getThemedGridColor() },
           ticks: { color: colors.textColor.light, stepSize: 0.5 },
         },
       },
@@ -819,7 +819,7 @@ function renderEntityTrendsChart(): void {
         y: {
           stacked: true,
           beginAtZero: true,
-          grid: { color: colors.gridColor.light },
+          grid: { color: getThemedGridColor() },
           ticks: { color: colors.textColor.light, precision: 0 },
         },
       },
@@ -891,7 +891,7 @@ function renderMoodCorrelationChart(): void {
       },
       scales: {
         x: {
-          grid: { color: colors.gridColor.light },
+          grid: { color: getThemedGridColor() },
           ticks: { color: colors.textColor.light },
         },
         y: {
@@ -2222,17 +2222,6 @@ async function onMoodCorrelationTypeChange(
                   class="text-gray-600 dark:text-gray-300 font-mono text-[0.65rem]"
                   >{{ d.scale_type === 'bipolar' ? '±1' : '0..1' }}</span
                 >
-              </button>
-            </div>
-            <div class="flex justify-end">
-              <button
-                type="button"
-                class="px-1.5 py-0.5 rounded text-[0.65rem] uppercase tracking-wide text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/40 disabled:opacity-30 disabled:cursor-default"
-                :disabled="store.selectedMoodDimensions.size === 0"
-                data-testid="dashboard-mood-show-all"
-                @click="store.showAllMoodDimensions()"
-              >
-                All
               </button>
             </div>
           </div>

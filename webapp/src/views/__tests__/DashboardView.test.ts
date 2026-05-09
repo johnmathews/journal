@@ -80,7 +80,10 @@ vi.mock('@/utils/chartjs-config', () => ({
     tooltipBgColor: { light: '#fff', dark: '#334155' },
     tooltipBorderColor: { light: '#e2e8f0', dark: '#475569' },
   }),
+  getThemedGridColor: () => '#e2e8f0',
   chartAreaGradient: () => 'transparent',
+  TOOLTIP_HOVER_DELAY_MS: 1000,
+  tooltipHoverDelayPlugin: { id: 'tooltipHoverDelay' },
 }))
 
 vi.mock('@/utils/mosaic', async () => {
@@ -583,24 +586,11 @@ describe('DashboardView — mood chart', () => {
     expect(dimmedClass('dashboard-mood-toggle-joy_sadness')).toBe(false)
   })
 
-  it('"All" button clears the selection and shows every dimension', async () => {
+  it('"All" button no longer exists — drop confirmed', async () => {
     const wrapper = await setupWithMoodData()
-    const dimmedClass = (testid: string): boolean =>
-      wrapper
-        .find(`[data-testid="${testid}"]`)
-        .classes()
-        .some((c) => c.includes('opacity-40'))
-
-    // Default selects the affect-axes group, so agency starts dimmed.
-    expect(dimmedClass('dashboard-mood-toggle-agency')).toBe(true)
-
-    // Click "All" → selection clears → every pill bright (no dimming).
-    await wrapper
-      .find('[data-testid="dashboard-mood-show-all"]')
-      .trigger('click')
-    await flushPromises()
-    expect(dimmedClass('dashboard-mood-toggle-joy_sadness')).toBe(false)
-    expect(dimmedClass('dashboard-mood-toggle-agency')).toBe(false)
+    expect(
+      wrapper.find('[data-testid="dashboard-mood-show-all"]').exists(),
+    ).toBe(false)
   })
 
   it('"None" button no longer exists — drop confirmed', async () => {
@@ -608,17 +598,6 @@ describe('DashboardView — mood chart', () => {
     expect(
       wrapper.find('[data-testid="dashboard-mood-hide-all"]').exists(),
     ).toBe(false)
-  })
-
-  it('"All" is disabled when selection is empty, enabled when not', async () => {
-    const wrapper = await setupWithMoodData()
-    const allBtn = wrapper.find('[data-testid="dashboard-mood-show-all"]')
-    // Default selection has the affect-axes group → All is enabled.
-    expect(allBtn.attributes('disabled')).toBeUndefined()
-    // Click All to clear → now disabled.
-    await allBtn.trigger('click')
-    await flushPromises()
-    expect(allBtn.attributes('disabled')).toBeDefined()
   })
 
   it('Bug A regression: deselecting the only selected pill does NOT show empty state', async () => {
@@ -655,9 +634,9 @@ describe('DashboardView — mood chart', () => {
   it('clicking a group label adds all its members to the selection when none are selected', async () => {
     const wrapper = await setupWithMoodData()
     // Clear selection first so every group starts in "none" state.
-    await wrapper
-      .find('[data-testid="dashboard-mood-show-all"]')
-      .trigger('click')
+    // (The show-all UI button was removed; reach into the store directly.)
+    const store = useDashboardStore()
+    store.showAllMoodDimensions()
     await flushPromises()
     // Click affect group → joy_sadness should now be the only selected.
     await wrapper
