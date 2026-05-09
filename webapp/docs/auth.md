@@ -11,7 +11,7 @@ Pinia store managing auth state:
 
 - **State:** `user`, `initialized`, `loading`, `error`
 - **Computed:** `isAuthenticated`, `isAdmin`, `displayName`, `emailVerified`
-- **Actions:** `initialize()`, `login()`, `logout()`, `register()`, `clearError()`, `$reset()`
+- **Actions:** `initialize()`, `login()`, `logout()`, `register()`, `updateDisplayName()`, `clearError()`, `$reset()`
 
 On app startup, `initialize()` calls `GET /api/auth/me`. If the session cookie is valid, the user
 object is populated. If not, the user remains unauthenticated.
@@ -22,14 +22,16 @@ Global `beforeEach` guard:
 
 1. Waits for `authStore.initialize()` on first navigation
 2. Public routes (`meta.public: true`) pass through
-3. Unauthenticated users redirect to `/login?redirect=<original-path>`
-4. Admin routes (`meta.requiresAdmin: true`) blocked for non-admin users
+3. Authenticated users on a public route are bounced to the dashboard, **except** `/verify-email` which stays reachable so a freshly registered user can complete verification while already signed in
+4. Unauthenticated users redirect to `/login?redirect=<original-path>`
+5. Admin routes (`meta.requiresAdmin: true`) blocked for non-admin users (redirect to dashboard)
 
 ### API Client (`src/api/client.ts`)
 
 - All requests include `credentials: 'include'` (sends cookie automatically)
 - No bearer token or `Authorization` header needed for web requests
-- Global 401 handler: clears auth state, redirects to `/login?expired=1`
+- Global 401 handler: clears auth state, redirects to `/login?expired=1`. The handler is registered from `src/main.ts` via `setUnauthorizedHandler()` to avoid a circular import between the API client, the auth store, and the router.
+- Auth endpoints (`/api/auth/login`, `/api/auth/register`, `/api/auth/me`) are exempted from the global 401 handler — a 401 from these is an expected "bad credentials / not signed in" signal, not an expired session.
 
 There is no `src/api/auth.ts` module — auth-related endpoints are called via
 `apiFetch()` directly from the views and the auth store:
@@ -80,6 +82,7 @@ router's `beforeEach` guard against `useAuthStore.isAdmin`.
 | `/admin/runtime` | `admin-runtime` | AdminRuntimeView | Runtime feature flags + processing-pipeline cards |
 | `/admin/pricing` | `admin-pricing` | AdminPricingView | Per-model pricing rows that drive cost estimates |
 | `/admin/server` | `admin-server` | AdminServerView | Live-reload buttons (OCR context / transcription context / mood dimensions) |
+| `/admin/moods` | `admin-moods` | AdminMoodsView | Read-only inspector for the active mood-dimension config |
 
 ## Header Changes
 

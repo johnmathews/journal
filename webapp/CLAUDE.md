@@ -63,6 +63,15 @@ logs, fix the issue, run the full test suite locally, commit, push, and watch ag
 consider work done until CI is green. When fixing bugs, always write a failing test first that
 reproduces the issue, then fix the code to make it pass.
 
+## Documentation lifecycle
+
+- Prefer shorter docs over long ones, but no hard length cap — let scope and detail required dictate length.
+- When a doc is **closed** (work units shipped) or **superseded** (replaced by a newer doc): add a status header
+  (`**Status:** closed YYYY-MM-DD.` or `**Status:** superseded by [...](...) (YYYY-MM-DD).`) to the top of the old
+  doc, then `git mv` it into `docs/archive/` in the same commit and update inbound links from active docs.
+- The active `docs/` listing should only contain currently-load-bearing material. Closed and superseded plans live in
+  `docs/archive/` so the rationale is preserved without cluttering the index.
+
 ## Backend
 
 The webapp connects to journal-server's REST API at /api/*. During development, Vite proxies these requests to localhost:8400 where the journal-server runs.
