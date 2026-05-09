@@ -34,13 +34,13 @@ cd ../journal-server
 docker compose -f docker-compose.dev.yml up -d
 
 # 2. Backend (separate terminal)
-cd journal-server
+cd ../journal-server
 cp .env.example .env  # first time only — see notes below
 uv sync
 uv run python -m journal.mcp_server   # listens on :8400
 
 # 3. Webapp (another terminal)
-cd journal-webapp
+cd ../journal-webapp
 npm install                            # first time only
 npm run dev                            # opens http://localhost:5173
 ```
@@ -149,22 +149,23 @@ The SQLite DB persists between runs at `journal-server/journal.db`. Delete it to
 | `npm run test:watch` | Run tests in watch mode                          |
 | `npm run test:coverage` | Run tests + enforce coverage thresholds       |
 | `npm run lint`       | Lint and auto-fix with ESLint                    |
-| `npm run format`     | Format with Prettier                             |
+| `npm run format`     | Format with Prettier (writes changes)            |
+| `npm run format:check` | Check Prettier formatting without writing (CI/pre-push) |
 
 ## Project Structure
 
 ```
 src/
   api/           — REST API client (fetch wrappers, typed endpoints)
-  assets/        — Static resources (images, fonts)
-  components/    — Reusable components (shared across views)
-  composables/   — Composition functions (useEntryEditor, etc.)
+  assets/        — Static resources, including main.css with the Tailwind 4 @theme block
+  components/    — Reusable components (shared across views); shell components live under components/layout/
+  composables/   — Composition functions (useEntryEditor, useDiffHighlight, useOverlayHighlight, useToast, useWakeLock)
   layouts/       — Page layouts (DefaultLayout with sidebar nav)
-  router/        — Vue Router config (entry list + detail routes)
-  stores/        — Pinia stores (entries store)
+  router/        — Vue Router config (Option B routing — `/` is the dashboard)
+  stores/        — Pinia stores (auth, entries, entities, dashboard, search, jobs, notifications, settings)
   types/         — TypeScript interfaces (API response types)
   utils/         — Pure utility functions
-  views/         — Page components (EntryListView, EntryDetailView)
+  views/         — Page components (DashboardView, EntryListView, EntryDetailView, etc., plus admin/ subdir)
 ```
 
 ## Adding a New View
@@ -192,7 +193,7 @@ src/
 
 Git hooks are managed by [Husky](https://typicode.github.io/husky/) and tracked in the `.husky/` directory. They are installed automatically when you run `npm install` (via the `prepare` script).
 
-A **pre-push** hook runs the linter and the full test suite with coverage thresholds before every `git push`. If linting fails, tests fail, or coverage drops below the minimums defined in `vitest.config.ts`, the push is aborted.
+A **pre-push** hook runs `format:check`, `lint`, `test:coverage`, and `build` before every `git push` (see `.husky/pre-push`). If any step fails — Prettier finds drift, ESLint finds errors, tests fail, coverage drops below the minimums defined in `vitest.config.ts`, or `vue-tsc` rejects the build — the push is aborted.
 
 ## Docker
 

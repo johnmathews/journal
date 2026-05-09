@@ -19,7 +19,7 @@ No secrets are baked into the image. Auth is now cookie-based (sessions issued b
 The `nginx.conf` handles three concerns:
 
 - **SPA routing**: All non-file routes serve `index.html` (Vue Router handles client-side routing)
-- **API proxy**: `/api/*` requests are proxied to journal-server (`http://journal:8400`)
+- **API proxy**: `/api/*` requests are proxied to journal-server (`http://journal-server:8400`)
 - **Static asset caching**: Files under `/assets/` get 1-year cache headers (Vite hashes filenames)
 
 In production, nginx proxies API requests directly to the journal-server container. No CORS configuration is needed because the browser sees the same origin for both the webapp and the API.
@@ -32,9 +32,9 @@ The `docker-compose.yml` defines the full stack for local or VM deployment:
 
 | Service     | Image                                          | Port  | Purpose                    |
 |-------------|------------------------------------------------|-------|----------------------------|
-| `webapp`    | `ghcr.io/johnmathews/journal-webapp:latest`    | 8402  | Vue SPA (nginx)            |
-| `journal`   | `ghcr.io/johnmathews/journal-server:latest`    | 8400  | Backend (MCP + REST API)   |
-| `chromadb`  | `ghcr.io/johnmathews/journal-chromadb:latest`  | 8401  | Custom ChromaDB image (curl baked in for healthcheck) |
+| `webapp`           | `ghcr.io/johnmathews/journal-webapp:latest`    | 8402  | Vue SPA (nginx)            |
+| `journal-server`   | `ghcr.io/johnmathews/journal-server:latest`    | 8400  | Backend (MCP + REST API)   |
+| `journal-chromadb` | `ghcr.io/johnmathews/journal-chromadb:latest`  | 8401  | Custom ChromaDB image (curl baked in for healthcheck) |
 
 ### Environment Variables
 
@@ -91,7 +91,7 @@ The webapp now sends `credentials: 'include'` on every request and relies on the
 
 Pull the latest images and restart:
 ```bash
-docker compose pull webapp journal
+docker compose pull webapp journal-server
 docker compose up -d
 ```
 
