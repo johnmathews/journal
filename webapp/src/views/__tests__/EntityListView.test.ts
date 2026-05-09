@@ -1205,9 +1205,8 @@ describe('EntityListView', () => {
     })
 
     it('clicking Undo calls deletePairDecision and removes the row', async () => {
-      const { fetchPairDecisions, deletePairDecision } = await import(
-        '@/api/entities'
-      )
+      const { fetchPairDecisions, deletePairDecision } =
+        await import('@/api/entities')
       vi.mocked(fetchPairDecisions).mockResolvedValueOnce(dismissalFixture)
 
       const wrapper = mountView()
@@ -1216,15 +1215,13 @@ describe('EntityListView', () => {
         .find('[data-testid="toggle-past-dismissals"]')
         .trigger('click')
 
-      await wrapper
-        .find('[data-testid="undo-dismissal-42"]')
-        .trigger('click')
+      await wrapper.find('[data-testid="undo-dismissal-42"]').trigger('click')
       await flushPromises()
 
       expect(deletePairDecision).toHaveBeenCalledWith(42)
-      expect(
-        wrapper.find('[data-testid="past-dismissal-42"]').exists(),
-      ).toBe(false)
+      expect(wrapper.find('[data-testid="past-dismissal-42"]').exists()).toBe(
+        false,
+      )
       // Section disappears once total drops to 0.
       expect(
         wrapper.find('[data-testid="past-dismissals-section"]').exists(),
