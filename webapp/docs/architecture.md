@@ -113,7 +113,7 @@ Typed fetch wrappers for the journal-server REST API.
 ### Utilities (`src/utils/`)
 Pure helper functions with no Vue or store dependencies.
 
-- **chartjs-config.ts** — Chart.js global defaults and helper functions for dashboard charts
+- **chartjs-config.ts** — Chart.js global defaults and helper functions for dashboard charts. Also registers the global `tooltipHoverDelayPlugin` (1-second hover-intent delay before tooltips appear, applied to every chart) and exposes `getThemedGridColor()` for theme-appropriate grid lines.
 - **mosaic.ts** — CSS/colour helpers ported from the Mosaic admin template
 - **searchSnippet.ts** — Converts FTS5 snippet marker characters (`\x02`/`\x03`) into `<mark>` HTML tags for rendering search result highlights
 - **cost-estimates.ts** — Computes per-1k-words ingestion + first-edit costs for the Admin Overview / Runtime cost cards using the live pricing rows.
