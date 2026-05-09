@@ -1,6 +1,6 @@
 # Future Features (retired)
 
-> **Status:** retired 2026-05-09. Superseded by [`server/docs/roadmap.md`](../../server/docs/roadmap.md), which is the
+> **Status:** retired 2026-05-09. Superseded by [`server/docs/roadmap.md`](../../../server/docs/roadmap.md), which is the
 > single source of truth for planned work.
 >
 > Originally created as a frontend-only roadmap; almost everything it scoped (Phase 2 Authentication, Phase 3 Search
