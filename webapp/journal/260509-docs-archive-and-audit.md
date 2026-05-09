@@ -42,3 +42,14 @@ hard cap; when a doc is closed or superseded, add a status header, `git mv` to `
 in the same commit, update inbound links. Same rule was added to `server/CLAUDE.md` and
 `journal/CLAUDE.md`, plus the global `~/.claude/CLAUDE.md` and the `engineering-team` /
 `/done` skills.
+
+## Verification rounds 3 and 4 (same day)
+
+After the initial commit landed, the user asked for higher confidence. Cross-repo verification
+sweeps were run (lychee link checker, codespell, re-read of substantive rewrites, cost-figure
+verification against the live prod pricing table, line-number citation sweep). The webapp side
+needed one fix: `docs/archive/future-features.md` had a relative link `../../server/docs/
+roadmap.md` that resolved one level too shallow after the move into `archive/` (lychee
+flagged it). Updated to `../../../server/docs/roadmap.md` so the supersede pointer correctly
+reaches the canonical roadmap in the sibling server repo. Webapp lychee + codespell pass clean
+on all four active docs after the fix.
