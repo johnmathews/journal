@@ -1,3 +1,6 @@
+echo "Checking Prettier formatting..."
+npm run format:check
+
 echo "Running linter..."
 npm run lint
 

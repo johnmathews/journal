@@ -43,7 +43,7 @@ src/
 
 ## Git Hooks
 
-Git hooks are managed by [Husky](https://typicode.github.io/husky/) (`.husky/` directory, installed automatically via `npm install`). A **pre-push** hook runs lint + `test:coverage`, enforcing minimum coverage thresholds before every push.
+Git hooks are managed by [Husky](https://typicode.github.io/husky/) (`.husky/` directory, installed automatically via `npm install`). A **pre-push** hook runs `format:check` (Prettier) + lint + `test:coverage` + build before every push.
 
 ## Coverage Thresholds
 

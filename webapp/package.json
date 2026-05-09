@@ -12,6 +12,7 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint . --fix",
     "format": "prettier --write src/",
+    "format:check": "prettier --check src/",
     "prepare": "husky"
   },
   "repository": {
