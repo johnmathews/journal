@@ -235,7 +235,9 @@ describe('dedupActivities', () => {
     // Strava paired with garminMatch; garminEarly is solo.
     expect(result).toHaveLength(2)
     const paired = result.find((r) => r.secondary_source_ids.length > 0)
-    expect(paired?.secondary_source_ids[0].source_id).toBe(garminMatch.source_id)
+    expect(paired?.secondary_source_ids[0].source_id).toBe(
+      garminMatch.source_id,
+    )
   })
 
   it('exposes the tolerance constants', () => {

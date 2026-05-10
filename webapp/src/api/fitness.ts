@@ -7,6 +7,12 @@ import type {
   FitnessSyncStatus,
   FitnessIntegrityReport,
   FitnessActivityType,
+  GarminConnectResponse,
+  GarminMfaResponse,
+  StravaAuthorizeUrlResponse,
+  StravaExchangeResponse,
+  DisconnectResponse,
+  FitnessBackfillRequest,
 } from '@/types/fitness'
 
 function buildQuery(
@@ -88,4 +94,133 @@ export function triggerSync(
 /** Soft-pointer orphan report. Empty arrays mean a clean DB. */
 export function fetchIntegrity(): Promise<FitnessIntegrityReport> {
   return apiFetch<FitnessIntegrityReport>('/api/fitness/integrity')
+}
+
+// ── W8: multi-user connect / OAuth / backfill client functions ────────
+//
+// One typed wrapper per W2/W3/W5 server endpoint. Response shapes match
+// the JSON bodies documented in journal-server's docs/api.md verbatim.
+// Errors (cool-down 429, expired pending session, upstream-account
+// mismatch 409, etc.) surface via apiFetch's ApiRequestError envelope —
+// these functions deliberately do not bake in retry/backoff. UX
+// decisions belong to the W9 settings panel.
+
+export interface ConnectGarminParams {
+  username: string
+  password: string
+}
+
+/**
+ * Begin the Garmin per-user login. Returns either an immediate success
+ * shape or an MFA-pending shape — model the union by narrowing on
+ * `'mfa_required' in response`. The plaintext password is consumed once
+ * by the server and never persisted.
+ */
+export function connectGarmin(
+  params: ConnectGarminParams,
+): Promise<GarminConnectResponse> {
+  return apiFetch<GarminConnectResponse>('/api/fitness/garmin/connect', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  })
+}
+
+export interface SubmitGarminMfaParams {
+  pending_session: string
+  code: string
+}
+
+/**
+ * Complete a Garmin MFA login using the `pending_session` token from a
+ * prior `connectGarmin` call plus the 6-digit code. The pending session
+ * is consumed on success and on a cross-user replay 403; expired or
+ * unknown tokens are 410. The webapp surfaces both as ordinary errors.
+ */
+export function submitGarminMfa(
+  params: SubmitGarminMfaParams,
+): Promise<GarminMfaResponse> {
+  return apiFetch<GarminMfaResponse>('/api/fitness/garmin/connect/mfa', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  })
+}
+
+/**
+ * Delete the calling user's Garmin auth state. Idempotent — a request
+ * with no existing row returns `{disconnected: false}`. Historical
+ * activity/daily rows are preserved.
+ */
+export function disconnectGarmin(): Promise<DisconnectResponse> {
+  return apiFetch<DisconnectResponse>('/api/fitness/garmin/disconnect', {
+    method: 'POST',
+  })
+}
+
+/**
+ * Mint a Strava OAuth authorize URL plus a one-shot CSRF state token
+ * bound to the calling user for 10 minutes. The SPA redirects the
+ * browser to `authorize_url`; Strava redirects back to
+ * `/settings/fitness/strava/callback?code=&state=`, which is then
+ * exchanged via `exchangeStravaCode`.
+ */
+export function getStravaAuthorizeUrl(): Promise<StravaAuthorizeUrlResponse> {
+  return apiFetch<StravaAuthorizeUrlResponse>(
+    '/api/fitness/strava/authorize_url',
+  )
+}
+
+export interface ExchangeStravaCodeParams {
+  code: string
+  state: string
+}
+
+/**
+ * Complete the Strava OAuth flow: server validates `state`, exchanges
+ * `code` for refresh/access tokens, captures the upstream `athlete.id`,
+ * and persists into `fitness_auth_state`. State is single-use — a
+ * replay after consume returns 410.
+ */
+export function exchangeStravaCode(
+  params: ExchangeStravaCodeParams,
+): Promise<StravaExchangeResponse> {
+  return apiFetch<StravaExchangeResponse>('/api/fitness/strava/exchange', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  })
+}
+
+/**
+ * Delete the calling user's Strava auth state. Idempotent — same
+ * semantics as `disconnectGarmin`.
+ */
+export function disconnectStrava(): Promise<DisconnectResponse> {
+  return apiFetch<DisconnectResponse>('/api/fitness/strava/disconnect', {
+    method: 'POST',
+  })
+}
+
+/**
+ * Queue a historical fitness backfill for `source` over `[start, end]`
+ * (end defaults to today UTC on the server when omitted). Shares
+ * spanning idempotency with `triggerSync`: at most one fetch job
+ * (sync or backfill) per `(user, source)` is in flight, and a request
+ * that finds an in-flight peer returns its `job_id` plus
+ * `already_running: true`.
+ */
+export function triggerBackfill(
+  source: FitnessSource,
+  body: FitnessBackfillRequest,
+): Promise<FitnessSyncJobResponse> {
+  // The server accepts `end` as optional and defaults to today (UTC).
+  // Omit the key entirely rather than sending `null`/empty string —
+  // the API client never sends fields the request type doesn't declare.
+  const payload: FitnessBackfillRequest = { start: body.start }
+  if (body.end !== undefined) payload.end = body.end
+  return apiFetch<FitnessSyncJobResponse>(
+    `/api/fitness/backfill/${encodeURIComponent(source)}`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+  )
 }
