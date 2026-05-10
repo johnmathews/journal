@@ -7,6 +7,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { triggerEntityExtraction } from '@/api/entities'
 import BatchJobModal from '@/components/BatchJobModal.vue'
 import NotificationsSettings from '@/components/NotificationsSettings.vue'
+import FitnessConnectionsPanel from '@/components/settings/FitnessConnectionsPanel.vue'
 
 const authStore = useAuthStore()
 const jobsStore = useJobsStore()
@@ -285,6 +286,9 @@ async function onMoodJobSucceeded(): Promise<void> {
       title="Run entity extraction"
       job-kind="entity_extraction"
     />
+
+    <!-- Fitness connections -->
+    <FitnessConnectionsPanel />
 
     <!-- Notifications -->
     <NotificationsSettings />
