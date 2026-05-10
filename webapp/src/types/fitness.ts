@@ -113,3 +113,69 @@ export interface DedupedActivity {
   representative: FitnessActivity
   secondary_source_ids: Array<{ source: FitnessSource; source_id: string }>
 }
+
+// ── W8: multi-user connect/backfill flow types ────────────────────────
+//
+// Mirrors the wire shapes documented in journal-server's docs/api.md for
+// the W2 (Garmin), W3 (Strava), and W5 (backfill) endpoints.
+
+/**
+ * Success shape returned by both Garmin connect/MFA endpoints and the
+ * Strava OAuth exchange endpoint. `upstream_user_id` is the upstream
+ * account identifier (Garmin `displayName` or Strava `athlete.id` as a
+ * string) used for the D8 reconnect-with-different-account check.
+ */
+export interface ConnectedAccountResponse {
+  connected: true
+  upstream_user_id: string
+}
+
+/**
+ * MFA-required branch of `POST /api/fitness/garmin/connect`. The opaque
+ * `pending_session` is a CSRF token bound to the calling user for 10
+ * minutes and must be presented back to `/api/fitness/garmin/connect/mfa`
+ * with the 6-digit code.
+ */
+export interface GarminMfaPendingResponse {
+  mfa_required: true
+  pending_session: string
+  expires_at: string
+}
+
+/**
+ * Discriminated union: Garmin connect either succeeds outright or
+ * returns an MFA challenge. Callers narrow on the presence of
+ * `mfa_required` (or equivalently, the absence of `connected`).
+ */
+export type GarminConnectResponse =
+  | ConnectedAccountResponse
+  | GarminMfaPendingResponse
+
+/** Success shape of `POST /api/fitness/garmin/connect/mfa`. */
+export type GarminMfaResponse = ConnectedAccountResponse
+
+/** Success shape of `POST /api/fitness/strava/exchange`. */
+export type StravaExchangeResponse = ConnectedAccountResponse
+
+/** Shape of `GET /api/fitness/strava/authorize_url`. */
+export interface StravaAuthorizeUrlResponse {
+  authorize_url: string
+  state: string
+  expires_at: string
+}
+
+/**
+ * Shared shape returned by both `POST /api/fitness/garmin/disconnect`
+ * and `POST /api/fitness/strava/disconnect`. `disconnected` is `true`
+ * if a row was removed, `false` if the source was already disconnected
+ * (idempotent).
+ */
+export interface DisconnectResponse {
+  disconnected: boolean
+}
+
+/** Request body for `POST /api/fitness/backfill/{source}`. */
+export interface FitnessBackfillRequest {
+  start: string
+  end?: string
+}
