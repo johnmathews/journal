@@ -40,6 +40,24 @@ vi.mock('@/api/preferences', () => ({
   fetchPreferences: vi.fn().mockResolvedValue({ preferences: {} }),
 }))
 
+vi.mock('@/api/fitness', () => ({
+  // SettingsView mounts FitnessConnectionsPanel which hydrates the
+  // fitness store on mount. Stub every API call so the panel renders
+  // a clean "not connected" state without touching apiFetch.
+  fetchSyncStatus: vi.fn().mockResolvedValue({ strava: null, garmin: null }),
+  fetchActivities: vi.fn(),
+  fetchDaily: vi.fn(),
+  triggerSync: vi.fn(),
+  triggerBackfill: vi.fn(),
+  fetchIntegrity: vi.fn(),
+  connectGarmin: vi.fn(),
+  submitGarminMfa: vi.fn(),
+  disconnectGarmin: vi.fn(),
+  getStravaAuthorizeUrl: vi.fn(),
+  exchangeStravaCode: vi.fn(),
+  disconnectStrava: vi.fn(),
+}))
+
 vi.mock('@/api/dashboard', () => ({
   fetchWritingStats: vi.fn().mockResolvedValue({ bins: [] }),
   fetchMoodDimensions: vi.fn().mockResolvedValue({ dimensions: [] }),
