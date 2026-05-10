@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppToast from '@/components/AppToast.vue'
+import FitnessAuthBanner from '@/components/FitnessAuthBanner.vue'
 
 const sidebarOpen = ref(false)
 </script>
@@ -21,6 +22,8 @@ const sidebarOpen = ref(false)
         :sidebar-open="sidebarOpen"
         @toggle-sidebar="sidebarOpen = !sidebarOpen"
       />
+
+      <FitnessAuthBanner />
 
       <main class="grow">
         <div class="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-[96rem] mx-auto">

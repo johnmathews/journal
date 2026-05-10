@@ -88,6 +88,11 @@ const router = createRouter({
       component: () => import('@/views/JobHistoryView.vue'),
     },
     {
+      path: '/fitness',
+      name: 'fitness',
+      component: () => import('@/views/FitnessView.vue'),
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/SettingsView.vue'),

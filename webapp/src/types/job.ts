@@ -20,6 +20,8 @@ export type JobType =
   | 'reprocess_embeddings'
   | 'save_entry_pipeline'
   | 'entity_reembed'
+  | 'fitness_sync_strava'
+  | 'fitness_sync_garmin'
 
 /**
  * Response from the job-submission endpoints (POST /api/entities/extract,

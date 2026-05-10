@@ -62,6 +62,11 @@ function makeRouter() {
         component: { template: '<div />' },
       },
       {
+        path: '/fitness',
+        name: 'fitness',
+        component: { template: '<div />' },
+      },
+      {
         path: '/admin',
         name: 'admin',
         component: { template: '<div />' },
@@ -116,6 +121,15 @@ describe('AppSidebar', () => {
     const link = wrapper.find('[data-testid="sidebar-dashboard-link"]')
     expect(link.exists()).toBe(true)
     expect(link.attributes('href')).toBe('/')
+    wrapper.unmount()
+  })
+
+  it('Fitness nav link points to /fitness', async () => {
+    const wrapper = await mountSidebar()
+    const link = wrapper.find('[data-testid="sidebar-fitness-link"]')
+    expect(link.exists()).toBe(true)
+    expect(link.attributes('href')).toBe('/fitness')
+    expect(wrapper.text()).toContain('Fitness')
     wrapper.unmount()
   })
 
