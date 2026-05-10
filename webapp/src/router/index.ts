@@ -98,6 +98,14 @@ const router = createRouter({
       component: () => import('@/views/SettingsView.vue'),
     },
     {
+      // OAuth redirect target from Strava (per fitness-multiuser-plan
+      // §5 W10). The view exchanges code+state, then redirects back
+      // to /settings#fitness with optional ?strava_error=… on failure.
+      path: '/settings/fitness/strava/callback',
+      name: 'strava-callback',
+      component: () => import('@/views/StravaCallbackView.vue'),
+    },
+    {
       path: '/api-keys',
       name: 'api-keys',
       component: () => import('@/views/ApiKeysView.vue'),

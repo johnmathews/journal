@@ -21,14 +21,27 @@ vi.mock('@/api/fitness', () => ({
 import { fetchSyncStatus } from '@/api/fitness'
 const mockFetchStatus = vi.mocked(fetchSyncStatus)
 
-const router = createRouter({
-  history: createMemoryHistory(),
-  routes: [
-    { path: '/jobs', name: 'job-history', component: { template: '<div/>' } },
-  ],
-})
+function makeRouter() {
+  return createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: '/', component: { template: '<div/>' } },
+      { path: '/settings', component: { template: '<div/>' } },
+      { path: '/jobs', name: 'job-history', component: { template: '<div/>' } },
+    ],
+  })
+}
 
 function mountPanel() {
+  return mount(FitnessConnectionsPanel, {
+    global: { plugins: [makeRouter()] },
+  })
+}
+
+async function mountPanelAt(fullPath: string) {
+  const router = makeRouter()
+  await router.push(fullPath)
+  await router.isReady()
   return mount(FitnessConnectionsPanel, {
     global: { plugins: [router] },
   })
@@ -79,6 +92,47 @@ describe('FitnessConnectionsPanel', () => {
     expect(
       wrapper.get('[data-testid="fitness-status-error"]').text(),
     ).toContain('network down')
+  })
+
+  it('surfaces the strava_error query param the W10 callback redirects with', async () => {
+    mockFetchStatus.mockResolvedValue(freshStatus())
+    const wrapper = await mountPanelAt(
+      '/settings?strava_error=access_denied#fitness',
+    )
+    await flushPromises()
+    const banner = wrapper.get('[data-testid="fitness-strava-callback-error"]')
+    expect(banner.text()).toContain('denied authorization')
+  })
+
+  it('translates expired_pending_state into a recovery-hint message', async () => {
+    mockFetchStatus.mockResolvedValue(freshStatus())
+    const wrapper = await mountPanelAt(
+      '/settings?strava_error=expired_pending_state#fitness',
+    )
+    await flushPromises()
+    expect(
+      wrapper.get('[data-testid="fitness-strava-callback-error"]').text(),
+    ).toContain('expired')
+  })
+
+  it('falls back to a generic message for an unknown strava_error reason', async () => {
+    mockFetchStatus.mockResolvedValue(freshStatus())
+    const wrapper = await mountPanelAt(
+      '/settings?strava_error=server_on_fire#fitness',
+    )
+    await flushPromises()
+    expect(
+      wrapper.get('[data-testid="fitness-strava-callback-error"]').text(),
+    ).toContain('server_on_fire')
+  })
+
+  it('does not render the strava-callback-error banner when no query param is set', async () => {
+    mockFetchStatus.mockResolvedValue(freshStatus())
+    const wrapper = mountPanel()
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="fitness-strava-callback-error"]').exists(),
+    ).toBe(false)
   })
 
   it('passes the per-source status through to each card', async () => {
