@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
+import { createRouter, createMemoryHistory } from 'vue-router'
 import FitnessAuthBanner from '../FitnessAuthBanner.vue'
 import type { FitnessSyncStatus } from '@/types/fitness'
 
@@ -13,6 +14,26 @@ vi.mock('@/api/fitness', () => ({
 
 import { fetchSyncStatus } from '@/api/fitness'
 const mockFetchSyncStatus = vi.mocked(fetchSyncStatus)
+
+function makeRouter() {
+  return createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: '/', component: { template: '<div/>' } },
+      {
+        path: '/settings',
+        name: 'settings',
+        component: { template: '<div/>' },
+      },
+    ],
+  })
+}
+
+function mountBanner() {
+  return mount(FitnessAuthBanner, {
+    global: { plugins: [makeRouter()] },
+  })
+}
 
 function statusOk(): FitnessSyncStatus {
   return {
@@ -57,7 +78,7 @@ describe('FitnessAuthBanner', () => {
   it('renders nothing when both sources are OK', async () => {
     mockFetchSyncStatus.mockResolvedValue(statusOk())
 
-    const wrapper = mount(FitnessAuthBanner)
+    const wrapper = mountBanner()
     await flushPromises()
 
     expect(wrapper.find('[data-testid="fitness-auth-banner"]').exists()).toBe(
@@ -68,7 +89,7 @@ describe('FitnessAuthBanner', () => {
   it('renders nothing when both sources are null (fresh setup, never connected)', async () => {
     mockFetchSyncStatus.mockResolvedValue({ strava: null, garmin: null })
 
-    const wrapper = mount(FitnessAuthBanner)
+    const wrapper = mountBanner()
     await flushPromises()
 
     expect(wrapper.find('[data-testid="fitness-auth-banner"]').exists()).toBe(
@@ -76,10 +97,10 @@ describe('FitnessAuthBanner', () => {
     )
   })
 
-  it('renders for a broken Strava source with the CLI command', async () => {
+  it('renders a per-source explanation line when Strava is broken', async () => {
     mockFetchSyncStatus.mockResolvedValue(statusBroken('strava'))
 
-    const wrapper = mount(FitnessAuthBanner)
+    const wrapper = mountBanner()
     await flushPromises()
 
     expect(wrapper.find('[data-testid="fitness-auth-banner"]').exists()).toBe(
@@ -87,39 +108,56 @@ describe('FitnessAuthBanner', () => {
     )
     const stravaLine = wrapper.find('[data-testid="fitness-banner-strava"]')
     expect(stravaLine.exists()).toBe(true)
-    expect(stravaLine.text()).toContain('journal fitness-reauth-strava')
+    expect(stravaLine.text()).toContain('Strava')
+    expect(stravaLine.text()).toContain('Reconnect')
     expect(wrapper.find('[data-testid="fitness-banner-garmin"]').exists()).toBe(
       false,
     )
   })
 
-  it('renders for a broken Garmin source with the CLI command', async () => {
+  it('renders a per-source explanation line when Garmin is broken', async () => {
     mockFetchSyncStatus.mockResolvedValue(statusBroken('garmin'))
 
-    const wrapper = mount(FitnessAuthBanner)
+    const wrapper = mountBanner()
     await flushPromises()
 
     const garminLine = wrapper.find('[data-testid="fitness-banner-garmin"]')
     expect(garminLine.exists()).toBe(true)
-    expect(garminLine.text()).toContain('journal fitness-reauth-garmin')
+    expect(garminLine.text()).toContain('Garmin')
+  })
+
+  it('renders a single Reconnect button that links to /settings#fitness', async () => {
+    mockFetchSyncStatus.mockResolvedValue(statusBroken('strava'))
+
+    const wrapper = mountBanner()
+    await flushPromises()
+
+    const reconnect = wrapper.get('[data-testid="fitness-banner-reconnect"]')
+    expect(reconnect.text()).toBe('Reconnect')
+    // RouterLink renders as <a href="/settings#fitness">.
+    expect(reconnect.attributes('href')).toBe('/settings#fitness')
   })
 
   it('hydrates the store on mount via fetchSyncStatus', async () => {
     mockFetchSyncStatus.mockResolvedValue(statusOk())
 
-    mount(FitnessAuthBanner)
+    mountBanner()
     await flushPromises()
 
     expect(mockFetchSyncStatus).toHaveBeenCalledTimes(1)
   })
 
-  it('points to docs/fitness-operations.md §2 in the banner copy', async () => {
+  it('no longer references the old CLI commands or operations doc', async () => {
     mockFetchSyncStatus.mockResolvedValue(statusBroken('strava'))
 
-    const wrapper = mount(FitnessAuthBanner)
+    const wrapper = mountBanner()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('docs/fitness-operations.md')
-    expect(wrapper.text()).toContain('§2')
+    // The old copy mentioned `journal fitness-reauth-strava` /
+    // `journal fitness-reauth-garmin` and `docs/fitness-operations.md`.
+    // Reconnect is now in-app — these strings should be gone so a
+    // future reader doesn't think the CLI is the recommended path.
+    expect(wrapper.text()).not.toContain('journal fitness-reauth')
+    expect(wrapper.text()).not.toContain('fitness-operations.md')
   })
 })
