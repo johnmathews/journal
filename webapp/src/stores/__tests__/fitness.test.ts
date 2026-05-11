@@ -608,3 +608,161 @@ describe('useFitnessStore', () => {
     expect(end).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 })
+
+describe('useFitnessStore — tile layout (T3)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  it('defaults tileOrder to FITNESS_TILES order, no hidden tiles, no width overrides', () => {
+    const store = useFitnessStore()
+    expect(store.tileOrder).toEqual([
+      'weekly-distinct',
+      'sleep',
+      'hrv',
+      'rhr',
+      'recent-workouts',
+    ])
+    expect(store.hiddenTiles).toEqual([])
+    expect(store.tileWidths).toEqual({})
+    expect(store.editingLayout).toBe(false)
+  })
+
+  it('getTileWidth returns the definition default when no override is set', () => {
+    const store = useFitnessStore()
+    expect(store.getTileWidth('weekly-distinct')).toBe('full')
+    expect(store.getTileWidth('sleep')).toBe('third')
+    expect(store.getTileWidth('hrv')).toBe('third')
+    expect(store.getTileWidth('rhr')).toBe('third')
+    expect(store.getTileWidth('recent-workouts')).toBe('full')
+  })
+
+  it('setTileWidth overrides the default', () => {
+    const store = useFitnessStore()
+    store.setTileWidth('sleep', 'half')
+    expect(store.getTileWidth('sleep')).toBe('half')
+    expect(store.tileWidths.sleep).toBe('half')
+  })
+
+  it('cycleTileWidth advances third → half → full → third', () => {
+    const store = useFitnessStore()
+    expect(store.getTileWidth('sleep')).toBe('third')
+    store.cycleTileWidth('sleep')
+    expect(store.getTileWidth('sleep')).toBe('half')
+    store.cycleTileWidth('sleep')
+    expect(store.getTileWidth('sleep')).toBe('full')
+    store.cycleTileWidth('sleep')
+    expect(store.getTileWidth('sleep')).toBe('third')
+  })
+
+  it('moveTile reorders adjacent entries and is a no-op at boundaries', () => {
+    const store = useFitnessStore()
+    store.moveTile('sleep', 'up')
+    expect(store.tileOrder).toEqual([
+      'sleep',
+      'weekly-distinct',
+      'hrv',
+      'rhr',
+      'recent-workouts',
+    ])
+    // Moving the now-first tile up is a no-op.
+    store.moveTile('sleep', 'up')
+    expect(store.tileOrder[0]).toBe('sleep')
+    // Moving the last tile down is a no-op.
+    store.moveTile('recent-workouts', 'down')
+    expect(store.tileOrder[4]).toBe('recent-workouts')
+  })
+
+  it('moveTile is a no-op for an unknown id', () => {
+    const store = useFitnessStore()
+    const before = [...store.tileOrder]
+    store.moveTile('nonexistent' as never, 'up')
+    expect(store.tileOrder).toEqual(before)
+  })
+
+  it('hideTile + showTile round-trip and hideTile is idempotent', () => {
+    const store = useFitnessStore()
+    store.hideTile('sleep')
+    expect(store.hiddenTiles).toEqual(['sleep'])
+    store.hideTile('sleep')
+    expect(store.hiddenTiles).toEqual(['sleep']) // no duplicate
+    store.showTile('sleep')
+    expect(store.hiddenTiles).toEqual([])
+  })
+
+  it('resetLayout restores defaults', () => {
+    const store = useFitnessStore()
+    store.moveTile('sleep', 'up')
+    store.hideTile('hrv')
+    store.setTileWidth('rhr', 'full')
+    store.resetLayout()
+    expect(store.tileOrder).toEqual([
+      'weekly-distinct',
+      'sleep',
+      'hrv',
+      'rhr',
+      'recent-workouts',
+    ])
+    expect(store.hiddenTiles).toEqual([])
+    expect(store.tileWidths).toEqual({})
+  })
+
+  it('applyLayout restores a valid saved layout', () => {
+    const store = useFitnessStore()
+    store.applyLayout({
+      tileOrder: ['sleep', 'hrv', 'rhr', 'weekly-distinct', 'recent-workouts'],
+      hiddenTiles: ['rhr'],
+      tileWidths: { sleep: 'full', hrv: 'half' },
+    })
+    expect(store.tileOrder).toEqual([
+      'sleep',
+      'hrv',
+      'rhr',
+      'weekly-distinct',
+      'recent-workouts',
+    ])
+    expect(store.hiddenTiles).toEqual(['rhr'])
+    expect(store.tileWidths).toEqual({ sleep: 'full', hrv: 'half' })
+  })
+
+  it('applyLayout drops unknown tile ids and invalid widths, appends missing tiles', () => {
+    const store = useFitnessStore()
+    store.applyLayout({
+      tileOrder: ['sleep', 'bogus-tile'] as never,
+      hiddenTiles: ['hrv', 'ghost'] as never,
+      tileWidths: {
+        sleep: 'half',
+        rhr: 'enormous' as never,
+        nope: 'full',
+      } as never,
+    })
+    // bogus-tile dropped, missing tiles appended in FITNESS_TILES order.
+    expect(store.tileOrder).toEqual([
+      'sleep',
+      'weekly-distinct',
+      'hrv',
+      'rhr',
+      'recent-workouts',
+    ])
+    // 'ghost' dropped from hiddenTiles.
+    expect(store.hiddenTiles).toEqual(['hrv'])
+    // 'enormous' rejected, 'nope' rejected. Only 'sleep: half' kept.
+    expect(store.tileWidths).toEqual({ sleep: 'half' })
+  })
+
+  it('applyLayout handles a layout with empty arrays as a full reset to defaults', () => {
+    const store = useFitnessStore()
+    store.applyLayout({ tileOrder: [], hiddenTiles: [], tileWidths: {} })
+    // Missing tiles all appended → default order restored.
+    expect(store.tileOrder).toEqual([
+      'weekly-distinct',
+      'sleep',
+      'hrv',
+      'rhr',
+      'recent-workouts',
+    ])
+    expect(store.hiddenTiles).toEqual([])
+    expect(store.tileWidths).toEqual({})
+  })
+})

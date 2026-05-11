@@ -4,6 +4,8 @@
 // purpose, same convention as types/job.ts: faithful to the API contract
 // matters more than local camelCase consistency for this narrow layer.
 
+import type { NamedWidth } from './tiles'
+
 export type FitnessSource = 'strava' | 'garmin'
 
 export type FitnessAuthStatus = 'ok' | 'broken' | 'unknown'
@@ -193,4 +195,109 @@ export interface DisconnectResponse {
 export interface FitnessBackfillRequest {
   start: string
   end?: string
+}
+
+// ── /fitness tile layout (T2/T3 — adopt dashboard's TileGrid) ──────────
+
+export type FitnessTileId =
+  | 'weekly-distinct'
+  | 'sleep'
+  | 'hrv'
+  | 'rhr'
+  | 'recent-workouts'
+
+export interface FitnessTileDef {
+  id: FitnessTileId
+  title: string
+  /**
+   * Default named width. `/fitness` runs on a 6-column grid: `third` =
+   * span 2, `half` = span 3, `full` = span 6. Three thirds in a row
+   * matches the side-by-side daily-wellness layout the user accepted in
+   * F1–F8, so the byte-equivalent visual is preserved when the user has
+   * no saved layout yet.
+   */
+  defaultWidth: NamedWidth
+  testId: string
+}
+
+export const FITNESS_TILES: readonly FitnessTileDef[] = [
+  {
+    id: 'weekly-distinct',
+    title: 'Distinct workouts per week',
+    defaultWidth: 'full',
+    testId: 'fitness-tile-weekly-distinct',
+  },
+  {
+    id: 'sleep',
+    title: 'Sleep score',
+    defaultWidth: 'third',
+    testId: 'fitness-tile-sleep',
+  },
+  {
+    id: 'hrv',
+    title: 'HRV overnight',
+    defaultWidth: 'third',
+    testId: 'fitness-tile-hrv',
+  },
+  {
+    id: 'rhr',
+    title: 'Resting heart rate',
+    defaultWidth: 'third',
+    testId: 'fitness-tile-rhr',
+  },
+  {
+    id: 'recent-workouts',
+    title: 'Recent workouts',
+    defaultWidth: 'full',
+    testId: 'fitness-tile-recent-workouts',
+  },
+] as const
+
+export const DEFAULT_FITNESS_TILE_ORDER: readonly FitnessTileId[] =
+  FITNESS_TILES.map((t) => t.id)
+
+/**
+ * Layout state persisted under the `fitness_layout` key on the
+ * preferences blob. Shape mirrors `DashboardLayout` from
+ * `types/dashboard.ts` but with named widths because `/fitness` offers
+ * three choices on its 6-column grid.
+ */
+export interface FitnessLayout {
+  tileOrder: FitnessTileId[]
+  hiddenTiles: FitnessTileId[]
+  tileWidths?: Partial<Record<FitnessTileId, NamedWidth>>
+}
+
+/**
+ * Width cycle order for the resize button on a `/fitness` tile.
+ * Clicking the button advances to the next entry, wrapping back to the
+ * start at the end.
+ */
+export const FITNESS_WIDTH_CYCLE: readonly NamedWidth[] = [
+  'third',
+  'half',
+  'full',
+] as const
+
+/** CSS `grid-column` mapping for the 6-column fitness grid. */
+export function fitnessWidthToGridColumn(w: NamedWidth): string {
+  if (w === 'full') return '1 / -1'
+  if (w === 'half') return 'span 3'
+  return 'span 2'
+}
+
+/**
+ * Human-readable label for the next width the resize button will set.
+ * Used as the button's `title` attribute so hover discloses the
+ * upcoming state.
+ */
+export function nextFitnessWidthLabel(current: NamedWidth): string {
+  const idx = FITNESS_WIDTH_CYCLE.indexOf(current)
+  const next = FITNESS_WIDTH_CYCLE[(idx + 1) % FITNESS_WIDTH_CYCLE.length]
+  const labels: Record<NamedWidth, string> = {
+    third: 'Third width',
+    half: 'Half width',
+    full: 'Full width',
+  }
+  return labels[next]
 }

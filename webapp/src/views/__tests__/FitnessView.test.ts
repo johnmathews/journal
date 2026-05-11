@@ -426,4 +426,112 @@ describe('FitnessView', () => {
     expect(cfg.data.datasets[0].data).toEqual([79, 79])
     wrapper.unmount()
   })
+
+  // T3: tile layout shell adoption.
+  it('renders the fitness tile grid with the five default tiles', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="fitness-tiles-grid"]').exists()).toBe(
+      true,
+    )
+    expect(
+      wrapper.find('[data-testid="fitness-tile-weekly-distinct"]').exists(),
+    ).toBe(true)
+    expect(wrapper.find('[data-testid="fitness-tile-sleep"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('[data-testid="fitness-tile-hrv"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="fitness-tile-rhr"]').exists()).toBe(true)
+    expect(
+      wrapper.find('[data-testid="fitness-tile-recent-workouts"]').exists(),
+    ).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('shows tile edit controls only after Edit layout is toggled on', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Before edit mode: no edit controls visible.
+    expect(wrapper.find('button[title="Move up"]').exists()).toBe(false)
+    expect(wrapper.find('button[title="Hide chart"]').exists()).toBe(false)
+    expect(
+      wrapper.find('[data-testid="tile-move-up-sleep"]').exists(),
+    ).toBe(false)
+
+    await wrapper
+      .find('[data-testid="fitness-edit-layout-toggle"]')
+      .trigger('click')
+    expect(
+      wrapper.find('[data-testid="fitness-edit-layout-toggle"]').text(),
+    ).toBe('Done editing')
+
+    // Now controls are present per tile.
+    expect(wrapper.find('button[title="Move up"]').exists()).toBe(true)
+    expect(wrapper.find('button[title="Hide chart"]').exists()).toBe(true)
+    expect(
+      wrapper.find('[data-testid="tile-move-up-sleep"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="tile-width-sleep"]').exists(),
+    ).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('hides a fitness tile and shows the restore panel', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper
+      .find('[data-testid="fitness-edit-layout-toggle"]')
+      .trigger('click')
+
+    await wrapper.find('[data-testid="tile-hide-sleep"]').trigger('click')
+    expect(wrapper.find('[data-testid="fitness-tile-sleep"]').exists()).toBe(
+      false,
+    )
+    expect(
+      wrapper.find('[data-testid="fitness-hidden-tiles-panel"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="fitness-restore-tile-sleep"]').exists(),
+    ).toBe(true)
+
+    // Restore brings the tile back.
+    await wrapper
+      .find('[data-testid="fitness-restore-tile-sleep"]')
+      .trigger('click')
+    expect(wrapper.find('[data-testid="fitness-tile-sleep"]').exists()).toBe(
+      true,
+    )
+    wrapper.unmount()
+  })
+
+  it('cycle-width on a tile rotates third → half → full → third', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper
+      .find('[data-testid="fitness-edit-layout-toggle"]')
+      .trigger('click')
+
+    const btn = wrapper.find('[data-testid="tile-width-sleep"]')
+    // Sleep defaults to 'third' → next state offered by the button is 'Half width'.
+    expect(btn.attributes('title')).toBe('Half width')
+    await btn.trigger('click')
+
+    // Now sleep is 'half' → next offered is 'Full width'.
+    expect(
+      wrapper
+        .find('[data-testid="tile-width-sleep"]')
+        .attributes('title'),
+    ).toBe('Full width')
+    await wrapper.find('[data-testid="tile-width-sleep"]').trigger('click')
+
+    // 'full' → next is 'Third width'.
+    expect(
+      wrapper
+        .find('[data-testid="tile-width-sleep"]')
+        .attributes('title'),
+    ).toBe('Third width')
+    wrapper.unmount()
+  })
 })

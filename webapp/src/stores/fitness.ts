@@ -8,13 +8,19 @@ import {
 } from '@/api/fitness'
 import { useJobsStore } from '@/stores/jobs'
 import { rangeToDates } from '@/stores/dashboard'
-import type {
-  FitnessActivity,
-  FitnessDaily,
-  FitnessSource,
-  FitnessSyncStatus,
-  DedupedActivity,
+import {
+  DEFAULT_FITNESS_TILE_ORDER,
+  FITNESS_TILES,
+  FITNESS_WIDTH_CYCLE,
+  type FitnessActivity,
+  type FitnessDaily,
+  type FitnessLayout,
+  type FitnessSource,
+  type FitnessSyncStatus,
+  type FitnessTileId,
+  type DedupedActivity,
 } from '@/types/fitness'
+import type { NamedWidth } from '@/types/tiles'
 import type { DashboardRange, DashboardBin } from '@/types/dashboard'
 
 // Cross-source dedup threshold. Two activities collapse into one when
@@ -320,6 +326,108 @@ export const useFitnessStore = defineStore('fitness', () => {
     bin.value = b
   }
 
+  // ── Tile layout (T3) ───────────────────────────────────────────────
+  //
+  // Mirrors the dashboard store's layout surface: `tileOrder`,
+  // `hiddenTiles`, `tileWidths` (named widths here — `'third' | 'half'
+  // | 'full'` — on a 6-column grid), `editingLayout`, plus
+  // load/persist actions. T4 wires `fitness_layout` to
+  // `/api/users/me/preferences`.
+  const tileOrder = ref<FitnessTileId[]>([...DEFAULT_FITNESS_TILE_ORDER])
+  const hiddenTiles = ref<FitnessTileId[]>([])
+  const tileWidths = ref<Partial<Record<FitnessTileId, NamedWidth>>>({})
+  const editingLayout = ref(false)
+
+  const tileDefs = computed(() => {
+    const m = new Map<FitnessTileId, (typeof FITNESS_TILES)[number]>()
+    for (const t of FITNESS_TILES) m.set(t.id, t)
+    return m
+  })
+
+  /** Effective width for a tile: user override or definition default. */
+  function getTileWidth(id: FitnessTileId): NamedWidth {
+    return tileWidths.value[id] ?? tileDefs.value.get(id)?.defaultWidth ?? 'full'
+  }
+
+  function setTileWidth(id: FitnessTileId, width: NamedWidth): void {
+    tileWidths.value = { ...tileWidths.value, [id]: width }
+  }
+
+  /** Advance a tile through the third → half → full → third cycle. */
+  function cycleTileWidth(id: FitnessTileId): void {
+    const idx = FITNESS_WIDTH_CYCLE.indexOf(getTileWidth(id))
+    const next =
+      FITNESS_WIDTH_CYCLE[(idx + 1) % FITNESS_WIDTH_CYCLE.length] ?? 'full'
+    setTileWidth(id, next)
+  }
+
+  function moveTile(id: FitnessTileId, direction: 'up' | 'down'): void {
+    const order = [...tileOrder.value]
+    const idx = order.indexOf(id)
+    if (idx === -1) return
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (targetIdx < 0 || targetIdx >= order.length) return
+    ;[order[idx], order[targetIdx]] = [order[targetIdx], order[idx]]
+    tileOrder.value = order
+  }
+
+  function hideTile(id: FitnessTileId): void {
+    if (!hiddenTiles.value.includes(id)) {
+      hiddenTiles.value = [...hiddenTiles.value, id]
+    }
+  }
+
+  function showTile(id: FitnessTileId): void {
+    hiddenTiles.value = hiddenTiles.value.filter((t) => t !== id)
+  }
+
+  function resetLayout(): void {
+    tileOrder.value = [...DEFAULT_FITNESS_TILE_ORDER]
+    hiddenTiles.value = []
+    tileWidths.value = {}
+  }
+
+  /**
+   * Apply a deserialised `FitnessLayout` blob to the store. Used by T4's
+   * `loadLayout` action and exposed separately so tests can drive the
+   * validation logic without going through the preferences API.
+   *
+   * - Unknown tile IDs in `tileOrder` / `hiddenTiles` / `tileWidths` are
+   *   dropped (defends against a stored layout from an older webapp
+   *   version that referenced a tile we no longer ship).
+   * - Any tile IDs missing from the saved order are appended in
+   *   `FITNESS_TILES` order so new tiles introduced after the user saved
+   *   show up rather than vanishing.
+   * - `tileWidths` entries with invalid width values are dropped.
+   */
+  function applyLayout(layout: FitnessLayout): void {
+    const validIds = new Set<FitnessTileId>(DEFAULT_FITNESS_TILE_ORDER)
+    const order = (layout.tileOrder ?? []).filter((id) =>
+      validIds.has(id),
+    ) as FitnessTileId[]
+    for (const id of DEFAULT_FITNESS_TILE_ORDER) {
+      if (!order.includes(id)) order.push(id)
+    }
+    tileOrder.value = order
+
+    hiddenTiles.value = (layout.hiddenTiles ?? []).filter((id) =>
+      validIds.has(id),
+    ) as FitnessTileId[]
+
+    const savedWidths = layout.tileWidths ?? {}
+    const restored: Partial<Record<FitnessTileId, NamedWidth>> = {}
+    const validWidths: ReadonlySet<NamedWidth> = new Set(FITNESS_WIDTH_CYCLE)
+    for (const [id, width] of Object.entries(savedWidths)) {
+      if (
+        validIds.has(id as FitnessTileId) &&
+        validWidths.has(width as NamedWidth)
+      ) {
+        restored[id as FitnessTileId] = width as NamedWidth
+      }
+    }
+    tileWidths.value = restored
+  }
+
   return {
     activities,
     daily,
@@ -346,5 +454,19 @@ export const useFitnessStore = defineStore('fitness', () => {
     setRange,
     setBin,
     cancelPendingStatusRefresh,
+    // Tile layout (T3 / T4)
+    tileOrder,
+    hiddenTiles,
+    tileWidths,
+    editingLayout,
+    tileDefs,
+    getTileWidth,
+    setTileWidth,
+    cycleTileWidth,
+    moveTile,
+    hideTile,
+    showTile,
+    resetLayout,
+    applyLayout,
   }
 })

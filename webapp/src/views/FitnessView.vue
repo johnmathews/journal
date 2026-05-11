@@ -10,8 +10,16 @@ import {
 } from '@/utils/chartjs-config'
 import { adjustColorOpacity } from '@/utils/mosaic'
 import RangeBinControls from '@/components/RangeBinControls.vue'
+import TileGrid from '@/components/TileGrid.vue'
 import { movingAverage3 } from '@/utils/moving-average'
-import type { FitnessActivityType, FitnessSource } from '@/types/fitness'
+import {
+  FITNESS_TILES,
+  fitnessWidthToGridColumn,
+  nextFitnessWidthLabel,
+  type FitnessActivityType,
+  type FitnessSource,
+  type FitnessTileId,
+} from '@/types/fitness'
 
 const store = useFitnessStore()
 const {
@@ -338,6 +346,22 @@ function formatDistance(meters: number | null): string {
   if (meters === null) return '—'
   return (meters / 1000).toFixed(2) + ' km'
 }
+
+// ── Tile layout wiring (T3) ────────────────────────────────────────
+//
+// `/fitness` runs on a 6-column TileGrid. Width defaults match D5 in
+// `server/docs/fitness-tile-layout-plan.md`: weekly-distinct + recent-
+// workouts are full, sleep/hrv/rhr are thirds. The store owns
+// `tileOrder` / `hiddenTiles` / `tileWidths` / `editingLayout`; this
+// view wires the TileGrid events back to the store.
+
+function spanForFitnessTile(id: FitnessTileId): string {
+  return fitnessWidthToGridColumn(store.getTileWidth(id))
+}
+
+function widthTitleForFitnessTile(id: FitnessTileId): string {
+  return nextFitnessWidthLabel(store.getTileWidth(id))
+}
 </script>
 
 <template>
@@ -354,6 +378,19 @@ function formatDistance(meters: number | null): string {
         </p>
       </div>
       <div class="flex items-end gap-3">
+        <button
+          type="button"
+          class="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors h-9"
+          :class="
+            store.editingLayout
+              ? 'bg-violet-500 text-white border-violet-500'
+              : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600'
+          "
+          data-testid="fitness-edit-layout-toggle"
+          @click="store.editingLayout = !store.editingLayout"
+        >
+          {{ store.editingLayout ? 'Done editing' : 'Edit layout' }}
+        </button>
         <button
           type="button"
           data-testid="fitness-reload"
@@ -431,27 +468,43 @@ function formatDistance(meters: number | null): string {
       {{ dailyError }}
     </div>
 
-    <!-- Activities-per-week chart -->
-    <article class="rounded-xl bg-white dark:bg-gray-800 shadow-xs p-5">
-      <header class="flex items-baseline justify-between mb-3">
-        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">
-          Distinct workouts per week
-        </h2>
-        <span class="text-xs text-gray-500 dark:text-gray-400">
-          {{ activities.length }} raw rows · {{ distinctActivities.length }}
-          distinct
-        </span>
-      </header>
-      <div class="h-64">
-        <canvas ref="activitiesChartCanvas" data-testid="fitness-weekly-chart"
-          ><div v-if="loadingActivities" role="alert">Loading…</div></canvas
-        >
-      </div>
-    </article>
+    <TileGrid
+      :tiles="FITNESS_TILES"
+      :tile-order="store.tileOrder"
+      :hidden-tiles="store.hiddenTiles"
+      :editing="store.editingLayout"
+      grid-class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-4"
+      :get-span="spanForFitnessTile"
+      :get-width-title="widthTitleForFitnessTile"
+      test-id-prefix="fitness"
+      @move="(id, dir) => store.moveTile(id, dir)"
+      @hide="(id) => store.hideTile(id)"
+      @show="(id) => store.showTile(id)"
+      @cycle-width="(id) => store.cycleTileWidth(id)"
+      @reset="store.resetLayout()"
+    >
+      <template #tile-weekly-distinct>
+        <header class="flex items-baseline justify-between mb-3">
+          <div>
+            <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">
+              Distinct workouts per week
+            </h2>
+          </div>
+          <span class="text-xs text-gray-500 dark:text-gray-400">
+            {{ activities.length }} raw rows · {{ distinctActivities.length }}
+            distinct
+          </span>
+        </header>
+        <div class="h-64">
+          <canvas
+            ref="activitiesChartCanvas"
+            data-testid="fitness-weekly-chart"
+            ><div v-if="loadingActivities" role="alert">Loading…</div></canvas
+          >
+        </div>
+      </template>
 
-    <!-- Garmin daily wellness charts -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <article class="rounded-xl bg-white dark:bg-gray-800 shadow-xs p-5">
+      <template #tile-sleep>
         <header class="mb-3">
           <h2 class="text-base font-semibold text-gray-800 dark:text-gray-100">
             Sleep score
@@ -463,8 +516,9 @@ function formatDistance(meters: number | null): string {
         <div class="h-48">
           <canvas ref="sleepChartCanvas" data-testid="fitness-sleep-chart" />
         </div>
-      </article>
-      <article class="rounded-xl bg-white dark:bg-gray-800 shadow-xs p-5">
+      </template>
+
+      <template #tile-hrv>
         <header class="mb-3">
           <h2 class="text-base font-semibold text-gray-800 dark:text-gray-100">
             HRV overnight
@@ -474,8 +528,9 @@ function formatDistance(meters: number | null): string {
         <div class="h-48">
           <canvas ref="hrvChartCanvas" data-testid="fitness-hrv-chart" />
         </div>
-      </article>
-      <article class="rounded-xl bg-white dark:bg-gray-800 shadow-xs p-5">
+      </template>
+
+      <template #tile-rhr>
         <header class="mb-3">
           <h2 class="text-base font-semibold text-gray-800 dark:text-gray-100">
             Resting heart rate
@@ -485,69 +540,68 @@ function formatDistance(meters: number | null): string {
         <div class="h-48">
           <canvas ref="rhrChartCanvas" data-testid="fitness-rhr-chart" />
         </div>
-      </article>
-    </div>
+      </template>
 
-    <!-- Recent distinct activities list -->
-    <article class="rounded-xl bg-white dark:bg-gray-800 shadow-xs p-5">
-      <header class="mb-3">
-        <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">
-          Recent workouts
-        </h2>
-        <p class="text-xs text-gray-500">
-          Cross-source dedup applied — rows from both Strava and Garmin whose
-          time windows overlap by ≥75% collapse to one entry.
-        </p>
-      </header>
-      <table class="w-full text-sm" data-testid="fitness-recent-activities">
-        <thead>
-          <tr class="text-left text-gray-500 dark:text-gray-400 text-xs">
-            <th class="font-medium pb-2">Date</th>
-            <th class="font-medium pb-2">Type</th>
-            <th class="font-medium pb-2">Source</th>
-            <th class="font-medium pb-2 text-right">Distance</th>
-            <th class="font-medium pb-2 text-right">Duration</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="ds in recentActivities"
-            :key="ds.representative.id"
-            class="border-t border-gray-100 dark:border-gray-700"
-          >
-            <td class="py-2 text-gray-700 dark:text-gray-200">
-              {{ ds.representative.local_date }}
-            </td>
-            <td class="py-2 capitalize text-gray-700 dark:text-gray-200">
-              {{ ds.representative.activity_type }}
-            </td>
-            <td class="py-2 text-gray-700 dark:text-gray-200">
-              {{ sourceLabel(ds.representative.source) }}
-              <span
-                v-if="ds.secondary_source_ids.length"
-                class="text-xs text-gray-500"
-              >
-                + {{ ds.secondary_source_ids.length }} mirror
-              </span>
-            </td>
-            <td class="py-2 text-right text-gray-700 dark:text-gray-200">
-              {{ formatDistance(ds.representative.distance_m) }}
-            </td>
-            <td class="py-2 text-right text-gray-700 dark:text-gray-200">
-              {{ formatDuration(ds.representative.duration_s) }}
-            </td>
-          </tr>
-          <tr v-if="!recentActivities.length">
-            <td
-              class="py-3 text-gray-500 dark:text-gray-400"
-              colspan="5"
-              data-testid="fitness-no-activities"
+      <template #tile-recent-workouts>
+        <header class="mb-3">
+          <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">
+            Recent workouts
+          </h2>
+          <p class="text-xs text-gray-500">
+            Cross-source dedup applied — rows from both Strava and Garmin whose
+            time windows overlap by ≥75% collapse to one entry.
+          </p>
+        </header>
+        <table class="w-full text-sm" data-testid="fitness-recent-activities">
+          <thead>
+            <tr class="text-left text-gray-500 dark:text-gray-400 text-xs">
+              <th class="font-medium pb-2">Date</th>
+              <th class="font-medium pb-2">Type</th>
+              <th class="font-medium pb-2">Source</th>
+              <th class="font-medium pb-2 text-right">Distance</th>
+              <th class="font-medium pb-2 text-right">Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="ds in recentActivities"
+              :key="ds.representative.id"
+              class="border-t border-gray-100 dark:border-gray-700"
             >
-              No workouts in this window.
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </article>
+              <td class="py-2 text-gray-700 dark:text-gray-200">
+                {{ ds.representative.local_date }}
+              </td>
+              <td class="py-2 capitalize text-gray-700 dark:text-gray-200">
+                {{ ds.representative.activity_type }}
+              </td>
+              <td class="py-2 text-gray-700 dark:text-gray-200">
+                {{ sourceLabel(ds.representative.source) }}
+                <span
+                  v-if="ds.secondary_source_ids.length"
+                  class="text-xs text-gray-500"
+                >
+                  + {{ ds.secondary_source_ids.length }} mirror
+                </span>
+              </td>
+              <td class="py-2 text-right text-gray-700 dark:text-gray-200">
+                {{ formatDistance(ds.representative.distance_m) }}
+              </td>
+              <td class="py-2 text-right text-gray-700 dark:text-gray-200">
+                {{ formatDuration(ds.representative.duration_s) }}
+              </td>
+            </tr>
+            <tr v-if="!recentActivities.length">
+              <td
+                class="py-3 text-gray-500 dark:text-gray-400"
+                colspan="5"
+                data-testid="fitness-no-activities"
+              >
+                No workouts in this window.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
+    </TileGrid>
   </section>
 </template>
