@@ -5,8 +5,10 @@ import { useRouter } from 'vue-router'
 import { Chart } from 'chart.js'
 import { useDashboardStore, rangeToDates } from '@/stores/dashboard'
 import {
+  DASHBOARD_TILES,
   type DashboardBin,
   type DashboardRange,
+  type DashboardTileDef,
   type DashboardTileId,
 } from '@/types/dashboard'
 import type { CalendarDay } from '@/types/dashboard'
@@ -24,6 +26,7 @@ import {
 import { groupDimensions } from '@/utils/mood-groups'
 import BaseTooltip from '@/components/BaseTooltip.vue'
 import RangeBinControls from '@/components/RangeBinControls.vue'
+import TileGrid from '@/components/TileGrid.vue'
 
 // Prevent tree-shaking of Chart.js registration side-effect.
 void getChartColors
@@ -160,18 +163,39 @@ const allEntityTrendsHidden = computed(
     store.hiddenEntityTrends.size === store.entityTrendEntities.length,
 )
 
-function isTileVisible(id: DashboardTileId): boolean {
-  return store.visibleTiles.includes(id)
-}
+/**
+ * Per-tile definitions for the page's `<TileGrid>`. Conditional tiles
+ * (mood-trends, mood-entity-correlation) carry an `available` flag
+ * driven by the store's `moodScoringEnabled` getter so they vanish
+ * entirely when scoring is off — including their entry in the saved
+ * tile order. The grid component honours `available: false` by
+ * skipping the tile during render.
+ */
+const dashboardTiles = computed<
+  ReadonlyArray<DashboardTileDef & { available: boolean }>
+>(() =>
+  DASHBOARD_TILES.map((t) => ({
+    ...t,
+    available: t.requiresMoodScoring ? store.moodScoringEnabled : true,
+  })),
+)
 
-function tileOrder(id: DashboardTileId): number {
-  const idx = store.tileOrder.indexOf(id)
-  return idx >= 0 ? idx : 999
-}
-
-function tileSpan(id: DashboardTileId): string {
+function spanForTile(id: DashboardTileId): string {
   return store.getTileSpan(id) === 2 ? '1 / -1' : 'span 1'
 }
+
+function widthTitleFor(id: DashboardTileId): string {
+  // The cycle goes half ↔ full; the button title names where the
+  // next click will land.
+  return store.getTileSpan(id) === 1 ? 'Full width' : 'Half width'
+}
+
+// Reference to the rendered TileGrid so we can reach the calendar
+// tile's <section> element for width measurement (the heatmap sizes
+// itself to the available tile width).
+const tileGridRef = ref<{
+  sectionEls: Partial<Record<DashboardTileId, HTMLElement>>
+} | null>(null)
 
 const labels = computed(() => store.bins.map((b) => b.bin_start))
 const entryCountSeries = computed(() => store.bins.map((b) => b.entry_count))
@@ -520,7 +544,9 @@ function renderEntityChart(): void {
 
 // --- Calendar heatmap computed ---
 
-const calendarContainerRef = ref<HTMLElement | null>(null)
+const calendarContainerRef = computed<HTMLElement | null>(
+  () => tileGridRef.value?.sectionEls['calendar-heatmap'] ?? null,
+)
 const { width: calendarContainerWidth } = useElementSize(calendarContainerRef)
 
 /** Pixel constants for the heatmap grid layout. */
@@ -1165,66 +1191,23 @@ async function onMoodCorrelationTypeChange(
     </div>
 
     <div v-else>
-      <!-- Hidden tiles restoration panel -->
-      <div
-        v-if="store.editingLayout && store.hiddenTiles.length > 0"
-        class="mb-4 bg-amber-50 dark:bg-amber-900/20 border border-dashed border-amber-300 dark:border-amber-600/50 rounded-xl px-5 py-3"
-        data-testid="dashboard-hidden-tiles-panel"
+      <TileGrid
+        ref="tileGridRef"
+        :tiles="dashboardTiles"
+        :tile-order="store.tileOrder"
+        :hidden-tiles="store.hiddenTiles"
+        :editing="store.editingLayout"
+        grid-class="grid grid-cols-1 xl:grid-cols-2 gap-6"
+        :get-span="spanForTile"
+        :get-width-title="widthTitleFor"
+        test-id-prefix="dashboard"
+        @move="(id, dir) => store.moveTile(id, dir)"
+        @hide="(id) => store.hideTile(id)"
+        @show="(id) => store.showTile(id)"
+        @cycle-width="(id) => store.cycleTileWidth(id)"
+        @reset="store.resetLayout()"
       >
-        <div class="flex flex-wrap items-center gap-2">
-          <span
-            class="text-xs font-medium text-amber-700 dark:text-amber-400 mr-1"
-            >Hidden charts:</span
-          >
-          <button
-            v-for="id in store.hiddenTiles"
-            :key="id"
-            type="button"
-            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:border-violet-400 dark:hover:border-violet-500 transition-colors"
-            :data-testid="`dashboard-restore-tile-${id}`"
-            @click="store.showTile(id)"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-3 w-3"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-                clip-rule="evenodd"
-              />
-            </svg>
-            {{ store.tileDefs.get(id)?.title ?? id }}
-          </button>
-          <button
-            type="button"
-            class="ml-2 text-xs text-violet-500 hover:text-violet-600 dark:text-violet-400 dark:hover:text-violet-300 font-medium"
-            data-testid="dashboard-reset-layout"
-            @click="store.resetLayout()"
-          >
-            Reset all
-          </button>
-        </div>
-      </div>
-
-      <!-- Dashboard tiles grid -->
-      <div
-        class="grid grid-cols-1 xl:grid-cols-2 gap-6"
-        data-testid="dashboard-tiles-grid"
-      >
-        <!-- Calendar Heatmap -->
-        <section
-          v-if="isTileVisible('calendar-heatmap')"
-          ref="calendarContainerRef"
-          :style="{
-            order: tileOrder('calendar-heatmap'),
-            gridColumn: tileSpan('calendar-heatmap'),
-          }"
-          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4 relative group"
-          data-testid="dashboard-calendar-section"
-        >
+        <template #tile-calendar-heatmap>
           <header class="mb-3 flex items-start justify-between gap-2">
             <div>
               <h2
@@ -1237,107 +1220,6 @@ async function onMoodCorrelationTypeChange(
                   heatmapSpanLabel ? ` over the last ${heatmapSpanLabel}` : ''
                 }}.
               </p>
-            </div>
-            <div
-              v-if="store.editingLayout"
-              class="flex items-center gap-1 shrink-0"
-            >
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                title="Move up"
-                data-testid="tile-move-up-calendar-heatmap"
-                @click="store.moveTile('calendar-heatmap', 'up')"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                title="Move down"
-                data-testid="tile-move-down-calendar-heatmap"
-                @click="store.moveTile('calendar-heatmap', 'down')"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                :title="
-                  store.getTileSpan('calendar-heatmap') === 1
-                    ? 'Full width'
-                    : 'Half width'
-                "
-                data-testid="tile-width-calendar-heatmap"
-                @click="
-                  store.setTileWidth(
-                    'calendar-heatmap',
-                    store.getTileSpan('calendar-heatmap') === 1 ? 2 : 1,
-                  )
-                "
-              >
-                <svg
-                  v-if="store.getTileSpan('calendar-heatmap') === 2"
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <rect x="2" y="7" width="7" height="6" rx="1" />
-                  <rect x="11" y="7" width="7" height="6" rx="1" />
-                </svg>
-                <svg
-                  v-else
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <rect x="2" y="7" width="16" height="6" rx="1" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                title="Hide chart"
-                data-testid="tile-hide-calendar-heatmap"
-                @click="store.hideTile('calendar-heatmap')"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
             </div>
           </header>
 
@@ -1470,18 +1352,8 @@ async function onMoodCorrelationTypeChange(
               <span>More words</span>
             </div>
           </div>
-        </section>
-
-        <!-- Entity Distribution -->
-        <section
-          v-if="isTileVisible('entity-distribution')"
-          :style="{
-            order: tileOrder('entity-distribution'),
-            gridColumn: tileSpan('entity-distribution'),
-          }"
-          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4 relative"
-          data-testid="dashboard-entity-section"
-        >
+        </template>
+        <template #tile-entity-distribution>
           <header class="mb-3 flex items-start justify-between gap-2">
             <div>
               <h2
@@ -1492,104 +1364,6 @@ async function onMoodCorrelationTypeChange(
               <p class="text-xs text-gray-600 dark:text-gray-300">
                 Entity mention frequency by type {{ rangePhrase }}.
               </p>
-            </div>
-            <div
-              v-if="store.editingLayout"
-              class="flex items-center gap-1 shrink-0"
-            >
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                title="Move up"
-                @click="store.moveTile('entity-distribution', 'up')"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                title="Move down"
-                @click="store.moveTile('entity-distribution', 'down')"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                :title="
-                  store.getTileSpan('entity-distribution') === 1
-                    ? 'Full width'
-                    : 'Half width'
-                "
-                data-testid="tile-width-entity-distribution"
-                @click="
-                  store.setTileWidth(
-                    'entity-distribution',
-                    store.getTileSpan('entity-distribution') === 1 ? 2 : 1,
-                  )
-                "
-              >
-                <svg
-                  v-if="store.getTileSpan('entity-distribution') === 2"
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <rect x="2" y="7" width="7" height="6" rx="1" />
-                  <rect x="11" y="7" width="7" height="6" rx="1" />
-                </svg>
-                <svg
-                  v-else
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <rect x="2" y="7" width="16" height="6" rx="1" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                title="Hide chart"
-                @click="store.hideTile('entity-distribution')"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
             </div>
           </header>
 
@@ -1694,18 +1468,8 @@ async function onMoodCorrelationTypeChange(
               </button>
             </div>
           </div>
-        </section>
-
-        <!-- Writing Frequency -->
-        <section
-          v-if="isTileVisible('writing-frequency')"
-          :style="{
-            order: tileOrder('writing-frequency'),
-            gridColumn: tileSpan('writing-frequency'),
-          }"
-          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4 relative"
-          data-testid="dashboard-writing-chart-card"
-        >
+        </template>
+        <template #tile-writing-frequency>
           <header class="mb-3 flex items-start justify-between gap-2">
             <div>
               <h2
@@ -1717,104 +1481,6 @@ async function onMoodCorrelationTypeChange(
                 Entries per {{ store.bin }} {{ rangePhrase }}.
               </p>
             </div>
-            <div
-              v-if="store.editingLayout"
-              class="flex items-center gap-1 shrink-0"
-            >
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                title="Move up"
-                @click="store.moveTile('writing-frequency', 'up')"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                title="Move down"
-                @click="store.moveTile('writing-frequency', 'down')"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                :title="
-                  store.getTileSpan('writing-frequency') === 1
-                    ? 'Full width'
-                    : 'Half width'
-                "
-                data-testid="tile-width-writing-frequency"
-                @click="
-                  store.setTileWidth(
-                    'writing-frequency',
-                    store.getTileSpan('writing-frequency') === 1 ? 2 : 1,
-                  )
-                "
-              >
-                <svg
-                  v-if="store.getTileSpan('writing-frequency') === 2"
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <rect x="2" y="7" width="7" height="6" rx="1" />
-                  <rect x="11" y="7" width="7" height="6" rx="1" />
-                </svg>
-                <svg
-                  v-else
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <rect x="2" y="7" width="16" height="6" rx="1" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                title="Hide chart"
-                @click="store.hideTile('writing-frequency')"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
-            </div>
           </header>
           <div class="h-64 relative">
             <canvas
@@ -1822,18 +1488,8 @@ async function onMoodCorrelationTypeChange(
               data-testid="dashboard-writing-chart"
             ></canvas>
           </div>
-        </section>
-
-        <!-- Word Count -->
-        <section
-          v-if="isTileVisible('word-count')"
-          :style="{
-            order: tileOrder('word-count'),
-            gridColumn: tileSpan('word-count'),
-          }"
-          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4 relative"
-          data-testid="dashboard-word-chart-card"
-        >
+        </template>
+        <template #tile-word-count>
           <header class="mb-3 flex items-start justify-between gap-2">
             <div>
               <h2
@@ -1845,104 +1501,6 @@ async function onMoodCorrelationTypeChange(
                 Total words per {{ store.bin }} {{ rangePhrase }}.
               </p>
             </div>
-            <div
-              v-if="store.editingLayout"
-              class="flex items-center gap-1 shrink-0"
-            >
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                title="Move up"
-                @click="store.moveTile('word-count', 'up')"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                title="Move down"
-                @click="store.moveTile('word-count', 'down')"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                :title="
-                  store.getTileSpan('word-count') === 1
-                    ? 'Full width'
-                    : 'Half width'
-                "
-                data-testid="tile-width-word-count"
-                @click="
-                  store.setTileWidth(
-                    'word-count',
-                    store.getTileSpan('word-count') === 1 ? 2 : 1,
-                  )
-                "
-              >
-                <svg
-                  v-if="store.getTileSpan('word-count') === 2"
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <rect x="2" y="7" width="7" height="6" rx="1" />
-                  <rect x="11" y="7" width="7" height="6" rx="1" />
-                </svg>
-                <svg
-                  v-else
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <rect x="2" y="7" width="16" height="6" rx="1" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                title="Hide chart"
-                @click="store.hideTile('word-count')"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
-            </div>
           </header>
           <div class="h-64 relative">
             <canvas
@@ -1950,18 +1508,8 @@ async function onMoodCorrelationTypeChange(
               data-testid="dashboard-word-chart"
             ></canvas>
           </div>
-        </section>
-
-        <!-- Mood Trends -->
-        <section
-          v-if="store.moodScoringEnabled && isTileVisible('mood-trends')"
-          :style="{
-            order: tileOrder('mood-trends'),
-            gridColumn: tileSpan('mood-trends'),
-          }"
-          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4 relative"
-          data-testid="dashboard-mood-chart-card"
-        >
+        </template>
+        <template #tile-mood-trends>
           <header class="mb-3 flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2
@@ -1975,103 +1523,7 @@ async function onMoodCorrelationTypeChange(
                 entries.
               </p>
             </div>
-            <div class="flex items-center gap-2">
-              <div v-if="store.editingLayout" class="flex items-center gap-1">
-                <button
-                  type="button"
-                  class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                  title="Move up"
-                  @click="store.moveTile('mood-trends', 'up')"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fill-rule="evenodd"
-                      d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
-                      clip-rule="evenodd"
-                    />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                  title="Move down"
-                  @click="store.moveTile('mood-trends', 'down')"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fill-rule="evenodd"
-                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                      clip-rule="evenodd"
-                    />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                  :title="
-                    store.getTileSpan('mood-trends') === 1
-                      ? 'Full width'
-                      : 'Half width'
-                  "
-                  data-testid="tile-width-mood-trends"
-                  @click="
-                    store.setTileWidth(
-                      'mood-trends',
-                      store.getTileSpan('mood-trends') === 1 ? 2 : 1,
-                    )
-                  "
-                >
-                  <svg
-                    v-if="store.getTileSpan('mood-trends') === 2"
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <rect x="2" y="7" width="7" height="6" rx="1" />
-                    <rect x="11" y="7" width="7" height="6" rx="1" />
-                  </svg>
-                  <svg
-                    v-else
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <rect x="2" y="7" width="16" height="6" rx="1" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                  title="Hide chart"
-                  @click="store.hideTile('mood-trends')"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fill-rule="evenodd"
-                      d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                      clip-rule="evenodd"
-                    />
-                  </svg>
-                </button>
-              </div>
-            </div>
+            <div class="flex items-center gap-2"></div>
           </header>
 
           <!-- Dimension toggles, grouped per mood-dimensions.toml comment -->
@@ -2287,18 +1739,8 @@ async function onMoodCorrelationTypeChange(
               </p>
             </div>
           </div>
-        </section>
-
-        <!-- Topic Trends -->
-        <section
-          v-if="isTileVisible('topic-trends')"
-          :style="{
-            order: tileOrder('topic-trends'),
-            gridColumn: tileSpan('topic-trends'),
-          }"
-          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4 relative"
-          data-testid="dashboard-entity-trends-section"
-        >
+        </template>
+        <template #tile-topic-trends>
           <header class="mb-3 flex items-start justify-between gap-2">
             <div>
               <h2
@@ -2309,104 +1751,6 @@ async function onMoodCorrelationTypeChange(
               <p class="text-xs text-gray-600 dark:text-gray-300">
                 Entity mentions {{ rangePhrase }}, grouped per {{ store.bin }}.
               </p>
-            </div>
-            <div
-              v-if="store.editingLayout"
-              class="flex items-center gap-1 shrink-0"
-            >
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                title="Move up"
-                @click="store.moveTile('topic-trends', 'up')"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                title="Move down"
-                @click="store.moveTile('topic-trends', 'down')"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                :title="
-                  store.getTileSpan('topic-trends') === 1
-                    ? 'Full width'
-                    : 'Half width'
-                "
-                data-testid="tile-width-topic-trends"
-                @click="
-                  store.setTileWidth(
-                    'topic-trends',
-                    store.getTileSpan('topic-trends') === 1 ? 2 : 1,
-                  )
-                "
-              >
-                <svg
-                  v-if="store.getTileSpan('topic-trends') === 2"
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <rect x="2" y="7" width="7" height="6" rx="1" />
-                  <rect x="11" y="7" width="7" height="6" rx="1" />
-                </svg>
-                <svg
-                  v-else
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <rect x="2" y="7" width="16" height="6" rx="1" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                title="Hide chart"
-                @click="store.hideTile('topic-trends')"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
             </div>
           </header>
 
@@ -2538,20 +1882,8 @@ async function onMoodCorrelationTypeChange(
               ></canvas>
             </div>
           </template>
-        </section>
-
-        <!-- Mood-Entity Correlation -->
-        <section
-          v-if="
-            store.moodScoringEnabled && isTileVisible('mood-entity-correlation')
-          "
-          :style="{
-            order: tileOrder('mood-entity-correlation'),
-            gridColumn: tileSpan('mood-entity-correlation'),
-          }"
-          class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-5 py-4 relative"
-          data-testid="dashboard-mood-correlation-section"
-        >
+        </template>
+        <template #tile-mood-entity-correlation>
           <header class="mb-3 flex items-start justify-between gap-2">
             <div>
               <h2
@@ -2563,104 +1895,6 @@ async function onMoodCorrelationTypeChange(
                 Average mood score per entity {{ rangePhrase }}. Dashed line
                 shows overall average.
               </p>
-            </div>
-            <div
-              v-if="store.editingLayout"
-              class="flex items-center gap-1 shrink-0"
-            >
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                title="Move up"
-                @click="store.moveTile('mood-entity-correlation', 'up')"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                title="Move down"
-                @click="store.moveTile('mood-entity-correlation', 'down')"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                :title="
-                  store.getTileSpan('mood-entity-correlation') === 1
-                    ? 'Full width'
-                    : 'Half width'
-                "
-                data-testid="tile-width-mood-entity-correlation"
-                @click="
-                  store.setTileWidth(
-                    'mood-entity-correlation',
-                    store.getTileSpan('mood-entity-correlation') === 1 ? 2 : 1,
-                  )
-                "
-              >
-                <svg
-                  v-if="store.getTileSpan('mood-entity-correlation') === 2"
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <rect x="2" y="7" width="7" height="6" rx="1" />
-                  <rect x="11" y="7" width="7" height="6" rx="1" />
-                </svg>
-                <svg
-                  v-else
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <rect x="2" y="7" width="16" height="6" rx="1" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                title="Hide chart"
-                @click="store.hideTile('mood-entity-correlation')"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-              </button>
             </div>
           </header>
 
@@ -2761,8 +1995,8 @@ async function onMoodCorrelationTypeChange(
               data-testid="dashboard-mood-correlation-chart"
             ></canvas>
           </div>
-        </section>
-      </div>
+        </template>
+      </TileGrid>
       <!-- end dashboard tiles grid -->
     </div>
   </div>

@@ -251,25 +251,58 @@ export interface DashboardTileDef {
   span: 1 | 2
   /** If set, tile is only shown when this condition is true */
   requiresMoodScoring?: boolean
+  /**
+   * `data-testid` stamped onto the tile's `<section>` by `TileGrid`.
+   * Some dashboard tests select tiles by these ids; preserving them
+   * keeps the extraction faithful.
+   */
+  testId: string
 }
 
 export const DASHBOARD_TILES: readonly DashboardTileDef[] = [
-  { id: 'calendar-heatmap', title: 'Writing Consistency', span: 1 },
-  { id: 'entity-distribution', title: 'What I Write About', span: 1 },
-  { id: 'writing-frequency', title: 'Writing Frequency', span: 1 },
-  { id: 'word-count', title: 'Word Count', span: 1 },
+  {
+    id: 'calendar-heatmap',
+    title: 'Writing Consistency',
+    span: 1,
+    testId: 'dashboard-calendar-section',
+  },
+  {
+    id: 'entity-distribution',
+    title: 'What I Write About',
+    span: 1,
+    testId: 'dashboard-entity-section',
+  },
+  {
+    id: 'writing-frequency',
+    title: 'Writing Frequency',
+    span: 1,
+    testId: 'dashboard-writing-chart-card',
+  },
+  {
+    id: 'word-count',
+    title: 'Word Count',
+    span: 1,
+    testId: 'dashboard-word-chart-card',
+  },
   {
     id: 'mood-trends',
     title: 'Mood Trends',
     span: 2,
     requiresMoodScoring: true,
+    testId: 'dashboard-mood-chart-card',
   },
-  { id: 'topic-trends', title: 'Topic Trends', span: 2 },
+  {
+    id: 'topic-trends',
+    title: 'Topic Trends',
+    span: 2,
+    testId: 'dashboard-entity-trends-section',
+  },
   {
     id: 'mood-entity-correlation',
     title: 'Mood by Entity',
     span: 2,
     requiresMoodScoring: true,
+    testId: 'dashboard-mood-correlation-section',
   },
 ] as const
 

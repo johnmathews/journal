@@ -716,6 +716,12 @@ export const useDashboardStore = defineStore('dashboard', () => {
     _persistLayout()
   }
 
+  /** Cycle a tile between half (span 1) and full (span 2). */
+  function cycleTileWidth(id: DashboardTileId): void {
+    const next: TileSpan = getTileSpan(id) === 1 ? 2 : 1
+    setTileWidth(id, next)
+  }
+
   function reset(): void {
     range.value = 'all'
     bin.value = 'week'
@@ -856,6 +862,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     resetLayout,
     getTileSpan,
     setTileWidth,
+    cycleTileWidth,
     reset,
   }
 })
