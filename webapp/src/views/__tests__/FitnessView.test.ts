@@ -382,7 +382,7 @@ describe('FitnessView', () => {
     wrapper.unmount()
   })
 
-  it('formats daily values into the sleep series (sleep_score)', async () => {
+  it('formats daily values into the sleep series with 3-day MA overlay', async () => {
     mockFetchDaily.mockResolvedValue({
       items: [
         makeDaily({ id: 1, local_date: '2026-05-08', sleep_score: 80 }),
@@ -393,22 +393,29 @@ describe('FitnessView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    // Expect at least the sleep chart constructor call to have a labels array
-    // matching local_date order.
+    // F7: each daily-wellness chart has two datasets — index 0 is the
+    // bold centred 3-day moving average, index 1 is the faded daily
+    // series.
     const sleepCall = chartConstructorSpy.mock.calls.find(
       (c) =>
         (c[1] as { data: { datasets: Array<{ label: string }> } })?.data
-          ?.datasets?.[0]?.label === 'Sleep score',
+          ?.datasets?.[0]?.label === 'Sleep score (3-day avg)',
     )
     expect(sleepCall).toBeDefined()
     const cfg = sleepCall![1] as {
       data: {
         labels: string[]
-        datasets: Array<{ data: Array<number | null> }>
+        datasets: Array<{ label: string; data: Array<number | null> }>
       }
     }
     expect(cfg.data.labels).toHaveLength(2)
-    expect(cfg.data.datasets[0].data).toEqual([80, 78])
+    expect(cfg.data.datasets).toHaveLength(2)
+    // Daily values land on dataset[1] verbatim.
+    expect(cfg.data.datasets[1].label).toBe('Sleep score (daily)')
+    expect(cfg.data.datasets[1].data).toEqual([80, 78])
+    // MA at the edges truncates to mean of available neighbours:
+    // [80, 78] → MA at index 0 = mean(80, 78) = 79; index 1 = mean(80, 78) = 79.
+    expect(cfg.data.datasets[0].data).toEqual([79, 79])
     wrapper.unmount()
   })
 })

@@ -10,6 +10,7 @@ import {
 } from '@/utils/chartjs-config'
 import { adjustColorOpacity } from '@/utils/mosaic'
 import RangeBinControls from '@/components/RangeBinControls.vue'
+import { movingAverage3 } from '@/utils/moving-average'
 import type {
   FitnessActivityType,
   FitnessSource,
@@ -224,22 +225,44 @@ function renderLineChart(
 ): Chart | null {
   if (!canvas) return null
   const colors = getChartColors()
+  // Sleep / HRV / RHR are noisy day-to-day but trend cleanly when
+  // smoothed. Show the centred 3-day moving average as the bold
+  // primary line and fade the raw daily series so the user sees both
+  // the trend and the underlying data without one obscuring the other.
+  // See docs/chart-style-guide.md.
+  const smoothed = movingAverage3(series.values)
   return new Chart(canvas, {
     type: 'line' as ChartType,
     data: {
       labels: series.labels,
       datasets: [
         {
-          label,
-          data: series.values,
+          label: `${label} (3-day avg)`,
+          data: smoothed,
           borderColor: color,
-          backgroundColor: adjustColorOpacity(color, 0.15),
+          backgroundColor: adjustColorOpacity(color, 0.18),
           fill: true,
           tension: 0.35,
-          pointRadius: 2,
+          pointRadius: 0,
           pointHoverRadius: 5,
           pointBackgroundColor: color,
           spanGaps: true,
+          borderWidth: 2.5,
+          order: 1,
+        },
+        {
+          label: `${label} (daily)`,
+          data: series.values,
+          borderColor: adjustColorOpacity(color, 0.35),
+          backgroundColor: 'transparent',
+          fill: false,
+          tension: 0,
+          pointRadius: 2,
+          pointHoverRadius: 4,
+          pointBackgroundColor: adjustColorOpacity(color, 0.35),
+          spanGaps: true,
+          borderWidth: 1,
+          order: 2,
         },
       ],
     },
