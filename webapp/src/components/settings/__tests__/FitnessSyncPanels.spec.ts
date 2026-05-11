@@ -29,6 +29,10 @@ function statusOk(): FitnessSyncStatus {
           status: 'success',
           rows_fetched: 12,
           rows_normalized: 12,
+          workouts_fetched: 12,
+          wellness_fetched: 0,
+          workouts_normalized: 12,
+          wellness_normalized: 0,
           error_class: null,
           error_message: null,
         },
@@ -144,6 +148,10 @@ describe('FitnessSyncPanels', () => {
             status: 'auth_broken',
             rows_fetched: 0,
             rows_normalized: 0,
+            workouts_fetched: 0,
+            wellness_fetched: 0,
+            workouts_normalized: 0,
+            wellness_normalized: 0,
             error_class: 'AuthBroken',
             error_message: 'expired',
           },
@@ -154,6 +162,10 @@ describe('FitnessSyncPanels', () => {
             status: 'transient_failure',
             rows_fetched: 0,
             rows_normalized: 0,
+            workouts_fetched: 0,
+            wellness_fetched: 0,
+            workouts_normalized: 0,
+            wellness_normalized: 0,
             error_class: 'Transient',
             error_message: 'rate-limited',
           },
@@ -170,5 +182,104 @@ describe('FitnessSyncPanels', () => {
     // lastRunStatusClass.
     expect(wrapper.text()).toContain('auth_broken')
     expect(wrapper.text()).toContain('transient_failure')
+  })
+
+  // --- T7: per-bucket Workouts / Wellness columns ---
+
+  it('renders only the Workouts column for Strava (no Wellness)', async () => {
+    const wrapper = mountPanels(statusOk())
+    await flushPromises()
+
+    const stravaCard = wrapper.find(
+      '[data-testid="fitness-source-card-strava"]',
+    )
+    const headers = stravaCard.findAll('th').map((h) => h.text())
+    expect(headers).toContain('Workouts F/N')
+    expect(headers).not.toContain('Wellness F/N')
+  })
+
+  it('renders both Workouts and Wellness columns for Garmin', async () => {
+    const wrapper = mountPanels({
+      strava: null,
+      garmin: {
+        auth_status: 'ok',
+        auth_broken_since: null,
+        last_success_at: '2026-05-11T22:20:00Z',
+        last_runs: [
+          {
+            id: 7,
+            started_at: '2026-05-11T22:20:00Z',
+            finished_at: '2026-05-11T22:20:03Z',
+            status: 'success',
+            rows_fetched: 8,
+            rows_normalized: 3,
+            workouts_fetched: 2,
+            wellness_fetched: 6,
+            workouts_normalized: 2,
+            wellness_normalized: 1,
+            error_class: null,
+            error_message: null,
+          },
+        ],
+      },
+    })
+    await flushPromises()
+
+    const garminCard = wrapper.find(
+      '[data-testid="fitness-source-card-garmin"]',
+    )
+    const headers = garminCard.findAll('th').map((h) => h.text())
+    expect(headers).toContain('Workouts F/N')
+    expect(headers).toContain('Wellness F/N')
+
+    // The first data row should render the per-bucket fetched/normalized.
+    const rowCells = garminCard
+      .findAll('tbody tr')[0]!
+      .findAll('td')
+      .map((c) => c.text())
+    expect(rowCells).toContain('2 / 2')
+    expect(rowCells).toContain('6 / 1')
+  })
+
+  it('falls back to the legacy rows_fetched total for pre-T7 rows', async () => {
+    // A Garmin row from before the T7 migration: new bucket fields are 0
+    // but rows_fetched is non-zero. The UI should fold the legacy total
+    // into the most-likely bucket (Wellness for Garmin) rather than
+    // showing a misleading "0 / 0".
+    const wrapper = mountPanels({
+      strava: null,
+      garmin: {
+        auth_status: 'ok',
+        auth_broken_since: null,
+        last_success_at: '2026-05-10T00:22:00Z',
+        last_runs: [
+          {
+            id: 50,
+            started_at: '2026-05-10T00:22:00Z',
+            finished_at: '2026-05-10T00:22:03Z',
+            status: 'success',
+            rows_fetched: 204,
+            rows_normalized: 0,
+            workouts_fetched: 0,
+            wellness_fetched: 0,
+            workouts_normalized: 0,
+            wellness_normalized: 0,
+            error_class: null,
+            error_message: null,
+          },
+        ],
+      },
+    })
+    await flushPromises()
+
+    const garminCard = wrapper.find(
+      '[data-testid="fitness-source-card-garmin"]',
+    )
+    const rowCells = garminCard
+      .findAll('tbody tr')[0]!
+      .findAll('td')
+      .map((c) => c.text())
+    expect(rowCells).toContain('—')
+    expect(rowCells).toContain('204 / 0')
   })
 })

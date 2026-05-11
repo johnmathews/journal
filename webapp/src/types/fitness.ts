@@ -69,8 +69,23 @@ export interface FitnessSyncRun {
   started_at: string
   finished_at: string | null
   status: 'success' | 'auth_broken' | 'transient_failure' | 'running'
+  /**
+   * Legacy total counts (workouts + wellness). Kept for backward compat
+   * with rows persisted before T7 (2026-05-11). The per-bucket fields
+   * below are the source of truth for the UI's split display.
+   */
   rows_fetched: number
   rows_normalized: number
+  /**
+   * T7: per-bucket counts. Garmin populates both; Strava is workouts-only
+   * so wellness_* are always 0. Rows persisted before the T7 migration
+   * (2026-05-11) have 0 for all four fields — the UI presents that as "—"
+   * rather than a misleading "0".
+   */
+  workouts_fetched: number
+  wellness_fetched: number
+  workouts_normalized: number
+  wellness_normalized: number
   error_class: string | null
   error_message: string | null
 }

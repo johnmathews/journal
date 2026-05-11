@@ -1,13 +1,25 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { useFitnessStore } from '@/stores/fitness'
-import type { FitnessSource, FitnessSourceStatus } from '@/types/fitness'
+import type {
+  FitnessSource,
+  FitnessSourceStatus,
+  FitnessSyncRun,
+} from '@/types/fitness'
 
 // One panel per source showing auth status, last success, a "Sync now"
 // button, and a collapsible Recent runs table. Extracted from
 // FitnessView so the /fitness page can focus on charts and the sync
 // controls live in Settings · Fitness next to the Strava/Garmin
 // connect cards.
+//
+// T7 (2026-05-11) split the Recent-runs "Fetched" / "Norm." pair into
+// separate Workouts and Wellness columns. Garmin shows both columns
+// (it's the only source that yields wellness data). Strava shows only
+// Workouts — its wellness counts are always 0 by design. Pre-T7 rows
+// in the DB have 0 for the new bucket columns; we fall back to the
+// legacy ``rows_fetched`` / ``rows_normalized`` totals so historical
+// rows don't suddenly read as zero-yield.
 
 const store = useFitnessStore()
 const { syncStatus, triggeringSync, syncError } = storeToRefs(store)
@@ -16,6 +28,34 @@ const sources: FitnessSource[] = ['strava', 'garmin']
 
 function sourceLabel(source: FitnessSource): string {
   return source === 'strava' ? 'Strava' : 'Garmin'
+}
+
+interface CountCell {
+  workouts: string
+  wellness: string
+}
+
+function formatCounts(run: FitnessSyncRun, source: FitnessSource): CountCell {
+  // Pre-T7 rows have 0 for the new bucket counts but may have non-zero
+  // ``rows_fetched`` (and, for runs that happened after F1, ``rows_normalized``).
+  // Push the legacy total into the most likely bucket so the column
+  // doesn't lie about historical rows: Strava → workouts; Garmin →
+  // wellness (which dominates day-to-day for Garmin syncs).
+  const newBucketsEmpty =
+    run.workouts_fetched === 0 &&
+    run.wellness_fetched === 0 &&
+    run.workouts_normalized === 0 &&
+    run.wellness_normalized === 0
+  if (newBucketsEmpty && (run.rows_fetched > 0 || run.rows_normalized > 0)) {
+    const fallback = `${run.rows_fetched} / ${run.rows_normalized}`
+    return source === 'strava'
+      ? { workouts: fallback, wellness: '—' }
+      : { workouts: '—', wellness: fallback }
+  }
+  return {
+    workouts: `${run.workouts_fetched} / ${run.workouts_normalized}`,
+    wellness: `${run.wellness_fetched} / ${run.wellness_normalized}`,
+  }
 }
 
 function formatTimestamp(ts: string | null): string {
@@ -125,8 +165,13 @@ async function onSyncClick(source: FitnessSource) {
             <tr class="text-left text-gray-500">
               <th class="font-medium">Started</th>
               <th class="font-medium">Status</th>
-              <th class="font-medium text-right">Fetched</th>
-              <th class="font-medium text-right">Norm.</th>
+              <th class="font-medium text-right">Workouts F/N</th>
+              <th
+                v-if="source === 'garmin'"
+                class="font-medium text-right"
+              >
+                Wellness F/N
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -139,8 +184,15 @@ async function onSyncClick(source: FitnessSource) {
               <td :class="lastRunStatusClass(run.status)">
                 {{ run.status }}
               </td>
-              <td class="text-right">{{ run.rows_fetched }}</td>
-              <td class="text-right">{{ run.rows_normalized }}</td>
+              <td class="text-right">
+                {{ formatCounts(run, source).workouts }}
+              </td>
+              <td
+                v-if="source === 'garmin'"
+                class="text-right"
+              >
+                {{ formatCounts(run, source).wellness }}
+              </td>
             </tr>
           </tbody>
         </table>
