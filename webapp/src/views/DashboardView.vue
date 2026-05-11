@@ -5,8 +5,6 @@ import { useRouter } from 'vue-router'
 import { Chart } from 'chart.js'
 import { useDashboardStore, rangeToDates } from '@/stores/dashboard'
 import {
-  DASHBOARD_BINS,
-  DASHBOARD_RANGES,
   type DashboardBin,
   type DashboardRange,
   type DashboardTileId,
@@ -25,6 +23,7 @@ import {
 } from '@/utils/mood-display'
 import { groupDimensions } from '@/utils/mood-groups'
 import BaseTooltip from '@/components/BaseTooltip.vue'
+import RangeBinControls from '@/components/RangeBinControls.vue'
 
 // Prevent tree-shaking of Chart.js registration side-effect.
 void getChartColors
@@ -47,25 +46,6 @@ function formatScore(score: number): string {
 
 function navigateToEntry(entryId: number): void {
   router.push({ name: 'entry-detail', params: { id: String(entryId) } })
-}
-
-function rangeLabel(r: DashboardRange): string {
-  switch (r) {
-    case 'last_1_month':
-      return 'Last month'
-    case 'last_3_months':
-      return 'Last 3 months'
-    case 'last_6_months':
-      return 'Last 6 months'
-    case 'last_1_year':
-      return 'Last year'
-    case 'all':
-      return 'All time'
-  }
-}
-
-function binLabel(b: DashboardBin): string {
-  return b.charAt(0).toUpperCase() + b.slice(1)
 }
 
 /** Human-readable range phrase for chart descriptions, e.g. "over the last 6 months". */
@@ -1135,69 +1115,14 @@ async function onMoodCorrelationTypeChange(
     </div>
 
     <!-- Filter bar (sticky so it stays visible while scrolling) -->
-    <div
-      class="mb-6 flex flex-wrap items-end gap-6 sticky top-16 z-10 bg-white dark:bg-gray-800 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-gray-700/60 shadow-xs px-5 py-3"
-      data-testid="dashboard-filters"
-    >
-      <div>
-        <label
-          class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
-          >Range</label
-        >
-        <div
-          class="flex flex-wrap gap-2"
-          role="radiogroup"
-          aria-label="Date range"
-          data-testid="dashboard-range"
-        >
-          <button
-            v-for="r in DASHBOARD_RANGES"
-            :key="r"
-            type="button"
-            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
-            :class="
-              store.range === r
-                ? 'bg-violet-500 text-white border-violet-500'
-                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
-            "
-            :data-testid="`dashboard-range-${r}`"
-            :aria-pressed="store.range === r"
-            @click="onRangeChange(r)"
-          >
-            {{ rangeLabel(r) }}
-          </button>
-        </div>
-      </div>
-      <div>
-        <label
-          class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
-          >Bin width</label
-        >
-        <div
-          class="flex flex-wrap gap-2"
-          role="radiogroup"
-          aria-label="Bin width"
-          data-testid="dashboard-bin"
-        >
-          <button
-            v-for="b in DASHBOARD_BINS"
-            :key="b"
-            type="button"
-            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors capitalize"
-            :class="
-              store.bin === b
-                ? 'bg-violet-500 text-white border-violet-500'
-                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
-            "
-            :data-testid="`dashboard-bin-${b}`"
-            :aria-pressed="store.bin === b"
-            @click="onBinChange(b)"
-          >
-            {{ binLabel(b) }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <RangeBinControls
+      class="mb-6"
+      test-id-prefix="dashboard"
+      :range="store.range"
+      :bin="store.bin"
+      @update:range="onRangeChange"
+      @update:bin="onBinChange"
+    />
 
     <!-- Loading / error / empty / charts -->
     <div

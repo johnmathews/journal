@@ -7,6 +7,7 @@ import {
   triggerSync,
 } from '@/api/fitness'
 import { useJobsStore } from '@/stores/jobs'
+import { rangeToDates } from '@/stores/dashboard'
 import type {
   FitnessActivity,
   FitnessDaily,
@@ -14,6 +15,7 @@ import type {
   FitnessSyncStatus,
   DedupedActivity,
 } from '@/types/fitness'
+import type { DashboardRange, DashboardBin } from '@/types/dashboard'
 
 // Cross-source dedup threshold. Two activities collapse into one when
 // their UTC time windows overlap by at least this fraction of the
@@ -155,6 +157,22 @@ export const useFitnessStore = defineStore('fitness', () => {
     garmin: null,
   })
 
+  // Shared range/bin state — same UX as the dashboard, mounted via
+  // RangeBinControls on the /fitness page. Defaults mirror the
+  // dashboard's so a user landing on either page sees a familiar window.
+  const range = ref<DashboardRange>('last_3_months')
+  const bin = ref<DashboardBin>('week')
+
+  const dateWindow = computed<{ start: string; end: string }>(() => {
+    const { from, to } = rangeToDates(range.value)
+    // For "all time" the dashboard sends `null` to the server, which
+    // returns the full corpus. The fitness endpoints don't accept
+    // `null` directly — fall back to a wide explicit window
+    // (start = epoch year, end = today) so the UI behaves the same.
+    const today = new Date().toISOString().slice(0, 10)
+    return { start: from ?? '1970-01-01', end: to ?? today }
+  })
+
   // Getters
   const distinctActivities = computed<DedupedActivity[]>(() =>
     dedupActivities(activities.value),
@@ -286,6 +304,22 @@ export const useFitnessStore = defineStore('fitness', () => {
     }
   }
 
+  /** Set the active range and refetch both activities and daily wellness
+   *  with the new window. Mirrors the dashboard's `onRangeChange` pattern. */
+  async function setRange(r: DashboardRange) {
+    if (r === range.value) return
+    range.value = r
+    const { start, end } = dateWindow.value
+    await Promise.all([loadActivities(start, end), loadDaily(start, end)])
+  }
+
+  /** Set the active bin width. No refetch — fitness charts compute
+   *  weekly buckets client-side from the loaded series, so the bin only
+   *  affects rendering. */
+  function setBin(b: DashboardBin) {
+    bin.value = b
+  }
+
   return {
     activities,
     daily,
@@ -298,6 +332,9 @@ export const useFitnessStore = defineStore('fitness', () => {
     dailyError,
     statusError,
     syncError,
+    range,
+    bin,
+    dateWindow,
     distinctActivities,
     isAnyAuthBroken,
     brokenSources,
@@ -306,6 +343,8 @@ export const useFitnessStore = defineStore('fitness', () => {
     loadDaily,
     loadSyncStatus,
     startSync,
+    setRange,
+    setBin,
     cancelPendingStatusRefresh,
   }
 })

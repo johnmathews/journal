@@ -5,6 +5,7 @@ import { Chart, type ChartType } from 'chart.js'
 import { useFitnessStore } from '@/stores/fitness'
 import { getChartColors, getThemedGridColor } from '@/utils/chartjs-config'
 import { adjustColorOpacity } from '@/utils/mosaic'
+import RangeBinControls from '@/components/RangeBinControls.vue'
 import type {
   FitnessActivityType,
   FitnessSource,
@@ -19,35 +20,26 @@ const {
   activitiesError,
   dailyError,
   statusError,
+  range,
+  bin,
+  dateWindow,
   distinctActivities,
   isFreshSetup,
 } = storeToRefs(store)
 
-// --- Date window ---
-//
-// Default to a 90-day trailing window. Wide enough to surface a
-// meaningful weekly chart, narrow enough that initial load is quick on
-// the Garmin daily endpoint (90 rows × 6 raw fan-in is not a lot of work
-// for the API but the wire payload grows quickly with every extra month).
-function isoToday(): string {
-  const d = new Date()
-  return d.toISOString().slice(0, 10)
-}
-
-function isoDaysAgo(days: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - days)
-  return d.toISOString().slice(0, 10)
-}
-
-const startDate = ref(isoDaysAgo(90))
-const endDate = ref(isoToday())
+// Track the window the user is viewing for the weekly chart's bucket
+// bounds — kept as `startDate`/`endDate` refs so the chart bucketing
+// (which predates the range picker) keeps working unchanged. They
+// follow the store's dateWindow.
+const startDate = computed(() => dateWindow.value.start)
+const endDate = computed(() => dateWindow.value.end)
 
 async function reloadAll() {
+  const { start, end } = dateWindow.value
   await Promise.all([
     store.loadSyncStatus(),
-    store.loadActivities(startDate.value, endDate.value),
-    store.loadDaily(startDate.value, endDate.value),
+    store.loadActivities(start, end),
+    store.loadDaily(start, end),
   ])
 }
 
@@ -364,24 +356,6 @@ function formatDistance(meters: number | null): string {
         </p>
       </div>
       <div class="flex items-end gap-3">
-        <label class="text-xs text-gray-600 dark:text-gray-300">
-          From
-          <input
-            v-model="startDate"
-            type="date"
-            data-testid="fitness-start-date"
-            class="block mt-1 form-input rounded-md text-sm"
-          />
-        </label>
-        <label class="text-xs text-gray-600 dark:text-gray-300">
-          To
-          <input
-            v-model="endDate"
-            type="date"
-            data-testid="fitness-end-date"
-            class="block mt-1 form-input rounded-md text-sm"
-          />
-        </label>
         <button
           type="button"
           data-testid="fitness-reload"
@@ -392,6 +366,14 @@ function formatDistance(meters: number | null): string {
         </button>
       </div>
     </header>
+
+    <RangeBinControls
+      test-id-prefix="fitness"
+      :range="range"
+      :bin="bin"
+      @update:range="store.setRange($event)"
+      @update:bin="store.setBin($event)"
+    />
 
     <!-- First-run hint when no sources have ever connected -->
     <div

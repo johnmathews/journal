@@ -547,4 +547,64 @@ describe('useFitnessStore', () => {
     await vi.advanceTimersByTimeAsync(3000)
     expect(mockFetchSyncStatus).toHaveBeenCalledTimes(1)
   })
+
+  // F5: range/bin state + setters
+
+  it('defaults range to last_3_months and bin to week', () => {
+    const store = useFitnessStore()
+    expect(store.range).toBe('last_3_months')
+    expect(store.bin).toBe('week')
+  })
+
+  it('dateWindow follows the active range', () => {
+    const store = useFitnessStore()
+    const { start, end } = store.dateWindow
+    expect(end).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(start).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(start < end).toBe(true)
+  })
+
+  it('setRange refetches activities and daily with the new window', async () => {
+    mockFetchActivities.mockResolvedValue({ items: [] })
+    mockFetchDaily.mockResolvedValue({ items: [] })
+    const store = useFitnessStore()
+    mockFetchActivities.mockClear()
+    mockFetchDaily.mockClear()
+
+    await store.setRange('last_1_year')
+
+    expect(store.range).toBe('last_1_year')
+    expect(mockFetchActivities).toHaveBeenCalledTimes(1)
+    expect(mockFetchDaily).toHaveBeenCalledTimes(1)
+  })
+
+  it('setRange is a no-op when the range is unchanged', async () => {
+    const store = useFitnessStore()
+    mockFetchActivities.mockClear()
+    mockFetchDaily.mockClear()
+
+    await store.setRange(store.range)
+
+    expect(mockFetchActivities).not.toHaveBeenCalled()
+    expect(mockFetchDaily).not.toHaveBeenCalled()
+  })
+
+  it('setBin updates state without refetching', async () => {
+    mockFetchActivities.mockResolvedValue({ items: [] })
+    const store = useFitnessStore()
+    mockFetchActivities.mockClear()
+
+    store.setBin('month')
+
+    expect(store.bin).toBe('month')
+    expect(mockFetchActivities).not.toHaveBeenCalled()
+  })
+
+  it('"all" range falls back to a wide explicit window for the fitness endpoints', () => {
+    const store = useFitnessStore()
+    store.range = 'all'
+    const { start, end } = store.dateWindow
+    expect(start).toBe('1970-01-01')
+    expect(end).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
 })
