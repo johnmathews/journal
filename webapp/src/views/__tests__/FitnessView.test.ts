@@ -215,22 +215,21 @@ describe('FitnessView', () => {
     wrapper.unmount()
   })
 
-  it('renders both source cards with auth status labels', async () => {
+  it('links to Settings · Fitness for sync management', async () => {
+    // F4 moved the sync panels into Settings#fitness; the /fitness page
+    // now only links to them.
     const wrapper = mountView()
     await flushPromises()
 
+    const link = wrapper.find('[data-testid="fitness-manage-sync-link"]')
+    expect(link.exists()).toBe(true)
+    expect(link.attributes('href')).toContain('/settings#fitness')
     expect(
       wrapper.find('[data-testid="fitness-source-card-strava"]').exists(),
-    ).toBe(true)
+    ).toBe(false)
     expect(
       wrapper.find('[data-testid="fitness-source-card-garmin"]').exists(),
-    ).toBe(true)
-    expect(
-      wrapper.find('[data-testid="fitness-strava-auth-status"]').text(),
-    ).toBe('OK')
-    expect(
-      wrapper.find('[data-testid="fitness-garmin-auth-status"]').text(),
-    ).toBe('Not connected')
+    ).toBe(false)
     wrapper.unmount()
   })
 
@@ -290,38 +289,6 @@ describe('FitnessView', () => {
     wrapper.unmount()
   })
 
-  it('queues a sync job when the Strava button is clicked', async () => {
-    mockTriggerSync.mockResolvedValue({ job_id: 'job-1', status: 'queued' })
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    await wrapper
-      .find('[data-testid="fitness-strava-sync-btn"]')
-      .trigger('click')
-    await flushPromises()
-
-    expect(mockTriggerSync).toHaveBeenCalledWith('strava')
-    wrapper.unmount()
-  })
-
-  it('surfaces a sync-trigger error inline below the button', async () => {
-    mockTriggerSync.mockRejectedValue(new Error('503 not configured'))
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    await wrapper
-      .find('[data-testid="fitness-garmin-sync-btn"]')
-      .trigger('click')
-    await flushPromises()
-
-    const err = wrapper.find('[data-testid="fitness-garmin-sync-error"]')
-    expect(err.exists()).toBe(true)
-    expect(err.text()).toContain('503 not configured')
-    wrapper.unmount()
-  })
-
   it('renders the activities-per-week chart canvas and the three daily-wellness canvases', async () => {
     const wrapper = mountView()
     await flushPromises()
@@ -366,52 +333,6 @@ describe('FitnessView', () => {
     wrapper.unmount()
     // 4 charts created → 4 destroys.
     expect(destroySpy).toHaveBeenCalledTimes(4)
-  })
-
-  it('renders broken-source state with broken_since timestamp visible', async () => {
-    mockFetchSyncStatus.mockResolvedValue({
-      strava: {
-        auth_status: 'broken',
-        auth_broken_since: '2026-05-09T00:00:00Z',
-        last_success_at: '2026-05-08T07:00:00Z',
-        last_runs: [
-          {
-            id: 99,
-            started_at: '2026-05-09T08:00:00Z',
-            finished_at: '2026-05-09T08:00:01Z',
-            status: 'auth_broken',
-            rows_fetched: 0,
-            rows_normalized: 0,
-            error_class: 'AuthBroken',
-            error_message: 'expired',
-          },
-          {
-            id: 100,
-            started_at: '2026-05-09T07:00:00Z',
-            finished_at: null,
-            status: 'transient_failure',
-            rows_fetched: 0,
-            rows_normalized: 0,
-            error_class: 'Transient',
-            error_message: 'rate-limited',
-          },
-        ],
-      },
-      garmin: null,
-    })
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    expect(
-      wrapper.find('[data-testid="fitness-strava-auth-status"]').text(),
-    ).toBe('Broken')
-    // Recent runs <details> contains rows for both non-success statuses,
-    // exercising the auth_broken and transient_failure branches in
-    // lastRunStatusClass.
-    expect(wrapper.text()).toContain('auth_broken')
-    expect(wrapper.text()).toContain('transient_failure')
-    wrapper.unmount()
   })
 
   it('formats activity duration over an hour as "Xh Ym"', async () => {

@@ -9,6 +9,7 @@ import { triggerEntityExtraction } from '@/api/entities'
 import BatchJobModal from '@/components/BatchJobModal.vue'
 import NotificationsSettings from '@/components/NotificationsSettings.vue'
 import FitnessConnectionsPanel from '@/components/settings/FitnessConnectionsPanel.vue'
+import FitnessSyncPanels from '@/components/settings/FitnessSyncPanels.vue'
 
 const authStore = useAuthStore()
 const jobsStore = useJobsStore()
@@ -290,8 +291,10 @@ async function onMoodJobSucceeded(): Promise<void> {
     <section
       v-show="activeTab === 'fitness'"
       data-testid="fitness-section"
+      class="space-y-6"
     >
       <FitnessConnectionsPanel />
+      <FitnessSyncPanels />
     </section>
 
     <!-- Maintenance -->
