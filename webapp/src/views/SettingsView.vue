@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useJobsStore } from '@/stores/jobs'
 import { useDashboardStore } from '@/stores/dashboard'
@@ -13,6 +14,7 @@ const authStore = useAuthStore()
 const jobsStore = useJobsStore()
 const dashboardStore = useDashboardStore()
 const settingsStore = useSettingsStore()
+const route = useRoute()
 
 // Settings store is loaded lazily — we only need it to know whether mood
 // scoring is enabled, which gates the mood-backfill button.
@@ -21,6 +23,47 @@ settingsStore.load()
 const moodScoringEnabled = computed(
   () => settingsStore.settings?.features.mood_scoring ?? false,
 )
+
+// --- Tabs ------------------------------------------------------------------
+//
+// Tab selection is hash-driven so `/settings#fitness` lands on the Fitness
+// tab (e.g. from the FitnessAuthBanner Reconnect button). Mirrors the
+// pattern used by `/admin` for tabbed navigation, but here we keep a single
+// route and switch sections in-place — these settings panels are cheap to
+// keep mounted, so we use v-show rather than v-if to avoid remounting
+// on every tab switch.
+
+type TabId = 'profile' | 'notifications' | 'fitness' | 'maintenance'
+
+const tabs: { id: TabId; label: string }[] = [
+  { id: 'profile', label: 'Profile' },
+  { id: 'notifications', label: 'Notifications' },
+  { id: 'fitness', label: 'Fitness' },
+  { id: 'maintenance', label: 'Maintenance' },
+]
+
+function tabFromHash(hash: string): TabId {
+  const stripped = hash.replace(/^#/, '') as TabId
+  return tabs.some((t) => t.id === stripped) ? stripped : 'profile'
+}
+
+const activeTab = ref<TabId>(tabFromHash(route.hash))
+
+watch(
+  () => route.hash,
+  (newHash) => {
+    activeTab.value = tabFromHash(newHash)
+  },
+)
+
+function selectTab(id: TabId) {
+  activeTab.value = id
+  // Reflect in the URL so deep-links keep working; replaceState avoids
+  // polluting browser history with every tab click.
+  if (typeof window !== 'undefined') {
+    history.replaceState(history.state, '', `#${id}`)
+  }
+}
 
 // --- Profile: display name editing ------------------------------------------
 
@@ -101,11 +144,37 @@ async function onMoodJobSucceeded(): Promise<void> {
       Settings
     </h1>
 
+    <!-- Tab strip — mirrors the /admin pattern. -->
+    <div class="border-b border-gray-200 dark:border-gray-700/60 mb-6">
+      <nav
+        class="-mb-px flex space-x-6"
+        aria-label="Settings tabs"
+        data-testid="settings-tabs"
+      >
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          type="button"
+          class="whitespace-nowrap border-b-2 py-3 px-1 text-sm font-medium transition"
+          :class="
+            activeTab === tab.id
+              ? 'border-violet-500 text-violet-600 dark:text-violet-400'
+              : 'border-transparent text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+          "
+          :data-testid="`settings-tab-${tab.id}`"
+          :aria-current="activeTab === tab.id ? 'page' : undefined"
+          @click="selectTab(tab.id)"
+        >
+          {{ tab.label }}
+        </button>
+      </nav>
+    </div>
+
     <!-- Profile -->
-    <section class="mb-8" data-testid="profile-section">
-      <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
-        Profile
-      </h2>
+    <section
+      v-show="activeTab === 'profile'"
+      data-testid="profile-section"
+    >
       <div
         class="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs"
       >
@@ -209,11 +278,27 @@ async function onMoodJobSucceeded(): Promise<void> {
       </div>
     </section>
 
+    <!-- Notifications -->
+    <section
+      v-show="activeTab === 'notifications'"
+      data-testid="notifications-section"
+    >
+      <NotificationsSettings />
+    </section>
+
+    <!-- Fitness -->
+    <section
+      v-show="activeTab === 'fitness'"
+      data-testid="fitness-section"
+    >
+      <FitnessConnectionsPanel />
+    </section>
+
     <!-- Maintenance -->
-    <section class="mb-8" data-testid="maintenance-section">
-      <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
-        Maintenance
-      </h2>
+    <section
+      v-show="activeTab === 'maintenance'"
+      data-testid="maintenance-section"
+    >
       <p class="text-xs text-gray-600 dark:text-gray-300 mb-3">
         These jobs operate only on your own entries.
       </p>
@@ -286,11 +371,5 @@ async function onMoodJobSucceeded(): Promise<void> {
       title="Run entity extraction"
       job-kind="entity_extraction"
     />
-
-    <!-- Fitness connections -->
-    <FitnessConnectionsPanel />
-
-    <!-- Notifications -->
-    <NotificationsSettings />
   </main>
 </template>

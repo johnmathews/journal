@@ -453,4 +453,131 @@ describe('SettingsView', () => {
       false,
     )
   })
+
+  // --- F3: tabbed layout ---
+
+  it('renders four tabs in order: Profile, Notifications, Fitness, Maintenance', async () => {
+    const wrapper = await mountView()
+    const tabs = wrapper.findAll('[data-testid^="settings-tab-"]')
+    expect(tabs.map((t) => t.text())).toEqual([
+      'Profile',
+      'Notifications',
+      'Fitness',
+      'Maintenance',
+    ])
+  })
+
+  it('Profile tab is active by default with no hash', async () => {
+    const wrapper = await mountView()
+    const profileTab = wrapper.find('[data-testid="settings-tab-profile"]')
+    expect(profileTab.attributes('aria-current')).toBe('page')
+  })
+
+  it('clicking a tab swaps which section is visible', async () => {
+    const wrapper = await mountView()
+    // Profile visible initially
+    const profile = wrapper.find('[data-testid="profile-section"]')
+    expect(profile.element).toBeDefined()
+    expect((profile.element as HTMLElement).style.display).not.toBe('none')
+
+    await wrapper.find('[data-testid="settings-tab-maintenance"]').trigger('click')
+
+    expect((profile.element as HTMLElement).style.display).toBe('none')
+    const maintenance = wrapper.find('[data-testid="maintenance-section"]')
+    expect((maintenance.element as HTMLElement).style.display).not.toBe('none')
+  })
+
+  it('opens the Fitness tab when the URL hash is #fitness', async () => {
+    mockFetchSettings.mockResolvedValue(makeSettings())
+    mockFetchHealth.mockResolvedValue({
+      status: 'ok',
+      checks: [],
+      ingestion: {
+        total_entries: 0,
+        total_words: 0,
+        total_chunks: 0,
+        avg_words_per_entry: 0,
+        avg_chunks_per_entry: 0,
+        last_ingested_at: null,
+        entries_last_7d: 0,
+        entries_last_30d: 0,
+        by_source_type: {},
+        row_counts: { entries: 0, entry_pages: 0, chunks: 0 },
+      },
+      queries: {
+        total_queries: 0,
+        uptime_seconds: 0,
+        started_at: '2026-04-14T09:00:00Z',
+        by_type: {},
+      },
+    })
+    const pinia = createPinia()
+    const router = makeRouter()
+    await router.push('/settings#fitness')
+    await router.isReady()
+    setActivePinia(pinia)
+    const authStore = useAuthStore()
+    authStore.user = {
+      id: 1,
+      email: 'a@b.c',
+      display_name: 'A',
+      is_admin: false,
+      is_active: true,
+      email_verified: true,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    }
+    const wrapper = mount(SettingsView, {
+      global: { plugins: [pinia, router] },
+    })
+    await flushPromises()
+
+    const fitnessTab = wrapper.find('[data-testid="settings-tab-fitness"]')
+    expect(fitnessTab.attributes('aria-current')).toBe('page')
+    const fitnessSection = wrapper.find('[data-testid="fitness-section"]')
+    expect((fitnessSection.element as HTMLElement).style.display).not.toBe(
+      'none',
+    )
+  })
+
+  it('falls back to Profile tab for an unknown hash', async () => {
+    mockFetchSettings.mockResolvedValue(makeSettings())
+    mockFetchHealth.mockResolvedValue({
+      status: 'ok',
+      checks: [],
+      ingestion: {
+        total_entries: 0,
+        total_words: 0,
+        total_chunks: 0,
+        avg_words_per_entry: 0,
+        avg_chunks_per_entry: 0,
+        last_ingested_at: null,
+        entries_last_7d: 0,
+        entries_last_30d: 0,
+        by_source_type: {},
+        row_counts: { entries: 0, entry_pages: 0, chunks: 0 },
+      },
+      queries: {
+        total_queries: 0,
+        uptime_seconds: 0,
+        started_at: '2026-04-14T09:00:00Z',
+        by_type: {},
+      },
+    })
+    const pinia = createPinia()
+    const router = makeRouter()
+    await router.push('/settings#bogus')
+    await router.isReady()
+    setActivePinia(pinia)
+    const wrapper = mount(SettingsView, {
+      global: { plugins: [pinia, router] },
+    })
+    await flushPromises()
+
+    expect(
+      wrapper
+        .find('[data-testid="settings-tab-profile"]')
+        .attributes('aria-current'),
+    ).toBe('page')
+  })
 })
