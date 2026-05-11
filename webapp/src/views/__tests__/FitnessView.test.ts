@@ -35,6 +35,13 @@ vi.mock('@/utils/chartjs-config', () => ({
   chartAreaGradient: () => 'transparent',
   TOOLTIP_HOVER_DELAY_MS: 1000,
   tooltipHoverDelayPlugin: { id: 'tooltipHoverDelay' },
+  buildLineChartOptions: () => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { display: false }, tooltip: {} },
+    scales: { x: {}, y: {} },
+  }),
 }))
 
 const { destroySpy, chartConstructorSpy, ChartStub } = vi.hoisted(() => {
@@ -180,6 +187,9 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'dashboard', component: { template: '<div />' } },
+    // F4 added a "Manage sync → /settings#fitness" link on /fitness.
+    // Stub the settings route so vue-router's resolution doesn't warn.
+    { path: '/settings', name: 'settings', component: { template: '<div />' } },
   ],
 })
 

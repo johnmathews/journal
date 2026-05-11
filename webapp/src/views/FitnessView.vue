@@ -3,7 +3,11 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { Chart, type ChartType } from 'chart.js'
 import { useFitnessStore } from '@/stores/fitness'
-import { getChartColors, getThemedGridColor } from '@/utils/chartjs-config'
+import {
+  getChartColors,
+  getThemedGridColor,
+  buildLineChartOptions,
+} from '@/utils/chartjs-config'
 import { adjustColorOpacity } from '@/utils/mosaic'
 import RangeBinControls from '@/components/RangeBinControls.vue'
 import type {
@@ -160,9 +164,15 @@ function renderActivitiesChart(): void {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      // Match the dashboard's stacked-bar tooltip behaviour: resolve
+      // hover to the x-bucket so the tooltip lists every series at
+      // that week, not just the nearest segment.
+      interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: true, position: 'bottom' },
         tooltip: {
+          filter: (item) => (item.parsed?.y ?? 0) > 0,
+          itemSort: (a, b) => b.datasetIndex - a.datasetIndex,
           backgroundColor: colors.tooltipBgColor.light,
           titleColor: colors.tooltipTitleColor.light,
           bodyColor: colors.tooltipBodyColor.light,
@@ -233,35 +243,7 @@ function renderLineChart(
         },
       ],
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: colors.tooltipBgColor.light,
-          titleColor: colors.tooltipTitleColor.light,
-          bodyColor: colors.tooltipBodyColor.light,
-          borderColor: colors.tooltipBorderColor.light,
-        },
-      },
-      scales: {
-        x: {
-          grid: { display: false },
-          ticks: {
-            color: colors.textColor.light,
-            maxRotation: 0,
-            autoSkip: true,
-            maxTicksLimit: 8,
-          },
-        },
-        y: {
-          beginAtZero: false,
-          grid: { color: getThemedGridColor() },
-          ticks: { color: colors.textColor.light, precision: 0 },
-        },
-      },
-    },
+    options: buildLineChartOptions({ colors, beginAtZero: false }),
   })
 }
 

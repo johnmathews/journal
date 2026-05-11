@@ -268,3 +268,76 @@ export function getThemedGridColor(): string {
     ? getCssVariable('--color-gray-100')
     : getCssVariable('--color-gray-300')
 }
+
+/**
+ * Build the canonical line-chart options block. Centralises the
+ * hover/legend/tooltip/scale shape every line chart in the app
+ * should look and feel the same — fitness charts now use it; the
+ * dashboard's writing and word-count line charts use it; new charts
+ * should adopt it instead of hand-rolling another inline options
+ * object.
+ *
+ * Bespoke needs (bar charts, dual-axis, click-to-drill-down) keep
+ * inline options; this builder only covers the line-chart common
+ * case. See `docs/chart-style-guide.md` for the recipe.
+ *
+ * `interaction.mode = 'index'` + `intersect: false` is the same
+ * pairing the dashboard's entityTrends chart uses; it makes the
+ * tooltip resolve to "all series at this x" rather than the nearest
+ * point, which the user expected after seeing the dashboard.
+ */
+export interface LineChartOptionsArgs {
+  colors: ChartColors
+  /** Show or hide the built-in Chart.js legend (chip strip below
+   *  the chart). Default `false` because most line charts in this
+   *  app use external chips for series toggling. */
+  showLegend?: boolean
+  /** Y-axis: start at zero. Default `true`. Pass `false` for
+   *  metrics where the interesting range floats above zero
+   *  (resting HR, HRV, sleep score). */
+  beginAtZero?: boolean
+  /** Y-axis tick precision. Default `0` (integer ticks). */
+  yTickPrecision?: number
+}
+
+export function buildLineChartOptions(args: LineChartOptionsArgs) {
+  const {
+    colors,
+    showLegend = false,
+    beginAtZero = true,
+    yTickPrecision = 0,
+  } = args
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    // Resolve hover to "all series at this x" so multi-series charts
+    // show a vertical-crosshair tooltip rather than the single
+    // nearest point. Matches the dashboard's entity-trends behaviour.
+    interaction: { mode: 'index' as const, intersect: false },
+    plugins: {
+      legend: { display: showLegend, position: 'bottom' as const },
+      tooltip: {
+        backgroundColor: colors.tooltipBgColor.light,
+        titleColor: colors.tooltipTitleColor.light,
+        bodyColor: colors.tooltipBodyColor.light,
+        borderColor: colors.tooltipBorderColor.light,
+      },
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: {
+          color: colors.textColor.light,
+          maxRotation: 0,
+          autoSkip: true,
+          maxTicksLimit: 8,
+        },
+      },
+      y: {
+        beginAtZero,
+        grid: { color: getThemedGridColor() },
+        ticks: { color: colors.textColor.light, precision: yTickPrecision },
+      },
+    },
+  }
+}
