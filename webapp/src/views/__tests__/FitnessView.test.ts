@@ -389,12 +389,21 @@ describe('FitnessView', () => {
 
     // F7: each daily-wellness chart has two datasets — index 0 is the
     // bold centred 3-day moving average, index 1 is the faded daily
-    // series.
-    const sleepCall = chartConstructorSpy.mock.calls.find(
-      (c) =>
-        (c[1] as { data: { datasets: Array<{ label: string }> } })?.data
-          ?.datasets?.[0]?.label === 'Sleep score (3-day avg)',
-    )
+    // series. Labels are deliberately short ("3-day avg" / "Daily")
+    // because the panel header already states the metric (e.g.
+    // "Sleep score"), so the tooltip only needs to disambiguate
+    // within the chart. Find the sleep chart by its violet color
+    // (#6366f1) — the labels are no longer unique across panels.
+    const sleepCall = chartConstructorSpy.mock.calls.find((c) => {
+      const datasets = (
+        c[1] as {
+          data: {
+            datasets: Array<{ borderColor: string }>
+          }
+        }
+      )?.data?.datasets
+      return datasets?.[0]?.borderColor === '#6366f1'
+    })
     expect(sleepCall).toBeDefined()
     const cfg = sleepCall![1] as {
       data: {
@@ -404,8 +413,9 @@ describe('FitnessView', () => {
     }
     expect(cfg.data.labels).toHaveLength(2)
     expect(cfg.data.datasets).toHaveLength(2)
+    expect(cfg.data.datasets[0].label).toBe('3-day avg')
+    expect(cfg.data.datasets[1].label).toBe('Daily')
     // Daily values land on dataset[1] verbatim.
-    expect(cfg.data.datasets[1].label).toBe('Sleep score (daily)')
     expect(cfg.data.datasets[1].data).toEqual([80, 78])
     // MA at the edges truncates to mean of available neighbours:
     // [80, 78] → MA at index 0 = mean(80, 78) = 79; index 1 = mean(80, 78) = 79.

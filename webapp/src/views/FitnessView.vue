@@ -217,7 +217,6 @@ function dailySeries(field: keyof (typeof daily.value)[number]): DailySeries {
 function renderLineChart(
   canvas: HTMLCanvasElement | null,
   series: DailySeries,
-  label: string,
   color: string,
 ): Chart | null {
   if (!canvas) return null
@@ -234,7 +233,7 @@ function renderLineChart(
       labels: series.labels,
       datasets: [
         {
-          label: `${label} (3-day avg)`,
+          label: '3-day avg',
           data: smoothed,
           borderColor: color,
           backgroundColor: adjustColorOpacity(color, 0.18),
@@ -248,7 +247,7 @@ function renderLineChart(
           order: 1,
         },
         {
-          label: `${label} (daily)`,
+          label: 'Daily',
           data: series.values,
           borderColor: adjustColorOpacity(color, 0.35),
           backgroundColor: 'transparent',
@@ -272,7 +271,6 @@ function renderSleepChart(): void {
   sleepChart = renderLineChart(
     sleepChartCanvas.value,
     dailySeries('sleep_score'),
-    'Sleep score',
     '#6366f1',
   )
 }
@@ -282,7 +280,6 @@ function renderHrvChart(): void {
   hrvChart = renderLineChart(
     hrvChartCanvas.value,
     dailySeries('hrv_overnight_ms'),
-    'HRV overnight (ms)',
     '#10b981',
   )
 }
@@ -292,7 +289,6 @@ function renderRhrChart(): void {
   rhrChart = renderLineChart(
     rhrChartCanvas.value,
     dailySeries('resting_hr_bpm'),
-    'Resting HR (bpm)',
     '#f43f5e',
   )
 }

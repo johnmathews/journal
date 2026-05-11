@@ -73,9 +73,12 @@ smoothed. The convention (F7) is two datasets per chart:
 
 1. **3-day centred moving average** — bold (`borderWidth: 2.5`), filled with
    the chart's primary color at ~0.18 opacity, `pointRadius: 0` so it reads as
-   a line not a scatter, `order: 1` so it draws on top.
+   a line not a scatter, `order: 1` so it draws on top. Dataset label is just
+   `'3-day avg'` — the panel header already names the metric, so the tooltip
+   doesn't need to repeat it.
 2. **Daily series** — thin (`borderWidth: 1`), no fill, color at ~0.35 opacity,
-   `pointRadius: 2`, `order: 2` so it sits underneath.
+   `pointRadius: 2`, `order: 2` so it sits underneath. Dataset label is just
+   `'Daily'`.
 
 Compute the MA with [`movingAverage3()`](../src/utils/moving-average.ts) — it
 truncates the window at series edges so the smoothed line spans the full date
