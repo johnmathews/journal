@@ -59,7 +59,9 @@ describe('RangeBinControls', () => {
     const wrapper = mount(RangeBinControls, {
       props: { range: 'last_3_months', bin: 'week', testIdPrefix: 'dashboard' },
     })
-    expect(wrapper.find('[data-testid="dashboard-filters"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="dashboard-filters"]').exists()).toBe(
+      true,
+    )
     expect(wrapper.find('[data-testid="dashboard-range-all"]').exists()).toBe(
       true,
     )

@@ -480,7 +480,9 @@ describe('SettingsView', () => {
     expect(profile.element).toBeDefined()
     expect((profile.element as HTMLElement).style.display).not.toBe('none')
 
-    await wrapper.find('[data-testid="settings-tab-maintenance"]').trigger('click')
+    await wrapper
+      .find('[data-testid="settings-tab-maintenance"]')
+      .trigger('click')
 
     expect((profile.element as HTMLElement).style.display).toBe('none')
     const maintenance = wrapper.find('[data-testid="maintenance-section"]')

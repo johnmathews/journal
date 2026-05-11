@@ -99,6 +99,37 @@ describe('FitnessSyncPanels', () => {
     expect(err.text()).toContain('503 not configured')
   })
 
+  it('shows "Not connected" and "—" for last success when sync_status is null', async () => {
+    const wrapper = mountPanels({ strava: null, garmin: null })
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="fitness-strava-auth-status"]').text(),
+    ).toBe('Not connected')
+    expect(
+      wrapper.find('[data-testid="fitness-garmin-auth-status"]').text(),
+    ).toBe('Not connected')
+    // Last-success row should show the dash placeholder.
+    expect(wrapper.text()).toContain('—')
+  })
+
+  it('falls back to "Unknown" auth status for an unexpected enum value', async () => {
+    const wrapper = mountPanels({
+      strava: {
+        // Force an out-of-domain value to exercise the fallback branch.
+        // (Server enums today are ok / broken — this is defence-in-depth.)
+        auth_status: 'mystery' as 'ok',
+        auth_broken_since: null,
+        last_success_at: null,
+        last_runs: [],
+      },
+      garmin: null,
+    })
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="fitness-strava-auth-status"]').text(),
+    ).toBe('Unknown')
+  })
+
   it('renders broken-source state with broken_since timestamp and recent runs', async () => {
     const wrapper = mountPanels({
       strava: {

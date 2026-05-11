@@ -172,10 +172,7 @@ async function onMoodJobSucceeded(): Promise<void> {
     </div>
 
     <!-- Profile -->
-    <section
-      v-show="activeTab === 'profile'"
-      data-testid="profile-section"
-    >
+    <section v-show="activeTab === 'profile'" data-testid="profile-section">
       <div
         class="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs"
       >

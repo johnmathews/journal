@@ -39,7 +39,7 @@ src/
 - Pinia — state management
 - Vue Router — routing
 - Vitest + Vue Test Utils + happy-dom — testing
-- Chart.js 4 — charts via `src/utils/chartjs-config.ts` (direct, no wrapper)
+- Chart.js 4 — charts via `src/utils/chartjs-config.ts` (direct, no wrapper). When adding a new chart, read [`docs/chart-style-guide.md`](docs/chart-style-guide.md) first — it documents the shared `buildLineChartOptions` helper and the bold-MA-over-faded-daily pattern.
 
 ## Git Hooks
 

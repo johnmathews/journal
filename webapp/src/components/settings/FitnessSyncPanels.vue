@@ -1,10 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { useFitnessStore } from '@/stores/fitness'
-import type {
-  FitnessSource,
-  FitnessSourceStatus,
-} from '@/types/fitness'
+import type { FitnessSource, FitnessSourceStatus } from '@/types/fitness'
 
 // One panel per source showing auth status, last success, a "Sync now"
 // button, and a collapsible Recent runs table. Extracted from

@@ -113,7 +113,8 @@ Typed fetch wrappers for the journal-server REST API.
 ### Utilities (`src/utils/`)
 Pure helper functions with no Vue or store dependencies.
 
-- **chartjs-config.ts** — Chart.js global defaults and helper functions for dashboard charts. Also registers the global `tooltipHoverDelayPlugin` (1-second hover-intent delay before tooltips appear, applied to every chart) and exposes `getThemedGridColor()` for theme-appropriate grid lines.
+- **chartjs-config.ts** — Chart.js global defaults and helper functions for dashboard and fitness charts. Registers the global `tooltipHoverDelayPlugin` (1-second hover-intent delay before tooltips appear, applied to every chart), exposes `getThemedGridColor()` for theme-appropriate grid lines, and exports `buildLineChartOptions()` — the canonical line-chart options block used by both the dashboard and `/fitness` so hover, legend, tooltip styling, and scale config stay consistent across surfaces. See [`chart-style-guide.md`](./chart-style-guide.md) for the recipe and when to use bespoke options instead.
+- **moving-average.ts** — `movingAverage3()` centred-3 helper used by the fitness Sleep/HRV/RHR panels to render a bold trend line over the noisy daily series. Truncates at series edges and skips nulls inside the window.
 - **mosaic.ts** — CSS/colour helpers ported from the Mosaic admin template
 - **searchSnippet.ts** — Converts FTS5 snippet marker characters (`\x02`/`\x03`) into `<mark>` HTML tags for rendering search result highlights
 - **cost-estimates.ts** — Computes per-1k-words ingestion + first-edit costs for the Admin Overview / Runtime cost cards using the live pricing rows.

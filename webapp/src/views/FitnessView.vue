@@ -11,10 +11,7 @@ import {
 import { adjustColorOpacity } from '@/utils/mosaic'
 import RangeBinControls from '@/components/RangeBinControls.vue'
 import { movingAverage3 } from '@/utils/moving-average'
-import type {
-  FitnessActivityType,
-  FitnessSource,
-} from '@/types/fitness'
+import type { FitnessActivityType, FitnessSource } from '@/types/fitness'
 
 const store = useFitnessStore()
 const {

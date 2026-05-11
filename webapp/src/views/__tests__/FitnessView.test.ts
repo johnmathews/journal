@@ -99,16 +99,10 @@ vi.mock('chart.js', () => {
   }
 })
 
-import {
-  fetchActivities,
-  fetchDaily,
-  fetchSyncStatus,
-  triggerSync,
-} from '@/api/fitness'
+import { fetchActivities, fetchDaily, fetchSyncStatus } from '@/api/fitness'
 const mockFetchActivities = vi.mocked(fetchActivities)
 const mockFetchDaily = vi.mocked(fetchDaily)
 const mockFetchSyncStatus = vi.mocked(fetchSyncStatus)
-const mockTriggerSync = vi.mocked(triggerSync)
 
 function makeActivity(over: Partial<FitnessActivity> = {}): FitnessActivity {
   return {
