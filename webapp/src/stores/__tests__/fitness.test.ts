@@ -3,8 +3,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import {
   useFitnessStore,
   dedupActivities,
-  DEDUP_START_TOLERANCE_MS,
-  DEDUP_DURATION_TOLERANCE_S,
+  DEDUP_OVERLAP_THRESHOLD,
 } from '../fitness'
 import type { FitnessActivity, FitnessSyncStatus } from '@/types/fitness'
 
@@ -70,7 +69,169 @@ describe('dedupActivities', () => {
     expect(result.every((r) => r.secondary_source_ids.length === 0)).toBe(true)
   })
 
-  it('pairs Strava and Garmin rows within ±90s start_time and ±30s duration_s', () => {
+  it('merges 42m Strava and 41m Garmin at the same start (F2 regression)', () => {
+    // The 2026-05-09 case from the user review: a one-minute duration
+    // gap (Strava moving-time vs Garmin total-time) was enough to make
+    // the old start+duration-tolerance algorithm fail to merge.
+    const strava = makeActivity({
+      id: 1,
+      source: 'strava',
+      source_id: 's1',
+      start_time: '2026-05-09T07:00:00Z',
+      duration_s: 42 * 60,
+    })
+    const garmin = makeActivity({
+      id: 2,
+      source: 'garmin',
+      source_id: 'g1',
+      start_time: '2026-05-09T07:00:00Z',
+      duration_s: 41 * 60,
+    })
+
+    const result = dedupActivities([strava, garmin])
+
+    expect(result).toHaveLength(1)
+    expect(result[0].representative.source).toBe('strava')
+    expect(result[0].secondary_source_ids).toEqual([
+      { source: 'garmin', source_id: 'g1' },
+    ])
+  })
+
+  it('merges activities offset by 1 minute (moving-time vs total-time scenario)', () => {
+    // Strava 60m at 08:00; Garmin 58m at 08:01. Overlap = 57 min;
+    // shorter = 58 min; ratio ≈ 98% — comfortably over 75%.
+    const strava = makeActivity({
+      id: 1,
+      source: 'strava',
+      source_id: 's1',
+      start_time: '2026-05-09T08:00:00Z',
+      duration_s: 60 * 60,
+    })
+    const garmin = makeActivity({
+      id: 2,
+      source: 'garmin',
+      source_id: 'g1',
+      start_time: '2026-05-09T08:01:00Z',
+      duration_s: 58 * 60,
+    })
+
+    const result = dedupActivities([strava, garmin])
+
+    expect(result).toHaveLength(1)
+  })
+
+  it('keeps two distinct activities 35 minutes apart as separate rows', () => {
+    // 30m run at 7:00 ends at 7:30. 30m run at 8:05 starts after the
+    // first ends — overlap is 0 — must not merge.
+    const a = makeActivity({
+      id: 1,
+      source: 'strava',
+      source_id: 'a',
+      start_time: '2026-05-09T07:00:00Z',
+      duration_s: 30 * 60,
+    })
+    const b = makeActivity({
+      id: 2,
+      source: 'strava',
+      source_id: 'b',
+      start_time: '2026-05-09T08:05:00Z',
+      duration_s: 30 * 60,
+    })
+
+    const result = dedupActivities([a, b])
+
+    expect(result).toHaveLength(2)
+  })
+
+  it('handles three-source case: Strava + matching Garmin + phantom Garmin', () => {
+    // Strava 30m at 07:00, Garmin 30m at 07:00 (real pair), phantom
+    // Garmin 30m at 09:00 (no Strava counterpart). Two distinct
+    // workouts, three input rows.
+    const strava = makeActivity({
+      id: 1,
+      source: 'strava',
+      source_id: 's1',
+      start_time: '2026-05-09T07:00:00Z',
+      duration_s: 30 * 60,
+    })
+    const garminPair = makeActivity({
+      id: 2,
+      source: 'garmin',
+      source_id: 'g1',
+      start_time: '2026-05-09T07:00:00Z',
+      duration_s: 30 * 60,
+    })
+    const garminSolo = makeActivity({
+      id: 3,
+      source: 'garmin',
+      source_id: 'g2',
+      start_time: '2026-05-09T09:00:00Z',
+      duration_s: 30 * 60,
+    })
+
+    const result = dedupActivities([strava, garminPair, garminSolo])
+
+    expect(result).toHaveLength(2)
+    const merged = result.find((r) => r.secondary_source_ids.length > 0)
+    expect(merged?.representative.source).toBe('strava')
+    expect(merged?.secondary_source_ids).toEqual([
+      { source: 'garmin', source_id: 'g1' },
+    ])
+    const solo = result.find((r) => r.secondary_source_ids.length === 0)
+    expect(solo?.representative.source_id).toBe('g2')
+  })
+
+  it('matches by UTC window regardless of how the original ISO is formatted', () => {
+    // Strava sends `Z`; Garmin (normalize.py converts to UTC) also
+    // produces `Z`-suffixed ISO. Same UTC moment must merge even if
+    // someone tests with an offset notation that resolves to the same
+    // instant.
+    const strava = makeActivity({
+      id: 1,
+      source: 'strava',
+      source_id: 's1',
+      start_time: '2026-05-09T07:00:00Z',
+      duration_s: 30 * 60,
+    })
+    const garmin = makeActivity({
+      id: 2,
+      source: 'garmin',
+      source_id: 'g1',
+      // Same UTC moment expressed as +02:00 offset.
+      start_time: '2026-05-09T09:00:00+02:00',
+      duration_s: 30 * 60,
+    })
+
+    const result = dedupActivities([strava, garmin])
+
+    expect(result).toHaveLength(1)
+  })
+
+  it('picks the longer activity as the representative', () => {
+    // 60m Garmin should win over 42m Strava because it is longer,
+    // even though the tie-break otherwise prefers Strava.
+    const strava = makeActivity({
+      id: 1,
+      source: 'strava',
+      source_id: 's1',
+      start_time: '2026-05-09T07:00:00Z',
+      duration_s: 42 * 60,
+    })
+    const garmin = makeActivity({
+      id: 2,
+      source: 'garmin',
+      source_id: 'g1',
+      start_time: '2026-05-09T07:00:00Z',
+      duration_s: 60 * 60,
+    })
+
+    const result = dedupActivities([strava, garmin])
+
+    expect(result).toHaveLength(1)
+    expect(result[0].representative.source).toBe('garmin')
+  })
+
+  it('breaks ties (equal duration) by preferring Strava', () => {
     const strava = makeActivity({
       id: 1,
       source: 'strava',
@@ -82,88 +243,14 @@ describe('dedupActivities', () => {
       id: 2,
       source: 'garmin',
       source_id: 'g1',
-      start_time: '2026-05-09T07:00:30Z', // +30s — within tolerance
-      duration_s: 1810, // +10s — within tolerance
+      start_time: '2026-05-09T07:00:00Z',
+      duration_s: 1800,
     })
 
     const result = dedupActivities([strava, garmin])
 
     expect(result).toHaveLength(1)
     expect(result[0].representative.source).toBe('strava')
-    expect(result[0].representative.source_id).toBe('s1')
-    expect(result[0].secondary_source_ids).toEqual([
-      { source: 'garmin', source_id: 'g1' },
-    ])
-  })
-
-  it('does NOT pair rows when start_time exceeds tolerance', () => {
-    const strava = makeActivity({
-      id: 1,
-      source: 'strava',
-      start_time: '2026-05-09T07:00:00Z',
-    })
-    const garmin = makeActivity({
-      id: 2,
-      source: 'garmin',
-      // +91 seconds — just over the ±90s window.
-      start_time: '2026-05-09T07:01:31Z',
-    })
-
-    const result = dedupActivities([strava, garmin])
-
-    expect(result).toHaveLength(2)
-  })
-
-  it('does NOT pair rows when duration_s exceeds tolerance', () => {
-    const strava = makeActivity({
-      id: 1,
-      source: 'strava',
-      start_time: '2026-05-09T07:00:00Z',
-      duration_s: 1800,
-    })
-    const garmin = makeActivity({
-      id: 2,
-      source: 'garmin',
-      start_time: '2026-05-09T07:00:00Z',
-      duration_s: 1850, // +50s — over the ±30s tolerance
-    })
-
-    const result = dedupActivities([strava, garmin])
-
-    expect(result).toHaveLength(2)
-  })
-
-  it('does NOT match the same Garmin row to two Strava rows', () => {
-    const stravaA = makeActivity({
-      id: 1,
-      source: 'strava',
-      source_id: 'sA',
-      start_time: '2026-05-09T07:00:00Z',
-      duration_s: 1800,
-    })
-    const stravaB = makeActivity({
-      id: 2,
-      source: 'strava',
-      source_id: 'sB',
-      start_time: '2026-05-09T07:00:30Z',
-      duration_s: 1800,
-    })
-    const garmin = makeActivity({
-      id: 3,
-      source: 'garmin',
-      source_id: 'gOne',
-      start_time: '2026-05-09T07:00:15Z',
-      duration_s: 1800,
-    })
-
-    const result = dedupActivities([stravaA, stravaB, garmin])
-
-    // First Strava claims the Garmin; second Strava is solo.
-    expect(result).toHaveLength(2)
-    const claimed = result.find((r) => r.secondary_source_ids.length > 0)
-    const solo = result.find((r) => r.secondary_source_ids.length === 0)
-    expect(claimed?.representative.source_id).toBe('sA')
-    expect(solo?.representative.source_id).toBe('sB')
   })
 
   it('sorts results by start_time descending', () => {
@@ -188,63 +275,26 @@ describe('dedupActivities', () => {
     ])
   })
 
-  it('breaks the inner scan once the Garmin window is past the Strava start', () => {
-    // sortedAscending — the inner loop should stop scanning the Garmin
-    // list as soon as gStart is more than 90s ahead of sStart.
-    const strava = makeActivity({
+  it('does not mutate the caller-supplied array order', () => {
+    const a = makeActivity({
       id: 1,
-      source: 'strava',
-      start_time: '2026-05-09T07:00:00Z',
+      start_time: '2026-05-09T08:00:00Z',
+      source_id: 'late',
     })
-    const garminFar1 = makeActivity({
-      id: 10,
-      source: 'garmin',
-      start_time: '2026-05-09T07:05:00Z', // +5 min — past tolerance
+    const b = makeActivity({
+      id: 2,
+      start_time: '2026-05-08T07:00:00Z',
+      source_id: 'early',
     })
-    const garminFar2 = makeActivity({
-      id: 11,
-      source: 'garmin',
-      start_time: '2026-05-09T07:10:00Z', // +10 min — past tolerance
-    })
-
-    const result = dedupActivities([strava, garminFar1, garminFar2])
-
-    expect(result).toHaveLength(3)
-    expect(result.every((r) => r.secondary_source_ids.length === 0)).toBe(true)
+    const input = [a, b]
+    dedupActivities(input)
+    expect(input.map((r) => r.source_id)).toEqual(['late', 'early'])
   })
 
-  it('skips Garmin rows whose start_time is before the Strava window (continue path)', () => {
-    const strava = makeActivity({
-      id: 1,
-      source: 'strava',
-      start_time: '2026-05-09T07:05:00Z',
-    })
-    const garminEarly = makeActivity({
-      id: 10,
-      source: 'garmin',
-      start_time: '2026-05-09T07:00:00Z', // 5 min earlier — out of window
-    })
-    const garminMatch = makeActivity({
-      id: 11,
-      source: 'garmin',
-      start_time: '2026-05-09T07:05:30Z', // within tolerance
-    })
-
-    const result = dedupActivities([strava, garminEarly, garminMatch])
-
-    // Strava paired with garminMatch; garminEarly is solo.
-    expect(result).toHaveLength(2)
-    const paired = result.find((r) => r.secondary_source_ids.length > 0)
-    expect(paired?.secondary_source_ids[0].source_id).toBe(
-      garminMatch.source_id,
-    )
-  })
-
-  it('exposes the tolerance constants', () => {
-    // Pinned so a future caller knows the window without reading
+  it('exposes the overlap threshold constant', () => {
+    // Pinned so a future caller knows the threshold without reading
     // the implementation; widening or narrowing should be a deliberate edit.
-    expect(DEDUP_START_TOLERANCE_MS).toBe(90_000)
-    expect(DEDUP_DURATION_TOLERANCE_S).toBe(30)
+    expect(DEDUP_OVERLAP_THRESHOLD).toBe(0.75)
   })
 })
 
@@ -421,7 +471,8 @@ describe('useFitnessStore', () => {
 
     expect(store.activities).toHaveLength(2)
     expect(store.distinctActivities).toHaveLength(1)
-    expect(store.distinctActivities[0].representative.source).toBe('strava')
+    // Representative is the longer of the pair — here Garmin's 1810s.
+    expect(store.distinctActivities[0].representative.source).toBe('garmin')
   })
 
   it('startSync queues a job, registers it with the jobs store, and schedules a status refresh', async () => {

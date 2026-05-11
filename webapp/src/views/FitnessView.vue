@@ -638,8 +638,8 @@ function formatDistance(meters: number | null): string {
           Recent workouts
         </h2>
         <p class="text-xs text-gray-500">
-          Cross-source dedup applied — rows from both Strava and Garmin within
-          ±90s collapse to one entry.
+          Cross-source dedup applied — rows from both Strava and Garmin whose
+          time windows overlap by ≥75% collapse to one entry.
         </p>
       </header>
       <table class="w-full text-sm" data-testid="fitness-recent-activities">

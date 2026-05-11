@@ -15,89 +15,120 @@ import type {
   DedupedActivity,
 } from '@/types/fitness'
 
-// Cross-source dedup tolerance. The same workout uploaded from a Garmin
-// watch to Strava can land with slightly different `start_time` (Strava
-// rounds to whole seconds; Garmin sometimes shifts by a few seconds when
-// the watch's clock differs from the phone's) and `duration_s` (Strava
-// distinguishes elapsed-vs-moving time, which can drift the duration by
-// a handful of seconds when the operator pauses mid-workout).
-//
-// ±90s on start_time and ±30s on duration_s are conservative defaults
-// per the W15 architecture discussion (journal/260510-fitness-w15-webapp.md);
-// loosen if real-world drift turns out to be wider.
-export const DEDUP_START_TOLERANCE_MS = 90_000
-export const DEDUP_DURATION_TOLERANCE_S = 30
+// Cross-source dedup threshold. Two activities collapse into one when
+// their UTC time windows overlap by at least this fraction of the
+// shorter activity's duration. The premise is physical — a user cannot
+// be doing two activities simultaneously — so overlapping windows
+// almost always mean the same workout recorded by two apps. The 75%
+// floor tolerates the moving-time vs total-time skew (Strava often
+// reports moving time, Garmin total time, so the same run can differ
+// by a minute or more) without merging genuinely back-to-back
+// activities. See docs/fitness-followup-plan.md F2 and decision D1.
+export const DEDUP_OVERLAP_THRESHOLD = 0.75
+
+type _DedupGroup = {
+  members: FitnessActivity[]
+  repStartMs: number
+  repEndMs: number
+  repDurationMs: number
+}
+
+function _toMs(iso: string): number {
+  return new Date(iso).getTime()
+}
+
+function _pickRepresentative(members: FitnessActivity[]): FitnessActivity {
+  // Prefer longer duration; tie-break Strava over Garmin (richer metadata,
+  // canonical source_subtype mapping); then ascending source_id for
+  // determinism. Sort a copy — never mutate the group's member order.
+  return [...members].sort((a, b) => {
+    if (a.duration_s !== b.duration_s) return b.duration_s - a.duration_s
+    if (a.source !== b.source) return a.source === 'strava' ? -1 : 1
+    return a.source_id.localeCompare(b.source_id)
+  })[0]
+}
 
 /**
- * Group activities into canonical workouts. The same workout uploaded
- * from Garmin → Strava appears in both raw tables; "weekly run count"
- * doubles without dedup. We pair Strava and Garmin rows whose
- * start_time falls within ±90s and duration_s within ±30s, and
- * surface the Strava row as the canonical one (Strava-side metadata
- * is more uniform — the source_subtype collapse is canonical, the
- * pace and elevation fields are usually populated). Garmin-only or
- * Strava-only activities pass through unchanged.
+ * Group activities into canonical workouts using time-window overlap.
+ *
+ * The same workout uploaded from Garmin → Strava (or recorded
+ * independently by both apps) appears in both raw tables; "weekly run
+ * count" doubles without dedup. Two rows collapse into one group when
+ * their `[start, start + duration)` intervals overlap by at least
+ * `DEDUP_OVERLAP_THRESHOLD` of the shorter duration.
+ *
+ * Earlier versions of this function compared start-time and duration
+ * separately with fixed tolerances; that scheme missed pairs where
+ * one source reports moving time and the other total time (a 60s
+ * duration gap is normal in that case). Overlap is robust to the
+ * moving-vs-total-time skew while still keeping back-to-back activities
+ * apart.
+ *
+ * Activities not paired with anything pass through unchanged.
  *
  * Exported for direct testing; consumers should prefer the
  * `distinctActivities` getter on the store.
  */
 export function dedupActivities(rows: FitnessActivity[]): DedupedActivity[] {
-  const strava = rows.filter((r) => r.source === 'strava')
-  const garmin = rows.filter((r) => r.source === 'garmin')
-
-  const result: DedupedActivity[] = []
-  const matchedGarminIds = new Set<number>()
-
-  // Sort Garmin by start_time once so we can do a bounded linear scan
-  // per Strava row instead of an O(N×M) double loop. With <1000 rows
-  // per source the scale doesn't matter, but it keeps the test shapes
-  // honest about what the algorithm does.
-  const garminByStart = [...garmin].sort(
-    (a, b) =>
-      new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
+  // Sort by start_time so an activity is always compared against groups
+  // that began at or before it — keeps the comparison loop short and
+  // makes ordering deterministic. Sort a copy; never mutate the caller's
+  // array.
+  const sorted = [...rows].sort(
+    (a, b) => _toMs(a.start_time) - _toMs(b.start_time),
   )
 
-  for (const sRow of strava) {
-    const sStart = new Date(sRow.start_time).getTime()
-    let pair: FitnessActivity | undefined
-    for (const gRow of garminByStart) {
-      if (matchedGarminIds.has(gRow.id)) continue
-      const gStart = new Date(gRow.start_time).getTime()
-      if (gStart - sStart > DEDUP_START_TOLERANCE_MS) break
-      if (sStart - gStart > DEDUP_START_TOLERANCE_MS) continue
-      if (
-        Math.abs(gRow.duration_s - sRow.duration_s) > DEDUP_DURATION_TOLERANCE_S
-      ) {
-        continue
-      }
-      pair = gRow
+  const groups: _DedupGroup[] = []
+
+  for (const row of sorted) {
+    const startMs = _toMs(row.start_time)
+    const durationMs = row.duration_s * 1000
+    const endMs = startMs + durationMs
+
+    let merged = false
+    for (const group of groups) {
+      // Cheap reject: disjoint intervals can't overlap.
+      if (group.repEndMs <= startMs) continue
+      if (endMs <= group.repStartMs) continue
+
+      const overlap =
+        Math.min(group.repEndMs, endMs) - Math.max(group.repStartMs, startMs)
+      const shorter = Math.min(group.repDurationMs, durationMs)
+      // Zero-duration activities can't be compared meaningfully — skip.
+      if (shorter <= 0) continue
+      if (overlap / shorter < DEDUP_OVERLAP_THRESHOLD) continue
+
+      group.members.push(row)
+      const newRep = _pickRepresentative(group.members)
+      const newRepStart = _toMs(newRep.start_time)
+      group.repStartMs = newRepStart
+      group.repDurationMs = newRep.duration_s * 1000
+      group.repEndMs = newRepStart + group.repDurationMs
+      merged = true
       break
     }
 
-    if (pair) {
-      matchedGarminIds.add(pair.id)
-      result.push({
-        representative: sRow,
-        secondary_source_ids: [
-          { source: pair.source, source_id: pair.source_id },
-        ],
+    if (!merged) {
+      groups.push({
+        members: [row],
+        repStartMs: startMs,
+        repEndMs: endMs,
+        repDurationMs: durationMs,
       })
-    } else {
-      result.push({ representative: sRow, secondary_source_ids: [] })
     }
   }
 
-  // Garmin-only rows (no matching Strava counterpart).
-  for (const gRow of garminByStart) {
-    if (!matchedGarminIds.has(gRow.id)) {
-      result.push({ representative: gRow, secondary_source_ids: [] })
-    }
-  }
+  const result: DedupedActivity[] = groups.map((g) => {
+    const rep = _pickRepresentative(g.members)
+    const secondaries = g.members
+      .filter((m) => m.id !== rep.id)
+      .map((m) => ({ source: m.source, source_id: m.source_id }))
+    return { representative: rep, secondary_source_ids: secondaries }
+  })
 
   result.sort(
     (a, b) =>
-      new Date(b.representative.start_time).getTime() -
-      new Date(a.representative.start_time).getTime(),
+      _toMs(b.representative.start_time) - _toMs(a.representative.start_time),
   )
   return result
 }
