@@ -317,7 +317,13 @@ watch(
 // `reloadAll` populates `activities` and `daily`, which the watchers
 // above pick up and translate into chart renders. No explicit render
 // calls here — that would double-render every chart on mount.
+//
+// `loadLayout` round-trips the saved `fitness_layout` from the user's
+// preferences blob (T4). Fire-and-forget — it runs in parallel with
+// the data reload because the chart canvases are wrapped in TileGrid
+// slots that render with defaults until the load settles.
 onMounted(() => {
+  void store.loadLayout()
   void reloadAll()
 })
 
@@ -496,9 +502,7 @@ function widthTitleForFitnessTile(id: FitnessTileId): string {
           </span>
         </header>
         <div class="h-64">
-          <canvas
-            ref="activitiesChartCanvas"
-            data-testid="fitness-weekly-chart"
+          <canvas ref="activitiesChartCanvas" data-testid="fitness-weekly-chart"
             ><div v-if="loadingActivities" role="alert">Loading…</div></canvas
           >
         </div>

@@ -14,18 +14,26 @@ vi.mock('@/api/fitness', () => ({
   triggerSync: vi.fn(),
 }))
 
+vi.mock('@/api/preferences', () => ({
+  fetchPreferences: vi.fn(),
+  updatePreferences: vi.fn(),
+}))
+
 import {
   fetchActivities,
   fetchDaily,
   fetchSyncStatus,
   triggerSync,
 } from '@/api/fitness'
+import { fetchPreferences, updatePreferences } from '@/api/preferences'
 import { useJobsStore } from '@/stores/jobs'
 
 const mockFetchActivities = vi.mocked(fetchActivities)
 const mockFetchDaily = vi.mocked(fetchDaily)
 const mockFetchSyncStatus = vi.mocked(fetchSyncStatus)
 const mockTriggerSync = vi.mocked(triggerSync)
+const mockFetchPreferences = vi.mocked(fetchPreferences)
+const mockUpdatePreferences = vi.mocked(updatePreferences)
 
 function makeActivity(over: Partial<FitnessActivity> = {}): FitnessActivity {
   return {
@@ -764,5 +772,164 @@ describe('useFitnessStore — tile layout (T3)', () => {
     ])
     expect(store.hiddenTiles).toEqual([])
     expect(store.tileWidths).toEqual({})
+  })
+})
+
+describe('useFitnessStore — tile layout persistence (T4)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    vi.useFakeTimers()
+    mockUpdatePreferences.mockResolvedValue({ preferences: {} })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('loadLayout fetches preferences and applies the fitness_layout key', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        fitness_layout: {
+          tileOrder: [
+            'sleep',
+            'hrv',
+            'rhr',
+            'weekly-distinct',
+            'recent-workouts',
+          ],
+          hiddenTiles: ['rhr'],
+          tileWidths: { sleep: 'full' },
+        },
+      },
+    })
+    const store = useFitnessStore()
+    await store.loadLayout()
+    expect(mockFetchPreferences).toHaveBeenCalled()
+    expect(store.tileOrder).toEqual([
+      'sleep',
+      'hrv',
+      'rhr',
+      'weekly-distinct',
+      'recent-workouts',
+    ])
+    expect(store.hiddenTiles).toEqual(['rhr'])
+    expect(store.tileWidths).toEqual({ sleep: 'full' })
+    expect(store.layoutLoaded).toBe(true)
+  })
+
+  it('loadLayout keeps defaults when preferences has no fitness_layout key', async () => {
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+    const store = useFitnessStore()
+    await store.loadLayout()
+    expect(store.tileOrder).toEqual([
+      'weekly-distinct',
+      'sleep',
+      'hrv',
+      'rhr',
+      'recent-workouts',
+    ])
+    expect(store.layoutLoaded).toBe(true)
+  })
+
+  it('loadLayout swallows fetch errors and still marks layoutLoaded', async () => {
+    mockFetchPreferences.mockRejectedValue(new Error('boom'))
+    const store = useFitnessStore()
+    await store.loadLayout()
+    expect(store.layoutLoaded).toBe(true)
+    expect(store.tileOrder).toEqual([
+      'weekly-distinct',
+      'sleep',
+      'hrv',
+      'rhr',
+      'recent-workouts',
+    ])
+  })
+
+  it('mutations after loadLayout debounce into a single PUT', async () => {
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+    const store = useFitnessStore()
+    await store.loadLayout()
+
+    store.moveTile('sleep', 'up')
+    store.hideTile('hrv')
+    store.cycleTileWidth('rhr')
+    // No PUT yet — still inside debounce window.
+    expect(mockUpdatePreferences).not.toHaveBeenCalled()
+
+    vi.advanceTimersByTime(500)
+    expect(mockUpdatePreferences).toHaveBeenCalledTimes(1)
+    expect(mockUpdatePreferences).toHaveBeenCalledWith({
+      fitness_layout: {
+        tileOrder: [
+          'sleep',
+          'weekly-distinct',
+          'hrv',
+          'rhr',
+          'recent-workouts',
+        ],
+        hiddenTiles: ['hrv'],
+        tileWidths: { rhr: 'half' },
+      },
+    })
+  })
+
+  it('mutations BEFORE loadLayout settles do NOT trigger a PUT', async () => {
+    // Race scenario: user clicks Edit and toggles a tile before the
+    // initial loadLayout fetch returns. Saving here would race with
+    // the inbound layout from the server.
+    const store = useFitnessStore()
+    store.moveTile('sleep', 'up')
+    store.hideTile('hrv')
+    vi.advanceTimersByTime(500)
+    expect(mockUpdatePreferences).not.toHaveBeenCalled()
+  })
+
+  it('rapid mutations within the debounce window collapse to one PUT', async () => {
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+    const store = useFitnessStore()
+    await store.loadLayout()
+
+    store.cycleTileWidth('sleep') // third → half
+    vi.advanceTimersByTime(100)
+    store.cycleTileWidth('sleep') // half → full
+    vi.advanceTimersByTime(100)
+    store.cycleTileWidth('sleep') // full → third
+    vi.advanceTimersByTime(500)
+
+    expect(mockUpdatePreferences).toHaveBeenCalledTimes(1)
+    // The PUT carries the final state, not the intermediates.
+    expect(mockUpdatePreferences.mock.calls[0][0]).toEqual({
+      fitness_layout: expect.objectContaining({
+        tileWidths: { sleep: 'third' },
+      }),
+    })
+  })
+
+  it('resetLayout persists the cleared state', async () => {
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+    const store = useFitnessStore()
+    await store.loadLayout()
+
+    store.hideTile('sleep')
+    store.setTileWidth('hrv', 'full')
+    vi.advanceTimersByTime(500)
+    mockUpdatePreferences.mockClear()
+
+    store.resetLayout()
+    vi.advanceTimersByTime(500)
+    expect(mockUpdatePreferences).toHaveBeenCalledWith({
+      fitness_layout: {
+        tileOrder: [
+          'weekly-distinct',
+          'sleep',
+          'hrv',
+          'rhr',
+          'recent-workouts',
+        ],
+        hiddenTiles: [],
+        tileWidths: {},
+      },
+    })
   })
 })

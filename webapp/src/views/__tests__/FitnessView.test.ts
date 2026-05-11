@@ -455,9 +455,9 @@ describe('FitnessView', () => {
     // Before edit mode: no edit controls visible.
     expect(wrapper.find('button[title="Move up"]').exists()).toBe(false)
     expect(wrapper.find('button[title="Hide chart"]').exists()).toBe(false)
-    expect(
-      wrapper.find('[data-testid="tile-move-up-sleep"]').exists(),
-    ).toBe(false)
+    expect(wrapper.find('[data-testid="tile-move-up-sleep"]').exists()).toBe(
+      false,
+    )
 
     await wrapper
       .find('[data-testid="fitness-edit-layout-toggle"]')
@@ -469,12 +469,10 @@ describe('FitnessView', () => {
     // Now controls are present per tile.
     expect(wrapper.find('button[title="Move up"]').exists()).toBe(true)
     expect(wrapper.find('button[title="Hide chart"]').exists()).toBe(true)
-    expect(
-      wrapper.find('[data-testid="tile-move-up-sleep"]').exists(),
-    ).toBe(true)
-    expect(
-      wrapper.find('[data-testid="tile-width-sleep"]').exists(),
-    ).toBe(true)
+    expect(wrapper.find('[data-testid="tile-move-up-sleep"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('[data-testid="tile-width-sleep"]').exists()).toBe(true)
     wrapper.unmount()
   })
 
@@ -520,17 +518,13 @@ describe('FitnessView', () => {
 
     // Now sleep is 'half' → next offered is 'Full width'.
     expect(
-      wrapper
-        .find('[data-testid="tile-width-sleep"]')
-        .attributes('title'),
+      wrapper.find('[data-testid="tile-width-sleep"]').attributes('title'),
     ).toBe('Full width')
     await wrapper.find('[data-testid="tile-width-sleep"]').trigger('click')
 
     // 'full' → next is 'Third width'.
     expect(
-      wrapper
-        .find('[data-testid="tile-width-sleep"]')
-        .attributes('title'),
+      wrapper.find('[data-testid="tile-width-sleep"]').attributes('title'),
     ).toBe('Third width')
     wrapper.unmount()
   })

@@ -8,6 +8,7 @@ import {
 } from '@/api/fitness'
 import { useJobsStore } from '@/stores/jobs'
 import { rangeToDates } from '@/stores/dashboard'
+import { fetchPreferences, updatePreferences } from '@/api/preferences'
 import {
   DEFAULT_FITNESS_TILE_ORDER,
   FITNESS_TILES,
@@ -337,6 +338,7 @@ export const useFitnessStore = defineStore('fitness', () => {
   const hiddenTiles = ref<FitnessTileId[]>([])
   const tileWidths = ref<Partial<Record<FitnessTileId, NamedWidth>>>({})
   const editingLayout = ref(false)
+  const layoutLoaded = ref(false)
 
   const tileDefs = computed(() => {
     const m = new Map<FitnessTileId, (typeof FITNESS_TILES)[number]>()
@@ -346,11 +348,63 @@ export const useFitnessStore = defineStore('fitness', () => {
 
   /** Effective width for a tile: user override or definition default. */
   function getTileWidth(id: FitnessTileId): NamedWidth {
-    return tileWidths.value[id] ?? tileDefs.value.get(id)?.defaultWidth ?? 'full'
+    return (
+      tileWidths.value[id] ?? tileDefs.value.get(id)?.defaultWidth ?? 'full'
+    )
+  }
+
+  // ── Persistence (T4) ─────────────────────────────────────────────
+  //
+  // Debounced PUT to /api/users/me/preferences under `fitness_layout`.
+  // Mirrors the dashboard store's pattern (single 500ms timer reset on
+  // each mutation so a rapid drag-resize-hide sequence collapses to one
+  // request). `layoutLoaded` flips true once `loadLayout` has settled
+  // — the FitnessView avoids saving back the defaults before the load
+  // round-trips by gating mutations until then.
+  let _saveTimer: ReturnType<typeof setTimeout> | null = null
+
+  function _persistLayout(): void {
+    // Skip auto-save before `loadLayout` has settled, otherwise the
+    // first user mutation would race against the in-flight GET and
+    // potentially overwrite the saved layout with defaults.
+    if (!layoutLoaded.value) return
+    if (_saveTimer) clearTimeout(_saveTimer)
+    _saveTimer = setTimeout(() => {
+      const layout: FitnessLayout = {
+        tileOrder: tileOrder.value,
+        hiddenTiles: hiddenTiles.value,
+        tileWidths: tileWidths.value,
+      }
+      updatePreferences({ fitness_layout: layout }).catch(() => {
+        // Silent — the in-memory layout is the source of truth for the
+        // session; the next mutation will retry the save.
+      })
+    }, 500)
+  }
+
+  async function loadLayout(): Promise<void> {
+    try {
+      const { preferences } = await fetchPreferences()
+      const layout = preferences.fitness_layout as FitnessLayout | undefined
+      if (layout) applyLayout(layout)
+    } catch {
+      // Preferences endpoint unreachable or no saved layout — keep the
+      // defaults seeded at store-construction time.
+    } finally {
+      layoutLoaded.value = true
+    }
+  }
+
+  function _cancelPendingPersist(): void {
+    if (_saveTimer !== null) {
+      clearTimeout(_saveTimer)
+      _saveTimer = null
+    }
   }
 
   function setTileWidth(id: FitnessTileId, width: NamedWidth): void {
     tileWidths.value = { ...tileWidths.value, [id]: width }
+    _persistLayout()
   }
 
   /** Advance a tile through the third → half → full → third cycle. */
@@ -369,22 +423,26 @@ export const useFitnessStore = defineStore('fitness', () => {
     if (targetIdx < 0 || targetIdx >= order.length) return
     ;[order[idx], order[targetIdx]] = [order[targetIdx], order[idx]]
     tileOrder.value = order
+    _persistLayout()
   }
 
   function hideTile(id: FitnessTileId): void {
     if (!hiddenTiles.value.includes(id)) {
       hiddenTiles.value = [...hiddenTiles.value, id]
+      _persistLayout()
     }
   }
 
   function showTile(id: FitnessTileId): void {
     hiddenTiles.value = hiddenTiles.value.filter((t) => t !== id)
+    _persistLayout()
   }
 
   function resetLayout(): void {
     tileOrder.value = [...DEFAULT_FITNESS_TILE_ORDER]
     hiddenTiles.value = []
     tileWidths.value = {}
+    _persistLayout()
   }
 
   /**
@@ -459,6 +517,7 @@ export const useFitnessStore = defineStore('fitness', () => {
     hiddenTiles,
     tileWidths,
     editingLayout,
+    layoutLoaded,
     tileDefs,
     getTileWidth,
     setTileWidth,
@@ -468,5 +527,7 @@ export const useFitnessStore = defineStore('fitness', () => {
     showTile,
     resetLayout,
     applyLayout,
+    loadLayout,
+    _cancelPendingPersist,
   }
 })
