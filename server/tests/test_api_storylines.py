@@ -60,9 +60,15 @@ class _FakeAuthMiddleware:
 class _FakeGenerationService:
     def __init__(self) -> None:
         self.calls: list[int] = []
+        self.kwargs: list[dict[str, Any]] = []
 
-    def regenerate(self, storyline_id: int) -> GenerationResult:
+    def regenerate(
+        self,
+        storyline_id: int,
+        **kwargs: Any,  # noqa: ANN401
+    ) -> GenerationResult:
         self.calls.append(storyline_id)
+        self.kwargs.append(kwargs)
         return GenerationResult(storyline_id=storyline_id, entry_count=0)
 
 
@@ -212,9 +218,10 @@ class TestStorylinesAPI:
         body = resp.json()
         assert "job_id" in body
 
-        # Flush the executor and check the fake was called
+        # Flush the executor and check the fake was called for both
+        # the auto-kicked create job (W7) and the explicit regen.
         ctx["runner"].shutdown(wait=True)
-        assert ctx["gen_service"].calls == [sid]
+        assert ctx["gen_service"].calls == [sid, sid]
 
     def test_regenerate_404_on_unknown(
         self,
