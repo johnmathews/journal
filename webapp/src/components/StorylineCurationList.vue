@@ -120,12 +120,13 @@ function dateLabelFor(row: CurationRow): string {
   flex-direction: column;
 }
 
-/* Wider middle column for the quote — date column tightened from
-   minmax(7.5rem, max-content) to a fixed max, and the trailing link
-   column lost its chevron so it occupies less width too. */
+/* Date column sizes to its widest label (typically "It begins on
+   YYYY-MM-DD") with a sensible min so short labels like "The next
+   day" still feel anchored. The link column lost its chevron so the
+   quote column gets the extra width. */
 .curation-row {
   display: grid;
-  grid-template-columns: minmax(6rem, 7.5rem) 1fr auto;
+  grid-template-columns: minmax(6rem, max-content) 1fr auto;
   align-items: baseline;
   gap: 0.75rem;
   padding: 0.625rem 0;

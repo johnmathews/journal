@@ -168,6 +168,69 @@ describe('StorylineDetailView', () => {
     expect(wrapper.find('[data-testid="curation-empty"]').exists()).toBe(true)
   })
 
+  it('hides the curation date toggle when no citation carries entry_date', async () => {
+    // Legacy storylines stored before the server stamped entry_date
+    // have no absolute dates available — switching to "Absolute"
+    // would silently fall back to the relative label. Hide the
+    // toggle entirely rather than showing a broken-looking control.
+    const wrapper = mountComponent()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="curation-date-toggle"]').exists()).toBe(
+      false,
+    )
+  })
+
+  it('shows the curation date toggle when at least one citation has entry_date', async () => {
+    const detail = mockDetail()
+    detail.panels.curation.segments = [
+      { kind: 'text' as const, text: 'It begins:' },
+      {
+        kind: 'citation' as const,
+        entry_id: 11,
+        quote: 'q',
+        entry_date: '2026-02-15',
+      } as never,
+    ]
+    mockFetchStoryline.mockResolvedValue(detail)
+    const wrapper = mountComponent()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="curation-date-toggle"]').exists()).toBe(
+      true,
+    )
+    expect(
+      wrapper.find('[data-testid="curation-date-toggle-relative"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="curation-date-toggle-absolute"]').exists(),
+    ).toBe(true)
+  })
+
+  it('clicking the Absolute toggle switches the curation panel to absolute dates', async () => {
+    const detail = mockDetail()
+    detail.panels.curation.segments = [
+      { kind: 'text' as const, text: 'It begins on 2026-02-15:' },
+      {
+        kind: 'citation' as const,
+        entry_id: 11,
+        quote: 'q',
+        entry_date: '2026-02-15',
+      } as never,
+    ]
+    mockFetchStoryline.mockResolvedValue(detail)
+    const wrapper = mountComponent()
+    await flushPromises()
+    // Default mode is relative — date column shows the LLM phrase.
+    expect(wrapper.get('[data-testid="curation-row-date-1"]').text()).toBe(
+      'It begins on 2026-02-15',
+    )
+    await wrapper
+      .find('[data-testid="curation-date-toggle-absolute"]')
+      .trigger('click')
+    expect(wrapper.get('[data-testid="curation-row-date-1"]').text()).toBe(
+      '2026-02-15',
+    )
+  })
+
   it('clicking Regenerate calls the API and tracks the job', async () => {
     mockRegenerate.mockResolvedValue({ job_id: 'job-99', status: 'queued' })
     const wrapper = mountComponent()

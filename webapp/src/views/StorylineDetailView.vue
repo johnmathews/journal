@@ -45,6 +45,18 @@ const curationDateMode = useStorage<'relative' | 'absolute'>(
   'relative',
 )
 
+// Storylines generated before the server stamped citations with
+// entry_date have no absolute dates available — switching to
+// "Absolute" would silently fall back to the relative label and look
+// like a broken toggle. Hide the control entirely on those panels;
+// regenerating populates the field and the toggle reappears.
+const curationHasAbsoluteDates = computed(() => {
+  const segs = curationPanel.value?.segments ?? []
+  return segs.some(
+    (s) => s.kind === 'citation' && typeof s.entry_date === 'string',
+  )
+})
+
 function formatDateTime(dateStr: string | null): string {
   if (!dateStr) return 'never'
   return new Date(dateStr).toLocaleDateString('en-GB', {
@@ -234,6 +246,7 @@ onMounted(() => {
               Curation
             </h2>
             <div
+              v-if="curationHasAbsoluteDates"
               class="curation-date-toggle inline-flex rounded-md border border-gray-200 dark:border-gray-700/60 overflow-hidden text-xs"
               role="group"
               aria-label="Date display mode"
