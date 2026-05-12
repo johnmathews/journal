@@ -18,22 +18,28 @@ doc describes only the webapp.
 ## Routes
 
 - `/storylines` — paginated list mirroring `EntryListView.vue`. Sort by name,
-  entity, last generated, or created. Empty state nudges you to seed via the
-  MCP tools (`journal_create_storyline`) since no create form ships in v1.
+  entity, last generated, or created. Header has a **New storyline** button
+  that opens `StorylineCreateModal`; rows carry per-row Delete and Regenerate
+  affordances; multi-select with a violet selection toolbar offers bulk
+  Delete and Regenerate (pattern copied from `EntityListView.vue`).
 - `/storylines/:id` — detail view with the two-panel layout. Stacks on
-  mobile, sits side-by-side at `lg` (1024px). Header carries Regenerate +
-  Delete affordances.
+  mobile; at `lg` (1024px) narrative sits on the left, curation on the
+  right (swapped 2026-05-12). Header carries Regenerate + Delete
+  affordances.
 
 ## Files
 
 ```
 src/
-  types/storyline.ts                    — wire types: Segment, StorylineSummary, StorylineDetail
+  types/storyline.ts                    — wire types: Segment, StorylineSummary, StorylineDetail,
+                                          CreateStorylineResponse, RegenerateStorylineRequest
   api/storylines.ts                     — list / get / create / regenerate / delete
   stores/storylines.ts                  — Pinia store with `loading` + `detailLoading` split
   composables/useCitationRegistry.ts    — shared [N] numbering across both panels
   components/StorylineNarrative.vue     — narrative panel: prose body + footnotes
-  components/StorylineCurationList.vue  — curation panel: row list
+  components/StorylineCurationList.vue  — curation panel: row list (date column left-aligned)
+  components/StorylineCreateModal.vue   — entity-picker + name + optional date range
+  components/StorylineRegenerateModal.vue — Replace / Append-update + optional date range
   views/StorylineListView.vue
   views/StorylineDetailView.vue
 ```
@@ -79,12 +85,34 @@ identifier.
 
 ## Regenerate flow
 
-`POST /api/storylines/{id}/regenerate` returns 202 with `{job_id}`. The
-detail view registers the job via `useJobsStore().trackJob(jobId,
-'storyline_generation', { storyline_id })`. When the job reaches a terminal
-state (`succeeded` / `failed`), a watcher re-fetches the detail so the
-freshly-persisted panels show up. On failure, the regenerate-error banner
-surfaces the server message; the toast confirmation handles the happy path.
+`POST /api/storylines/{id}/regenerate` accepts an optional JSON body
+`{start_date?, end_date?, mode?}`. The detail-view "Regenerate" button
+posts with no body (server default = full window, replace). The list
+view's per-row and bulk Regenerate actions open
+`StorylineRegenerateModal`, which lets the user pick **Replace** (the
+default) or **Append-update**, and optionally narrow the date window.
+Append-mode requires a `start_date` (validated client-side before
+submit) — the server then validates `start_date >= last_generated_at`
+and surfaces a 400 if violated.
+
+The response returns 202 with `{job_id}`. The detail view registers
+the job via `useJobsStore().trackJob(jobId, 'storyline_generation',
+{ storyline_id })`. When the job reaches a terminal state (`succeeded`
+/ `failed`), a watcher re-fetches the detail so the freshly-persisted
+panels show up. On failure, the regenerate-error banner surfaces the
+server message; the toast confirmation handles the happy path.
+
+## Create flow
+
+`POST /api/storylines` returns 201 with the storyline body plus
+`generation_job_id`. The list-view "New storyline" button opens
+`StorylineCreateModal` — debounced entity search, single-select picker
+(scaffold multi-select-ready for the deferred multi-entity follow-up),
+auto-fills the name field from the selected entity's canonical name,
+optional description / date range. On submit, the modal closes, a toast
+fires ("Storyline created. Generating panels…"), and the returned
+`generation_job_id` is tracked through `useJobsStore` so the list reloads
+on completion.
 
 ## Follow-ups
 

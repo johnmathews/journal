@@ -87,6 +87,35 @@ describe('storylines API', () => {
     expect(result).toEqual({ job_id: 'job-42', status: 'queued' })
   })
 
+  it('regenerateStoryline forwards an optional body when fields are set', async () => {
+    mockApiFetch.mockResolvedValue({ job_id: 'job-43', status: 'queued' })
+    await regenerateStoryline(5, {
+      start_date: '2026-04-01',
+      end_date: '2026-05-01',
+      mode: 'append',
+    })
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/storylines/5/regenerate', {
+      method: 'POST',
+      body: JSON.stringify({
+        start_date: '2026-04-01',
+        end_date: '2026-05-01',
+        mode: 'append',
+      }),
+    })
+  })
+
+  it('regenerateStoryline omits the body when all fields are undefined', async () => {
+    mockApiFetch.mockResolvedValue({ job_id: 'job-44', status: 'queued' })
+    await regenerateStoryline(6, {
+      start_date: undefined,
+      end_date: undefined,
+      mode: undefined,
+    })
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/storylines/6/regenerate', {
+      method: 'POST',
+    })
+  })
+
   it('deleteStoryline DELETEs /api/storylines/{id}', async () => {
     mockApiFetch.mockResolvedValue({ deleted: true })
     const result = await deleteStoryline(9)

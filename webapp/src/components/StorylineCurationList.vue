@@ -154,7 +154,7 @@ function dateLabelFor(row: CurationRow): string {
     sans-serif;
   font-size: 0.8rem;
   font-weight: 500;
-  text-align: right;
+  text-align: left;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }

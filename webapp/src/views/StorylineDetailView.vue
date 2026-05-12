@@ -237,6 +237,33 @@ onMounted(() => {
       <div class="flex flex-col lg:flex-row gap-4">
         <section
           class="lg:flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4 md:p-6"
+          data-testid="narrative-panel"
+        >
+          <h2
+            class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-3"
+          >
+            Narrative
+          </h2>
+          <div
+            v-if="narrativePanel && narrativePanel.segments.length > 0"
+            class="storyline-panel-body"
+          >
+            <StorylineNarrative
+              :segments="narrativePanel.segments"
+              :registry="citationRegistry"
+            />
+          </div>
+          <div
+            v-else
+            class="py-8 text-center text-sm text-gray-500 dark:text-gray-400"
+            data-testid="narrative-empty"
+          >
+            No narrative segments yet. Regenerate to populate.
+          </div>
+        </section>
+
+        <section
+          class="lg:flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4 md:p-6"
           data-testid="curation-panel"
         >
           <div class="flex items-center justify-between gap-3 mb-3">
@@ -298,33 +325,6 @@ onMounted(() => {
             data-testid="curation-empty"
           >
             No curation segments yet. Regenerate to populate.
-          </div>
-        </section>
-
-        <section
-          class="lg:flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4 md:p-6"
-          data-testid="narrative-panel"
-        >
-          <h2
-            class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-3"
-          >
-            Narrative
-          </h2>
-          <div
-            v-if="narrativePanel && narrativePanel.segments.length > 0"
-            class="storyline-panel-body"
-          >
-            <StorylineNarrative
-              :segments="narrativePanel.segments"
-              :registry="citationRegistry"
-            />
-          </div>
-          <div
-            v-else
-            class="py-8 text-center text-sm text-gray-500 dark:text-gray-400"
-            data-testid="narrative-empty"
-          >
-            No narrative segments yet. Regenerate to populate.
           </div>
         </section>
       </div>

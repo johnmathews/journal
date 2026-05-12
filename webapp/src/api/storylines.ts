@@ -1,6 +1,7 @@
 import type {
   CreateStorylineRequest,
   CreateStorylineResponse,
+  RegenerateStorylineRequest,
   RegenerateStorylineResponse,
   StorylineDetail,
   StorylineListParams,
@@ -43,10 +44,18 @@ export function createStoryline(
 
 export function regenerateStoryline(
   id: number,
+  body?: RegenerateStorylineRequest,
 ): Promise<RegenerateStorylineResponse> {
+  // Empty / undefined body keeps the legacy "replace using the
+  // storyline's saved range" behaviour. Any field set on `body` —
+  // start_date, end_date, or mode — is forwarded; the server treats
+  // missing fields as "use default".
+  const hasBody = body && Object.values(body).some((v) => v !== undefined)
   return apiFetch<RegenerateStorylineResponse>(
     `/api/storylines/${id}/regenerate`,
-    { method: 'POST' },
+    hasBody
+      ? { method: 'POST', body: JSON.stringify(body) }
+      : { method: 'POST' },
   )
 }
 

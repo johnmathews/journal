@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import type {
   CreateStorylineRequest,
   CreateStorylineResponse,
+  RegenerateStorylineRequest,
   RegenerateStorylineResponse,
   StorylineDetail,
   StorylineListParams,
@@ -96,11 +97,14 @@ export const useStorylinesStore = defineStore('storylines', () => {
     }
   }
 
-  async function regenerate(id: number): Promise<RegenerateStorylineResponse> {
+  async function regenerate(
+    id: number,
+    body?: RegenerateStorylineRequest,
+  ): Promise<RegenerateStorylineResponse> {
     regenerating.value = true
     regenerateError.value = null
     try {
-      return await regenerateStorylineApi(id)
+      return await regenerateStorylineApi(id, body)
     } catch (e) {
       regenerateError.value =
         e instanceof Error ? e.message : 'Failed to queue regeneration'

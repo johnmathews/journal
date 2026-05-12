@@ -87,7 +87,10 @@ export interface CreateStorylineRequest {
 
 /** The server's 201 response for POST /api/storylines — a subset of
  *  StorylineSummary (no last_generated_at / updated_at yet, since the
- *  storyline was just inserted). */
+ *  storyline was just inserted). After W7 the server also auto-kicks
+ *  the panel-generation job and returns its id; the field is optional
+ *  to keep older test fixtures and (in theory) downlevel server builds
+ *  typecheck-compatible. */
 export interface CreateStorylineResponse {
   id: number
   user_id: number
@@ -96,9 +99,24 @@ export interface CreateStorylineResponse {
   description: string
   status: StorylineStatus
   created_at: string
+  generation_job_id?: string
 }
 
 export interface RegenerateStorylineResponse {
   job_id: string
   status: string
+}
+
+/** Optional body for POST /api/storylines/{id}/regenerate.
+ *
+ * - `start_date` / `end_date`: ISO `YYYY-MM-DD`; both optional. Empty
+ *   body falls back to the storyline's saved range (legacy behaviour).
+ * - `mode`: `"replace"` (default) regenerates both panels from
+ *   scratch; `"append"` appends new-range segments and requires
+ *   `start_date >= storyline.last_generated_at` (server validates,
+ *   returns 400 on violation). */
+export interface RegenerateStorylineRequest {
+  start_date?: string
+  end_date?: string
+  mode?: 'replace' | 'append'
 }

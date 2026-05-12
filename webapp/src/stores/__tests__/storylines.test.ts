@@ -227,6 +227,34 @@ describe('useStorylinesStore', () => {
     expect(store.regenerateError).toBeNull()
   })
 
+  it('regenerate forwards the optional body to the API client', async () => {
+    mockRegenerateStoryline.mockResolvedValue({
+      job_id: 'job-2',
+      status: 'queued',
+    })
+    const store = useStorylinesStore()
+    await store.regenerate(7, {
+      mode: 'append',
+      start_date: '2026-04-01',
+      end_date: '2026-05-01',
+    })
+    expect(mockRegenerateStoryline).toHaveBeenCalledWith(7, {
+      mode: 'append',
+      start_date: '2026-04-01',
+      end_date: '2026-05-01',
+    })
+  })
+
+  it('regenerate with no body forwards undefined to the API client', async () => {
+    mockRegenerateStoryline.mockResolvedValue({
+      job_id: 'job-3',
+      status: 'queued',
+    })
+    const store = useStorylinesStore()
+    await store.regenerate(8)
+    expect(mockRegenerateStoryline).toHaveBeenCalledWith(8, undefined)
+  })
+
   it('regenerate records regenerateError on Error rejection and rethrows', async () => {
     mockRegenerateStoryline.mockRejectedValue(new Error('service down'))
     const store = useStorylinesStore()

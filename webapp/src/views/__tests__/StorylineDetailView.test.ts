@@ -129,6 +129,20 @@ describe('StorylineDetailView', () => {
     expect(wrapper.find('[data-testid="narrative-panel"]').exists()).toBe(true)
   })
 
+  it('renders the narrative panel BEFORE the curation panel in DOM order (W4)', async () => {
+    // Post-W4 layout: narrative section is the first child of the
+    // flex row so it lands on the left at the lg: breakpoint. Reading
+    // order matters too — narrative is the prose users skim, curation
+    // is the supporting index. Locking DOM order here means a future
+    // refactor that re-swaps the sections will fail loudly.
+    const wrapper = mountComponent('3')
+    await flushPromises()
+    const sections = wrapper.findAll('section[data-testid$="-panel"]')
+    expect(sections.length).toBe(2)
+    expect(sections[0].attributes('data-testid')).toBe('narrative-panel')
+    expect(sections[1].attributes('data-testid')).toBe('curation-panel')
+  })
+
   it('renders an em dash when last_generated_at is null', async () => {
     mockFetchStoryline.mockResolvedValue(
       mockDetail({ last_generated_at: null }),
@@ -237,7 +251,7 @@ describe('StorylineDetailView', () => {
     await flushPromises()
     await wrapper.find('[data-testid="regenerate-button"]').trigger('click')
     await flushPromises()
-    expect(mockRegenerate).toHaveBeenCalledWith(3)
+    expect(mockRegenerate).toHaveBeenCalledWith(3, undefined)
     expect(trackJob).toHaveBeenCalledWith('job-99', 'storyline_generation', {
       storyline_id: 3,
     })

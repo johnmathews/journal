@@ -1,3 +1,6 @@
+/// <reference types="node" />
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createRouter, createWebHistory } from 'vue-router'
@@ -212,6 +215,46 @@ describe('StorylineCurationList', () => {
     expect(wrapper.get('[data-testid="curation-row-date-1"]').text()).toBe(
       'It begins on 2026-02-15',
     )
+  })
+
+  it('the .curation-date rule in the desktop scope is left-aligned', () => {
+    // W5: Right-aligning a column whose content varies from "On Monday"
+    // to "Nearly a month later" makes short labels look randomly
+    // centered. Lock the desktop rule to text-align: left so toggling
+    // between Relative and Absolute can't shift the visual anchor of
+    // the column. The existing @media (max-width: 40rem) override is
+    // already left-aligned, so this also makes desktop consistent with
+    // the responsive override.
+    //
+    // happy-dom doesn't reliably surface scoped-style computed values,
+    // so we read the component's source directly and match against the
+    // first `.curation-date { ... }` block (outside any @media scope).
+    const source = readFileSync(
+      resolve(__dirname, '../StorylineCurationList.vue'),
+      'utf-8',
+    )
+    const desktopRule = source.match(/\n\.curation-date\s*{([^}]*)}/)
+    expect(
+      desktopRule,
+      'desktop .curation-date rule should exist',
+    ).not.toBeNull()
+    expect(desktopRule![1]).toMatch(/text-align:\s*left/)
+    expect(desktopRule![1]).not.toMatch(/text-align:\s*right/)
+  })
+
+  it('the .curation-date rule in the small-screen scope stays left-aligned', () => {
+    // The @media (max-width: 40rem) override has been left-aligned
+    // since the first version of this file — assert it explicitly so
+    // we notice any drift.
+    const source = readFileSync(
+      resolve(__dirname, '../StorylineCurationList.vue'),
+      'utf-8',
+    )
+    const mediaBlock = source.match(
+      /@media[^{]*max-width:\s*40rem[^{]*{[\s\S]*?\n}/,
+    )
+    expect(mediaBlock, 'small-screen @media block should exist').not.toBeNull()
+    expect(mediaBlock![0]).toMatch(/text-align:\s*left/)
   })
 
   it('falls back to [?] when an entry_id is missing from the registry', () => {

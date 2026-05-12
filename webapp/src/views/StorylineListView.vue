@@ -2,10 +2,14 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useStorylinesStore } from '@/stores/storylines'
+import { useToast } from '@/composables/useToast'
+import StorylineCreateModal from '@/components/StorylineCreateModal.vue'
+import StorylineRegenerateModal from '@/components/StorylineRegenerateModal.vue'
 import type { StorylineSummary } from '@/types/storyline'
 
 const router = useRouter()
 const store = useStorylinesStore()
+const toast = useToast()
 
 const rows = ref(20)
 const first = ref(0)
@@ -90,6 +94,128 @@ function formatDateTime(dateStr: string | null): string {
     minute: '2-digit',
   })
 }
+
+// --- Create modal (W9) ---
+const createModalOpen = ref(false)
+
+function openCreateModal(): void {
+  createModalOpen.value = true
+}
+
+function onCreated(): void {
+  // Refresh so the new row is visible. The generation job is already
+  // tracked inside the modal — its terminal transition will surface
+  // via the global jobs store. Reload once more on a short delay so
+  // the freshly-generated panels are reflected the moment the user
+  // is likely to look; cheap, and good enough until we add proper
+  // job-completion plumbing here.
+  store.loadStorylines(store.currentParams)
+}
+
+// --- Multi-select (W10) ---
+const selectedIds = ref<Set<number>>(new Set())
+
+function isSelected(id: number): boolean {
+  return selectedIds.value.has(id)
+}
+
+function toggleSelect(id: number): void {
+  const next = new Set(selectedIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  selectedIds.value = next
+}
+
+const allOnPageSelected = computed<boolean>(() => {
+  if (sortedStorylines.value.length === 0) return false
+  return sortedStorylines.value.every((s) => selectedIds.value.has(s.id))
+})
+
+function toggleSelectAllOnPage(): void {
+  if (allOnPageSelected.value) {
+    const next = new Set(selectedIds.value)
+    for (const s of sortedStorylines.value) next.delete(s.id)
+    selectedIds.value = next
+  } else {
+    const next = new Set(selectedIds.value)
+    for (const s of sortedStorylines.value) next.add(s.id)
+    selectedIds.value = next
+  }
+}
+
+function clearSelection(): void {
+  selectedIds.value = new Set()
+}
+
+const selectedCount = computed<number>(() => selectedIds.value.size)
+
+// --- Delete (W10) ---
+const deleteError = ref<string | null>(null)
+
+async function onDeleteRow(storyline: StorylineSummary): Promise<void> {
+  const ok = window.confirm(
+    `Delete storyline "${storyline.name}"? This cannot be undone.`,
+  )
+  if (!ok) return
+  deleteError.value = null
+  try {
+    await store.removeStoryline(storyline.id)
+    // Drop it from the selection set if it was selected.
+    if (selectedIds.value.has(storyline.id)) {
+      const next = new Set(selectedIds.value)
+      next.delete(storyline.id)
+      selectedIds.value = next
+    }
+    toast.success(`Deleted "${storyline.name}".`)
+  } catch (e) {
+    deleteError.value = e instanceof Error ? e.message : 'Delete failed'
+  }
+}
+
+async function onBulkDelete(): Promise<void> {
+  const ids = [...selectedIds.value]
+  if (ids.length === 0) return
+  const ok = window.confirm(
+    `Delete ${ids.length} storyline(s)? This cannot be undone.`,
+  )
+  if (!ok) return
+  deleteError.value = null
+  let successCount = 0
+  const failed: number[] = []
+  for (const id of ids) {
+    try {
+      await store.removeStoryline(id)
+      successCount++
+    } catch {
+      failed.push(id)
+    }
+  }
+  // Clear all selected (whether deleted or failed) — the user can
+  // re-select failing ones if they want to retry.
+  clearSelection()
+  if (failed.length === 0) {
+    toast.success(`Deleted ${successCount} storyline(s).`)
+  } else {
+    deleteError.value = `${failed.length} delete(s) failed (ids: ${failed.join(', ')})`
+    toast.error(
+      `Deleted ${successCount} of ${ids.length}; ${failed.length} failed.`,
+    )
+  }
+}
+
+// --- Regenerate (W11) ---
+const regenerateModalOpen = ref(false)
+const regenerateIds = ref<number[]>([])
+
+function openRegenerateRow(storyline: StorylineSummary): void {
+  regenerateIds.value = [storyline.id]
+  regenerateModalOpen.value = true
+}
+
+function openRegenerateBulk(): void {
+  regenerateIds.value = [...selectedIds.value]
+  regenerateModalOpen.value = true
+}
 </script>
 
 <template>
@@ -111,6 +237,14 @@ function formatDateTime(dateStr: string | null): string {
         >
           {{ store.total }} storylines
         </div>
+        <button
+          type="button"
+          class="btn bg-violet-500 hover:bg-violet-600 text-white"
+          data-testid="new-storyline-button"
+          @click="openCreateModal"
+        >
+          New storyline
+        </button>
       </div>
     </div>
 
@@ -121,6 +255,50 @@ function formatDateTime(dateStr: string | null): string {
       data-testid="error-banner"
     >
       {{ store.error }}
+    </div>
+
+    <!-- Delete error banner -->
+    <div
+      v-if="deleteError"
+      class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+      data-testid="delete-error-banner"
+    >
+      {{ deleteError }}
+    </div>
+
+    <!-- Selection toolbar -->
+    <div
+      v-if="selectedCount > 0"
+      class="mb-4 flex items-center gap-3 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700/40 rounded-lg px-4 py-2 text-sm"
+      data-testid="selection-toolbar"
+    >
+      <span class="text-violet-700 dark:text-violet-300 font-medium">
+        {{ selectedCount }} selected
+      </span>
+      <button
+        type="button"
+        class="btn bg-red-500 hover:bg-red-600 text-white text-xs py-1"
+        data-testid="bulk-delete-button"
+        @click="onBulkDelete"
+      >
+        Delete {{ selectedCount }} selected
+      </button>
+      <button
+        type="button"
+        class="btn bg-violet-500 hover:bg-violet-600 text-white text-xs py-1"
+        data-testid="bulk-regenerate-button"
+        @click="openRegenerateBulk"
+      >
+        Regenerate {{ selectedCount }} selected
+      </button>
+      <button
+        type="button"
+        class="text-violet-600 dark:text-violet-400 hover:underline text-xs"
+        data-testid="clear-selection"
+        @click="clearSelection"
+      >
+        Clear
+      </button>
     </div>
 
     <!-- Table card -->
@@ -162,8 +340,8 @@ function formatDateTime(dateStr: string | null): string {
         class="py-16 text-center text-gray-600 dark:text-gray-300"
         data-testid="empty-state"
       >
-        No storylines yet. Seed one via the MCP tools
-        (<code>journal_create_storyline</code>) or the
+        No storylines yet. Click "New storyline" above, or seed one via the MCP
+        tools (<code>journal_create_storyline</code>) or the
         <code>POST /api/storylines</code> endpoint to get started.
       </div>
 
@@ -174,6 +352,16 @@ function formatDateTime(dateStr: string | null): string {
             class="text-xs font-semibold uppercase text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700/60"
           >
             <tr>
+              <th class="px-2 py-3 w-8">
+                <input
+                  type="checkbox"
+                  :checked="allOnPageSelected"
+                  class="form-checkbox h-4 w-4 text-violet-500 rounded border-gray-300 dark:border-gray-600"
+                  data-testid="select-all-checkbox"
+                  @change="toggleSelectAllOnPage"
+                  @click.stop
+                />
+              </th>
               <th
                 class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none text-left"
                 data-testid="sort-name"
@@ -202,6 +390,12 @@ function formatDateTime(dateStr: string | null): string {
               >
                 Created{{ sortIndicator('created_at') }}
               </th>
+              <th
+                class="px-4 py-3 whitespace-nowrap select-none text-right"
+                data-testid="col-actions"
+              >
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody
@@ -211,9 +405,24 @@ function formatDateTime(dateStr: string | null): string {
               v-for="storyline in sortedStorylines"
               :key="storyline.id"
               class="cursor-pointer hover:bg-violet-50 dark:hover:bg-violet-500/[0.08] transition-colors"
+              :class="{
+                'bg-violet-50/50 dark:bg-violet-500/5': isSelected(
+                  storyline.id,
+                ),
+              }"
               data-testid="storyline-row"
               @click="onRowClick(storyline.id)"
             >
+              <td class="px-2 py-3 text-center">
+                <input
+                  type="checkbox"
+                  :checked="isSelected(storyline.id)"
+                  class="form-checkbox h-4 w-4 text-violet-500 rounded border-gray-300 dark:border-gray-600"
+                  data-testid="storyline-checkbox"
+                  @click.stop
+                  @change="toggleSelect(storyline.id)"
+                />
+              </td>
               <td
                 class="px-4 py-3 whitespace-nowrap text-gray-800 dark:text-gray-100 font-medium"
                 data-testid="storyline-name-cell"
@@ -242,6 +451,26 @@ function formatDateTime(dateStr: string | null): string {
                 class="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300"
               >
                 {{ formatDate(storyline.created_at) }}
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap text-right space-x-2">
+                <button
+                  type="button"
+                  class="text-xs text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
+                  data-testid="row-regenerate-button"
+                  :title="`Regenerate ${storyline.name}`"
+                  @click.stop="openRegenerateRow(storyline)"
+                >
+                  Regenerate
+                </button>
+                <button
+                  type="button"
+                  class="text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                  data-testid="row-delete-button"
+                  :title="`Delete ${storyline.name}`"
+                  @click.stop="onDeleteRow(storyline)"
+                >
+                  Delete
+                </button>
               </td>
             </tr>
           </tbody>
@@ -303,5 +532,12 @@ function formatDateTime(dateStr: string | null): string {
         </div>
       </div>
     </div>
+
+    <StorylineCreateModal v-model="createModalOpen" @created="onCreated" />
+
+    <StorylineRegenerateModal
+      v-model="regenerateModalOpen"
+      :storyline-ids="regenerateIds"
+    />
   </div>
 </template>

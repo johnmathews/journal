@@ -12,8 +12,23 @@ vi.mock('@/api/storylines', () => ({
   deleteStoryline: vi.fn(),
 }))
 
-import { fetchStorylines } from '@/api/storylines'
+vi.mock('@/api/entities', () => ({
+  fetchEntities: vi.fn().mockResolvedValue({
+    items: [],
+    total: 0,
+    limit: 20,
+    offset: 0,
+  }),
+}))
+
+import {
+  deleteStoryline,
+  fetchStorylines,
+  regenerateStoryline,
+} from '@/api/storylines'
 const mockFetchStorylines = vi.mocked(fetchStorylines)
+const mockDeleteStoryline = vi.mocked(deleteStoryline)
+const mockRegenerateStoryline = vi.mocked(regenerateStoryline)
 
 function mockSummary(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -192,5 +207,200 @@ describe('StorylineListView', () => {
     expect(mockFetchStorylines).toHaveBeenCalledWith(
       expect.objectContaining({ limit: 50, offset: 0 }),
     )
+  })
+
+  // --- W9: New storyline button + create modal ---
+
+  it('renders the New storyline button', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="new-storyline-button"]').exists()).toBe(
+      true,
+    )
+  })
+
+  it('clicking the New storyline button opens the create modal', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.find('[data-testid="new-storyline-button"]').trigger('click')
+    await flushPromises()
+    // Modal renders via <Teleport to="body">.
+    expect(
+      document.body.querySelector('[data-testid="storyline-create-modal"]'),
+    ).not.toBeNull()
+    // Clean up teleported nodes so they don't bleed into other tests.
+    document.body.innerHTML = ''
+  })
+
+  // --- W10: per-row + bulk delete + selection toolbar ---
+
+  it('header checkbox toggles selection for all rows on the current page', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    const headerCheckbox = wrapper.find('[data-testid="select-all-checkbox"]')
+    await headerCheckbox.trigger('change')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="selection-toolbar"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('[data-testid="selection-toolbar"]').text()).toContain(
+      '2 selected',
+    )
+  })
+
+  it('per-row checkbox toggles a single selection', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    const checkboxes = wrapper.findAll('[data-testid="storyline-checkbox"]')
+    await checkboxes[0].trigger('change')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="selection-toolbar"]').text()).toContain(
+      '1 selected',
+    )
+  })
+
+  it('per-row Delete button calls window.confirm and store.removeStoryline on accept', async () => {
+    const confirmSpy = vi.fn(() => true)
+    vi.stubGlobal('confirm', confirmSpy)
+    mockDeleteStoryline.mockResolvedValue({ deleted: true })
+
+    const wrapper = mountComponent()
+    await flushPromises()
+    const deleteButtons = wrapper.findAll('[data-testid="row-delete-button"]')
+    await deleteButtons[0].trigger('click')
+    await flushPromises()
+    expect(confirmSpy).toHaveBeenCalled()
+    expect(mockDeleteStoryline).toHaveBeenCalledWith(1)
+    vi.unstubAllGlobals()
+  })
+
+  it('per-row Delete button does nothing when confirm is cancelled', async () => {
+    const confirmSpy = vi.fn(() => false)
+    vi.stubGlobal('confirm', confirmSpy)
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper
+      .findAll('[data-testid="row-delete-button"]')[0]
+      .trigger('click')
+    await flushPromises()
+    expect(mockDeleteStoryline).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
+
+  it('bulk Delete iterates removeStoryline for each selected id', async () => {
+    const confirmSpy = vi.fn(() => true)
+    vi.stubGlobal('confirm', confirmSpy)
+    mockDeleteStoryline.mockResolvedValue({ deleted: true })
+
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.find('[data-testid="select-all-checkbox"]').trigger('change')
+    await flushPromises()
+    await wrapper.find('[data-testid="bulk-delete-button"]').trigger('click')
+    await flushPromises()
+    expect(mockDeleteStoryline).toHaveBeenCalledTimes(2)
+    expect(mockDeleteStoryline).toHaveBeenCalledWith(1)
+    expect(mockDeleteStoryline).toHaveBeenCalledWith(2)
+    vi.unstubAllGlobals()
+  })
+
+  it('shows the delete-error banner when a delete fails', async () => {
+    const confirmSpy = vi.fn(() => true)
+    vi.stubGlobal('confirm', confirmSpy)
+    mockDeleteStoryline.mockRejectedValue(new Error('forbidden'))
+
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper
+      .findAll('[data-testid="row-delete-button"]')[0]
+      .trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="delete-error-banner"]').text()).toBe(
+      'forbidden',
+    )
+    vi.unstubAllGlobals()
+  })
+
+  it('bulk delete with mixed failure surfaces the partial-failure banner', async () => {
+    const confirmSpy = vi.fn(() => true)
+    vi.stubGlobal('confirm', confirmSpy)
+    mockDeleteStoryline.mockImplementation((id: number) => {
+      if (id === 1) return Promise.reject(new Error('nope'))
+      return Promise.resolve({ deleted: true })
+    })
+
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.find('[data-testid="select-all-checkbox"]').trigger('change')
+    await flushPromises()
+    await wrapper.find('[data-testid="bulk-delete-button"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="delete-error-banner"]').exists()).toBe(
+      true,
+    )
+    vi.unstubAllGlobals()
+  })
+
+  it('clear-selection button empties the selection set', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.find('[data-testid="select-all-checkbox"]').trigger('change')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="selection-toolbar"]').exists()).toBe(
+      true,
+    )
+    await wrapper.find('[data-testid="clear-selection"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="selection-toolbar"]').exists()).toBe(
+      false,
+    )
+  })
+
+  // --- W11: regenerate modal ---
+
+  it('per-row Regenerate button opens the regenerate modal with that id', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    const regenButtons = wrapper.findAll(
+      '[data-testid="row-regenerate-button"]',
+    )
+    await regenButtons[0].trigger('click')
+    await flushPromises()
+    expect(
+      document.body.querySelector('[data-testid="storyline-regenerate-modal"]'),
+    ).not.toBeNull()
+    expect(
+      document.body.querySelector('[data-testid="storyline-regenerate-count"]')
+        ?.textContent,
+    ).toContain('1 storyline')
+    document.body.innerHTML = ''
+  })
+
+  it('selection-toolbar Regenerate opens the modal with all selected ids', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.find('[data-testid="select-all-checkbox"]').trigger('change')
+    await flushPromises()
+    await wrapper
+      .find('[data-testid="bulk-regenerate-button"]')
+      .trigger('click')
+    await flushPromises()
+    expect(
+      document.body.querySelector('[data-testid="storyline-regenerate-count"]')
+        ?.textContent,
+    ).toContain('2 storyline')
+
+    // Confirm that submitting hits the API for each selected id.
+    mockRegenerateStoryline.mockResolvedValue({
+      job_id: 'job-x',
+      status: 'queued',
+    })
+    const submit = document.body.querySelector(
+      '[data-testid="storyline-regenerate-submit"]',
+    ) as HTMLElement
+    submit.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+    expect(mockRegenerateStoryline).toHaveBeenCalledTimes(2)
+    document.body.innerHTML = ''
   })
 })
