@@ -1,416 +1,339 @@
-# Improvement plan — UI changes (mood-trend defaults, entity casing, stale entities)
+# Storylines detail-view UI redesign — improvement plan
 
-Date: 2026-05-06. Based on `.engineering-team/evaluation-report.md`. Worktree:
-`eng-ui-changes` in both repos.
+Target: `/storylines/:id` view. Make the narrative read like prose and the
+curation read like a list, while preserving the link back to every source
+entry. Server stays untouched — this is a renderer-only change.
 
-## Approach
+## Decisions
 
-Cross-cutting work across two repos. Each work unit is scoped to one repo; cross-repo
-dependencies (server API → webapp consumer) are called out explicitly. All work happens in
-the matching `eng-ui-changes` worktree in each repo, producing two coordinated commits.
+1. **Two specialised renderers, no shared component.** The existing
+   `StorylineSegments.vue` is replaced by `StorylineNarrative.vue` and
+   `StorylineCurationList.vue`. The shared component was a useful seam when
+   both panels rendered as prose; with one panel as prose-with-footnotes and
+   the other as a structured list, the shared API stops earning its keep
+   and forces both call sites to special-case the same component.
+2. **Numbering is driven by narrative walking order.** Citations are
+   assigned `[N]` in the order they appear in the narrative panel, then
+   any curation-only entries get the next numbers. Reasoning:
+   - The narrative is the showpiece — "reads like prose" — and its
+     footnote section reading `[1] [2] [3] …` sequentially is the
+     cleanest version of a footnoted essay.
+   - Curation rows will therefore show non-sequential `[N]` values
+     (a curation-only entry might be `[14]`, the next one back to
+     `[2]` if that entry was narrative-cited first). The chronological
+     row ordering is unchanged — only the `[N]` labels are non-sequential.
+     Acceptable because curation is read primarily for the date+quote
+     sequence, with `[N]` as a secondary identifier.
+3. **Footnotes live inside the narrative panel, not at the page bottom.**
+   Per user pick — keeps the eye in one column at `lg`, sidesteps the
+   awkward case where the curation panel is taller than the narrative
+   panel and pushes the footnote block far below the body.
+4. **Backref affordance in each footnote.** Small `↩` button that scrolls
+   back to the `[N]` marker in body. Cheap to build, materially helps
+   re-finding your place after dipping into a footnote.
+5. **Smooth-scroll for the in-panel jump.** `scrollIntoView({ behavior:
+   'smooth', block: 'center' })` for both the forward jump and the
+   backref. No URL hash mutation — the jump is purely intra-panel, and a
+   hash change would interfere with router history.
 
-## Work units overview
+## Non-goals
 
-| # | Repo | Title | Priority | Depends on |
-|---|---|---|---|---|
-| 1 | webapp | Mood-trends default = affect-axes group | High | — |
-| 2 | server | Smart entity capitalization (write-time normalization) | Medium | — |
-| 3 | server | Entity `is_quarantined` flag + repo + filter | High | — |
-| 4 | server | Reject/rename hallucinated names + post-save sanity sweep | High | WU3 |
-| 5 | server | Loosen merge-candidate detection for near-duplicate places | Medium | — |
-| 6 | server | Docs: existing merge feature + production deployment | Medium | — |
-| 7 | webapp | Surface quarantined entities in admin/list UI | Medium | WU3, WU4 |
+1. Any server change. The `Segment[]` wire shape stays as-is; the
+   redesign is renderer-only.
+2. Hover/popover preview of footnotes (Option D from the discussion).
+   Worth doing later as an additive enhancement once Option A ships.
+3. Tufte-style margin notes (Option C). Pretty, but the two-panel layout
+   already eats horizontal space.
+4. Synced scrolling between panels.
+5. Mobile-specific footnote treatment. Stacking behaviour stays as it is
+   today; we revisit if it feels wrong in use.
+6. Tuning the server-side narrative prompt for footnote-style output
+   (i.e. ensuring prose still flows when inline quotes are stripped).
+   Captured as a follow-up in the doc, not work for this plan.
 
-WU1, WU2, WU3, WU5, WU6 are independent — implement in parallel. WU4 follows WU3. WU7
-follows WU3 + WU4.
+## Work units
 
----
-
-## WU1 — Mood-trends default selection = affect-axes group
-
-**Repo:** webapp. **Priority:** High. **Risk:** Low.
-
-### Why
-Ask #1. Today the dashboard defaults to showing only the `agency` series. User wants the
-two affect-axes series (`joy_sadness`, `energy_fatigue`) preselected on first load with all
-others off.
-
-### Changes
-
-- **Edit:** `src/stores/dashboard.ts`
-  - Replace the `DEFAULT_ISOLATED_MOOD = 'agency'` constant (line 127) with a reference to
-    the affect-group members from `MOOD_GROUPS`.
-  - Rewrite the default-selection logic in `loadMoodDimensions` (lines 240–248) to:
-    1. Find the `'affect'` group in `MOOD_GROUPS` (import added).
-    2. Filter to members that exist in `response.dimensions`.
-    3. If non-empty, set `selectedMoodDimensions` to that set; else fall back to empty
-       (which means "show all").
-  - Keep the `moodDefaultsApplied` one-shot flag intact.
-- **Edit:** `src/stores/__tests__/dashboard.test.ts`
-  - Rename and retarget the "isolates agency by default" test to "selects affect axes by
-    default".
-  - Update assertions in the idempotence test, the fallback regression test, and the
-    `moodGroupSelectionState` / `toggleMoodGroup` tests so the initial-state assumption
-    matches the new default.
-  - Add tests: empty dimensions → empty selection; affect group missing → empty (show-all);
-    only one of the two affect members present → selection is just that one.
-
-### Acceptance criteria
-
-1. On a fresh dashboard load, only `joy_sadness` and `energy_fatigue` series appear in
-   the chart; all other series toggles are off.
-2. The affect-group label visually shows "all selected" (full state).
-3. All other group labels show "none selected".
-4. User can still toggle freely after load (defaults are not re-applied mid-session).
-5. `npm run test:unit` is green; `npm run lint` is clean.
-6. Visual verification via Playwright (start `webapp + server + chromadb` per the Local
-   Full-Stack Quickstart in `webapp/CLAUDE.md`): page loads, chart shows two series,
-   correct defaults; toggling a different group adds those series; no console errors.
+Ordering rationale: foundation (W1) → scaffolding (W2) → parallel
+component builds (W3 + W4 — different files, no overlap) → wiring (W5)
+→ docs + journal (W6, W7).
 
 ---
 
-## WU2 — Smart entity capitalization at write time
+### W1 — Citation registry composable
 
-**Repo:** server. **Priority:** Medium. **Risk:** Medium (test-fixture churn).
+**Priority:** High. **Risk:** Low. **Size:** S.
 
-### Why
-Ask #2. Entity names today reflect whatever casing the LLM emits — inconsistent.
-`running` and `Running` can coexist on the case-sensitive UNIQUE constraint. User wants
-smart title-casing applied at write time, with an editable exception list to preserve
-`iOS`, `IKEA`, `FC Barcelona`, etc.
+**Changes:**
+- New file `src/composables/useCitationRegistry.ts`. Exports a function
+  `buildCitationRegistry(panels: StorylineDetail['panels']): Map<number, number>`
+  that walks segments in order (**narrative first**, then curation) and
+  assigns each unique `entry_id` an incrementing `[N]`. The returned Map
+  is keyed by `entry_id` and yields the citation number for that entry.
+- Pure function, no Vue reactivity inside — the caller wraps it in
+  `computed()`.
 
-### Changes
+**Test impact:**
+- New file `src/composables/__tests__/useCitationRegistry.spec.ts`. Cover:
+  curation-first ordering, dedup of repeated entry_ids, narrative-only
+  entries get trailing numbers, missing panels handled gracefully, empty
+  segments don't blow up.
 
-- **New file:** `config/entity-casing-exceptions.toml`
-  - `[meta]` block with `version = "2026-05-06"` and a description, mirroring
-    `config/mood-dimensions.toml` style.
-  - `[exceptions]` table mapping lowercased key → preserved-case value. Seed with: `iOS`,
-    `iPhone`, `iPad`, `iPod`, `macOS`, `IKEA`, `NASA`, `BBC`, `FBI`, `LinkedIn`, `GitHub`,
-    `eBay`, `YouTube`, `WhatsApp`, `IBM`, `HP`, `KLM`, `FC Barcelona`, `AC Milan`,
-    `the Netherlands` (capital T), `the Hague` (capital T), `Den Haag`, `'t Gooi`,
-    `O'Brien`, `McDonald's`, `O'Reilly`. Comment header explaining the format.
+**Reversibility:** Pure additive code. Revert deletes the file.
 
-- **New file:** `src/journal/services/entity_naming.py`
-  - Module-level `_DEFAULT_DUTCH_PARTICLES = {"van", "der", "de", "den", "het", "'t",
-    "ten", "ter", "op", "aan"}`.
-  - Module-level `_LOWERCASE_ARTICLES = {"of", "the", "and", "for", "in", "on", "at",
-    "to", "with", "or", "by"}`.
-  - Function `smart_title_case(name: str, exceptions: dict[str, str]) -> str` implementing
-    the algorithm from the eval report (steps 1–5). Hyphen-segment-aware
-    (`anglo-saxon` → `Anglo-Saxon`).
-  - Function `load_entity_casing_exceptions(path: Path) -> dict[str, str]` parsing the toml
-    and returning a normalized `lower → preserved-case` map.
+**Dependencies:** None.
 
-- **Edit:** `src/journal/config.py`
-  - Add `entity_casing_exceptions_path: Path` field defaulting to
-    `config/entity-casing-exceptions.toml`.
-  - Add a loaded `entity_casing_exceptions: dict[str, str]` populated at startup. If the
-    file is missing, default to `{}` and log a warning (don't crash — the algorithm
-    degrades gracefully).
-
-- **Edit:** `src/journal/entitystore/store.py:260–282`
-  - Inject the exceptions map (constructor wiring or via the calling service — see below).
-  - Replace `canonical_name.strip()` with
-    `smart_title_case(canonical_name, exceptions=...)`.
-  - Add a docstring noting names are normalized at write time.
-
-- **Edit:** `src/journal/services/entity_extraction.py`
-  - Pass the exceptions map through to the store. Either: (a) the store reads from a
-    config-injected dependency, or (b) the service applies normalization before calling
-    the store. Decision in implementation: prefer (a) — single chokepoint — by passing
-    the exceptions map into `SQLiteEntityStore`'s constructor in the wiring layer.
-
-- **Edit:** `src/journal/services/reload.py`
-  - Add `reload_entity_casing_exceptions()` mirroring `reload_mood_dimensions()`.
-  - Re-read the toml, swap the in-memory dict atomically, re-inject into the store.
-
-- **Edit:** wherever the admin reload routes are registered (likely `auth_api.py` or the
-  api module that exposes `/api/admin/reload/{resource}` — discoverable via grep)
-  - Add a route handler for `entity_casing` resource.
-
-- **Edit / extend tests:**
-  - **New:** `tests/test_services/test_entity_naming.py` — comprehensive cases:
-    `running → Running`, `church → Church`, `the netherlands → The Netherlands`,
-    `iOS → iOS`, `FC barcelona → FC Barcelona`, `anglo-saxon → Anglo-Saxon`,
-    `O'Brien → O'Brien` (via exception), `nasa → NASA` (via exception),
-    `den haag → Den Haag`, hyphen edge cases, single-letter words, empty input,
-    whitespace-only input, mid-word uppercase preservation.
-  - **Update:** any test that asserts an exact `canonical_name` string for fixtures that
-    will now title-case differently (e.g. `assert e.canonical_name == "alice"` →
-    `"Alice"`). Discoverable via grep in Phase 3 implementation.
-  - **Update:** webapp `src/utils/__tests__/entityName.test.ts` — fixtures should reflect
-    that DB names are now title-cased, so `displayName` is idempotent.
-
-- **Doc updates:**
-  - Add a "Casing normalization" subsection to `docs/entity-tracking.md` describing the
-    algorithm and pointing to the exceptions toml.
-  - Add an "Entity casing exceptions" entry to `docs/configuration.md` (or wherever the
-    operator-config files are listed).
-
-### Acceptance criteria
-
-1. New entities created with lowercase LLM output (`running`) are stored as `Running`.
-2. Names with mid-word uppercase (`iOS`, `iPhone`) are preserved verbatim.
-3. Names matching an exception entry use the exception's exact casing.
-4. Dutch place-name particles in non-leading positions are lowercased (`Jan van Halen`).
-5. Hyphen-segments are individually title-cased (`Anglo-Saxon`).
-6. `POST /api/admin/reload/entity_casing` re-reads the toml without restarting.
-7. Server pytest suite passes including the new `test_entity_naming.py` and all updated
-   fixtures.
-8. `uv run ruff check src/ tests/` is clean.
+**Acceptance criteria:**
+- `buildCitationRegistry` returns expected number assignments for a
+  fixture where narrative drives `[1]`, `[2]`, `[3]` and curation-only
+  entries pick up the next numbers.
+- All new unit tests pass; existing test count goes up, no regressions.
 
 ---
 
-## WU3 — Entity `is_quarantined` flag
+### W2 — Scaffold new renderer components
 
-**Repo:** server. **Priority:** High. **Risk:** Low (additive schema change, no destruction).
+**Priority:** High. **Risk:** Low. **Size:** S.
 
-### Why
-Foundation for WU4. The user agreed soft quarantine (hide from charts, keep in DB) is the
-safe approach for entities that fail post-extraction sanity checks. We need a column,
-repository methods, and default-filter behavior in entity-list / chart endpoints.
+**Changes:**
+- Create `src/components/StorylineNarrative.vue` (empty shell with
+  `<script setup lang="ts">` + props typed as
+  `{ segments: Segment[]; registry: Map<number, number> }`).
+- Create `src/components/StorylineCurationList.vue` (empty shell with
+  the same prop shape).
+- Both inherit the serif typography rules from
+  `StorylineSegments.vue`'s `<style scoped>` block — kept inline for now,
+  may extract to a shared CSS partial if duplication grows.
+- Do NOT delete `StorylineSegments.vue` or its tests in this unit; that
+  comes in W5 after the new components are wired up, so we never have
+  a moment where the detail view points at nothing.
 
-### Changes
+**Test impact:** None yet. Tests come in W3 and W4.
 
-- **New migration:** `src/journal/db/migrations/0012_entity_quarantine.sql`
-  - `ALTER TABLE entities ADD COLUMN is_quarantined INTEGER NOT NULL DEFAULT 0;`
-  - `ALTER TABLE entities ADD COLUMN quarantine_reason TEXT NOT NULL DEFAULT '';`
-  - `ALTER TABLE entities ADD COLUMN quarantined_at TEXT NOT NULL DEFAULT '';`
-  - Add index `CREATE INDEX idx_entities_quarantined ON entities(is_quarantined) WHERE is_quarantined = 1;`
+**Reversibility:** Delete the new files.
 
-- **Edit:** `src/journal/models.py:Entity`
-  - Add fields `is_quarantined: bool = False`, `quarantine_reason: str = ""`,
-    `quarantined_at: str = ""`.
+**Dependencies:** None (but ordering: must precede W3, W4, W5).
 
-- **Edit:** `src/journal/entitystore/store.py`
-  - Update `SELECT *` mappers to include the new columns.
-  - Update `list_entities()` and `list_entities_with_mention_counts()` to accept an
-    `include_quarantined: bool = False` parameter; default behavior excludes quarantined
-    rows.
-  - Add `quarantine_entity(entity_id: int, reason: str) -> None` — sets the flag and
-    timestamp.
-  - Add `release_quarantine(entity_id: int) -> None` — clears the flag.
-  - Add `list_quarantined_entities(user_id: int) -> list[Entity]`.
-
-- **Edit:** `src/journal/api.py` — entity list endpoint(s)
-  - Existing list endpoints exclude quarantined by default.
-  - Add `GET /api/entities/quarantined` returning the quarantined list.
-  - Add `POST /api/entities/{id}/quarantine` (admin) for manual quarantine.
-  - Add `POST /api/entities/{id}/release-quarantine` for manual release.
-
-- **Edit:** chart-data endpoints (entity mention frequency, topic trends, etc.) — confirm
-  they go through the list/aggregate methods that filter by default. If not, add the
-  filter.
-
-- **Tests:**
-  - `tests/test_db/test_migrations.py` — verify migration applies cleanly to a populated DB.
-  - `tests/test_entitystore/...` — repository tests for the new methods.
-  - `tests/test_api.py` — endpoint tests for quarantine list / set / release.
-
-### Acceptance criteria
-
-1. Migration applies cleanly forward; `pragma user_version` increments correctly.
-2. Existing entity list / mention-frequency endpoints exclude quarantined rows by default.
-3. New `/api/entities/quarantined` endpoint returns only quarantined rows.
-4. Quarantining/releasing an entity persists across queries.
-5. All entity test suites green.
+**Acceptance criteria:**
+- `npm run build` succeeds (typecheck clean).
+- Existing tests still pass — nothing has been removed or rewired.
 
 ---
 
-## WU4 — Reject/rename hallucinated names + post-save sanity sweep
+### W3 — Narrative panel: prose + footnotes
 
-**Repo:** server. **Priority:** High. **Risk:** Medium (touches LLM repair logic).
-**Depends on:** WU3.
+**Priority:** High. **Risk:** Medium (real new behaviour, smooth-scroll
+into anchors). **Size:** M.
 
-### Why
-Ask #3.1 and #3.2. The actual fix for the `Zij Kanaal C Zuid` symptom. User approved (b)
-auto-rename to longest in-quote substring, falling back to (c) soft quarantine.
+**Changes:**
+- `src/components/StorylineNarrative.vue`:
+  - Walk `segments`. For each `text` segment, render a span. For each
+    `citation` segment, render a `<sup>` containing an `<a>` whose
+    click handler smooth-scrolls to the matching footnote element.
+    **The inline italic quote is removed from body.**
+  - Each body marker carries a unique `data-instance` id so backrefs
+    can target the right occurrence when the same `entry_id` is cited
+    twice; the first body marker for `[N]` is the backref target.
+  - Build a deduped footnote list: unique `entry_id`s the narrative cites,
+    sorted by `[N]` ascending. Each footnote row:
+    - Leading `[N]` marker (matching the body anchor target).
+    - Quote in italic.
+    - `RouterLink` to `/entries/{entry_id}` rendered as the entry id with
+      an external-link glyph.
+    - Backref `↩` button that scrolls to the first `[N]` body marker.
+  - Footnotes section is separated from body by a thin top border and
+    a small "Sources" eyebrow label.
+  - `data-testid` attributes: `narrative-body`, `narrative-body-marker-{N}`,
+    `narrative-footnote-{N}`, `narrative-footnote-link-{N}`,
+    `narrative-footnote-backref-{N}`.
 
-### Changes
+**Test impact:**
+- New file `src/components/__tests__/StorylineNarrative.spec.ts`. Cover:
+  body renders text + citation markers in source order, body has no
+  inline quotes, footnote section lists each unique entry_id once,
+  footnote entry link points at `/entries/{id}`, clicking a body marker
+  triggers `scrollIntoView` on the right footnote element (mock
+  `scrollIntoView` since happy-dom doesn't implement it), backref scrolls
+  back to body, missing registry entry for an `entry_id` is treated as
+  a defensive fallback (renders `[?]` rather than crashing — we still
+  link to the entry).
 
-- **Edit:** `src/journal/providers/extraction.py:264–299` (the existing
-  `_repair_canonical_name` function and the warn-only path at line 379)
-  - Add helper `_longest_substring_in_quote(canonical: str, quote: str) -> str | None`:
-    finds the longest prefix-of-canonical that appears in the quote, case-insensitive.
-    Whitespace-tolerant (collapse runs of whitespace before comparing).
-  - At line 379, **before** the warn-and-keep, try the longest-substring repair. If it
-    yields a non-empty result of at least 3 chars, use it as the canonical_name.
-  - If repair yields nothing usable, **mark the extraction result with
-    `pending_quarantine_reason: str`** so the caller (the extraction service) can flag the
-    entity at insert time. Keep the warning log but augment it with the action taken.
+**Reversibility:** Pure additive code until W5 wires it in. Revert by
+deleting the file (and the spec).
 
-- **Edit:** `src/journal/services/entity_extraction.py`
-  - At the end of `extract_from_entry()` (after the existing orphan-cleanup at lines
-    285–291), iterate over the entities touched in this run and verify each one's
-    canonical_name appears in at least one of:
-    - any of its mention quotes (across all entries) — substring, case-insensitive,
-      whitespace-tolerant; or
-    - the current `final_text` of any of its mentioned entries.
-  - Entities that fail this check: call `store.quarantine_entity(id, reason="canonical
-    name not found in any mention quote or entry text after re-extraction")`.
-  - When `_resolve_entity()` creates a new entity that arrived with
-    `pending_quarantine_reason`, quarantine it immediately on insert.
-  - Log every quarantine at INFO with the entity id, name, and reason.
+**Dependencies:** W1 (registry), W2 (scaffold).
 
-- **Tests:**
-  - `tests/test_providers/test_extraction.py` — new test for the longest-substring repair:
-    given canonical `Zij Kanaal C Zuid` and quote `"Zij Kanaal C" Zuid is clearly a canal`,
-    the repaired name is `Zij Kanaal C` (or similar).
-  - `tests/test_services/test_entity_extraction.py` — new tests:
-    - First-extraction with a hallucinated name → entity is created with the repaired name
-      (not quarantined).
-    - First-extraction with no usable substring → entity is quarantined.
-    - Re-extraction after entry edit removes the rationale for an entity → entity is
-      quarantined (not deleted).
-    - Reproduction-style test mimicking the `Zij Kanaal C Zuid` flow: ingest entry, edit
-      text to remove the stray `Zuid`, re-extract → entity is renamed to
-      `Zij Kanaal C` or quarantined (depending on whether the substring repair succeeds at
-      first-extraction time before the edit).
-
-### Acceptance criteria
-
-1. The `Zij Kanaal C Zuid` reproduction-style test passes — after entry edit, the entity
-   either (a) ends up renamed to `Zij Kanaal C`, or (b) is quarantined with a clear reason.
-2. Existing extraction tests still pass (modulo updated assertions reflecting the repair).
-3. Logs at INFO clearly say what action was taken (`renamed canonical_name from X to Y` /
-   `quarantined entity Z: reason`).
-4. No DB rows are deleted by this work unit (quarantine is soft).
+**Acceptance criteria:**
+- Narrative body contains no italic quote text — quotes only appear in
+  the footnote section.
+- Clicking `[1]` in the body scrolls the matching footnote into view
+  (verified in test via mocked `scrollIntoView`).
+- Clicking the `↩` in a footnote scrolls the corresponding body marker
+  into view.
+- Footnote link `href` is `/entries/{entry_id}`.
 
 ---
 
-## WU5 — Loosen merge-candidate detection for short multi-word names
+### W4 — Curation panel: table-style row list
 
-**Repo:** server. **Priority:** Medium. **Risk:** Low.
+**Priority:** High. **Risk:** Low. **Size:** M.
 
-### Why
-Ask #3.3. Three near-duplicate `Zij Kanaal C *` rows in prod were not flagged as merge
-candidates. The detector is too strict for short multi-word place names.
+**Changes:**
+- `src/components/StorylineCurationList.vue`:
+  - Group segments into rows. Algorithm: walk segments left-to-right;
+    accumulate the most-recent non-empty `text` segment as the row's
+    "date label"; on each `citation` segment, emit a row
+    `{ dateLabel, entryId, quote, citationNumber }` and clear the
+    pending label. Trailing text segments (no following citation) are
+    dropped.
+  - Strip trailing `:` and whitespace from the date label.
+  - Row layout (CSS grid):
+    - Left column (~10ch, right-aligned): date label in a smaller,
+      slightly muted weight.
+    - Middle column (flex-1): the quote in italic serif.
+    - Right column (auto): `RouterLink` showing `[N]` and a small
+      chevron, aligned right.
+  - Rows separated by a thin divider. Hover state lightens the row
+    background subtly.
+  - `data-testid` attributes: `curation-row-{N}`, `curation-row-date-{N}`,
+    `curation-row-quote-{N}`, `curation-row-link-{N}`.
 
-### Changes
+**Test impact:**
+- New file `src/components/__tests__/StorylineCurationList.spec.ts`. Cover:
+  one row per citation segment, date label inherited from the preceding
+  text segment, trailing colon stripped, link points at
+  `/entries/{entry_id}`, `[N]` matches registry value, empty segments
+  array renders zero rows without crashing, citation without preceding
+  text gets an empty date label (regression for the first-row case).
 
-- **Edit:** the merge-candidate detector. Discover via grep for `merge_candidate` /
-  `MergeCandidate` — likely lives in `src/journal/services/merge_candidates.py` or
-  similar.
-- **Add a complementary heuristic alongside the existing embedding-distance threshold:**
-  for entities of the same `entity_type`, compute a normalized signature
-  `_normalize_for_compare(name) = re.sub(r"\s+", "", name.lower())`. If two entities'
-  signatures are equal or one is a substring of the other and the *non-overlapping* part
-  is short (≤ 4 chars or a single word), flag them as a candidate.
-- **Tests:** new test cases in `tests/test_services/test_merge_candidates.py` (or
-  equivalent) covering:
-  - `Zijkanaal C Weg` and `Zij Kanaal C Weg` flagged.
-  - `Zij Kanaal C Weg` and `Zij Kanaal C Zuid` flagged.
-  - Unrelated short names not flagged (`Amsterdam` vs `Rotterdam`).
+**Reversibility:** Delete the file.
 
-### Acceptance criteria
+**Dependencies:** W1, W2.
 
-1. New tests pass.
-2. Existing detector tests still pass.
-3. Manually running the detector on the prod DB (out-of-scope for the worktree but
-   verifiable post-merge) flags the three `Zij Kanaal C *` rows.
-
----
-
-## WU6 — Documentation: existing merge feature + production deployment
-
-**Repo:** server. **Priority:** Medium. **Risk:** None (docs only).
-
-### Why
-Ask #3.4 + general doc gap. The merge feature is fully implemented and works; documenting
-it stops future-Claude (and future-user) from re-inventing it. The production environment
-is currently undocumented — operator and future-debug context lives only in shell history
-and `ssh media` muscle-memory.
-
-### Changes
-
-- **Edit:** `docs/entity-tracking.md`
-  - New section "Merging entities" covering: API endpoint, payload, semantics (mentions
-    reassigned, absorbed canonical names become aliases, history snapshot in
-    `entity_merge_history`); UI flow (multi-select on `EntityListView`, modal with radio
-    survivor picker); merge-candidate review queue.
-  - Cross-reference the dev log entry `journal/260412-entity-management.md`.
-  - Add a "Quarantine" subsection (added by WU3/WU4) describing what quarantine means
-    (soft-hide), how entities get quarantined, and how to release them.
-  - Add a "Casing normalization" subsection (paired with WU2).
-
-- **New file:** `docs/production-deployment.md`
-  - Sections: Host, Compose layout, Containers (image, ports, restart policy, bind mounts),
-    Image source & update workflow, Public exposure (Cloudflare Tunnel reference),
-    Operational commands (logs, restart, DB query, backup target).
-  - Explicitly call out: `:latest` pinning, no auto-update, manual
-    `docker compose pull && up -d` workflow.
-
-### Acceptance criteria
-
-1. `docs/entity-tracking.md` has Merging, Quarantine, and Casing-normalization sections
-   that match the actual code (verified against api.py, store.py).
-2. `docs/production-deployment.md` exists and matches the prod-investigation findings.
-3. Both docs render cleanly (mdbook/markdown linter if present, otherwise visual review).
+**Acceptance criteria:**
+- One row per citation. Date label is the text immediately preceding
+  that citation, with `:` and whitespace trimmed.
+- `[N]` numbers come from the shared registry (verified by passing a
+  registry that assigns non-sequential numbers and checking the
+  rendered output matches).
 
 ---
 
-## WU7 — Webapp: surface quarantined entities
+### W5 — Wire up StorylineDetailView, retire StorylineSegments
 
-**Repo:** webapp. **Priority:** Medium. **Risk:** Low. **Depends on:** WU3 + WU4.
+**Priority:** High. **Risk:** Medium (touches the live view; ordering
+matters — replace before delete). **Size:** S.
 
-### Why
-The user needs to see what's been quarantined and either release back to active or merge
-into a survivor. Without UI, quarantine is invisible to operators.
+**Changes:**
+- `src/views/StorylineDetailView.vue`:
+  - Import `buildCitationRegistry`, `StorylineNarrative`,
+    `StorylineCurationList`.
+  - Add `const registry = computed(() => buildCitationRegistry(
+    store.currentStoryline?.panels ?? {}))`.
+  - Replace the curation panel's `<StorylineSegments :segments="...">`
+    with `<StorylineCurationList :segments="curationPanel.segments"
+    :registry="registry">`.
+  - Replace the narrative panel's `<StorylineSegments :segments="...">`
+    with `<StorylineNarrative :segments="narrativePanel.segments"
+    :registry="registry">`.
+  - Keep all surrounding chrome (header, meta strip, empty-state copy)
+    unchanged.
+- Delete `src/components/StorylineSegments.vue`.
+- Delete `src/components/__tests__/StorylineSegments.spec.ts`.
 
-### Changes
+**Test impact:**
+- `src/views/__tests__/StorylineDetailView.test.ts`:
+  - The mock detail fixture already produces valid `Segment[]` — no
+    changes there.
+  - Any assertion that referenced the old `segment-...` test IDs is
+    rewritten against the new components' test IDs.
+  - Add an assertion that the same `entry_id` cited in both panels
+    receives the same `[N]` (shared-numbering behaviour verified
+    end-to-end at the view level).
 
-- **Edit:** `src/api/entities.ts` — add `fetchQuarantinedEntities()`,
-  `releaseQuarantine(id)`, `quarantineEntity(id, reason)` clients matching the new
-  endpoints.
+**Reversibility:** Revert commit. The deleted component would come
+back; nothing on disk is unrecoverable.
 
-- **Edit:** `src/views/EntityListView.vue`
-  - Add a quarantine badge to entity rows when `entity.is_quarantined === true` (the list
-    endpoint may need an `include_quarantined=true` query param if we want them visible in
-    a special view).
-  - Add a "Quarantined" tab/filter at the top alongside the entity-type filter.
-  - In the row context menu (or the entity detail view), add "Release from quarantine" and
-    "Merge into existing entity..." actions.
+**Dependencies:** W1, W2, W3, W4.
 
-- **Edit:** `src/views/EntityDetailView.vue`
-  - Show quarantine reason and timestamp when applicable.
-  - "Release" button if quarantined.
-
-- **Tests:**
-  - `src/views/__tests__/EntityListView.test.ts` — quarantined badge renders, filter
-    toggles work, release action calls API.
-  - `src/views/__tests__/EntityDetailView.test.ts` — quarantine details visible.
-
-### Acceptance criteria
-
-1. Quarantined entities are excluded from the default entity list.
-2. The Quarantined filter shows them.
-3. Release-from-quarantine action moves the entity back to active state.
-4. Existing merge UI handles a survivor that is currently quarantined gracefully.
-5. `npm run test:unit` green; coverage thresholds met.
-6. Visual verification via Playwright: navigate to entity list, switch to Quarantined
-   filter, see at least one quarantined entity in dev seed; release one; verify it returns
-   to default view.
+**Acceptance criteria:**
+- `/storylines/:id` renders curation as a row list and narrative as
+  prose-with-footnotes. Visually verified in the browser (see Phase 3
+  visual-check note below).
+- Full test suite passes. Coverage stays above the 85% gates.
+- No remaining import of `StorylineSegments`.
 
 ---
 
-## Out-of-scope (flagged for follow-up)
+### W6 — Update `docs/storylines.md`
 
-1. **Backfill of pre-existing duplicate-case entity rows.** Once WU2 ships, future writes
-   will be consistent. Existing prod rows like potential `running` + `Running` pairs
-   stay as-is; user can use the merge UI to clean them up. Surfacing those duplicates as
-   merge candidates may benefit from WU5's relaxed heuristic.
-2. **Production image pinning / Watchtower.** Currently `:latest` everywhere with manual
-   updates. Documented in WU6 but not changed.
-3. **Embedding-matcher improvement** — long-term, the matcher should weigh canonical-name
-   substring overlap higher than pure embedding distance to avoid the kind of false-merge
-   that produced the `Zij Kanaal C Zuid` symptom. WU4's post-save sanity sweep is a
-   pragmatic compensating control.
+**Priority:** Medium. **Risk:** Low. **Size:** S.
 
-## Risk summary
+**Changes:**
+- `webapp/docs/storylines.md`:
+  - "Files" section: replace `StorylineSegments.vue` with
+    `StorylineNarrative.vue` and `StorylineCurationList.vue`.
+  - "Segment renderer" section: rewrite. Replace the "short/long quote
+    by threshold" explanation (already inaccurate post-disclosure
+    removal) with a description of the new split — narrative renders
+    prose + a Sources section; curation renders a row list; numbering
+    is shared via the `useCitationRegistry` composable.
+  - Update the "Citations are numbered per-panel" sentence to describe
+    shared registry / curation-driven ordering.
+  - Note the smooth-scroll + backref behaviour briefly.
 
-The highest-risk unit is WU4 — it touches the LLM repair path that produces real entities.
-Mitigations: comprehensive test coverage (the reproduction test pinned to the prod incident),
-soft-quarantine instead of delete, clear logs of the action taken on every entity. Failures
-are recoverable by manual release-from-quarantine + merge.
+**Test impact:** None (docs only).
 
-WU2's risk is purely test-fixture churn. WU1, WU3, WU5, WU6, WU7 are low-risk.
+**Reversibility:** Revert commit.
+
+**Dependencies:** W5 (don't write the new doc state until the code
+matches it).
+
+**Acceptance criteria:**
+- File names referenced in `docs/storylines.md` match files that exist.
+- No mention of the deleted `<details>` disclosure path.
+- No mention of "per-panel numbering" as current behaviour.
+
+---
+
+### W7 — Journal entry
+
+**Priority:** Medium. **Risk:** Low. **Size:** S.
+
+**Changes:**
+- New file `webapp/journal/260512-storylines-footnote-redesign.md`.
+  Captures: motivation (reading flow), the curation-drives-numbering
+  decision, the in-panel footnote choice, the component split, what
+  was kept out of scope (hover preview, margin notes, prompt tuning).
+
+**Test impact:** None.
+
+**Reversibility:** Revert commit.
+
+**Dependencies:** All other units (it documents what shipped).
+
+**Acceptance criteria:**
+- File exists with the correct `YYMMDD-` prefix.
+- References the actual files that changed.
+
+---
+
+## Visual verification (Phase 3 close-out)
+
+After W5 lands, run the dev stack end-to-end and walk
+`/storylines/:id` for the seeded "Running" storyline shown in the
+screenshot. Check:
+
+1. Narrative body reads as continuous prose — no italic quotes
+   breaking sentences.
+2. Clicking `[1]` in the narrative body scrolls smoothly to the
+   matching footnote inside the narrative panel.
+3. The footnote `↩` returns scroll to the body marker.
+4. The footnote entry link navigates to `/entries/{id}` and back works.
+5. Curation panel shows rows with date label | quote | `[N]` chevron;
+   numbers match the shared registry; clicking a row's chevron lands
+   on the source entry.
+6. Stacked mobile layout (resize below `lg`) still works — narrative
+   footnotes stay in the narrative card; curation rows wrap sensibly.
+
+If verification fails on any of the above, the failure is a defect in
+the unit it belongs to, not a separate finding.

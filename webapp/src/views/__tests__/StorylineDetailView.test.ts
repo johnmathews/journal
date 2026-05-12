@@ -263,4 +263,38 @@ describe('StorylineDetailView', () => {
       'not found',
     )
   })
+
+  it('shares citation numbering across panels (narrative drives)', async () => {
+    // Narrative cites entry 7 first → that's [1]. Curation also cites
+    // entry 7; it must show [1] too (shared registry). Curation-only
+    // entry 99 picks up [2].
+    const detail = mockDetail()
+    detail.panels.narrative.segments = [
+      { kind: 'text' as const, text: 'first ' },
+      { kind: 'citation' as const, entry_id: 7, quote: 'shared quote' },
+    ]
+    detail.panels.curation.segments = [
+      { kind: 'text' as const, text: 'On Monday' },
+      { kind: 'citation' as const, entry_id: 7, quote: 'curation-side quote' },
+      { kind: 'text' as const, text: 'On Tuesday' },
+      { kind: 'citation' as const, entry_id: 99, quote: 'q' },
+    ]
+    mockFetchStoryline.mockResolvedValue(detail)
+    const wrapper = mountComponent()
+    await flushPromises()
+    // Narrative footnote [1] exists; [2] does not (narrative only cites 7).
+    expect(wrapper.find('[data-testid="narrative-footnote-1"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('[data-testid="narrative-footnote-2"]').exists()).toBe(
+      false,
+    )
+    // Curation row for entry 7 carries the same [1]; entry 99 → [2].
+    expect(
+      wrapper.find('[data-testid="curation-row-link-1"]').text(),
+    ).toContain('[1]')
+    expect(
+      wrapper.find('[data-testid="curation-row-link-2"]').text(),
+    ).toContain('[2]')
+  })
 })

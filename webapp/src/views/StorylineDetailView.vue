@@ -5,7 +5,9 @@ import { useStorylinesStore } from '@/stores/storylines'
 import { useJobsStore } from '@/stores/jobs'
 import { useToast } from '@/composables/useToast'
 import { isTerminal } from '@/types/job'
-import StorylineSegments from '@/components/StorylineSegments.vue'
+import StorylineNarrative from '@/components/StorylineNarrative.vue'
+import StorylineCurationList from '@/components/StorylineCurationList.vue'
+import { buildCitationRegistry } from '@/composables/useCitationRegistry'
 
 const props = defineProps<{
   id: string
@@ -26,6 +28,12 @@ const narrativePanel = computed(
   () => store.currentStoryline?.panels.narrative ?? null,
 )
 const citationCount = computed(() => narrativePanel.value?.citation_count ?? 0)
+
+// Shared numbering across both panels. Narrative drives [1] [2] [3] in
+// encounter order; curation-only entries pick up the next numbers.
+const citationRegistry = computed(() =>
+  buildCitationRegistry(store.currentStoryline?.panels ?? {}),
+)
 
 function formatDateTime(dateStr: string | null): string {
   if (!dateStr) return 'never'
@@ -218,7 +226,10 @@ onMounted(() => {
             v-if="curationPanel && curationPanel.segments.length > 0"
             class="storyline-panel-body"
           >
-            <StorylineSegments :segments="curationPanel.segments" />
+            <StorylineCurationList
+              :segments="curationPanel.segments"
+              :registry="citationRegistry"
+            />
           </div>
           <div
             v-else
@@ -242,7 +253,10 @@ onMounted(() => {
             v-if="narrativePanel && narrativePanel.segments.length > 0"
             class="storyline-panel-body"
           >
-            <StorylineSegments :segments="narrativePanel.segments" />
+            <StorylineNarrative
+              :segments="narrativePanel.segments"
+              :registry="citationRegistry"
+            />
           </div>
           <div
             v-else

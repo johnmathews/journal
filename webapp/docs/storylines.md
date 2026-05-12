@@ -7,8 +7,9 @@ The webapp surface for the storylines feature shipped server-side at
 a single entity. Two parallel panels — **curation** (verbatim entry excerpts
 with Haiku-generated transitions) and **narrative** (third-person prose
 grounded via the Anthropic Citations API) — are persisted server-side as
-`Segment[]` and rendered as plain prose plus footnote-style RouterLinks back
-to source entries.
+`Segment[]`. The curation panel renders as a chronological list of rows; the
+narrative panel renders as prose with a footnote-style "Sources" section
+beneath. Citations share a single `[N]` numbering scheme across both panels.
 
 The server-side reference is in
 [`../../server/docs/storylines.md`](../../server/docs/storylines.md). This
@@ -27,35 +28,54 @@ doc describes only the webapp.
 
 ```
 src/
-  types/storyline.ts           — wire types: Segment, StorylineSummary, StorylineDetail
-  api/storylines.ts            — list / get / create / regenerate / delete
-  stores/storylines.ts         — Pinia store with `loading` + `detailLoading` split
-  components/StorylineSegments.vue  — Segment[] renderer
+  types/storyline.ts                    — wire types: Segment, StorylineSummary, StorylineDetail
+  api/storylines.ts                     — list / get / create / regenerate / delete
+  stores/storylines.ts                  — Pinia store with `loading` + `detailLoading` split
+  composables/useCitationRegistry.ts    — shared [N] numbering across both panels
+  components/StorylineNarrative.vue     — narrative panel: prose body + footnotes
+  components/StorylineCurationList.vue  — curation panel: row list
   views/StorylineListView.vue
   views/StorylineDetailView.vue
 ```
 
-## Segment renderer
+## Panel renderers
 
-`StorylineSegments.vue` walks the panel's `Segment[]`. There is no markdown
-on the wire and no markdown library in the webapp — the renderer is a small
-Vue component that emits plain text runs and `<RouterLink :to="/entries/N">`
-for citations.
+The two panels render with separate, specialised components. There is no
+markdown on the wire and no markdown library in the webapp.
 
-Citation handling has two modes by quote length:
+**Narrative** (`StorylineNarrative.vue`) renders the `Segment[]` as prose:
+text segments become plain spans, citation segments become `<sup>[N]</sup>`
+markers. A "Sources" section below the body lists each unique cited entry
+once with its quote, an `entry #N` RouterLink to `/entries/{id}`, and a
+small backref `↩` that scrolls back to the first `[N]` marker in the body.
+Clicking `[N]` smooth-scrolls to the matching footnote; clicking the
+backref smooth-scrolls back. Inline italic quotes are **not** rendered in
+the body — they live only in the Sources section so the narrative reads
+like prose.
 
-- **Short quote** (≤ `inlineQuoteThreshold`, default 200 chars): rendered
-  inline as italic text next to the footnote link. This is the curation
-  panel's path — `entity_mentions.quote` returns short verbatim excerpts.
-- **Long quote** (> threshold): collapsed behind a `<details>` disclosure
-  showing "source". The narrator's Citations API call uses
-  `source: "content"` documents today, so the API returns the **whole
-  wrapped journal entry** as each citation's `cited_text`. Collapsing keeps
-  the narrative panel readable; the `entry_id` link is what the user
-  actually clicks.
+**Curation** (`StorylineCurationList.vue`) renders the `Segment[]` as a
+list of rows, one per citation. Each row pairs the text segment
+immediately preceding the citation (used as the date label, with trailing
+`:` and whitespace stripped) with the cited quote and a RouterLink to the
+source entry. Rows render in chronological encounter order; a CSS grid
+layout puts the date label on the left and the entry link on the right,
+collapsing to a stacked layout below 640px.
 
-Citations are numbered per-panel (1, 2, 3 …), so curation and narrative each
-have their own footnote sequence — the user reads the panels independently.
+## Shared citation numbering
+
+`buildCitationRegistry(panels)` in `composables/useCitationRegistry.ts`
+builds a `Map<entry_id, number>` shared across both panels. It walks the
+narrative panel first, then the curation panel, assigning each unique
+`entry_id` an incrementing `[N]` in encounter order. The shared registry
+guarantees that the same source entry carries the same `[N]` everywhere
+it appears.
+
+Narrative drives numbering, so narrative footnotes read `[1] [2] [3] …`
+in sequence. Curation rows may show non-sequential `[N]` — a row whose
+entry is also cited by the narrative inherits the narrative's number,
+while curation-only entries pick up trailing numbers. The chronological
+row order is what carries the reading flow; `[N]` is a secondary
+identifier.
 
 ## Regenerate flow
 
@@ -66,16 +86,18 @@ state (`succeeded` / `failed`), a watcher re-fetches the detail so the
 freshly-persisted panels show up. On failure, the regenerate-error banner
 surfaces the server message; the toast confirmation handles the happy path.
 
-## Follow-ups (out of scope for the webapp)
+## Follow-ups
 
-1. **Citation granularity.** Server-side — switch the narrator from
-   `source: "content"` to `source: "text"` so each citation's `cited_text`
-   is a sentence-level excerpt rather than the full wrapped entry. Would
-   let the renderer drop the collapsed-disclosure path entirely and show
-   the inline quote everywhere.
-2. **Entity backfill.** Server-side — `journal extract-entities
+1. **Entity backfill.** Server-side — `journal extract-entities
    --stale-only` could reduce dependence on the FTS fallback for the
    seeded storylines and tighten the curation panel's signal-to-noise.
+2. **Hover preview of footnotes.** Webapp-side — augment `[N]` markers
+   with a hover/tap tooltip showing the quote, so readers can dip into
+   sources without losing place. Layered on top of the existing
+   smooth-scroll behaviour.
+3. **Narrative prompt tuning.** Server-side — if stripping inline
+   quotes from the body leaves prose with occasional awkward seams
+   (e.g. sentences originally written assuming a quote would follow),
+   tune the narrator prompt to produce footnote-style output natively.
 
-Neither blocks the webapp cycle; both are noted in
-`../../server/docs/storylines-plan.md` under "Webapp cycle handoff".
+Tracked alongside `../../server/docs/storylines-plan.md`.
