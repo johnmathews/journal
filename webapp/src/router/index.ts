@@ -79,6 +79,17 @@ const router = createRouter({
       props: true,
     },
     {
+      path: '/storylines',
+      name: 'storylines',
+      component: () => import('@/views/StorylineListView.vue'),
+    },
+    {
+      path: '/storylines/:id',
+      name: 'storyline-detail',
+      component: () => import('@/views/StorylineDetailView.vue'),
+      props: true,
+    },
+    {
       path: '/insights',
       redirect: '/',
     },

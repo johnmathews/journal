@@ -166,10 +166,7 @@ async function onSyncClick(source: FitnessSource) {
               <th class="font-medium">Started</th>
               <th class="font-medium">Status</th>
               <th class="font-medium text-right">Workouts F/N</th>
-              <th
-                v-if="source === 'garmin'"
-                class="font-medium text-right"
-              >
+              <th v-if="source === 'garmin'" class="font-medium text-right">
                 Wellness F/N
               </th>
             </tr>
@@ -187,10 +184,7 @@ async function onSyncClick(source: FitnessSource) {
               <td class="text-right">
                 {{ formatCounts(run, source).workouts }}
               </td>
-              <td
-                v-if="source === 'garmin'"
-                class="text-right"
-              >
+              <td v-if="source === 'garmin'" class="text-right">
                 {{ formatCounts(run, source).wellness }}
               </td>
             </tr>
