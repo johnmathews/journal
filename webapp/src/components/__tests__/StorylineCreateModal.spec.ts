@@ -238,7 +238,7 @@ describe('StorylineCreateModal', () => {
     const createSpy = vi.spyOn(store, 'createStoryline').mockResolvedValue({
       id: 7,
       user_id: 1,
-      entity_ids: [42],
+      anchors: [{ id: 42, canonical_name: 'Atlas' }],
       name: 'Lifting',
       description: '',
       status: 'active',
@@ -298,7 +298,7 @@ describe('StorylineCreateModal', () => {
     const createSpy = vi.spyOn(store, 'createStoryline').mockResolvedValue({
       id: 1,
       user_id: 1,
-      entity_ids: [12],
+      anchors: [{ id: 12, canonical_name: 'Atlas' }],
       name: 'Running',
       description: 'desc',
       status: 'active',
