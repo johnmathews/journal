@@ -12,9 +12,13 @@ const router = createRouter({
   ],
 })
 
-function mountWith(segments: Segment[], registry: Map<number, number>) {
+function mountWith(
+  segments: Segment[],
+  registry: Map<number, number>,
+  dateMode: 'relative' | 'absolute' = 'relative',
+) {
   return mount(StorylineCurationList, {
-    props: { segments, registry },
+    props: { segments, registry, dateMode },
     global: { plugins: [router] },
   })
 }
@@ -158,6 +162,56 @@ describe('StorylineCurationList', () => {
       'Two days later',
     )
     expect(wrapper.get('[data-testid="curation-row-date-2"]').text()).toBe('')
+  })
+
+  it('shows entry_date when dateMode is absolute', () => {
+    const reg = new Map([
+      [1, 1],
+      [2, 2],
+    ])
+    const wrapper = mountWith(
+      [
+        { kind: 'text', text: 'It begins on 2026-02-15:' },
+        {
+          kind: 'citation',
+          entry_id: 1,
+          quote: 'q1',
+          entry_date: '2026-02-15',
+        },
+        { kind: 'text', text: 'Nearly a month later:' },
+        {
+          kind: 'citation',
+          entry_id: 2,
+          quote: 'q2',
+          entry_date: '2026-03-12',
+        },
+      ],
+      reg,
+      'absolute',
+    )
+    expect(wrapper.get('[data-testid="curation-row-date-1"]').text()).toBe(
+      '2026-02-15',
+    )
+    expect(wrapper.get('[data-testid="curation-row-date-2"]').text()).toBe(
+      '2026-03-12',
+    )
+  })
+
+  it('falls back to the relative label in absolute mode when entry_date is missing', () => {
+    // Older panels stored before the server stamped entry_date must
+    // still render — they fall back to the LLM-authored phrase.
+    const reg = new Map([[1, 1]])
+    const wrapper = mountWith(
+      [
+        { kind: 'text', text: 'It begins on 2026-02-15:' },
+        { kind: 'citation', entry_id: 1, quote: 'q1' },
+      ],
+      reg,
+      'absolute',
+    )
+    expect(wrapper.get('[data-testid="curation-row-date-1"]').text()).toBe(
+      'It begins on 2026-02-15',
+    )
   })
 
   it('falls back to [?] when an entry_id is missing from the registry', () => {

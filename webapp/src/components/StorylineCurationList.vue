@@ -11,15 +11,25 @@ import type { Segment } from '@/types/storyline'
  * rows may show non-sequential `[N]` because the narrative drives
  * numbering — that's expected, and the row order (chronological) is
  * what carries the reading flow.
+ *
+ * `dateMode` toggles the left column between the relative LLM-authored
+ * label ("Nearly a month later") and the source entry's absolute ISO
+ * date ("2026-03-14"). Absolute mode falls back to the relative label
+ * for any citation whose `entry_date` is missing (older stored panels).
  */
-const props = defineProps<{
-  segments: Segment[]
-  registry: Map<number, number>
-}>()
+const props = withDefaults(
+  defineProps<{
+    segments: Segment[]
+    registry: Map<number, number>
+    dateMode?: 'relative' | 'absolute'
+  }>(),
+  { dateMode: 'relative' },
+)
 
 interface CurationRow {
   rowIdx: number
-  dateLabel: string
+  relativeLabel: string
+  absoluteLabel: string | null
   entryId: number
   quote: string
   number: number | null
@@ -34,11 +44,12 @@ const rows = computed<CurationRow[]>(() => {
       pendingLabel = seg.text
       continue
     }
-    const dateLabel = pendingLabel.replace(/[:\s]+$/, '').trim()
+    const relativeLabel = pendingLabel.replace(/[:\s]+$/, '').trim()
     const number = props.registry.get(seg.entry_id) ?? null
     out.push({
       rowIdx,
-      dateLabel,
+      relativeLabel,
+      absoluteLabel: seg.entry_date ?? null,
       entryId: seg.entry_id,
       quote: seg.quote,
       number,
@@ -51,6 +62,13 @@ const rows = computed<CurationRow[]>(() => {
 
 function rowKeySuffix(row: CurationRow): string {
   return row.number !== null ? String(row.number) : `unknown-${row.entryId}`
+}
+
+function dateLabelFor(row: CurationRow): string {
+  if (props.dateMode === 'absolute' && row.absoluteLabel) {
+    return row.absoluteLabel
+  }
+  return row.relativeLabel
 }
 </script>
 
@@ -66,7 +84,7 @@ function rowKeySuffix(row: CurationRow): string {
         <span
           class="curation-date text-gray-500 dark:text-gray-300"
           :data-testid="`curation-row-date-${rowKeySuffix(row)}`"
-          >{{ row.dateLabel }}</span
+          >{{ dateLabelFor(row) }}</span
         >
         <span
           v-if="row.quote.length > 0"
@@ -76,17 +94,11 @@ function rowKeySuffix(row: CurationRow): string {
         >
         <RouterLink
           :to="`/entries/${row.entryId}`"
-          class="curation-entry-link"
+          class="curation-entry-link text-gray-400 dark:text-gray-500"
           :data-testid="`curation-row-link-${rowKeySuffix(row)}`"
           :title="`Open entry #${row.entryId}`"
         >
           <span class="curation-number">[{{ row.number ?? '?' }}]</span>
-          <svg class="curation-chevron" viewBox="0 0 16 16" aria-hidden="true">
-            <path
-              d="M6.6 13.4L12 8 6.6 2.6 5.2 4l4 4-4 4z"
-              fill="currentColor"
-            />
-          </svg>
         </RouterLink>
       </li>
     </ul>
@@ -108,9 +120,12 @@ function rowKeySuffix(row: CurationRow): string {
   flex-direction: column;
 }
 
+/* Wider middle column for the quote — date column tightened from
+   minmax(7.5rem, max-content) to a fixed max, and the trailing link
+   column lost its chevron so it occupies less width too. */
 .curation-row {
   display: grid;
-  grid-template-columns: minmax(7.5rem, max-content) 1fr auto;
+  grid-template-columns: minmax(6rem, 7.5rem) 1fr auto;
   align-items: baseline;
   gap: 0.75rem;
   padding: 0.625rem 0;
@@ -148,11 +163,12 @@ function rowKeySuffix(row: CurationRow): string {
   min-width: 0;
 }
 
+/* Muted, smaller link that still navigates to the source entry. The
+   narrative panel's footnote list is the primary place to follow a
+   citation back to its entry; this is a backup affordance. */
 .curation-entry-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  color: rgb(124 58 237); /* violet-600 */
   text-decoration: none;
   font-family:
     ui-sans-serif,
@@ -160,27 +176,18 @@ function rowKeySuffix(row: CurationRow): string {
     -apple-system,
     BlinkMacSystemFont,
     sans-serif;
-  font-size: 0.85rem;
+  font-size: 0.7rem;
   font-weight: 500;
 }
 .curation-entry-link:hover {
-  color: rgb(91 33 182); /* violet-800 */
-}
-:global(.dark) .curation-entry-link {
-  color: rgb(167 139 250); /* violet-400 */
+  color: rgb(124 58 237); /* violet-600 */
 }
 :global(.dark) .curation-entry-link:hover {
-  color: rgb(196 181 253); /* violet-300 */
+  color: rgb(167 139 250); /* violet-400 */
 }
 
 .curation-number {
   font-variant-numeric: tabular-nums;
-}
-
-.curation-chevron {
-  width: 0.75rem;
-  height: 0.75rem;
-  flex-shrink: 0;
 }
 
 /* Below 640px the date column wraps onto its own row above the quote so

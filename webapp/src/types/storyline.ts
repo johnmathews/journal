@@ -21,7 +21,15 @@ import type { PaginationParams } from '@/types/entry'
  */
 export type Segment =
   | { kind: 'text'; text: string }
-  | { kind: 'citation'; entry_id: number; quote: string }
+  | {
+      kind: 'citation'
+      entry_id: number
+      quote: string
+      /** ISO YYYY-MM-DD date of the cited entry. Optional because
+       *  panels stored before the server added this field still
+       *  deserialise — UIs that depend on it must handle absence. */
+      entry_date?: string
+    }
 
 export type StorylinePanelKind = 'curation' | 'narrative'
 

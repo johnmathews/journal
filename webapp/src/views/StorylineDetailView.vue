@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useStorage } from '@vueuse/core'
 import { useRouter } from 'vue-router'
 import { useStorylinesStore } from '@/stores/storylines'
 import { useJobsStore } from '@/stores/jobs'
@@ -33,6 +34,15 @@ const citationCount = computed(() => narrativePanel.value?.citation_count ?? 0)
 // encounter order; curation-only entries pick up the next numbers.
 const citationRegistry = computed(() =>
   buildCitationRegistry(store.currentStoryline?.panels ?? {}),
+)
+
+// Toggle for the curation panel's first column: 'relative' shows the
+// LLM-authored phrase ("Nearly a month later"), 'absolute' shows the
+// source entry's ISO date. Persisted so the user's choice survives
+// reloads and applies across storylines.
+const curationDateMode = useStorage<'relative' | 'absolute'>(
+  'storyline:curationDateMode',
+  'relative',
 )
 
 function formatDateTime(dateStr: string | null): string {
@@ -217,11 +227,48 @@ onMounted(() => {
           class="lg:flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4 md:p-6"
           data-testid="curation-panel"
         >
-          <h2
-            class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-3"
-          >
-            Curation
-          </h2>
+          <div class="flex items-center justify-between gap-3 mb-3">
+            <h2
+              class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300"
+            >
+              Curation
+            </h2>
+            <div
+              class="curation-date-toggle inline-flex rounded-md border border-gray-200 dark:border-gray-700/60 overflow-hidden text-xs"
+              role="group"
+              aria-label="Date display mode"
+              data-testid="curation-date-toggle"
+            >
+              <button
+                type="button"
+                class="px-2 py-1 transition-colors"
+                :class="
+                  curationDateMode === 'relative'
+                    ? 'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
+                    : 'bg-white text-gray-500 dark:bg-gray-800 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                "
+                :aria-pressed="curationDateMode === 'relative'"
+                data-testid="curation-date-toggle-relative"
+                @click="curationDateMode = 'relative'"
+              >
+                Relative
+              </button>
+              <button
+                type="button"
+                class="px-2 py-1 border-l border-gray-200 dark:border-gray-700/60 transition-colors"
+                :class="
+                  curationDateMode === 'absolute'
+                    ? 'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
+                    : 'bg-white text-gray-500 dark:bg-gray-800 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                "
+                :aria-pressed="curationDateMode === 'absolute'"
+                data-testid="curation-date-toggle-absolute"
+                @click="curationDateMode = 'absolute'"
+              >
+                Absolute
+              </button>
+            </div>
+          </div>
           <div
             v-if="curationPanel && curationPanel.segments.length > 0"
             class="storyline-panel-body"
@@ -229,6 +276,7 @@ onMounted(() => {
             <StorylineCurationList
               :segments="curationPanel.segments"
               :registry="citationRegistry"
+              :date-mode="curationDateMode"
             />
           </div>
           <div

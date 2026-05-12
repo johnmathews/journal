@@ -183,6 +183,110 @@ describe('StorylineNarrative', () => {
     )
   })
 
+  it('renders a date eyebrow above the first citation-bearing paragraph', () => {
+    const reg = new Map([[1, 1]])
+    const wrapper = mountWith(
+      [
+        { kind: 'text', text: 'Opening line. ' },
+        {
+          kind: 'citation',
+          entry_id: 1,
+          quote: 'q',
+          entry_date: '2026-02-15',
+        },
+      ],
+      reg,
+    )
+    const eyebrow = wrapper.find('[data-testid="narrative-date-eyebrow-0"]')
+    expect(eyebrow.exists()).toBe(true)
+    // en-GB formatting: "15 Feb 2026"
+    expect(eyebrow.text()).toMatch(/15\s+Feb\s+2026/)
+  })
+
+  it('suppresses the eyebrow on follow-up paragraphs within the threshold', () => {
+    // Two paragraphs only 3 days apart — first gets the anchor eyebrow,
+    // second does not.
+    const reg = new Map([
+      [1, 1],
+      [2, 2],
+    ])
+    const wrapper = mountWith(
+      [
+        { kind: 'text', text: 'First paragraph. ' },
+        {
+          kind: 'citation',
+          entry_id: 1,
+          quote: 'q1',
+          entry_date: '2026-02-15',
+        },
+        { kind: 'text', text: '\n\nSecond paragraph. ' },
+        {
+          kind: 'citation',
+          entry_id: 2,
+          quote: 'q2',
+          entry_date: '2026-02-18',
+        },
+      ],
+      reg,
+    )
+    expect(
+      wrapper.find('[data-testid="narrative-date-eyebrow-0"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="narrative-date-eyebrow-1"]').exists(),
+    ).toBe(false)
+  })
+
+  it('renders an eyebrow on a later paragraph when the date jump exceeds the threshold', () => {
+    // First paragraph anchors; second paragraph cites an entry ~30
+    // days later, so it earns its own eyebrow.
+    const reg = new Map([
+      [1, 1],
+      [2, 2],
+    ])
+    const wrapper = mountWith(
+      [
+        { kind: 'text', text: 'First paragraph. ' },
+        {
+          kind: 'citation',
+          entry_id: 1,
+          quote: 'q1',
+          entry_date: '2026-02-15',
+        },
+        { kind: 'text', text: '\n\nSecond paragraph. ' },
+        {
+          kind: 'citation',
+          entry_id: 2,
+          quote: 'q2',
+          entry_date: '2026-03-15',
+        },
+      ],
+      reg,
+    )
+    expect(
+      wrapper.find('[data-testid="narrative-date-eyebrow-0"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="narrative-date-eyebrow-1"]').exists(),
+    ).toBe(true)
+  })
+
+  it('omits the eyebrow entirely when no citation carries entry_date', () => {
+    // Older stored panels predate entry_date — render cleanly without
+    // surfacing any eyebrow.
+    const reg = new Map([[1, 1]])
+    const wrapper = mountWith(
+      [
+        { kind: 'text', text: 'Opening line. ' },
+        { kind: 'citation', entry_id: 1, quote: 'q' },
+      ],
+      reg,
+    )
+    expect(
+      wrapper.find('[data-testid="narrative-date-eyebrow-0"]').exists(),
+    ).toBe(false)
+  })
+
   it('hides the Sources section when there are no citations', () => {
     const reg = new Map<number, number>()
     const wrapper = mountWith([{ kind: 'text', text: 'just prose' }], reg)
