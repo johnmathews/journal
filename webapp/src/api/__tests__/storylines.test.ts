@@ -67,11 +67,15 @@ describe('storylines API', () => {
 
   it('createStoryline POSTs the request body', async () => {
     mockApiFetch.mockResolvedValue({ id: 12, name: 'Atlas' })
-    await createStoryline({ entity_id: 511, name: 'Atlas', description: '' })
+    await createStoryline({
+      entity_ids: [511],
+      name: 'Atlas',
+      description: '',
+    })
     expect(mockApiFetch).toHaveBeenCalledWith('/api/storylines', {
       method: 'POST',
       body: JSON.stringify({
-        entity_id: 511,
+        entity_ids: [511],
         name: 'Atlas',
         description: '',
       }),

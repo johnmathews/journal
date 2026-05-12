@@ -38,10 +38,17 @@ export type StorylinePanelKind = 'curation' | 'narrative'
  *  schema-free change later. */
 export type StorylineStatus = 'active' | string
 
+/** One anchor entity on a storyline. A storyline has 1..N anchors;
+ *  the server normalises them to ascending entity id order. */
+export interface StorylineAnchor {
+  id: number
+  canonical_name: string
+}
+
 export interface StorylineSummary {
   id: number
   user_id: number
-  entity_id: number
+  anchors: StorylineAnchor[]
   name: string
   description: string
   start_date: string | null
@@ -78,7 +85,7 @@ export interface StorylineListParams extends PaginationParams {
 }
 
 export interface CreateStorylineRequest {
-  entity_id: number
+  entity_ids: number[]
   name: string
   description?: string
   start_date?: string
@@ -87,19 +94,32 @@ export interface CreateStorylineRequest {
 
 /** The server's 201 response for POST /api/storylines — a subset of
  *  StorylineSummary (no last_generated_at / updated_at yet, since the
- *  storyline was just inserted). After W7 the server also auto-kicks
- *  the panel-generation job and returns its id; the field is optional
- *  to keep older test fixtures and (in theory) downlevel server builds
- *  typecheck-compatible. */
+ *  storyline was just inserted). The server auto-kicks the
+ *  panel-generation job on success and returns its id; the field is
+ *  optional to keep older test fixtures and (in theory) downlevel
+ *  server builds typecheck-compatible. */
 export interface CreateStorylineResponse {
   id: number
   user_id: number
-  entity_id: number
+  anchors: StorylineAnchor[]
   name: string
   description: string
   status: StorylineStatus
   created_at: string
   generation_job_id?: string
+}
+
+/** Request body for `PUT /api/storylines/{id}/anchors`. Replaces the
+ *  anchor set entirely (set semantics, not patch). The webapp does
+ *  not yet wire up a control for this — it's available via REST + MCP
+ *  for Claude-driven workflows. */
+export interface SetStorylineAnchorsRequest {
+  entity_ids: number[]
+}
+
+export interface SetStorylineAnchorsResponse {
+  id: number
+  anchors: StorylineAnchor[]
 }
 
 export interface RegenerateStorylineResponse {

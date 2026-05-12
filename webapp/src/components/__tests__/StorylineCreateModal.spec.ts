@@ -152,8 +152,9 @@ describe('StorylineCreateModal', () => {
     await nextTick()
 
     expect(
-      document.body.querySelector('[data-testid="storyline-picked-entity"]'),
-    ).not.toBeNull()
+      document.body.querySelectorAll('[data-testid="storyline-picked-chip"]')
+        .length,
+    ).toBe(1)
     const nameInput = document.body.querySelector(
       '[data-testid="storyline-create-name"]',
     ) as HTMLInputElement
@@ -237,7 +238,7 @@ describe('StorylineCreateModal', () => {
     const createSpy = vi.spyOn(store, 'createStoryline').mockResolvedValue({
       id: 7,
       user_id: 1,
-      entity_id: 42,
+      entity_ids: [42],
       name: 'Lifting',
       description: '',
       status: 'active',
@@ -273,7 +274,7 @@ describe('StorylineCreateModal', () => {
     await flushPromises()
 
     expect(createSpy).toHaveBeenCalledWith({
-      entity_id: 42,
+      entity_ids: [42],
       name: 'Lifting',
     })
     expect(trackSpy).toHaveBeenCalledWith('gen-job-1', 'storyline_generation', {
@@ -297,7 +298,7 @@ describe('StorylineCreateModal', () => {
     const createSpy = vi.spyOn(store, 'createStoryline').mockResolvedValue({
       id: 1,
       user_id: 1,
-      entity_id: 12,
+      entity_ids: [12],
       name: 'Running',
       description: 'desc',
       status: 'active',
@@ -342,7 +343,7 @@ describe('StorylineCreateModal', () => {
     await flushPromises()
 
     expect(createSpy).toHaveBeenCalledWith({
-      entity_id: 12,
+      entity_ids: [12],
       name: 'Running',
       description: 'desc',
       start_date: '2026-01-01',
@@ -406,7 +407,7 @@ describe('StorylineCreateModal', () => {
     expect(wrapper.emitted('update:modelValue')).toContainEqual([false])
   })
 
-  it('clicking change clears the picked entity and re-shows the search input', async () => {
+  it('clicking remove on a picked chip drops it from the anchor set', async () => {
     mockFetchEntities.mockResolvedValue({
       items: [makeEntity()],
       total: 1,
@@ -429,17 +430,61 @@ describe('StorylineCreateModal', () => {
     ).dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await nextTick()
 
-    const clear = document.body.querySelector(
-      '[data-testid="storyline-clear-entity"]',
-    ) as HTMLElement
-    clear.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    await nextTick()
+    // Picked chip exists.
     expect(
-      document.body.querySelector('[data-testid="storyline-picked-entity"]'),
-    ).toBeNull()
+      document.body.querySelectorAll('[data-testid="storyline-picked-chip"]')
+        .length,
+    ).toBe(1)
+
+    // Click the × on the chip — it's the only remove-anchor button.
+    const remove = document.body.querySelector(
+      '[data-testid="storyline-remove-anchor"]',
+    ) as HTMLElement
+    remove.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await nextTick()
+
+    // No picked chips remain, search input stays visible.
+    expect(
+      document.body.querySelectorAll('[data-testid="storyline-picked-chip"]')
+        .length,
+    ).toBe(0)
     expect(
       document.body.querySelector('[data-testid="storyline-entity-search"]'),
     ).not.toBeNull()
+  })
+
+  it('clicking the same result twice toggles it off (multi-select set semantics)', async () => {
+    mockFetchEntities.mockResolvedValue({
+      items: [makeEntity()],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    })
+    mountModal(true)
+    await nextTick()
+    const input = document.body.querySelector(
+      '[data-testid="storyline-entity-search"]',
+    ) as HTMLInputElement
+    input.value = 'r'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    await vi.advanceTimersByTimeAsync(260)
+    await flushPromises()
+    const result = document.body.querySelector(
+      '[data-testid="storyline-entity-result"]',
+    ) as HTMLElement
+    result.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await nextTick()
+    expect(
+      document.body.querySelectorAll('[data-testid="storyline-picked-chip"]')
+        .length,
+    ).toBe(1)
+    // Second click on the same result toggles it off.
+    result.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await nextTick()
+    expect(
+      document.body.querySelectorAll('[data-testid="storyline-picked-chip"]')
+        .length,
+    ).toBe(0)
   })
 
   it('surfaces an inline search error when fetchEntities rejects', async () => {

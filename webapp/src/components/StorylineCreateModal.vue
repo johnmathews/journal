@@ -9,17 +9,25 @@ import type { EntitySummary } from '@/types/entity'
 import type { CreateStorylineResponse } from '@/types/storyline'
 
 /**
- * Modal for creating a new storyline. The user picks one entity from a
- * debounced search list, optionally overrides the auto-filled name,
- * and submits. The server (after W7) responds with the created
+ * Modal for creating a new storyline. The user picks 1..MAX_ANCHORS
+ * entities from a debounced search list, optionally overrides the
+ * auto-filled name, and submits. The server responds with the created
  * storyline plus a `generation_job_id` so the webapp can hand the
  * panel-generation job off to the global jobs store and surface
  * progress through the notification bell.
  *
- * Single-select for now (the picker is built for future multi-select —
- * see plan D1). The component does not own the modal-open state; the
- * parent passes `modelValue` and listens for `update:modelValue`.
+ * Multi-select: clicking an entity in the search results toggles its
+ * membership in the picked set. Already-picked entities show as
+ * removable chips above the search box. Auto-name reflects all picked
+ * entities (e.g. "Atlas", "Atlas and Vienna", "Atlas, Sara and
+ * Vienna") until the user overrides it. The component does not own
+ * the modal-open state.
  */
+
+// Mirrors the server-side MAX_ANCHORS constant in
+// services/storylines/service.py. Soft cap; bump on both sides
+// when the time comes.
+const MAX_ANCHORS = 15
 
 const props = defineProps<{ modelValue: boolean }>()
 
@@ -39,14 +47,14 @@ const searching = ref(false)
 const searchError = ref<string | null>(null)
 let searchDebounce: ReturnType<typeof setTimeout> | null = null
 
-// Pinned to the local component: not stored in pinia. The picked
-// entity drives both the auto-name behaviour and the submit guard.
-const pickedEntity = ref<EntitySummary | null>(null)
+// Picked anchor set (1..MAX_ANCHORS). Local component state — not in
+// pinia. Order = pick order, which drives the auto-name reading.
+const pickedEntities = ref<EntitySummary[]>([])
 
 // --- Storyline form fields ---
 const name = ref('')
 // True once the user has manually edited the name. From then on,
-// re-picking an entity does NOT clobber the user's override.
+// changing the anchor set does NOT clobber the user's override.
 const nameDirty = ref(false)
 const description = ref('')
 const startDate = ref('')
@@ -54,12 +62,21 @@ const endDate = ref('')
 
 const submitting = ref(false)
 
+function autoName(entities: EntitySummary[]): string {
+  const names = entities.map((e) => e.canonical_name)
+  if (names.length === 0) return ''
+  if (names.length === 1) return names[0]
+  if (names.length === 2) return `${names[0]} and ${names[1]}`
+  const head = names.slice(0, -1).join(', ')
+  return `${head}, and ${names[names.length - 1]}`
+}
+
 function resetState(): void {
   searchQuery.value = ''
   searchResults.value = []
   searching.value = false
   searchError.value = null
-  pickedEntity.value = null
+  pickedEntities.value = []
   name.value = ''
   nameDirty.value = false
   description.value = ''
@@ -69,8 +86,6 @@ function resetState(): void {
   store.createError = null
 }
 
-// Reset whenever the modal transitions from closed → open so a fresh
-// open never inherits stale picker / form state from a previous run.
 watch(
   () => props.modelValue,
   (open, prev) => {
@@ -80,9 +95,6 @@ watch(
   },
 )
 
-// Debounced entity search. We forward `search` to /api/entities,
-// matching the EntityListView pattern (250ms). An empty query
-// clears the result list.
 watch(searchQuery, (q) => {
   if (searchDebounce) clearTimeout(searchDebounce)
   searchDebounce = setTimeout(() => {
@@ -109,23 +121,29 @@ async function runSearch(query: string): Promise<void> {
   }
 }
 
-function pickEntity(entity: EntitySummary): void {
-  pickedEntity.value = entity
-  // Auto-fill the name from the canonical name unless the user has
-  // already typed something custom.
-  if (!nameDirty.value) {
-    name.value = entity.canonical_name
-  }
-  // Collapse the search list once the user has picked — the picked
-  // chip above the search box becomes the visible affordance.
-  searchResults.value = []
-  searchQuery.value = ''
+function isPicked(entity: EntitySummary): boolean {
+  return pickedEntities.value.some((e) => e.id === entity.id)
 }
 
-function clearPicked(): void {
-  pickedEntity.value = null
-  // Picking a different entity should let auto-fill take over again,
-  // unless the user already manually edited the name.
+function togglePick(entity: EntitySummary): void {
+  if (isPicked(entity)) {
+    pickedEntities.value = pickedEntities.value.filter(
+      (e) => e.id !== entity.id,
+    )
+  } else {
+    if (pickedEntities.value.length >= MAX_ANCHORS) return
+    pickedEntities.value = [...pickedEntities.value, entity]
+  }
+  if (!nameDirty.value) {
+    name.value = autoName(pickedEntities.value)
+  }
+}
+
+function removePicked(entityId: number): void {
+  pickedEntities.value = pickedEntities.value.filter((e) => e.id !== entityId)
+  if (!nameDirty.value) {
+    name.value = autoName(pickedEntities.value)
+  }
 }
 
 function onNameInput(event: Event): void {
@@ -134,20 +152,25 @@ function onNameInput(event: Event): void {
   nameDirty.value = true
 }
 
+const atCap = computed<boolean>(
+  () => pickedEntities.value.length >= MAX_ANCHORS,
+)
+
 const canSubmit = computed<boolean>(() => {
   return (
     !submitting.value &&
-    pickedEntity.value !== null &&
+    pickedEntities.value.length >= 1 &&
+    pickedEntities.value.length <= MAX_ANCHORS &&
     name.value.trim().length > 0
   )
 })
 
 async function onSubmit(): Promise<void> {
-  if (!canSubmit.value || !pickedEntity.value) return
+  if (!canSubmit.value || pickedEntities.value.length === 0) return
   submitting.value = true
   try {
     const payload = {
-      entity_id: pickedEntity.value.id,
+      entity_ids: pickedEntities.value.map((e) => e.id),
       name: name.value.trim(),
       ...(description.value.trim()
         ? { description: description.value.trim() }
@@ -165,8 +188,7 @@ async function onSubmit(): Promise<void> {
     emit('created', resp)
     emit('update:modelValue', false)
   } catch {
-    // store.createError is already populated. Leave modal open so the
-    // user can read the inline banner and retry.
+    // store.createError is already populated. Leave modal open.
   } finally {
     submitting.value = false
   }
@@ -194,50 +216,60 @@ function onCancel(): void {
         {{ store.createError }}
       </div>
 
-      <!-- Entity picker -->
+      <!-- Entity picker (multi-select; 1..15 anchors) -->
       <fieldset class="space-y-2">
         <legend
           class="text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
         >
-          Entity
+          Anchor entities
         </legend>
 
+        <!-- Picked anchor chips -->
         <div
-          v-if="pickedEntity"
-          class="flex items-center justify-between gap-3 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700/40 rounded-md px-3 py-2"
-          data-testid="storyline-picked-entity"
+          v-if="pickedEntities.length > 0"
+          class="flex flex-wrap gap-2"
+          data-testid="storyline-picked-entities"
         >
-          <div class="flex-1 min-w-0">
+          <span
+            v-for="entity in pickedEntities"
+            :key="entity.id"
+            class="inline-flex items-center gap-1.5 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700/40 rounded-full px-2.5 py-1 text-xs"
+            data-testid="storyline-picked-chip"
+          >
             <span class="font-medium text-gray-800 dark:text-gray-100">
-              {{ pickedEntity.canonical_name }}
+              {{ entity.canonical_name }}
             </span>
             <span
-              class="ml-2 text-xs text-gray-600 dark:text-gray-300 capitalize"
+              class="text-gray-500 dark:text-gray-400 capitalize text-[10px]"
             >
-              {{ pickedEntity.entity_type }}
+              {{ entity.entity_type }}
             </span>
-          </div>
-          <button
-            type="button"
-            class="text-xs text-violet-600 dark:text-violet-400 hover:underline"
-            data-testid="storyline-clear-entity"
-            @click="clearPicked"
-          >
-            change
-          </button>
+            <button
+              type="button"
+              class="text-violet-600 dark:text-violet-400 hover:text-violet-800 dark:hover:text-violet-200 leading-none"
+              :aria-label="`Remove anchor ${entity.canonical_name}`"
+              data-testid="storyline-remove-anchor"
+              @click="removePicked(entity.id)"
+            >
+              ×
+            </button>
+          </span>
         </div>
 
         <input
-          v-else
           v-model="searchQuery"
           type="search"
-          placeholder="Search entities…"
-          class="form-input w-full text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          :placeholder="
+            atCap
+              ? `Cap reached (${MAX_ANCHORS} anchors max)`
+              : 'Search entities…'
+          "
+          :disabled="atCap"
+          class="form-input w-full text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md disabled:opacity-60"
           data-testid="storyline-entity-search"
         />
 
         <div
-          v-if="!pickedEntity"
           class="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-700/60 rounded-md bg-white dark:bg-gray-800"
           data-testid="storyline-entity-results"
         >
@@ -266,18 +298,33 @@ function onCancel(): void {
             v-else-if="searchResults.length === 0"
             class="px-3 py-2 text-xs text-gray-500 dark:text-gray-400"
           >
-            Type to search for an entity to anchor the storyline on.
+            Type to search for entities to anchor the storyline on (1–{{
+              MAX_ANCHORS
+            }}).
           </div>
           <ul v-else class="divide-y divide-gray-100 dark:divide-gray-700/60">
             <li
               v-for="entity in searchResults"
               :key="entity.id"
-              class="px-3 py-2 text-sm hover:bg-violet-50 dark:hover:bg-violet-500/10 cursor-pointer flex items-center justify-between gap-2"
+              :class="[
+                'px-3 py-2 text-sm flex items-center justify-between gap-2 cursor-pointer',
+                isPicked(entity)
+                  ? 'bg-violet-50 dark:bg-violet-500/10 font-medium'
+                  : 'hover:bg-violet-50 dark:hover:bg-violet-500/10',
+              ]"
               data-testid="storyline-entity-result"
-              @click="pickEntity(entity)"
+              @click="togglePick(entity)"
             >
-              <span class="font-medium text-gray-800 dark:text-gray-100">
-                {{ entity.canonical_name }}
+              <span class="flex items-center gap-2">
+                <span
+                  class="inline-block w-4 text-violet-600 dark:text-violet-400"
+                  aria-hidden="true"
+                >
+                  {{ isPicked(entity) ? '✓' : '' }}
+                </span>
+                <span class="text-gray-800 dark:text-gray-100">
+                  {{ entity.canonical_name }}
+                </span>
               </span>
               <span
                 class="text-xs text-gray-600 dark:text-gray-300 capitalize shrink-0"

@@ -195,13 +195,22 @@ onMounted(() => {
           class="flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-300"
           data-testid="storyline-meta"
         >
-          <RouterLink
-            :to="`/entities/${store.currentStoryline.entity_id}`"
-            class="text-violet-600 dark:text-violet-400 hover:underline"
-            data-testid="storyline-entity-link"
+          <div
+            v-if="store.currentStoryline.anchors.length > 0"
+            class="flex flex-wrap items-center gap-1.5"
+            data-testid="storyline-anchors"
           >
-            Entity #{{ store.currentStoryline.entity_id }}
-          </RouterLink>
+            <span class="text-xs uppercase font-semibold mr-1">Anchors:</span>
+            <RouterLink
+              v-for="anchor in store.currentStoryline.anchors"
+              :key="anchor.id"
+              :to="`/entities/${anchor.id}`"
+              class="inline-flex items-center gap-1 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700/40 rounded-full px-2.5 py-0.5 text-xs text-violet-700 dark:text-violet-300 hover:underline"
+              :data-testid="`storyline-anchor-${anchor.id}`"
+            >
+              {{ anchor.canonical_name || `#${anchor.id}` }}
+            </RouterLink>
+          </div>
           <span data-testid="storyline-last-generated">
             Last generated:
             {{ formatDateTime(store.currentStoryline.last_generated_at) }}

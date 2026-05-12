@@ -3,6 +3,8 @@ import type {
   CreateStorylineResponse,
   RegenerateStorylineRequest,
   RegenerateStorylineResponse,
+  SetStorylineAnchorsRequest,
+  SetStorylineAnchorsResponse,
   StorylineDetail,
   StorylineListParams,
   StorylineListResponse,
@@ -63,4 +65,17 @@ export function deleteStoryline(id: number): Promise<{ deleted: boolean }> {
   return apiFetch<{ deleted: boolean }>(`/api/storylines/${id}`, {
     method: 'DELETE',
   })
+}
+
+export function setStorylineAnchors(
+  id: number,
+  request: SetStorylineAnchorsRequest,
+): Promise<SetStorylineAnchorsResponse> {
+  return apiFetch<SetStorylineAnchorsResponse>(
+    `/api/storylines/${id}/anchors`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    },
+  )
 }

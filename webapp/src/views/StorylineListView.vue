@@ -14,7 +14,7 @@ const toast = useToast()
 const rows = ref(20)
 const first = ref(0)
 
-type SortKey = 'name' | 'last_generated_at' | 'created_at' | 'entity_id'
+type SortKey = 'name' | 'last_generated_at' | 'created_at' | 'anchors'
 const sortKey = ref<SortKey>('last_generated_at')
 const sortAsc = ref(false)
 
@@ -33,11 +33,20 @@ function sortIndicator(key: SortKey): string {
   return sortAsc.value ? ' ▲' : ' ▼'
 }
 
+function anchorsSortKey(s: StorylineSummary): string {
+  // Sort by the canonical_name of the first anchor; empty string for
+  // anchorless rows (shouldn't happen post-0028 but stays stable).
+  return s.anchors.length > 0 ? (s.anchors[0]?.canonical_name ?? '') : ''
+}
+
 const sortedStorylines = computed(() => {
   const items = [...store.storylines]
   const key = sortKey.value
   const dir = sortAsc.value ? 1 : -1
   return items.sort((a: StorylineSummary, b: StorylineSummary) => {
+    if (key === 'anchors') {
+      return anchorsSortKey(a).localeCompare(anchorsSortKey(b)) * dir
+    }
     const av = (a[key] ?? '') as string | number
     const bv = (b[key] ?? '') as string | number
     if (typeof av === 'string' && typeof bv === 'string') {
@@ -371,10 +380,10 @@ function openRegenerateBulk(): void {
               </th>
               <th
                 class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none text-left"
-                data-testid="sort-entity"
-                @click="toggleSort('entity_id')"
+                data-testid="sort-anchors"
+                @click="toggleSort('anchors')"
               >
-                Entity{{ sortIndicator('entity_id') }}
+                Anchors{{ sortIndicator('anchors') }}
               </th>
               <th
                 class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none text-left"
@@ -430,16 +439,27 @@ function openRegenerateBulk(): void {
                 {{ storyline.name }}
               </td>
               <td
-                class="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300"
+                class="px-4 py-3 text-gray-600 dark:text-gray-300"
+                data-testid="storyline-anchors-cell"
               >
-                <RouterLink
-                  :to="`/entities/${storyline.entity_id}`"
-                  class="text-violet-600 dark:text-violet-400 hover:underline"
-                  data-testid="storyline-entity-link"
-                  @click.stop
-                >
-                  #{{ storyline.entity_id }}
-                </RouterLink>
+                <div class="flex flex-wrap gap-1">
+                  <RouterLink
+                    v-for="anchor in storyline.anchors"
+                    :key="anchor.id"
+                    :to="`/entities/${anchor.id}`"
+                    class="inline-block bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700/40 rounded-full px-2 py-0.5 text-xs text-violet-700 dark:text-violet-300 hover:underline"
+                    :data-testid="`storyline-anchor-chip-${anchor.id}`"
+                    @click.stop
+                  >
+                    {{ anchor.canonical_name || `#${anchor.id}` }}
+                  </RouterLink>
+                  <span
+                    v-if="storyline.anchors.length === 0"
+                    class="text-xs text-gray-400"
+                  >
+                    (none)
+                  </span>
+                </div>
               </td>
               <td
                 class="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300"

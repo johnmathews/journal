@@ -34,7 +34,7 @@ function mockSummary(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 1,
     user_id: 1,
-    entity_id: 100,
+    anchors: [{ id: 100, canonical_name: 'Running' }],
     name: 'Running',
     description: '',
     start_date: null,
@@ -76,11 +76,15 @@ describe('StorylineListView', () => {
     vi.clearAllMocks()
     mockFetchStorylines.mockResolvedValue({
       items: [
-        mockSummary({ id: 1, name: 'Running', entity_id: 513 }),
+        mockSummary({
+          id: 1,
+          name: 'Running',
+          anchors: [{ id: 513, canonical_name: 'Vienna' }],
+        }),
         mockSummary({
           id: 2,
           name: 'Atlas',
-          entity_id: 511,
+          anchors: [{ id: 511, canonical_name: 'Atlas' }],
           last_generated_at: '2026-05-11T10:00:00Z',
         }),
       ],

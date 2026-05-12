@@ -38,7 +38,7 @@ function mockDetail(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 3,
     user_id: 1,
-    entity_id: 513,
+    anchors: [{ id: 513, canonical_name: 'Vienna' }],
     name: 'Running',
     description: '',
     start_date: null,

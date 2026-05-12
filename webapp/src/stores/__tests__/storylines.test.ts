@@ -28,7 +28,7 @@ function mockSummary(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 1,
     user_id: 1,
-    entity_id: 100,
+    anchors: [{ id: 100, canonical_name: 'Running' }],
     name: 'Running',
     description: '',
     start_date: null,
@@ -183,14 +183,17 @@ describe('useStorylinesStore', () => {
     mockCreateStoryline.mockResolvedValue({
       id: 10,
       user_id: 1,
-      entity_id: 200,
+      anchors: [{ id: 200, canonical_name: 'New' }],
       name: 'New',
       description: '',
       status: 'active',
       created_at: '2026-05-12T00:00:00Z',
     })
     const store = useStorylinesStore()
-    const resp = await store.createStoryline({ entity_id: 200, name: 'New' })
+    const resp = await store.createStoryline({
+      entity_ids: [200],
+      name: 'New',
+    })
     expect(resp.id).toBe(10)
     expect(store.creating).toBe(false)
     expect(store.createError).toBeNull()
@@ -200,7 +203,7 @@ describe('useStorylinesStore', () => {
     mockCreateStoryline.mockRejectedValue(new Error('conflict'))
     const store = useStorylinesStore()
     await expect(
-      store.createStoryline({ entity_id: 1, name: 'X' }),
+      store.createStoryline({ entity_ids: [1], name: 'X' }),
     ).rejects.toThrow('conflict')
     expect(store.createError).toBe('conflict')
     expect(store.creating).toBe(false)
@@ -210,7 +213,7 @@ describe('useStorylinesStore', () => {
     mockCreateStoryline.mockRejectedValue('boom')
     const store = useStorylinesStore()
     await expect(
-      store.createStoryline({ entity_id: 1, name: 'X' }),
+      store.createStoryline({ entity_ids: [1], name: 'X' }),
     ).rejects.toBe('boom')
     expect(store.createError).toBe('Failed to create storyline')
   })
