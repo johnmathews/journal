@@ -7,28 +7,14 @@ import type { Segment } from '@/types/storyline'
  * citation links.
  *
  * Text segments render as plain prose. Citation segments render a
- * footnote-style RouterLink to `/entries/${entry_id}` plus an optional
- * quote disclosure.
- *
- * The quote handling has two modes by length:
- * - **Short quote** (≤ inlineQuoteThreshold chars): rendered inline as
- *   italicised text next to the link. This is what the curation panel
- *   gets — entity-mention quotes are the short verbatim excerpts pulled
- *   from `entity_mentions.quote`.
- * - **Long quote** (> threshold): collapsed behind a `<details>`
- *   disclosure showing "source". This is the narrative-panel case,
- *   where the Citations API returns the whole wrapped journal entry
- *   for `source: "content"` documents. The entry_id link is the
- *   actionable part; the bloated quote is a hidden affordance, not
- *   something to render inline by default.
+ * footnote-style RouterLink to `/entries/${entry_id}` followed by the
+ * italicised cited quote. Quotes arrive sentence-length from the
+ * server (Anthropic Citations `source="text"` documents) so they
+ * always render inline; no disclosure path.
  */
-const props = withDefaults(
-  defineProps<{
-    segments: Segment[]
-    inlineQuoteThreshold?: number
-  }>(),
-  { inlineQuoteThreshold: 200 },
-)
+const props = defineProps<{
+  segments: Segment[]
+}>()
 
 interface NumberedText {
   kind: 'text'
@@ -47,7 +33,7 @@ interface NumberedCitation {
 type NumberedSegment = NumberedText | NumberedCitation
 
 // Number each citation so the visible link label is "[1]", "[2]", etc.
-// Per-panel numbering — the curation and narrative panels each restart
+// Per-panel numbering — curation and narrative panels each restart
 // from 1, which is fine because each renders its own component instance.
 const numberedSegments = computed<NumberedSegment[]>(() => {
   let citationCount = 0
@@ -65,14 +51,6 @@ const numberedSegments = computed<NumberedSegment[]>(() => {
     return { kind: 'text', text: seg.text, idx: i }
   })
 })
-
-function isInlineQuote(quote: string): boolean {
-  return quote.length > 0 && quote.length <= props.inlineQuoteThreshold
-}
-
-function isCollapsedQuote(quote: string): boolean {
-  return quote.length > props.inlineQuoteThreshold
-}
 </script>
 
 <template>
@@ -93,27 +71,11 @@ function isCollapsedQuote(quote: string): boolean {
           >[{{ seg.citationNumber }}]</RouterLink
         >
         <span
-          v-if="isInlineQuote(seg.quote)"
+          v-if="seg.quote.length > 0"
           class="ml-1 text-sm italic text-gray-600 dark:text-gray-400"
           data-testid="segment-citation-quote-inline"
           >&ldquo;{{ seg.quote }}&rdquo;</span
         >
-        <details
-          v-else-if="isCollapsedQuote(seg.quote)"
-          class="inline ml-1 text-xs text-gray-500 dark:text-gray-400 align-baseline"
-          data-testid="segment-citation-quote-collapsed"
-        >
-          <summary
-            class="cursor-pointer hover:text-violet-600 dark:hover:text-violet-400"
-          >
-            source
-          </summary>
-          <span
-            class="block mt-1 pl-3 py-1 border-l-2 border-gray-300 dark:border-gray-700 italic whitespace-pre-wrap text-sm text-gray-600 dark:text-gray-400"
-            data-testid="segment-citation-quote-expanded"
-            >{{ seg.quote }}</span
-          >
-        </details>
       </template>
     </template>
   </div>

@@ -5,16 +5,19 @@ import type { PaginationParams } from '@/types/entry'
  * The wire shape mirrors `services/storylines/segments.py` on the
  * server: a panel is a flat `Segment[]` where text runs and citation
  * pointers interleave. The webapp renders text segments as plain prose
- * and citation segments as `<RouterLink :to="/entries/${entry_id}">`.
+ * and citation segments as `<RouterLink :to="/entries/${entry_id}">`
+ * followed by the italicised cited quote.
  *
- * For narrative-panel citations, `quote` today holds the whole wrapped
- * journal entry the Citations API returned for `source: "content"`
- * documents — too bloated to render inline. The renderer collapses it
- * by default; the entry id is the actionable bit.
+ * `quote` is sentence-length on both panels:
+ *  - Narrative citations come from Anthropic Citations `source="text"`
+ *    documents, so the API returns the auto-chunked sentence as
+ *    `cited_text` (typically 50–200 chars).
+ *  - Curation citations carry the short verbatim excerpt pulled from
+ *    `entity_mentions.quote` (or the ±120-char FTS snippet when the
+ *    FTS fallback fired).
  *
- * For curation-panel citations, `quote` is the short verbatim excerpt
- * pulled from `entity_mentions.quote` (or the ±120-char FTS snippet
- * when the FTS fallback fired). Short enough to show inline.
+ * Both are short enough to render inline; the renderer has no
+ * disclosure path.
  */
 export type Segment =
   | { kind: 'text'; text: string }

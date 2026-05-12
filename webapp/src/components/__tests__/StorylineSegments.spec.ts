@@ -12,9 +12,9 @@ const router = createRouter({
   ],
 })
 
-function mountWith(segments: Segment[], inlineQuoteThreshold?: number) {
+function mountWith(segments: Segment[]) {
   return mount(StorylineSegments, {
-    props: { segments, inlineQuoteThreshold },
+    props: { segments },
     global: { plugins: [router] },
   })
 }
@@ -57,59 +57,34 @@ describe('StorylineSegments', () => {
     )
   })
 
-  it('shows short citation quotes inline', () => {
+  it('shows short citation quotes inline next to the footnote link', () => {
     const wrapper = mountWith([
       { kind: 'citation', entry_id: 3, quote: 'one short quote' },
     ])
     const inline = wrapper.find('[data-testid="segment-citation-quote-inline"]')
     expect(inline.exists()).toBe(true)
     expect(inline.text()).toContain('one short quote')
-    expect(
-      wrapper.find('[data-testid="segment-citation-quote-collapsed"]').exists(),
-    ).toBe(false)
   })
 
-  it('collapses long citation quotes behind a disclosure', () => {
+  it('renders long citation quotes inline too (no disclosure)', () => {
+    // Regression: the renderer used to collapse long quotes behind a
+    // <details>"source" disclosure. With server@d5825c4 the Citations
+    // API returns sentence-length cited_text, so all quotes render inline.
     const longQuote = 'x'.repeat(500)
     const wrapper = mountWith([
       { kind: 'citation', entry_id: 4, quote: longQuote },
     ])
-    expect(
-      wrapper.find('[data-testid="segment-citation-quote-collapsed"]').exists(),
-    ).toBe(true)
-    const expanded = wrapper.find(
-      '[data-testid="segment-citation-quote-expanded"]',
-    )
-    expect(expanded.exists()).toBe(true)
-    expect(expanded.text()).toBe(longQuote)
-    expect(
-      wrapper.find('[data-testid="segment-citation-quote-inline"]').exists(),
-    ).toBe(false)
+    const inline = wrapper.find('[data-testid="segment-citation-quote-inline"]')
+    expect(inline.exists()).toBe(true)
+    expect(inline.text()).toContain(longQuote)
+    expect(wrapper.find('details').exists()).toBe(false)
   })
 
-  it('renders neither inline nor collapsed quote when quote is empty', () => {
+  it('renders no quote element when quote is empty', () => {
     const wrapper = mountWith([{ kind: 'citation', entry_id: 8, quote: '' }])
-    // Link is present, but no quote sub-elements.
     expect(wrapper.find('[data-testid="segment-citation-8"]').exists()).toBe(
       true,
     )
-    expect(
-      wrapper.find('[data-testid="segment-citation-quote-inline"]').exists(),
-    ).toBe(false)
-    expect(
-      wrapper.find('[data-testid="segment-citation-quote-collapsed"]').exists(),
-    ).toBe(false)
-  })
-
-  it('respects a custom inlineQuoteThreshold', () => {
-    const wrapper = mountWith(
-      [{ kind: 'citation', entry_id: 2, quote: '0123456789' }],
-      5,
-    )
-    // 10-char quote is over the threshold of 5 — must collapse.
-    expect(
-      wrapper.find('[data-testid="segment-citation-quote-collapsed"]').exists(),
-    ).toBe(true)
     expect(
       wrapper.find('[data-testid="segment-citation-quote-inline"]').exists(),
     ).toBe(false)
@@ -132,10 +107,29 @@ describe('StorylineSegments', () => {
       { kind: 'text', text: ' last' },
     ])
     const text = wrapper.text()
-    // Strip the inline italic quotes to make the order assertion robust.
     expect(text.indexOf('first')).toBeLessThan(text.indexOf('[1]'))
     expect(text.indexOf('[1]')).toBeLessThan(text.indexOf('middle'))
     expect(text.indexOf('middle')).toBeLessThan(text.indexOf('[2]'))
     expect(text.indexOf('[2]')).toBeLessThan(text.indexOf('last'))
+  })
+
+  it('does not introduce a block-level break between a citation and a following short text segment', () => {
+    // Regression for the stray "." rendering: the model commonly emits
+    // a citation followed by a "." text segment to close the sentence.
+    // The disclosure-era code put the citation inside a <details> whose
+    // <summary> is display:block by default, pushing the next text
+    // segment onto its own line. With the disclosure gone, the citation
+    // is a plain inline RouterLink + inline <span>, so the trailing
+    // "." sits flush with the link.
+    const wrapper = mountWith([
+      { kind: 'text', text: 'He ran fast' },
+      { kind: 'citation', entry_id: 11, quote: 'I ran fast today.' },
+      { kind: 'text', text: '.' },
+    ])
+    // No details element anywhere.
+    expect(wrapper.find('details').exists()).toBe(false)
+    // The trailing "." text segment is rendered alongside the others.
+    const textNodes = wrapper.findAll('[data-testid="segment-text"]')
+    expect(textNodes.map((n) => n.text())).toEqual(['He ran fast', '.'])
   })
 })
