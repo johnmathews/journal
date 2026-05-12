@@ -64,13 +64,13 @@ function rowKeySuffix(row: CurationRow): string {
         :data-testid="`curation-row-${rowKeySuffix(row)}`"
       >
         <span
-          class="curation-date"
+          class="curation-date text-gray-500 dark:text-gray-300"
           :data-testid="`curation-row-date-${rowKeySuffix(row)}`"
           >{{ row.dateLabel }}</span
         >
         <span
           v-if="row.quote.length > 0"
-          class="curation-quote"
+          class="curation-quote text-gray-700 dark:text-gray-100"
           :data-testid="`curation-row-quote-${rowKeySuffix(row)}`"
           >&ldquo;{{ row.quote }}&rdquo;</span
         >
@@ -138,22 +138,14 @@ function rowKeySuffix(row: CurationRow): string {
     sans-serif;
   font-size: 0.8rem;
   font-weight: 500;
-  color: rgb(107 114 128); /* gray-500 */
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-:global(.dark) .curation-date {
-  color: rgb(156 163 175); /* gray-400 */
-}
 
 .curation-quote {
   font-style: italic;
-  color: rgb(55 65 81); /* gray-700 */
   min-width: 0;
-}
-:global(.dark) .curation-quote {
-  color: rgb(229 231 235); /* gray-200 */
 }
 
 .curation-entry-link {
