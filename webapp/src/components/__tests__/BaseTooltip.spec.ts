@@ -57,7 +57,7 @@ describe('Tooltip', () => {
     expect(classes).not.toContain('bottom-full')
   })
 
-  it('applies the default open delay (700ms) via a CSS variable on the wrapper', () => {
+  it('applies the default open delay (1200ms) via a CSS variable on the wrapper', () => {
     const wrapper = mount(Tooltip, {
       props: { text: 'help' },
       slots: { default: '<button>x</button>' },
@@ -65,19 +65,32 @@ describe('Tooltip', () => {
     const root = wrapper.find('.tt-wrapper').element as HTMLElement
     // jsdom/happy-dom returns inline style values via the style attribute.
     const styleAttr = root.getAttribute('style') ?? ''
-    expect(styleAttr).toContain('--tt-open-delay: 700ms')
+    expect(styleAttr).toContain('--tt-open-delay: 1200ms')
   })
 
   it('honors a custom openDelayMs prop', () => {
     const wrapper = mount(Tooltip, {
-      props: { text: 'help', openDelayMs: 1200 },
+      props: { text: 'help', openDelayMs: 500 },
       slots: { default: '<button>x</button>' },
     })
     const styleAttr =
       (wrapper.find('.tt-wrapper').element as HTMLElement).getAttribute(
         'style',
       ) ?? ''
-    expect(styleAttr).toContain('--tt-open-delay: 1200ms')
+    expect(styleAttr).toContain('--tt-open-delay: 500ms')
+  })
+
+  it('does not include focus-within in the tooltip body classes', () => {
+    // Regression guard: clicking a focusable trigger (e.g. a button) used
+    // to leave the tooltip pinned open via :focus-within. Visibility is
+    // now driven by :hover and :has(:focus-visible) in scoped CSS — no
+    // Tailwind focus-within class should be present on the body.
+    const wrapper = mount(Tooltip, {
+      props: { text: 'help' },
+      slots: { default: '<button>x</button>' },
+    })
+    const classes = wrapper.find('[role="tooltip"]').classes().join(' ')
+    expect(classes).not.toContain('focus-within')
   })
 
   it('the tooltip slot wins over the text prop when both are provided', () => {
