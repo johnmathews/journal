@@ -7,6 +7,11 @@
  * timers — so it remains accessible to keyboard users (the trigger
  * just needs to be focusable, which buttons and links already are).
  *
+ * Open is delayed (default 700ms, OS-standard tooltip dwell) via a
+ * `transition-delay` that only applies on the hovered/focused state,
+ * so casual mouse movement across triggers doesn't fire the tooltip
+ * but a deliberate pause does. Close is instant.
+ *
  * Position: by default the tooltip pops above the trigger and is
  * left-anchored to the trigger (the tooltip extends rightward from
  * the trigger's left edge). Pure CSS can't auto-flip near the right
@@ -28,12 +33,19 @@ const props = withDefaults(
     align?: 'left' | 'center' | 'right'
     /** Max width override; defaults to 18rem. */
     maxWidth?: string
+    /**
+     * Delay before the tooltip appears on hover/focus, in milliseconds.
+     * Close is always instant. Default 700ms matches OS conventions and
+     * keeps casual mouse-overs from popping the tooltip.
+     */
+    openDelayMs?: number
   }>(),
   {
     text: '',
     placement: 'top',
     align: 'left',
     maxWidth: '18rem',
+    openDelayMs: 700,
   },
 )
 
@@ -70,12 +82,15 @@ const arrowPlacementClasses = computed(() => {
 </script>
 
 <template>
-  <span class="relative inline-flex group">
+  <span
+    class="tt-wrapper relative inline-flex group"
+    :style="{ '--tt-open-delay': `${openDelayMs}ms` }"
+  >
     <span :aria-describedby="id"><slot /></span>
     <span
       :id="id"
       role="tooltip"
-      class="pointer-events-none absolute z-30 px-2.5 py-1.5 rounded-md text-xs font-normal leading-snug text-white bg-gray-900 dark:bg-gray-700 shadow-lg ring-1 ring-black/5 dark:ring-white/10 whitespace-normal text-left opacity-0 invisible transition-opacity duration-100 group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible"
+      class="tt-body pointer-events-none absolute z-30 px-2.5 py-1.5 rounded-md text-xs font-normal leading-snug text-white bg-gray-900 dark:bg-gray-700 shadow-lg ring-1 ring-black/5 dark:ring-white/10 whitespace-normal text-left opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible"
       :class="[placementClasses, alignClasses]"
       :style="{ width: 'max-content', maxWidth }"
     >
@@ -88,3 +103,19 @@ const arrowPlacementClasses = computed(() => {
     </span>
   </span>
 </template>
+
+<style scoped>
+/* Open delay via transition-delay on the hovered/focused state only —
+   the base state has delay-0 so close is instant. Visibility is part
+   of the transition so it doesn't flip in synchronously and break the
+   delay. */
+.tt-body {
+  transition-property: opacity, visibility;
+  transition-duration: 100ms;
+  transition-delay: 0ms;
+}
+.tt-wrapper:hover .tt-body,
+.tt-wrapper:focus-within .tt-body {
+  transition-delay: var(--tt-open-delay, 700ms);
+}
+</style>

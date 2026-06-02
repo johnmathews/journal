@@ -57,6 +57,29 @@ describe('Tooltip', () => {
     expect(classes).not.toContain('bottom-full')
   })
 
+  it('applies the default open delay (700ms) via a CSS variable on the wrapper', () => {
+    const wrapper = mount(Tooltip, {
+      props: { text: 'help' },
+      slots: { default: '<button>x</button>' },
+    })
+    const root = wrapper.find('.tt-wrapper').element as HTMLElement
+    // jsdom/happy-dom returns inline style values via the style attribute.
+    const styleAttr = root.getAttribute('style') ?? ''
+    expect(styleAttr).toContain('--tt-open-delay: 700ms')
+  })
+
+  it('honors a custom openDelayMs prop', () => {
+    const wrapper = mount(Tooltip, {
+      props: { text: 'help', openDelayMs: 1200 },
+      slots: { default: '<button>x</button>' },
+    })
+    const styleAttr =
+      (wrapper.find('.tt-wrapper').element as HTMLElement).getAttribute(
+        'style',
+      ) ?? ''
+    expect(styleAttr).toContain('--tt-open-delay: 1200ms')
+  })
+
   it('the tooltip slot wins over the text prop when both are provided', () => {
     const wrapper = mount(Tooltip, {
       props: { text: 'plain' },
