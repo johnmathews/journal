@@ -29,7 +29,7 @@
 
 ## What I deliberately deferred
 
-Anchor *editing* UX on an existing storyline. The REST + MCP
+Anchor _editing_ UX on an existing storyline. The REST + MCP
 surfaces have `set_anchors` today; the webapp doesn't wire it up
 yet. This is the next follow-up plan: it's a UX problem of its own
 scope (multi-select with diff against current set? drag-to-reorder
@@ -63,12 +63,10 @@ See the plan doc's "Open items / follow-ups" section.
 - Coverage: 91.97 / 85.4 / 90.6 / 94.12 — all above the 85%
   threshold.
 
-## Manual verification — TODO
+## Manual verification — done
 
-Backend is running locally as part of the cross-cutting verification
-in the parent plan's W9 step. Smoke test plan: create a 2-anchor
-storyline via the modal (Atlas + Vienna, say), wait for
-generation, verify the detail view shows both anchor chips and that
-the narrator panel mentions both entities by name. Then `PUT
-/anchors` via curl to add a third, regenerate, verify the new entity
-shows up in the corpus.
+Confirmed in the browser on 2026-05-12: multi-entity storylines work
+end-to-end. Creating a 2-anchor storyline via the modal renders both
+anchor chips on the list and detail views; the narrator panel mentions
+both entities by name; the regenerated corpus picks up entries that
+mention either anchor.

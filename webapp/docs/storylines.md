@@ -1,13 +1,13 @@
 # Storylines (webapp)
 
-**Status:** active reference. **Last updated:** 2026-05-12.
+**Status:** active reference. **Last updated:** 2026-05-12 (multi-entity anchors shipped and verified in the browser).
 
-The webapp surface for the storylines feature shipped server-side at
-`journal-server@8396c7e`. A storyline is a cross-entry narrative anchored on
-a single entity. Two parallel panels — **curation** (verbatim entry excerpts
-with Haiku-generated transitions) and **narrative** (third-person prose
-grounded via the Anthropic Citations API) — are persisted server-side as
-`Segment[]`. The curation panel renders as a chronological list of rows; the
+The webapp surface for the storylines feature. A storyline is a cross-entry
+narrative anchored on **one or more entities** (1..15; the multi-anchor cycle
+shipped 2026-05-12 and is verified end-to-end in the browser). Two parallel
+panels — **curation** (verbatim entry excerpts with Haiku-generated
+transitions) and **narrative** (third-person prose grounded via the Anthropic
+Citations API) — are persisted server-side as `Segment[]`. The curation panel renders as a chronological list of rows; the
 narrative panel renders as prose with a footnote-style "Sources" section
 beneath. Citations share a single `[N]` numbering scheme across both panels.
 
@@ -18,14 +18,18 @@ doc describes only the webapp.
 ## Routes
 
 - `/storylines` — paginated list mirroring `EntryListView.vue`. Sort by name,
-  entity, last generated, or created. Header has a **New storyline** button
-  that opens `StorylineCreateModal`; rows carry per-row Delete and Regenerate
+  anchors (by first anchor's canonical name — deterministic since the server
+  returns anchors sorted by id ASC), last generated, or created. Each row
+  renders its anchors as a row of clickable violet-pill chips linking to
+  each entity. Header has a **New storyline** button that opens
+  `StorylineCreateModal`; rows carry per-row Delete and Regenerate
   affordances; multi-select with a violet selection toolbar offers bulk
   Delete and Regenerate (pattern copied from `EntityListView.vue`).
 - `/storylines/:id` — detail view with the two-panel layout. Stacks on
   mobile; at `lg` (1024px) narrative sits on the left, curation on the
-  right (swapped 2026-05-12). Header carries Regenerate + Delete
-  affordances.
+  right (swapped 2026-05-12). The header carries Regenerate + Delete
+  affordances plus the anchor chips (one violet-pill `RouterLink` per
+  anchor, each navigating to the entity).
 
 ## Files
 
@@ -38,7 +42,7 @@ src/
   composables/useCitationRegistry.ts    — shared [N] numbering across both panels
   components/StorylineNarrative.vue     — narrative panel: prose body + footnotes
   components/StorylineCurationList.vue  — curation panel: row list (date column left-aligned)
-  components/StorylineCreateModal.vue   — entity-picker + name + optional date range
+  components/StorylineCreateModal.vue   — multi-select entity picker (1..15 anchors) + name + optional date range
   components/StorylineRegenerateModal.vue — Replace / Append-update + optional date range
   views/StorylineListView.vue
   views/StorylineDetailView.vue
@@ -104,20 +108,32 @@ server message; the toast confirmation handles the happy path.
 
 ## Create flow
 
-`POST /api/storylines` returns 201 with the storyline body plus
+`POST /api/storylines` takes `entity_ids: number[]` and returns 201 with the
+storyline body (including `anchors: { id, canonical_name }[]`) plus
 `generation_job_id`. The list-view "New storyline" button opens
-`StorylineCreateModal` — debounced entity search, single-select picker
-(scaffold multi-select-ready for the deferred multi-entity follow-up),
-auto-fills the name field from the selected entity's canonical name,
-optional description / date range. On submit, the modal closes, a toast
-fires ("Storyline created. Generating panels…"), and the returned
-`generation_job_id` is tracked through `useJobsStore` so the list reloads
-on completion.
+`StorylineCreateModal` — debounced entity search, **multi-select picker**:
+picked entities show as removable chips above the search box, and the
+search results list toggles membership on click (✓ when picked). Auto-name
+reads as "X" / "X and Y" / "X, Y, and Z" until the user overrides it (user
+override preserved via a `nameDirty` flag). A soft cap of 15 anchors is
+enforced client-side (input disables with a cap-reached message);
+`MAX_ANCHORS = 15` is duplicated as a client constant — the server stays
+the source of truth and rejects above-cap requests with 422, but the
+client cap saves a round-trip. Optional description / date range fields
+unchanged. On submit, the modal closes, a toast fires ("Storyline created.
+Generating panels…"), and the returned `generation_job_id` is tracked
+through `useJobsStore` so the list reloads on completion.
+
+Anchor _editing_ on an existing storyline is not yet wired up in the UI.
+The server's `PUT /api/storylines/{id}/anchors` and the
+`journal_set_storyline_anchors` MCP tool exist today, so Claude and scripted
+clients can manage anchors; the webapp follow-up will design the diff /
+confirm-before-stale-panels UX.
 
 ## Follow-ups
 
 1. **Entity backfill.** Server-side — `journal extract-entities
-   --stale-only` could reduce dependence on the FTS fallback for the
+--stale-only` could reduce dependence on the FTS fallback for the
    seeded storylines and tighten the curation panel's signal-to-noise.
 2. **Hover preview of footnotes.** Webapp-side — augment `[N]` markers
    with a hover/tap tooltip showing the quote, so readers can dip into
@@ -127,5 +143,10 @@ on completion.
    quotes from the body leaves prose with occasional awkward seams
    (e.g. sentences originally written assuming a quote would follow),
    tune the narrator prompt to produce footnote-style output natively.
+4. **Anchor edit UX.** Webapp-side — wire up `PUT /api/storylines/{id}/anchors`
+   into the detail view. Open design questions: multi-select with a diff
+   against the current anchor set, confirm-before-stale-panels (anchor
+   changes invalidate the previously-generated panels), and whether to
+   auto-kick a regeneration on save.
 
 Tracked alongside `../../server/docs/storylines-plan.md`.
