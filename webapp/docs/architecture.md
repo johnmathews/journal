@@ -59,6 +59,16 @@ Page-level components, one per route. Each view composes layout, components, and
   "explicit > implicit" rule. Chart instances are destroyed
   and recreated on bin/range changes so axis labels and tick
   formatting match the new granularity without stale state.
+  Since the 2026-06-10 dashboard decomposition (PR #16),
+  `DashboardView.vue` is ~400 lines of filter/layout/tile-grid
+  wiring — each chart tile is its own component under
+  `src/components/dashboard/` (`WritingFrequencyChart`,
+  `WordCountChart`, `MoodTrendsChart`, `EntityTrendsChart`,
+  `EntityDistributionChart`, `MoodCorrelationChart`,
+  `CalendarHeatmap`, plus `shared.ts` for the palette and the
+  `filledWritingBins` helper). Sparse server bins are zero-filled
+  via `src/utils/bins.ts` before charting so writing gaps occupy
+  real x-axis space.
 - **`/insights` route** — Retired. The router redirects `/insights → /` and
   there is no `InsightsView.vue`. The mood-trends + drill-down behaviour
   originally drafted for this view was absorbed into `DashboardView` (mood
@@ -79,6 +89,10 @@ Page-level components, one per route. Each view composes layout, components, and
 - **AdminMoodsView** (`/admin/moods`) — Read-only inspector for the active mood-dimension configuration loaded by the server.
 - **CreateEntryView** (`/entries/new`) — Multi-modal entry creation page that hosts the file-import, file-upload, image-upload, voice-record, and text-entry panel components.
 - **EntityListView** (`/entities`) and **EntityDetailView** (`/entities/:id`) — Browse and edit tracked entities (people, places, tags). Detail view exposes alias and merge management.
+- **StorylineListView** (`/storylines`) — Paginated table of storylines mirroring `EntryListView`'s patterns: sortable columns (name, anchors, last generated, created), anchor chips as clickable violet pills linking to each entity, per-row Delete/Regenerate affordances, multi-select with a bulk-action toolbar, and a **New storyline** button opening `StorylineCreateModal` (multi-select entity picker, 1..15 anchors). See [`storylines.md`](./storylines.md) for the full feature reference.
+- **StorylineDetailView** (`/storylines/:id`) — Two-panel storyline rendering: third-person **narrative** (prose + footnote Sources, grounded via the server's Citations pipeline) beside the **curation** list of verbatim entry excerpts, sharing one `[N]` citation numbering via `useCitationRegistry`. Header carries Regenerate/Delete plus the anchor chips. The **StorylineAnchorEditor** component (shipped 2026-06-10, PR #15) provides inline anchor editing: an entity multi-select seeded with the current anchors, a diff-vs-current display, a confirm step warning that saved panels go stale, and an optional regenerate kick on save — wired to `PUT /api/storylines/{id}/anchors`.
+- **FitnessView** (`/fitness`) — Fitness dashboard over the server's Strava + Garmin pipeline. Reuses the dashboard's tile-layout system (`TileGrid` — rearrange, hide/show, three-width resize, persisted preferences) and `RangeBinControls`. Tiles cover activities and Garmin wellness series (Sleep/HRV/RHR with a bold `movingAverage3` trend over the faded daily line, per the chart style guide). A `FitnessAuthBanner` surfaces broken provider auth with a reconnect path into Settings.
+- **StravaCallbackView** (`/settings/fitness/strava/callback`) — Landing page for Strava's OAuth redirect: forwards the `code`/`error` query params to the server via `exchangeStravaCode` (`src/api/fitness.ts`), shows progress/success/failure states, and routes back to Settings.
 - **SearchView** — Full-text search across journal entries. Wraps the server's `GET /api/search` endpoint via `useSearchStore`. Supports two modes: **keyword** (SQLite FTS5, default) and **semantic** (vector similarity, returns per-chunk matches with char offsets). Keyword is the default because exact-term lookup is the more common use case; semantic search is one click away. Clicking either mode button immediately triggers a new search (if a query is present) so the user can compare modes without re-submitting. Each result row renders the entry date, a relevance score badge, and a snippet — in keyword mode the snippet is passed through `renderSnippetHtml` from `src/utils/searchSnippet.ts` which converts the server's `\x02`/`\x03` marker characters into `<mark>` tags. In semantic mode, each result includes a "Matched by meaning" explanation showing why the result is relevant (similarity percentage of the top matching chunk, plus up to 2 additional matching chunks with their scores and text previews). Clicking a result navigates to `EntryDetailView` with `?chunk=N` set to the top matching chunk's index so the user lands on the matching passage. Form state (query, mode, dates) is kept in the Pinia store so back-navigation preserves the query.
 
 ### Composables (`src/composables/`)
@@ -100,6 +114,8 @@ Pinia stores for server state management.
 - **notifications** — Per-user notification preferences (Pushover etc.) backed by `/api/notifications/preferences`.
 - **settings** — Runtime settings + pricing config consumed by the admin pages.
 - **auth** — Cookie-session authentication state. See `docs/auth.md`.
+- **storylines** — Storyline list + detail state with a `loading` / `detailLoading` split so list navigation and detail fetches don't fight over one spinner, plus per-action flags/errors (`creating`, `regenerating`, `savingAnchors`). Actions wrap `src/api/storylines.ts` (list, get, create, regenerate, delete, `setAnchors`); `setAnchors` treats the server response as authoritative (deduped, id-sorted) and refreshes `currentStoryline` and the matching list row from it — the PUT does not regenerate panels, callers chain `regenerate()` when they want fresh ones.
+- **fitness** — `/fitness` dashboard state: activities and daily-wellness series for the selected range/bin (with `dedupActivities` collapsing the same workout uploaded via both Garmin and Strava), per-source sync status + `startSync` with a scheduled status refresh, and the tile-layout preferences (width/order/visibility, debounce-persisted via the same preferences endpoint as the dashboard). Connect/disconnect/OAuth actions are not in the store — the Settings cards and `StravaCallbackView` call `src/api/fitness.ts` directly.
 - **dashboard** — Dashboard filter state (range + bin) and the most recently fetched writing-stats bins, plus a parallel mood surface: `moodDimensions` (fetched once from `/api/dashboard/mood-dimensions` on mount), `moodBins` (fetched from `/api/dashboard/mood-trends` on every range/bin change), and `selectedMoodDimensions: Set<string>` for per-session facet toggles. Empty selection means "show every dimension" (the user-visible "no selection = show all" mental model); non-empty selects a subset. Default on first load is `Set(['agency'])` so the chart lands on a single line. Group-level bulk actions are powered by `moodGroupSelectionState(memberNames)` (returns `'all' | 'some' | 'none'`) and `toggleMoodGroup(memberNames)` — clicking a group chip adds every member when none are selected, otherwise removes every member. Group definitions live in `src/utils/mood-groups.ts` (mirrors the comment in `mood-dimensions.toml`). Includes drill-down state (`drillPeriod`, `drillDimension`, `drillEntries`) and actions (`loadDrillDown`, `clearDrillDown`, `periodEndDate`) so clicking a mood chart data point on the dashboard shows the same entry-level detail as the Insights page. `loadMoodDimensions()` swallows errors (dimension-load failure is interpreted as "mood scoring not configured" and hides the card; it's not a loud error). `loadMoodTrends()` surfaces `ApiRequestError.message` verbatim like `loadWritingStats`. `toggleMoodDimension(name)` flips a single dimension's selection state and creates a new Set instance so Vue reactivity fires on the change. Initial state is `last_3_months` + `week`. A pure `rangeToDates(range, now)` helper (also exported for tests) converts a `DashboardRange` option into a concrete ISO `{from, to}` pair against an injectable clock.
 
 ### API Layer (`src/api/`)
@@ -108,6 +124,8 @@ Typed fetch wrappers for the journal-server REST API.
 - **client.ts** — Generic `apiFetch<T>` with error handling and `ApiRequestError` class. Carries `errorCode` (so callers can disambiguate e.g. `chunks_not_backfilled` from a generic 404) and `body: Record<string, unknown> | null` — the parsed JSON response body, useful when the server's error response carries structured data the caller needs to act on. The 409 from `POST /api/entities/{id}/aliases` uses this to surface `existing_entity_id`, `existing_canonical_name`, and `existing_entity_type` to the alias-collision merge dialog.
 - **entries.ts** — Endpoint functions: `fetchEntries`, `fetchEntry`, `updateEntryText`, `deleteEntry`, `fetchStats`, `fetchEntryChunks`, `fetchEntryTokens`
 - **entities.ts** — Endpoint functions for entity tracking, including alias CRUD (`addEntityAlias`, `removeEntityAlias`, `lookupAliasOwner`) and `updateEntity` whose response is typed `Entity & { reembed_job_id?: string }` to surface the server-side async re-embed job id when a description change triggered one.
+- **storylines.ts** — Typed wrappers for the storylines namespace: `listStorylines`, `getStoryline`, `createStoryline`, `regenerateStoryline`, `deleteStoryline`, and `setStorylineAnchors` (`PUT /api/storylines/{id}/anchors`, consumed by the anchor-edit UX).
+- **fitness.ts** — Typed wrappers for the fitness namespace: activities/daily queries for the `/fitness` charts, sync status, connect/disconnect/reauth for both providers (including the Strava OAuth code exchange), and sync/backfill job triggers.
 - Other modules: `admin.ts`, `dashboard.ts`, `insights.ts`, `jobs.ts`, `notifications.ts`, `preferences.ts`, `search.ts`, `settings.ts` — each is a typed wrapper over the matching `/api/*` namespace.
 
 ### Utilities (`src/utils/`)
@@ -119,6 +137,7 @@ Pure helper functions with no Vue or store dependencies.
 - **searchSnippet.ts** — Converts FTS5 snippet marker characters (`\x02`/`\x03`) into `<mark>` HTML tags for rendering search result highlights
 - **cost-estimates.ts** — Computes per-1k-words ingestion + first-edit costs for the Admin Overview / Runtime cost cards using the live pricing rows.
 - **dateRange.ts** — Pure ISO-date helpers shared by the dashboard and search range pickers.
+- **bins.ts** — Zero-fill helpers for the time-binned dashboard charts: expands the server's sparse `GROUP BY` bins into a contiguous week/month/quarter/year grid over `[from, to]` (UTC, ISO-week Mondays) so writing gaps occupy real x-axis space instead of collapsing into adjacent points.
 - **mood-display.ts**, **mood-groups.ts** — Display labels and group definitions for mood dimensions (mirrors the server's `mood-dimensions.toml`).
 
 ### Types (`src/types/`)
@@ -128,12 +147,16 @@ Shared TypeScript interfaces matching the REST API response schemas.
 
 The home route (`/`) is the **Dashboard**. Entries list is
 reachable at `/entries`, entry detail at `/entries/:id`, search
-at `/search`, entity tracking at `/entities`, and jobs at
-`/jobs`. The legacy `/insights` path now redirects to `/`. The
-2026-04-11 "Option B" migration flipped `/` from the entries list
-to the dashboard — see the matching journal entry for the audit of
-every `RouterLink to="/"` and `router.push({ name: 'entries' })`
-call site.
+at `/search`, entity tracking at `/entities` (+ `/entities/:id`),
+storylines at `/storylines` (+ `/storylines/:id`), the fitness
+dashboard at `/fitness`, jobs at `/jobs`, per-user settings at
+`/settings` (with the Strava OAuth landing page at
+`/settings/fitness/strava/callback`), API keys at `/api-keys`, and
+the admin area under `/admin/*`. The legacy `/insights` path now
+redirects to `/`. The 2026-04-11 "Option B" migration flipped `/`
+from the entries list to the dashboard — see the matching journal
+entry for the audit of every `RouterLink to="/"` and
+`router.push({ name: 'entries' })` call site.
 
 ## Typography & Contrast
 
