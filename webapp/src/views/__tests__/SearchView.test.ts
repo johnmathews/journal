@@ -338,6 +338,67 @@ describe('SearchView', () => {
     expect(end.value).not.toBe('')
   })
 
+  it('omits date params from the request when the "All time" preset is active', async () => {
+    mockSearch.mockResolvedValue(fakeResponse([]))
+
+    const wrapper = mountView()
+    await wrapper.vm.$nextTick()
+    // The visual backfill still populates the inputs…
+    const start = wrapper.find('[data-testid="search-start-date"]')
+      .element as HTMLInputElement
+    expect(start.value).toBe('2026-01-01')
+
+    await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
+    await wrapper.find('[data-testid="search-form"]').trigger('submit')
+    await flushPromises()
+
+    // …but "All time" means unconstrained, so no dates go on the wire.
+    const call = mockSearch.mock.calls[0][0]
+    expect(call).not.toHaveProperty('start_date')
+    expect(call).not.toHaveProperty('end_date')
+  })
+
+  it('re-selecting "All time" after a narrower preset drops the date params again', async () => {
+    mockSearch.mockResolvedValue(fakeResponse([]))
+
+    const wrapper = mountView()
+    await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
+    await wrapper
+      .find('[data-testid="search-range-preset"]')
+      .setValue('last_1_month')
+    await wrapper.find('[data-testid="search-form"]').trigger('submit')
+    await flushPromises()
+    expect(mockSearch.mock.calls[0][0]).toHaveProperty('start_date')
+
+    mockSearch.mockClear()
+    await wrapper.find('[data-testid="search-range-preset"]').setValue('all')
+    await wrapper.find('[data-testid="search-form"]').trigger('submit')
+    await flushPromises()
+
+    const call = mockSearch.mock.calls[0][0]
+    expect(call).not.toHaveProperty('start_date')
+    expect(call).not.toHaveProperty('end_date')
+  })
+
+  it('sort auto-resubmit under "All time" also omits date params', async () => {
+    mockSearch.mockResolvedValue(fakeResponse([]))
+
+    const wrapper = mountView()
+    await wrapper.find('[data-testid="search-query-input"]').setValue('vienna')
+    await wrapper.find('[data-testid="search-form"]').trigger('submit')
+    await flushPromises()
+
+    mockSearch.mockClear()
+    await wrapper.find('[data-testid="search-sort"]').setValue('date_desc')
+    await flushPromises()
+
+    expect(mockSearch).toHaveBeenCalledTimes(1)
+    const call = mockSearch.mock.calls[0][0]
+    expect(call).toMatchObject({ sort: 'date_desc' })
+    expect(call).not.toHaveProperty('start_date')
+    expect(call).not.toHaveProperty('end_date')
+  })
+
   it('selecting a preset populates the date inputs', async () => {
     mockSearch.mockResolvedValue(fakeResponse([]))
 

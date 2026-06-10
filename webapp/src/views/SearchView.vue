@@ -63,10 +63,16 @@ function onDateInput(): void {
 }
 
 function submit(): void {
+  // "All time" means unconstrained: the inputs stay visually
+  // backfilled (see onMounted), but sending the synthetic
+  // ALL_TIME_START → today bounds would constrain the dense
+  // post-filter and bust the server cache key for nothing — so the
+  // request carries no date params at all.
+  const allTime = rangePreset.value === 'all'
   store.runSearch({
     q: queryInput.value,
-    start_date: startDateInput.value || null,
-    end_date: endDateInput.value || null,
+    start_date: allTime ? null : startDateInput.value || null,
+    end_date: allTime ? null : endDateInput.value || null,
     sort: sortInput.value,
     offset: 0,
   })

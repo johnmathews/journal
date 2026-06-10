@@ -101,11 +101,16 @@ export const useSearchStore = defineStore('search', () => {
       lastRunQuery.value = response.query
       hasRun.value = true
     } catch (e) {
-      // Prefer the server's error message when it's an
+      // Prefer the server's error message when it's a 4xx
       // ApiRequestError — FTS5 parse errors in particular come back
       // with a clear "invalid_query" message that's worth showing.
+      // 5xx bodies are server internals (tracebacks, gateway pages),
+      // so show a friendly retry message instead.
       if (e instanceof ApiRequestError) {
-        error.value = e.message
+        error.value =
+          e.status >= 500
+            ? 'Search is temporarily unavailable — please try again.'
+            : e.message
       } else if (e instanceof Error) {
         error.value = e.message
       } else {

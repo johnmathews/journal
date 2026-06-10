@@ -163,6 +163,34 @@ describe('useSearchStore', () => {
     expect(store.loading).toBe(false)
   })
 
+  it('runSearch shows a friendly message on a 5xx ApiRequestError', async () => {
+    mockSearch.mockRejectedValue(
+      new ApiRequestError(500, 'internal_error', 'Internal Server Error'),
+    )
+
+    const store = useSearchStore()
+    await store.runSearch({ q: 'vienna' })
+
+    expect(store.error).toBe(
+      'Search is temporarily unavailable — please try again.',
+    )
+    expect(store.items).toEqual([])
+    expect(store.loading).toBe(false)
+  })
+
+  it('runSearch shows the friendly message on a 503 too', async () => {
+    mockSearch.mockRejectedValue(
+      new ApiRequestError(503, 'service_unavailable', 'Service Unavailable'),
+    )
+
+    const store = useSearchStore()
+    await store.runSearch({ q: 'vienna' })
+
+    expect(store.error).toBe(
+      'Search is temporarily unavailable — please try again.',
+    )
+  })
+
   it('runSearch surfaces a plain Error message', async () => {
     mockSearch.mockRejectedValue(new Error('network down'))
 
