@@ -1840,3 +1840,125 @@ describe('DashboardView — tile layout editing', () => {
     ).toBe('Half width')
   })
 })
+
+describe('DashboardView — empty-bin filling (W22)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    chartConstructorSpy.mockClear()
+    destroySpy.mockClear()
+    // `fillBins` resolves a null `to` to "today" and the default range
+    // (last_3_months) derives `from` from the clock, so pin Date to make
+    // the generated axis deterministic. Noon UTC keeps the ISO date
+    // stable across CI timezones. Date only — faking timers would break
+    // flushPromises().
+    vi.useFakeTimers({
+      now: new Date('2026-03-16T12:00:00Z'),
+      toFake: ['Date'],
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  // Every Monday from the default range start (2025-12-16 → aligned to
+  // Monday 2025-12-15) through today (Monday 2026-03-16).
+  const expectedMondays = [
+    '2025-12-15',
+    '2025-12-22',
+    '2025-12-29',
+    '2026-01-05',
+    '2026-01-12',
+    '2026-01-19',
+    '2026-01-26',
+    '2026-02-02',
+    '2026-02-09',
+    '2026-02-16',
+    '2026-02-23',
+    '2026-03-02',
+    '2026-03-09',
+    '2026-03-16',
+  ]
+
+  type LineChartConfig = {
+    type?: string
+    data: {
+      labels: string[]
+      datasets: Array<{ label?: string; data: number[] }>
+    }
+  }
+
+  function findChartConfig(datasetLabel: string): LineChartConfig | undefined {
+    const call = chartConstructorSpy.mock.calls.find((c) => {
+      const cfg = c[1] as LineChartConfig
+      return cfg?.data?.datasets?.some((d) => d.label === datasetLabel)
+    })
+    return call?.[1] as LineChartConfig | undefined
+  }
+
+  it('writing and word charts render sparse weekly bins on a contiguous zero-filled axis', async () => {
+    // Two bins six weeks apart — the server omits the empty weeks
+    // between them, and previously the chart did too.
+    mockFetch.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: [
+        { bin_start: '2026-01-05', entry_count: 3, total_words: 300 },
+        { bin_start: '2026-02-16', entry_count: 3, total_words: 150 },
+      ],
+    })
+    mountView()
+    await flushPromises()
+
+    const writing = findChartConfig('Entries')
+    expect(writing).toBeDefined()
+    expect(writing!.data.labels).toEqual(expectedMondays)
+    const expectedCounts = expectedMondays.map((m) =>
+      m === '2026-01-05' || m === '2026-02-16' ? 3 : 0,
+    )
+    expect(writing!.data.datasets[0].data).toEqual(expectedCounts)
+
+    const words = findChartConfig('Words')
+    expect(words).toBeDefined()
+    expect(words!.data.labels).toEqual(expectedMondays)
+    const expectedWords = expectedMondays.map((m) =>
+      m === '2026-01-05' ? 300 : m === '2026-02-16' ? 150 : 0,
+    )
+    expect(words!.data.datasets[0].data).toEqual(expectedWords)
+  })
+
+  it('entity trends chart zero-fills missing periods on the x-axis', async () => {
+    mockFetch.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: [
+        { bin_start: '2026-01-05', entry_count: 3, total_words: 300 },
+        { bin_start: '2026-02-16', entry_count: 3, total_words: 150 },
+      ],
+    })
+    mockEntityTrends.mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      entity_type: 'topic',
+      entities: ['meditation'],
+      bins: [
+        { period: '2026-01-05', entity: 'meditation', mention_count: 5 },
+        { period: '2026-02-16', entity: 'meditation', mention_count: 2 },
+      ],
+    })
+    mountView()
+    await flushPromises()
+
+    const trends = findChartConfig('meditation')
+    expect(trends).toBeDefined()
+    expect(trends!.data.labels).toEqual(expectedMondays)
+    const expectedMentions = expectedMondays.map((m) =>
+      m === '2026-01-05' ? 5 : m === '2026-02-16' ? 2 : 0,
+    )
+    expect(trends!.data.datasets[0].data).toEqual(expectedMentions)
+  })
+})

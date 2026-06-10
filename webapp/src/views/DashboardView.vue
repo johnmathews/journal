@@ -11,11 +11,12 @@ import {
   type DashboardTileDef,
   type DashboardTileId,
 } from '@/types/dashboard'
-import type { CalendarDay } from '@/types/dashboard'
+import type { CalendarDay, WritingFrequencyBin } from '@/types/dashboard'
 import {
   INSIGHTS_ENTITY_TYPES,
   type InsightsEntityType,
 } from '@/types/insights'
+import { fillBins, fillPeriods } from '@/utils/bins'
 import { getChartColors, getThemedGridColor } from '@/utils/chartjs-config'
 import { adjustColorOpacity } from '@/utils/mosaic'
 import {
@@ -197,9 +198,22 @@ const tileGridRef = ref<{
   sectionEls: Partial<Record<DashboardTileId, HTMLElement>>
 } | null>(null)
 
-const labels = computed(() => store.bins.map((b) => b.bin_start))
-const entryCountSeries = computed(() => store.bins.map((b) => b.entry_count))
-const wordCountSeries = computed(() => store.bins.map((b) => b.total_words))
+// The server's GROUP BY omits empty bins, which would render a
+// two-month writing gap as adjacent x-axis points. Zero-fill to a
+// contiguous grid over the selected range so gaps occupy real axis
+// space (range 'all' anchors at the earliest bin; `to` defaults to
+// today inside `fillBins`). See `utils/bins.ts` for the edge rules.
+const filledBins = computed<WritingFrequencyBin[]>(() => {
+  const { from, to } = rangeToDates(store.range)
+  return fillBins(store.bins, from, to, store.bin)
+})
+const labels = computed(() => filledBins.value.map((b) => b.bin_start))
+const entryCountSeries = computed(() =>
+  filledBins.value.map((b) => b.entry_count),
+)
+const wordCountSeries = computed(() =>
+  filledBins.value.map((b) => b.total_words),
+)
 
 // --- Writing frequency chart ---
 
@@ -360,7 +374,11 @@ function pivotMoodBins(): {
       max: b.score_max,
     })
   }
-  const periods = Array.from(byPeriod.keys()).sort()
+  // Contiguous period axis (server omits empty periods). Periods with
+  // no scored entries pivot to `null`, and `spanGaps: false` on the
+  // datasets breaks the lines there — a real gap, not interpolation.
+  const { from, to } = rangeToDates(store.range)
+  const periods = fillPeriods(Array.from(byPeriod.keys()), from, to, store.bin)
   const series: Record<string, (number | null)[]> = {}
   const minSeries: Record<string, (number | null)[]> = {}
   const maxSeries: Record<string, (number | null)[]> = {}
@@ -762,10 +780,13 @@ function renderEntityTrendsChart(): void {
     return
   }
 
-  // Pivot: collect unique periods, build one series per visible entity
+  // Pivot: collect unique periods, build one series per visible entity.
+  // Zero-fill to a contiguous axis (server omits empty periods) so
+  // mention gaps render as empty bar slots rather than collapsing.
   const periodSet = new Set<string>()
   for (const b of trendBins) periodSet.add(b.period)
-  const periods = Array.from(periodSet).sort()
+  const { from, to } = rangeToDates(store.range)
+  const periods = fillPeriods(Array.from(periodSet), from, to, store.bin)
 
   const byEntity = new Map<string, Map<string, number>>()
   for (const b of trendBins) {
