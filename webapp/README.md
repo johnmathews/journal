@@ -55,17 +55,17 @@ and admin roles. API key management for programmatic access.
 
 ## Tech Stack
 
-| Technology         | Purpose                                    |
-|--------------------|--------------------------------------------|
-| Vue 3.5+           | UI framework (Composition API, script setup) |
-| TypeScript         | Type safety                                |
-| Vite               | Build tool and dev server                  |
-| Tailwind CSS 4     | Utility-first styling, CSS-first config    |
-| Pinia              | State management                           |
-| Vue Router         | Client-side routing                        |
-| Chart.js 4         | Dashboard charts                           |
-| diff-match-patch   | Live diff highlighting in the OCR editor   |
-| Vitest             | Unit and component testing (1100+ tests)   |
+| Technology       | Purpose                                      |
+| ---------------- | -------------------------------------------- |
+| Vue 3.5+         | UI framework (Composition API, script setup) |
+| TypeScript       | Type safety                                  |
+| Vite             | Build tool and dev server                    |
+| Tailwind CSS 4   | Utility-first styling, CSS-first config      |
+| Pinia            | State management                             |
+| Vue Router       | Client-side routing                          |
+| Chart.js 4       | Dashboard charts                             |
+| diff-match-patch | Live diff highlighting in the OCR editor     |
+| Vitest           | Unit and component testing (1100+ tests)     |
 
 ## Running Locally
 
@@ -106,7 +106,7 @@ Real API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are only needed for ingest
 cp .env.example .env.local
 ```
 
-Set `VITE_JOURNAL_API_TOKEN` to the same value as `JOURNAL_API_TOKEN` in the server `.env`. Leave `VITE_API_URL` blank.
+Leave `VITE_API_URL` blank — the Vite dev server proxies `/api/*` to `localhost:8400`. Auth is cookie-based (sessions); no client-side token is needed.
 
 ### 2. Start services (three terminals)
 
