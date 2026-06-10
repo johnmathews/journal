@@ -8,6 +8,7 @@ import { useToast } from '@/composables/useToast'
 import { isTerminal } from '@/types/job'
 import StorylineNarrative from '@/components/StorylineNarrative.vue'
 import StorylineCurationList from '@/components/StorylineCurationList.vue'
+import StorylineAnchorEditor from '@/components/StorylineAnchorEditor.vue'
 import { buildCitationRegistry } from '@/composables/useCitationRegistry'
 
 const props = defineProps<{
@@ -21,6 +22,9 @@ const toast = useToast()
 
 const deleting = ref(false)
 const deleteError = ref<string | null>(null)
+// Anchor-edit panel toggle (W30). The editor mounts fresh on each
+// open (v-if) so its picked set re-seeds from the saved anchors.
+const editingAnchors = ref(false)
 
 const curationPanel = computed(
   () => store.currentStoryline?.panels.curation ?? null,
@@ -97,6 +101,20 @@ async function regenerate(): Promise<void> {
     )
   } catch {
     // store.regenerateError carries the message
+  }
+}
+
+/** Post-save hook from the anchor editor. The PUT /anchors endpoint
+ * does not regenerate panels server-side, so when the user picked
+ * "Save & regenerate" we chain the existing regenerate flow here —
+ * exactly one job is kicked, with the usual tracking + refresh. */
+async function onAnchorsSaved(payload: { regenerate: boolean }): Promise<void> {
+  editingAnchors.value = false
+  if (payload.regenerate) {
+    toast.success('Anchors updated.')
+    await regenerate()
+  } else {
+    toast.success('Anchors updated. Panels are stale until you regenerate.')
   }
 }
 
@@ -210,6 +228,14 @@ onMounted(() => {
             >
               {{ anchor.canonical_name || `#${anchor.id}` }}
             </RouterLink>
+            <button
+              type="button"
+              class="text-xs text-violet-600 dark:text-violet-400 hover:underline ml-1"
+              data-testid="edit-anchors-button"
+              @click="editingAnchors = !editingAnchors"
+            >
+              {{ editingAnchors ? 'Close editor' : 'Edit anchors' }}
+            </button>
           </div>
           <span data-testid="storyline-last-generated">
             Last generated:
@@ -237,6 +263,18 @@ onMounted(() => {
         >
           {{ deleteError }}
         </div>
+
+        <!-- Inline anchor editor (W30): kept inline rather than in a
+             modal so the current panels stay visible while the user
+             decides what a regeneration would replace. -->
+        <StorylineAnchorEditor
+          v-if="editingAnchors"
+          :storyline-id="store.currentStoryline.id"
+          :anchors="store.currentStoryline.anchors"
+          class="mt-4"
+          @close="editingAnchors = false"
+          @saved="onAnchorsSaved"
+        />
       </div>
 
       <!-- Two-panel layout: stacks below lg (1024px), side-by-side above.

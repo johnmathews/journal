@@ -10,6 +10,13 @@ vi.mock('@/api/storylines', () => ({
   createStoryline: vi.fn(),
   regenerateStoryline: vi.fn(),
   deleteStoryline: vi.fn(),
+  setStorylineAnchors: vi.fn(),
+}))
+
+// The inline anchor editor searches entities; stub the API so tests
+// that never touch the search box don't need network-shaped fixtures.
+vi.mock('@/api/entities', () => ({
+  fetchEntities: vi.fn(),
 }))
 
 // useJobsStore is only used for trackJob/getJobById here. Stub it so we
@@ -29,10 +36,12 @@ import {
   deleteStoryline,
   fetchStoryline,
   regenerateStoryline,
+  setStorylineAnchors,
 } from '@/api/storylines'
 const mockFetchStoryline = vi.mocked(fetchStoryline)
 const mockRegenerate = vi.mocked(regenerateStoryline)
 const mockDelete = vi.mocked(deleteStoryline)
+const mockSetAnchors = vi.mocked(setStorylineAnchors)
 
 function mockDetail(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -339,6 +348,119 @@ describe('StorylineDetailView', () => {
     expect(wrapper.find('[data-testid="error-banner"]').text()).toBe(
       'not found',
     )
+  })
+
+  // --- Anchor editing (W30) ---
+
+  function mockDetailTwoAnchors() {
+    return mockDetail({
+      anchors: [
+        { id: 513, canonical_name: 'Vienna' },
+        { id: 514, canonical_name: 'Atlas' },
+      ],
+    })
+  }
+
+  it('Edit anchors button reveals the inline editor with current anchors pre-selected', async () => {
+    mockFetchStoryline.mockResolvedValue(mockDetailTwoAnchors())
+    const wrapper = mountComponent()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="anchor-editor"]').exists()).toBe(false)
+    await wrapper.find('[data-testid="edit-anchors-button"]').trigger('click')
+    expect(wrapper.find('[data-testid="anchor-editor"]').exists()).toBe(true)
+    const chips = wrapper.findAll('[data-testid="anchor-editor-chip"]')
+    expect(chips.map((c) => c.text())).toEqual([
+      expect.stringContaining('Vienna'),
+      expect.stringContaining('Atlas'),
+    ])
+  })
+
+  it('Cancel in the editor closes it without saving', async () => {
+    mockFetchStoryline.mockResolvedValue(mockDetailTwoAnchors())
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.find('[data-testid="edit-anchors-button"]').trigger('click')
+    await wrapper.find('[data-testid="anchor-editor-cancel"]').trigger('click')
+    expect(wrapper.find('[data-testid="anchor-editor"]').exists()).toBe(false)
+    expect(mockSetAnchors).not.toHaveBeenCalled()
+  })
+
+  it('save-only flow PUTs the new anchors, refreshes the chips, and does not regenerate', async () => {
+    mockFetchStoryline.mockResolvedValue(mockDetailTwoAnchors())
+    mockSetAnchors.mockResolvedValue({
+      id: 3,
+      anchors: [{ id: 513, canonical_name: 'Vienna' }],
+    })
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.find('[data-testid="edit-anchors-button"]').trigger('click')
+    // Drop the second anchor → diff appears → Save → confirm step.
+    await wrapper
+      .find('[data-testid="anchor-editor-remove-514"]')
+      .trigger('click')
+    expect(
+      wrapper.find('[data-testid="anchor-diff-removed"]').text(),
+    ).toContain('Atlas')
+    await wrapper.find('[data-testid="anchor-editor-save"]').trigger('click')
+    await wrapper
+      .find('[data-testid="anchor-confirm-save-only"]')
+      .trigger('click')
+    await flushPromises()
+    expect(mockSetAnchors).toHaveBeenCalledWith(3, { entity_ids: [513] })
+    expect(mockRegenerate).not.toHaveBeenCalled()
+    // Editor closes; header chips reflect the server's response.
+    expect(wrapper.find('[data-testid="anchor-editor"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="storyline-anchor-514"]').exists()).toBe(
+      false,
+    )
+    expect(toastSuccess).toHaveBeenCalled()
+  })
+
+  it('save & regenerate flow PUTs the anchors then queues a regeneration job', async () => {
+    mockFetchStoryline.mockResolvedValue(mockDetailTwoAnchors())
+    mockSetAnchors.mockResolvedValue({
+      id: 3,
+      anchors: [{ id: 513, canonical_name: 'Vienna' }],
+    })
+    mockRegenerate.mockResolvedValue({ job_id: 'job-7', status: 'queued' })
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.find('[data-testid="edit-anchors-button"]').trigger('click')
+    await wrapper
+      .find('[data-testid="anchor-editor-remove-514"]')
+      .trigger('click')
+    await wrapper.find('[data-testid="anchor-editor-save"]').trigger('click')
+    await wrapper
+      .find('[data-testid="anchor-confirm-save-regenerate"]')
+      .trigger('click')
+    await flushPromises()
+    expect(mockSetAnchors).toHaveBeenCalledWith(3, { entity_ids: [513] })
+    expect(mockRegenerate).toHaveBeenCalledWith(3, undefined)
+    expect(trackJob).toHaveBeenCalledWith('job-7', 'storyline_generation', {
+      storyline_id: 3,
+    })
+    expect(wrapper.find('[data-testid="anchor-editor"]').exists()).toBe(false)
+  })
+
+  it('a failed anchor save keeps the editor open and shows the error', async () => {
+    mockFetchStoryline.mockResolvedValue(mockDetailTwoAnchors())
+    mockSetAnchors.mockRejectedValue(new Error('forbidden'))
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.find('[data-testid="edit-anchors-button"]').trigger('click')
+    await wrapper
+      .find('[data-testid="anchor-editor-remove-514"]')
+      .trigger('click')
+    await wrapper.find('[data-testid="anchor-editor-save"]').trigger('click')
+    await wrapper
+      .find('[data-testid="anchor-confirm-save-only"]')
+      .trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="anchor-editor"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="anchor-editor-error"]').text()).toBe(
+      'forbidden',
+    )
+    expect(mockRegenerate).not.toHaveBeenCalled()
   })
 
   it('shares citation numbering across panels (narrative drives)', async () => {

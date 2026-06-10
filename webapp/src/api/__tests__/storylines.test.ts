@@ -5,6 +5,7 @@ import {
   fetchStoryline,
   fetchStorylines,
   regenerateStoryline,
+  setStorylineAnchors,
 } from '../storylines'
 
 vi.mock('../client', () => ({
@@ -127,5 +128,18 @@ describe('storylines API', () => {
       method: 'DELETE',
     })
     expect(result).toEqual({ deleted: true })
+  })
+
+  it('setStorylineAnchors PUTs entity_ids to /api/storylines/{id}/anchors', async () => {
+    mockApiFetch.mockResolvedValue({
+      id: 4,
+      anchors: [{ id: 100, canonical_name: 'Running' }],
+    })
+    const result = await setStorylineAnchors(4, { entity_ids: [100] })
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/storylines/4/anchors', {
+      method: 'PUT',
+      body: JSON.stringify({ entity_ids: [100] }),
+    })
+    expect(result.anchors).toEqual([{ id: 100, canonical_name: 'Running' }])
   })
 })

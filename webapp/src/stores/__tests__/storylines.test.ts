@@ -8,6 +8,7 @@ vi.mock('@/api/storylines', () => ({
   createStoryline: vi.fn(),
   regenerateStoryline: vi.fn(),
   deleteStoryline: vi.fn(),
+  setStorylineAnchors: vi.fn(),
 }))
 
 import {
@@ -16,6 +17,7 @@ import {
   fetchStoryline,
   fetchStorylines,
   regenerateStoryline,
+  setStorylineAnchors,
 } from '@/api/storylines'
 
 const mockFetchStorylines = vi.mocked(fetchStorylines)
@@ -23,6 +25,7 @@ const mockFetchStoryline = vi.mocked(fetchStoryline)
 const mockCreateStoryline = vi.mocked(createStoryline)
 const mockRegenerateStoryline = vi.mocked(regenerateStoryline)
 const mockDeleteStoryline = vi.mocked(deleteStoryline)
+const mockSetStorylineAnchors = vi.mocked(setStorylineAnchors)
 
 function mockSummary(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -312,5 +315,104 @@ describe('useStorylinesStore', () => {
     const store = useStorylinesStore()
     await expect(store.removeStoryline(1)).rejects.toBe('boom')
     expect(store.error).toBe('Failed to delete storyline')
+  })
+
+  it('setAnchors calls the API with entity_ids and returns the response', async () => {
+    mockSetStorylineAnchors.mockResolvedValue({
+      id: 1,
+      anchors: [
+        { id: 100, canonical_name: 'Running' },
+        { id: 200, canonical_name: 'Vienna' },
+      ],
+    })
+    const store = useStorylinesStore()
+    const resp = await store.setAnchors(1, [200, 100])
+    expect(mockSetStorylineAnchors).toHaveBeenCalledWith(1, {
+      entity_ids: [200, 100],
+    })
+    expect(resp.anchors).toHaveLength(2)
+    expect(store.savingAnchors).toBe(false)
+    expect(store.anchorsError).toBeNull()
+  })
+
+  it('setAnchors toggles savingAnchors while in flight', async () => {
+    let observedDuringSave = false
+    mockSetStorylineAnchors.mockImplementation(() => {
+      const s = useStorylinesStore()
+      observedDuringSave = s.savingAnchors
+      return Promise.resolve({ id: 1, anchors: [] })
+    })
+    const store = useStorylinesStore()
+    await store.setAnchors(1, [5])
+    expect(observedDuringSave).toBe(true)
+    expect(store.savingAnchors).toBe(false)
+  })
+
+  it('setAnchors refreshes currentStoryline.anchors from the server response', async () => {
+    mockFetchStoryline.mockResolvedValue({
+      ...mockSummary({ id: 7 }),
+      panels: {},
+    })
+    // Server response is authoritative: deduped, ascending id order.
+    mockSetStorylineAnchors.mockResolvedValue({
+      id: 7,
+      anchors: [
+        { id: 100, canonical_name: 'Running' },
+        { id: 300, canonical_name: 'Atlas' },
+      ],
+    })
+    const store = useStorylinesStore()
+    await store.loadStoryline(7)
+    await store.setAnchors(7, [300, 100])
+    expect(store.currentStoryline?.anchors.map((a) => a.id)).toEqual([100, 300])
+  })
+
+  it('setAnchors leaves currentStoryline alone when a different storyline is loaded', async () => {
+    mockFetchStoryline.mockResolvedValue({
+      ...mockSummary({ id: 9 }),
+      panels: {},
+    })
+    mockSetStorylineAnchors.mockResolvedValue({
+      id: 1,
+      anchors: [{ id: 555, canonical_name: 'Other' }],
+    })
+    const store = useStorylinesStore()
+    await store.loadStoryline(9)
+    await store.setAnchors(1, [555])
+    expect(store.currentStoryline?.anchors.map((a) => a.id)).toEqual([100])
+  })
+
+  it('setAnchors refreshes the matching list row', async () => {
+    mockFetchStorylines.mockResolvedValue({
+      items: [mockSummary({ id: 1 }), mockSummary({ id: 2 })],
+      total: 2,
+      limit: 20,
+      offset: 0,
+    })
+    mockSetStorylineAnchors.mockResolvedValue({
+      id: 2,
+      anchors: [{ id: 999, canonical_name: 'Swapped' }],
+    })
+    const store = useStorylinesStore()
+    await store.loadStorylines()
+    await store.setAnchors(2, [999])
+    expect(store.storylines[1].anchors.map((a) => a.id)).toEqual([999])
+    // Untouched row keeps its original anchors.
+    expect(store.storylines[0].anchors.map((a) => a.id)).toEqual([100])
+  })
+
+  it('setAnchors records anchorsError on Error rejection and rethrows', async () => {
+    mockSetStorylineAnchors.mockRejectedValue(new Error('cap exceeded'))
+    const store = useStorylinesStore()
+    await expect(store.setAnchors(1, [1, 2])).rejects.toThrow('cap exceeded')
+    expect(store.anchorsError).toBe('cap exceeded')
+    expect(store.savingAnchors).toBe(false)
+  })
+
+  it('setAnchors falls back to a generic message for non-Error', async () => {
+    mockSetStorylineAnchors.mockRejectedValue('boom')
+    const store = useStorylinesStore()
+    await expect(store.setAnchors(1, [1])).rejects.toBe('boom')
+    expect(store.anchorsError).toBe('Failed to update anchors')
   })
 })

@@ -6,7 +6,7 @@ import { useStorylinesStore } from '@/stores/storylines'
 import { useJobsStore } from '@/stores/jobs'
 import { useToast } from '@/composables/useToast'
 import type { EntitySummary } from '@/types/entity'
-import type { CreateStorylineResponse } from '@/types/storyline'
+import { MAX_ANCHORS, type CreateStorylineResponse } from '@/types/storyline'
 
 /**
  * Modal for creating a new storyline. The user picks 1..MAX_ANCHORS
@@ -23,11 +23,6 @@ import type { CreateStorylineResponse } from '@/types/storyline'
  * Vienna") until the user overrides it. The component does not own
  * the modal-open state.
  */
-
-// Mirrors the server-side MAX_ANCHORS constant in
-// services/storylines/service.py. Soft cap; bump on both sides
-// when the time comes.
-const MAX_ANCHORS = 15
 
 const props = defineProps<{ modelValue: boolean }>()
 

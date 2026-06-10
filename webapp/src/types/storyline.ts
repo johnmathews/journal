@@ -109,10 +109,19 @@ export interface CreateStorylineResponse {
   generation_job_id?: string
 }
 
+/** Maximum number of anchor entities per storyline. Mirrors the
+ *  server-side MAX_ANCHORS in `services/storylines/service.py` — the
+ *  server stays the source of truth (it rejects above-cap requests
+ *  with 422), but the client cap saves a round-trip. Bump on both
+ *  sides when the time comes. */
+export const MAX_ANCHORS = 15
+
 /** Request body for `PUT /api/storylines/{id}/anchors`. Replaces the
- *  anchor set entirely (set semantics, not patch). The webapp does
- *  not yet wire up a control for this — it's available via REST + MCP
- *  for Claude-driven workflows. */
+ *  anchor set entirely (set semantics, not patch). The server dedupes
+ *  and sorts the ids ascending, replaces the anchor rows, and returns
+ *  the authoritative set — it does NOT touch the stored panels or
+ *  kick a regeneration job, so the client owns the
+ *  regenerate-after-edit decision (see StorylineAnchorEditor.vue). */
 export interface SetStorylineAnchorsRequest {
   entity_ids: number[]
 }

@@ -1,6 +1,6 @@
 # Storylines (webapp)
 
-**Status:** active reference. **Last updated:** 2026-05-12 (multi-entity anchors shipped and verified in the browser).
+**Status:** active reference. **Last updated:** 2026-06-10 (anchor-edit UX shipped on the detail view).
 
 The webapp surface for the storylines feature. A storyline is a cross-entry
 narrative anchored on **one or more entities** (1..15; the multi-anchor cycle
@@ -44,6 +44,7 @@ src/
   components/StorylineCurationList.vue  — curation panel: row list (date column left-aligned)
   components/StorylineCreateModal.vue   — multi-select entity picker (1..15 anchors) + name + optional date range
   components/StorylineRegenerateModal.vue — Replace / Append-update + optional date range
+  components/StorylineAnchorEditor.vue  — inline anchor editor: picker + diff + stale-panels confirm
   views/StorylineListView.vue
   views/StorylineDetailView.vue
 ```
@@ -124,11 +125,46 @@ unchanged. On submit, the modal closes, a toast fires ("Storyline created.
 Generating panels…"), and the returned `generation_job_id` is tracked
 through `useJobsStore` so the list reloads on completion.
 
-Anchor _editing_ on an existing storyline is not yet wired up in the UI.
-The server's `PUT /api/storylines/{id}/anchors` and the
-`journal_set_storyline_anchors` MCP tool exist today, so Claude and scripted
-clients can manage anchors; the webapp follow-up will design the diff /
-confirm-before-stale-panels UX.
+## Anchor editing (shipped 2026-06-10)
+
+The detail view's anchor chips carry an **Edit anchors** toggle that opens
+`StorylineAnchorEditor` inline below the meta strip. The editor seeds its
+selection from the saved anchors and reuses the multi-select picker pattern
+from `StorylineCreateModal` (debounced entity search, removable chips,
+toggle-on-click results, client-side `MAX_ANCHORS = 15` cap — the constant
+now lives once in `types/storyline.ts` and is shared by both components).
+
+The three design questions this feature had open were resolved as follows
+(rationale also recorded in `StorylineAnchorEditor.vue` and
+`journal/260610-anchor-edit-ux.md`):
+
+1. **Inline panel, not a modal.** Editing anchors is contextual to the
+   detail view — keeping the current panels visible while editing lets
+   the user see exactly what a regeneration would replace.
+2. **Diff-vs-current display.** The chips row shows the *proposed* set; a
+   separate diff summary ("Adding" green chips / "Removing" red chips)
+   appears as soon as the selection diverges from the saved set. Save
+   stays disabled until there is a non-empty diff and at least one anchor
+   remains.
+3. **Confirm-before-stale-panels, no auto-kick.** The server's
+   `PUT /api/storylines/{id}/anchors` only replaces the anchor rows — it
+   does **not** touch the stored panels or queue a regeneration (verified
+   in server `api/ingestion.py::set_storyline_anchors`; the endpoint
+   dedupes + id-sorts the ids and returns the authoritative `anchors`
+   list, which the store uses to refresh state). Clicking **Save changes**
+   therefore opens a confirm step warning that the panels go stale, with
+   **Save & regenerate** (PUT, then the detail view chains its existing
+   regenerate flow — one job, with the usual tracking + auto-refresh) and
+   **Save only** (panels stay stale until a manual Regenerate). We
+   deliberately do not auto-kick regeneration on save: it costs LLM
+   tokens, and a user reshaping a storyline may want to batch several
+   anchor edits before paying for one regeneration.
+
+Store-side, `useStorylinesStore().setAnchors(id, entityIds)` wraps the PUT
+with `savingAnchors` / `anchorsError` state and refreshes both
+`currentStoryline.anchors` and any matching list row from the response.
+The same endpoint remains available to Claude via the
+`journal_set_storyline_anchors` MCP tool.
 
 ## Follow-ups
 
@@ -143,10 +179,8 @@ confirm-before-stale-panels UX.
    quotes from the body leaves prose with occasional awkward seams
    (e.g. sentences originally written assuming a quote would follow),
    tune the narrator prompt to produce footnote-style output natively.
-4. **Anchor edit UX.** Webapp-side — wire up `PUT /api/storylines/{id}/anchors`
-   into the detail view. Open design questions: multi-select with a diff
-   against the current anchor set, confirm-before-stale-panels (anchor
-   changes invalidate the previously-generated panels), and whether to
-   auto-kick a regeneration on save.
+
+(The former follow-up 4, **Anchor edit UX**, shipped 2026-06-10 — see
+"Anchor editing" above.)
 
 Tracked alongside `../../server/docs/archive/storylines-plan.md` (closed 2026-05-12).

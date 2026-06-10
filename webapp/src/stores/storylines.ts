@@ -5,6 +5,7 @@ import type {
   CreateStorylineResponse,
   RegenerateStorylineRequest,
   RegenerateStorylineResponse,
+  SetStorylineAnchorsResponse,
   StorylineDetail,
   StorylineListParams,
   StorylineSummary,
@@ -15,6 +16,7 @@ import {
   fetchStoryline,
   fetchStorylines,
   regenerateStoryline as regenerateStorylineApi,
+  setStorylineAnchors as setStorylineAnchorsApi,
 } from '@/api/storylines'
 
 export const useStorylinesStore = defineStore('storylines', () => {
@@ -31,6 +33,8 @@ export const useStorylinesStore = defineStore('storylines', () => {
   const createError = ref<string | null>(null)
   const regenerating = ref(false)
   const regenerateError = ref<string | null>(null)
+  const savingAnchors = ref(false)
+  const anchorsError = ref<string | null>(null)
   const currentParams = ref<StorylineListParams>({
     limit: 20,
     offset: 0,
@@ -114,6 +118,41 @@ export const useStorylinesStore = defineStore('storylines', () => {
     }
   }
 
+  /** Replace the anchor set on a storyline (PUT /anchors).
+   *
+   * The server response is authoritative — it dedupes and sorts the
+   * ids ascending — so on success we refresh `currentStoryline` and
+   * any matching list row from the response rather than echoing the
+   * caller's selection. The PUT does not regenerate panels server-side;
+   * callers that want fresh panels chain `regenerate()` afterwards. */
+  async function setAnchors(
+    id: number,
+    entityIds: number[],
+  ): Promise<SetStorylineAnchorsResponse> {
+    savingAnchors.value = true
+    anchorsError.value = null
+    try {
+      const resp = await setStorylineAnchorsApi(id, { entity_ids: entityIds })
+      if (currentStoryline.value?.id === id) {
+        currentStoryline.value = {
+          ...currentStoryline.value,
+          anchors: resp.anchors,
+        }
+      }
+      const row = storylines.value.find((s) => s.id === id)
+      if (row) {
+        row.anchors = resp.anchors
+      }
+      return resp
+    } catch (e) {
+      anchorsError.value =
+        e instanceof Error ? e.message : 'Failed to update anchors'
+      throw e
+    } finally {
+      savingAnchors.value = false
+    }
+  }
+
   async function removeStoryline(id: number): Promise<void> {
     error.value = null
     try {
@@ -141,6 +180,8 @@ export const useStorylinesStore = defineStore('storylines', () => {
     createError,
     regenerating,
     regenerateError,
+    savingAnchors,
+    anchorsError,
     currentParams,
     totalPages,
     currentPage,
@@ -150,6 +191,7 @@ export const useStorylinesStore = defineStore('storylines', () => {
     clearCurrent,
     createStoryline,
     regenerate,
+    setAnchors,
     removeStoryline,
   }
 })
