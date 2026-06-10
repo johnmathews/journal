@@ -149,4 +149,4 @@ confirm-before-stale-panels UX.
    changes invalidate the previously-generated panels), and whether to
    auto-kick a regeneration on save.
 
-Tracked alongside `../../server/docs/storylines-plan.md`.
+Tracked alongside `../../server/docs/archive/storylines-plan.md` (closed 2026-05-12).

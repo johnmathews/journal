@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
@@ -1052,6 +1052,15 @@ describe('DashboardView — calendar heatmap', () => {
     vi.clearAllMocks()
     chartConstructorSpy.mockClear()
     destroySpy.mockClear()
+    // The heatmap grid window is derived from `new Date()` (rolling
+    // last_3_months fallback under happy-dom's zero element width), so the
+    // March-2026 fixture dates below age out of the grid on a real clock.
+    // Pin Date only — faking timers would break flushPromises().
+    vi.useFakeTimers({ now: new Date('2026-03-15T12:00:00'), toFake: ['Date'] })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   const manyWritingBins = Array.from({ length: 6 }, (_, i) => ({

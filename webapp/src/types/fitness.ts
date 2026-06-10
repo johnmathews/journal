@@ -16,6 +16,7 @@ export type FitnessActivityType =
   | 'swim'
   | 'walk'
   | 'hike'
+  | 'row'
   | 'strength'
   | 'other'
 

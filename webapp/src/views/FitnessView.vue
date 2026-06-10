@@ -61,6 +61,10 @@ const ACTIVITY_TYPE_ORDER: FitnessActivityType[] = [
   'swim',
   'walk',
   'hike',
+  // `row` slots between cardio (hike) and strength so the cardio block
+  // reads as a continuous run. Added 2026-06-04 alongside the server's
+  // canonical-type promotion (migration 0029).
+  'row',
   'strength',
   'other',
 ]
@@ -71,6 +75,9 @@ const ACTIVITY_TYPE_COLOR: Record<FitnessActivityType, string> = {
   swim: '#06b6d4', // cyan
   walk: '#10b981', // emerald
   hike: '#84cc16', // lime
+  // Teal between cyan (swim) and emerald (walk) — water-sport adjacency
+  // for the rowing series.
+  row: '#0891b2',
   strength: '#f59e0b', // amber
   other: '#94a3b8', // slate
 }
@@ -106,6 +113,7 @@ function bucketByWeek(): WeeklyBucket[] {
         swim: 0,
         walk: 0,
         hike: 0,
+        row: 0,
         strength: 0,
         other: 0,
       },
