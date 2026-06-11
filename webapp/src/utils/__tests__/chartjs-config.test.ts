@@ -164,7 +164,7 @@ describe('getThemedGridColor', () => {
   beforeEach(() => {
     document.documentElement.classList.remove('dark')
     document.documentElement.style.cssText = ''
-    document.documentElement.style.setProperty('--color-gray-100', '#f3f4f6')
+    document.documentElement.style.setProperty('--color-gray-700', '#374151')
     document.documentElement.style.setProperty('--color-gray-300', '#d1d5db')
   })
 
@@ -172,9 +172,9 @@ describe('getThemedGridColor', () => {
     document.documentElement.classList.remove('dark')
   })
 
-  it('returns the lighter gray-100 variant when <html> has the "dark" class', () => {
+  it('returns the dim gray-700 variant when <html> has the "dark" class', () => {
     document.documentElement.classList.add('dark')
-    expect(getThemedGridColor()).toBe('#f3f4f6')
+    expect(getThemedGridColor()).toBe('#374151')
   })
 
   it('returns the darker gray-300 variant when <html> is in light mode', () => {

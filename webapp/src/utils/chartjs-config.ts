@@ -259,13 +259,18 @@ export function getChartColors(): ChartColors {
  * looks fine on dark backgrounds (light line on dark) but renders as a
  * barely-visible whisper on white. This helper picks the variant whose
  * contrast actually works against the current background.
+ *
+ * Dark mode uses `--color-gray-700` rather than a near-white tint:
+ * gray-100 on the dark card background read as harsh bright-white
+ * gridlines that overpowered the data. gray-700 keeps them legible but
+ * subtle. Light mode keeps gray-300 (a soft line on white).
  */
 export function getThemedGridColor(): string {
   const isDark =
     typeof document !== 'undefined' &&
     document.documentElement.classList.contains('dark')
   return isDark
-    ? getCssVariable('--color-gray-100')
+    ? getCssVariable('--color-gray-700')
     : getCssVariable('--color-gray-300')
 }
 
