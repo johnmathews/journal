@@ -9,6 +9,7 @@ import {
   type EntityMention,
 } from '@/types/entity'
 import { ApiRequestError } from '@/api/client'
+import { useBackNavigation } from '@/composables/useBackNavigation'
 import AliasCollisionDialog from '@/components/entities/AliasCollisionDialog.vue'
 import EntityMergeIntoDialog from '@/components/entities/EntityMergeIntoDialog.vue'
 
@@ -58,9 +59,7 @@ watch(
   },
 )
 
-function goBack() {
-  router.push({ name: 'entities' })
-}
+const goBack = useBackNavigation({ name: 'entities' })
 
 function typeBadgeClass(type: EntityType): string {
   switch (type) {

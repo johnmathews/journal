@@ -6,6 +6,7 @@ import {
   fetchStorylines,
   regenerateStoryline,
   setStorylineAnchors,
+  updateStoryline,
 } from '../storylines'
 
 vi.mock('../client', () => ({
@@ -141,5 +142,24 @@ describe('storylines API', () => {
       body: JSON.stringify({ entity_ids: [100] }),
     })
     expect(result.anchors).toEqual([{ id: 100, canonical_name: 'Running' }])
+  })
+
+  it('updateStoryline PATCHes the name to /api/storylines/{id}', async () => {
+    mockApiFetch.mockResolvedValue({
+      id: 7,
+      user_id: 1,
+      anchors: [{ id: 100, canonical_name: 'Running' }],
+      name: 'New title',
+      description: '',
+      status: 'active',
+      created_at: '2026-06-01T00:00:00Z',
+      updated_at: '2026-06-11T00:00:00Z',
+    })
+    const result = await updateStoryline(7, { name: 'New title' })
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/storylines/7', {
+      method: 'PATCH',
+      body: JSON.stringify({ name: 'New title' }),
+    })
+    expect(result.name).toBe('New title')
   })
 })

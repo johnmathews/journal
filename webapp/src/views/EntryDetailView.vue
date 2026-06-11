@@ -14,6 +14,7 @@ import {
 import { fetchEntryChunks, fetchEntryTokens } from '@/api/entries'
 import { fetchEntryEntities } from '@/api/entities'
 import { ApiRequestError } from '@/api/client'
+import { useBackNavigation } from '@/composables/useBackNavigation'
 import type { Chunk, TokenSpan, UncertainSpan } from '@/types/entry'
 import type { EntryEntityRef, EntityType } from '@/types/entity'
 
@@ -574,9 +575,7 @@ async function save() {
   }
 }
 
-function goBack() {
-  router.push({ name: 'entries' })
-}
+const goBack = useBackNavigation({ name: 'entries' })
 
 async function confirmDelete() {
   if (!store.currentEntry || deleting.value) return

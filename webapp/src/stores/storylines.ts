@@ -17,6 +17,7 @@ import {
   fetchStorylines,
   regenerateStoryline as regenerateStorylineApi,
   setStorylineAnchors as setStorylineAnchorsApi,
+  updateStoryline as updateStorylineApi,
 } from '@/api/storylines'
 
 export const useStorylinesStore = defineStore('storylines', () => {
@@ -35,6 +36,8 @@ export const useStorylinesStore = defineStore('storylines', () => {
   const regenerateError = ref<string | null>(null)
   const savingAnchors = ref(false)
   const anchorsError = ref<string | null>(null)
+  const savingName = ref(false)
+  const nameError = ref<string | null>(null)
   const currentParams = ref<StorylineListParams>({
     limit: 20,
     offset: 0,
@@ -153,6 +156,36 @@ export const useStorylinesStore = defineStore('storylines', () => {
     }
   }
 
+  /** Rename a storyline (PATCH /api/storylines/{id}).
+   *
+   * The server trims the name and returns the authoritative value, so
+   * on success we refresh `currentStoryline.name` and any matching list
+   * row from the response. A rename does not touch panels, so callers
+   * never need to chain a regeneration. */
+  async function renameStoryline(id: number, name: string): Promise<void> {
+    savingName.value = true
+    nameError.value = null
+    try {
+      const resp = await updateStorylineApi(id, { name })
+      if (currentStoryline.value?.id === id) {
+        currentStoryline.value = {
+          ...currentStoryline.value,
+          name: resp.name,
+        }
+      }
+      const row = storylines.value.find((s) => s.id === id)
+      if (row) {
+        row.name = resp.name
+      }
+    } catch (e) {
+      nameError.value =
+        e instanceof Error ? e.message : 'Failed to rename storyline'
+      throw e
+    } finally {
+      savingName.value = false
+    }
+  }
+
   async function removeStoryline(id: number): Promise<void> {
     error.value = null
     try {
@@ -182,6 +215,8 @@ export const useStorylinesStore = defineStore('storylines', () => {
     regenerateError,
     savingAnchors,
     anchorsError,
+    savingName,
+    nameError,
     currentParams,
     totalPages,
     currentPage,
@@ -192,6 +227,7 @@ export const useStorylinesStore = defineStore('storylines', () => {
     createStoryline,
     regenerate,
     setAnchors,
+    renameStoryline,
     removeStoryline,
   }
 })

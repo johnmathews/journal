@@ -8,6 +8,8 @@ import type {
   StorylineDetail,
   StorylineListParams,
   StorylineListResponse,
+  UpdateStorylineRequest,
+  UpdateStorylineResponse,
 } from '@/types/storyline'
 import { apiFetch } from './client'
 
@@ -59,6 +61,16 @@ export function regenerateStoryline(
       ? { method: 'POST', body: JSON.stringify(body) }
       : { method: 'POST' },
   )
+}
+
+export function updateStoryline(
+  id: number,
+  request: UpdateStorylineRequest,
+): Promise<UpdateStorylineResponse> {
+  return apiFetch<UpdateStorylineResponse>(`/api/storylines/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(request),
+  })
 }
 
 export function deleteStoryline(id: number): Promise<{ deleted: boolean }> {

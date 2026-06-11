@@ -9,6 +9,7 @@ vi.mock('@/api/storylines', () => ({
   regenerateStoryline: vi.fn(),
   deleteStoryline: vi.fn(),
   setStorylineAnchors: vi.fn(),
+  updateStoryline: vi.fn(),
 }))
 
 import {
@@ -18,6 +19,7 @@ import {
   fetchStorylines,
   regenerateStoryline,
   setStorylineAnchors,
+  updateStoryline,
 } from '@/api/storylines'
 
 const mockFetchStorylines = vi.mocked(fetchStorylines)
@@ -26,6 +28,7 @@ const mockCreateStoryline = vi.mocked(createStoryline)
 const mockRegenerateStoryline = vi.mocked(regenerateStoryline)
 const mockDeleteStoryline = vi.mocked(deleteStoryline)
 const mockSetStorylineAnchors = vi.mocked(setStorylineAnchors)
+const mockUpdateStoryline = vi.mocked(updateStoryline)
 
 function mockSummary(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -414,5 +417,81 @@ describe('useStorylinesStore', () => {
     const store = useStorylinesStore()
     await expect(store.setAnchors(1, [1])).rejects.toBe('boom')
     expect(store.anchorsError).toBe('Failed to update anchors')
+  })
+
+  it('renameStoryline calls the API and refreshes currentStoryline.name', async () => {
+    mockFetchStoryline.mockResolvedValue({
+      ...mockSummary({ id: 7, name: 'Old' }),
+      panels: {},
+    })
+    mockUpdateStoryline.mockResolvedValue({
+      ...mockSummary({ id: 7, name: 'New title' }),
+    })
+    const store = useStorylinesStore()
+    await store.loadStoryline(7)
+    await store.renameStoryline(7, 'New title')
+    expect(mockUpdateStoryline).toHaveBeenCalledWith(7, { name: 'New title' })
+    expect(store.currentStoryline?.name).toBe('New title')
+  })
+
+  it('renameStoryline leaves currentStoryline alone for a different id', async () => {
+    mockFetchStoryline.mockResolvedValue({
+      ...mockSummary({ id: 9, name: 'Nine' }),
+      panels: {},
+    })
+    mockUpdateStoryline.mockResolvedValue({
+      ...mockSummary({ id: 1, name: 'Renamed One' }),
+    })
+    const store = useStorylinesStore()
+    await store.loadStoryline(9)
+    await store.renameStoryline(1, 'Renamed One')
+    expect(store.currentStoryline?.name).toBe('Nine')
+  })
+
+  it('renameStoryline refreshes the matching list row', async () => {
+    mockFetchStorylines.mockResolvedValue({
+      items: [
+        mockSummary({ id: 1, name: 'One' }),
+        mockSummary({ id: 2, name: 'Two' }),
+      ],
+      total: 2,
+      limit: 20,
+      offset: 0,
+    })
+    mockUpdateStoryline.mockResolvedValue({
+      ...mockSummary({ id: 2, name: 'Two renamed' }),
+    })
+    const store = useStorylinesStore()
+    await store.loadStorylines()
+    await store.renameStoryline(2, 'Two renamed')
+    expect(store.storylines[1].name).toBe('Two renamed')
+    expect(store.storylines[0].name).toBe('One')
+  })
+
+  it('renameStoryline toggles savingName while in flight', async () => {
+    mockUpdateStoryline.mockResolvedValue({
+      ...mockSummary({ id: 1, name: 'X' }),
+    })
+    const store = useStorylinesStore()
+    expect(store.savingName).toBe(false)
+    const p = store.renameStoryline(1, 'X')
+    expect(store.savingName).toBe(true)
+    await p
+    expect(store.savingName).toBe(false)
+  })
+
+  it('renameStoryline records nameError on Error rejection and rethrows', async () => {
+    mockUpdateStoryline.mockRejectedValue(new Error('name required'))
+    const store = useStorylinesStore()
+    await expect(store.renameStoryline(1, '')).rejects.toThrow('name required')
+    expect(store.nameError).toBe('name required')
+    expect(store.savingName).toBe(false)
+  })
+
+  it('renameStoryline falls back to a generic message for non-Error', async () => {
+    mockUpdateStoryline.mockRejectedValue('boom')
+    const store = useStorylinesStore()
+    await expect(store.renameStoryline(1, 'X')).rejects.toBe('boom')
+    expect(store.nameError).toBe('Failed to rename storyline')
   })
 })

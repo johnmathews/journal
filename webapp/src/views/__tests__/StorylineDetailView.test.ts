@@ -11,6 +11,7 @@ vi.mock('@/api/storylines', () => ({
   regenerateStoryline: vi.fn(),
   deleteStoryline: vi.fn(),
   setStorylineAnchors: vi.fn(),
+  updateStoryline: vi.fn(),
 }))
 
 // The inline anchor editor searches entities; stub the API so tests
@@ -37,11 +38,13 @@ import {
   fetchStoryline,
   regenerateStoryline,
   setStorylineAnchors,
+  updateStoryline,
 } from '@/api/storylines'
 const mockFetchStoryline = vi.mocked(fetchStoryline)
 const mockRegenerate = vi.mocked(regenerateStoryline)
 const mockDelete = vi.mocked(deleteStoryline)
 const mockSetAnchors = vi.mocked(setStorylineAnchors)
+const mockUpdateStoryline = vi.mocked(updateStoryline)
 
 function mockDetail(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -278,12 +281,110 @@ describe('StorylineDetailView', () => {
     )
   })
 
-  it('Back button navigates to the storylines list', async () => {
+  it('Back button falls back to the storylines list when there is no history', async () => {
+    // The view is mounted directly (no prior in-app navigation), so
+    // window.history.state.back is absent and goBack() falls back to
+    // the section list rather than calling router.back().
     const wrapper = mountComponent()
     await flushPromises()
     const push = vi.spyOn(router, 'push')
     await wrapper.find('[data-testid="back-button"]').trigger('click')
     expect(push).toHaveBeenCalledWith({ name: 'storylines' })
+  })
+
+  it('Back button does a browser back when there is in-app history', async () => {
+    window.history.replaceState({ back: '/entities/513' }, '')
+    const wrapper = mountComponent()
+    await flushPromises()
+    const back = vi.spyOn(router, 'back')
+    const push = vi.spyOn(router, 'push')
+    await wrapper.find('[data-testid="back-button"]').trigger('click')
+    expect(back).toHaveBeenCalledTimes(1)
+    expect(push).not.toHaveBeenCalled()
+    window.history.replaceState(null, '')
+  })
+
+  it('title is read-only by default with an edit affordance', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="storyline-name-heading"]').text()).toBe(
+      'Running',
+    )
+    expect(wrapper.find('[data-testid="edit-name-button"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="storyline-name-input"]').exists()).toBe(
+      false,
+    )
+  })
+
+  it('editing the title PATCHes the new name and updates the heading', async () => {
+    mockUpdateStoryline.mockResolvedValue({
+      ...mockDetail({ name: 'Marathon training' }),
+    })
+    const wrapper = mountComponent()
+    await flushPromises()
+
+    await wrapper.find('[data-testid="edit-name-button"]').trigger('click')
+    const input = wrapper.find('[data-testid="storyline-name-input"]')
+    expect(input.exists()).toBe(true)
+    // Seeds from the saved name.
+    expect((input.element as HTMLInputElement).value).toBe('Running')
+
+    await input.setValue('Marathon training')
+    await wrapper.find('[data-testid="storyline-name-form"]').trigger('submit')
+    await flushPromises()
+
+    expect(mockUpdateStoryline).toHaveBeenCalledWith(3, {
+      name: 'Marathon training',
+    })
+    // Returns to read mode with the new name shown.
+    expect(wrapper.find('[data-testid="storyline-name-input"]').exists()).toBe(
+      false,
+    )
+    expect(wrapper.find('[data-testid="storyline-name-heading"]').text()).toBe(
+      'Marathon training',
+    )
+    expect(toastSuccess).toHaveBeenCalled()
+  })
+
+  it('Save trims the title before sending', async () => {
+    mockUpdateStoryline.mockResolvedValue({
+      ...mockDetail({ name: 'Trimmed' }),
+    })
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.find('[data-testid="edit-name-button"]').trigger('click')
+    await wrapper
+      .find('[data-testid="storyline-name-input"]')
+      .setValue('   Trimmed   ')
+    await wrapper.find('[data-testid="storyline-name-form"]').trigger('submit')
+    await flushPromises()
+    expect(mockUpdateStoryline).toHaveBeenCalledWith(3, { name: 'Trimmed' })
+  })
+
+  it('Cancel discards the edit without calling the API', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.find('[data-testid="edit-name-button"]').trigger('click')
+    await wrapper
+      .find('[data-testid="storyline-name-input"]')
+      .setValue('Discarded')
+    await wrapper.find('[data-testid="cancel-name-button"]').trigger('click')
+    expect(mockUpdateStoryline).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="storyline-name-input"]').exists()).toBe(
+      false,
+    )
+    expect(wrapper.find('[data-testid="storyline-name-heading"]').text()).toBe(
+      'Running',
+    )
+  })
+
+  it('Save is disabled when the draft is blank', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.find('[data-testid="edit-name-button"]').trigger('click')
+    await wrapper.find('[data-testid="storyline-name-input"]').setValue('   ')
+    const saveBtn = wrapper.find('[data-testid="save-name-button"]')
+    expect((saveBtn.element as HTMLButtonElement).disabled).toBe(true)
   })
 
   // happy-dom doesn't provide window.confirm, so we stub it directly

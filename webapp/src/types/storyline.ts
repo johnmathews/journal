@@ -131,6 +131,28 @@ export interface SetStorylineAnchorsResponse {
   anchors: StorylineAnchor[]
 }
 
+/** Request body for `PATCH /api/storylines/{id}`. Updates editable
+ *  storyline metadata; currently only the `name` (title). The server
+ *  trims the name, rejects an empty result with 400, and does NOT
+ *  regenerate panels — a rename preserves the curated/narrative text. */
+export interface UpdateStorylineRequest {
+  name: string
+}
+
+/** The server's 200 response for `PATCH /api/storylines/{id}` — the
+ *  updated storyline summary (panels omitted, same shape family as the
+ *  create response plus `updated_at`). */
+export interface UpdateStorylineResponse {
+  id: number
+  user_id: number
+  anchors: StorylineAnchor[]
+  name: string
+  description: string
+  status: StorylineStatus
+  created_at: string
+  updated_at: string
+}
+
 export interface RegenerateStorylineResponse {
   job_id: string
   status: string

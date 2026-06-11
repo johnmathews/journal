@@ -29,7 +29,12 @@ doc describes only the webapp.
   mobile; at `lg` (1024px) narrative sits on the left, curation on the
   right (swapped 2026-05-12). The header carries Regenerate + Delete
   affordances plus the anchor chips (one violet-pill `RouterLink` per
-  anchor, each navigating to the entity).
+  anchor, each navigating to the entity). The title is inline-editable:
+  a pencil affordance next to the heading swaps it for an input +
+  Save/Cancel, persisting via `PATCH /api/storylines/{id}` (store
+  `renameStoryline`). Renaming is metadata-only — it never touches the
+  panels — so it pairs naturally with anchor edits without forcing a
+  regeneration.
 
 ## Files
 
@@ -149,7 +154,7 @@ The three design questions this feature had open were resolved as follows
 3. **Confirm-before-stale-panels, no auto-kick.** The server's
    `PUT /api/storylines/{id}/anchors` only replaces the anchor rows — it
    does **not** touch the stored panels or queue a regeneration (verified
-   in server `api/ingestion.py::set_storyline_anchors`; the endpoint
+   in server `api/storylines_write.py::set_storyline_anchors`; the endpoint
    dedupes + id-sorts the ids and returns the authoritative `anchors`
    list, which the store uses to refresh state). Clicking **Save changes**
    therefore opens a confirm step warning that the panels go stale, with
