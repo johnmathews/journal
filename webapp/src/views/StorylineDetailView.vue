@@ -31,18 +31,27 @@ const editingAnchors = ref(false)
 const editingName = ref(false)
 const nameDraft = ref('')
 
+// Panels are read from the currently-selected chapter (loaded lazily
+// via store.loadChapter), so the reader shows one chapter at a time and
+// citation numbering restarts per chapter.
 const curationPanel = computed(
-  () => store.currentStoryline?.panels.curation ?? null,
+  () => store.currentChapter?.panels.curation ?? null,
 )
 const narrativePanel = computed(
-  () => store.currentStoryline?.panels.narrative ?? null,
+  () => store.currentChapter?.panels.narrative ?? null,
 )
 const citationCount = computed(() => narrativePanel.value?.citation_count ?? 0)
 
-// Shared numbering across both panels. Narrative drives [1] [2] [3] in
-// encounter order; curation-only entries pick up the next numbers.
+// The chapter rail lists the storyline's chapters (seq asc). The latest
+// chapter (last element) is the live, open one and is selected by default.
+const chapters = computed(() => store.currentStoryline?.chapters ?? [])
+const selectedChapterId = ref<number | null>(null)
+
+// Shared numbering across both panels of the CURRENT chapter. Narrative
+// drives [1] [2] [3] in encounter order; curation-only entries pick up
+// the next numbers. Built per chapter, so numbering restarts on switch.
 const citationRegistry = computed(() =>
-  buildCitationRegistry(store.currentStoryline?.panels ?? {}),
+  buildCitationRegistry(store.currentChapter?.panels ?? {}),
 )
 
 // Toggle for the curation panel's first column: 'relative' shows the
@@ -163,11 +172,31 @@ async function confirmDelete(): Promise<void> {
   }
 }
 
-onMounted(() => {
+/** Select a chapter: lazy-load its panels into the reader and reflect
+ *  the choice in the URL (?chapter=<id>) so reloads/links restore it.
+ *  Other query params are preserved. */
+async function selectChapter(chapterId: number): Promise<void> {
+  selectedChapterId.value = chapterId
+  await store.loadChapter(Number(props.id), chapterId)
+  router.replace({
+    query: { ...router.currentRoute.value.query, chapter: String(chapterId) },
+  })
+}
+
+onMounted(async () => {
   const sid = Number(props.id)
   // Clear stale detail so transitions between storylines re-fire watchers.
   store.clearCurrent()
-  store.loadStoryline(sid)
+  await store.loadStoryline(sid)
+  // Default-select: honour a valid ?chapter= query, else the latest
+  // (highest-seq) chapter — the last element since chapters are seq asc.
+  const qp = Number(router.currentRoute.value.query.chapter)
+  const fromQuery =
+    Number.isInteger(qp) && chapters.value.some((c) => c.id === qp) ? qp : null
+  const initial = fromQuery ?? chapters.value[chapters.value.length - 1]?.id
+  if (initial != null) {
+    await selectChapter(initial)
+  }
 })
 </script>
 
@@ -360,103 +389,159 @@ onMounted(() => {
         />
       </div>
 
-      <!-- Two-panel layout: stacks below lg (1024px), side-by-side above.
-           Mirrors the edit-mode layout in EntryDetailView.vue. Each
-           panel scrolls independently; there's no synchronised
-           scrolling primitive in v1. -->
-      <div class="flex flex-col lg:flex-row gap-4">
-        <section
-          class="lg:flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4 md:p-6"
-          data-testid="narrative-panel"
+      <!-- Chapter rail (left) + two-panel reader (right). The rail lists
+           the storyline's chapters; selecting one lazy-loads its panels
+           into the reader, and citation numbering restarts per chapter. -->
+      <div class="flex flex-col md:flex-row gap-4">
+        <!-- Left chapter rail (Layout A). -->
+        <aside
+          class="md:w-56 md:shrink-0 md:border-r border-gray-200 dark:border-gray-700/60 md:pr-3"
+          data-testid="chapter-rail"
         >
           <h2
-            class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-3"
+            class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-2"
           >
-            Narrative
+            Chapters
           </h2>
-          <div
-            v-if="narrativePanel && narrativePanel.segments.length > 0"
-            class="storyline-panel-body"
-          >
-            <StorylineNarrative
-              :segments="narrativePanel.segments"
-              :registry="citationRegistry"
-            />
-          </div>
-          <div
-            v-else
-            class="py-8 text-center text-sm text-gray-500 dark:text-gray-400"
-            data-testid="narrative-empty"
-          >
-            No narrative segments yet. Regenerate to populate.
-          </div>
-        </section>
+          <ul class="space-y-1">
+            <li v-for="c in chapters" :key="c.id">
+              <button
+                type="button"
+                data-test="chapter-rail-item"
+                class="w-full text-left px-2 py-1.5 rounded-md text-sm transition-colors"
+                :class="
+                  c.id === selectedChapterId
+                    ? 'bg-violet-500/10 text-violet-700 dark:text-violet-300'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/40'
+                "
+                :aria-current="c.id === selectedChapterId ? 'true' : undefined"
+                @click="selectChapter(c.id)"
+              >
+                <span class="font-medium">{{
+                  c.title || `Chapter ${c.seq}`
+                }}</span>
+                <span class="block text-xs text-gray-500 dark:text-gray-400">
+                  {{ c.start_date ?? '…' }} – {{ c.end_date ?? 'now' }}
+                  <span
+                    v-if="c.state === 'open'"
+                    class="ml-1 text-emerald-600 dark:text-emerald-400"
+                    >• open</span
+                  >
+                  <span v-else class="ml-1 text-gray-400 dark:text-gray-500"
+                    >• closed</span
+                  >
+                </span>
+              </button>
+            </li>
+          </ul>
+        </aside>
 
-        <section
-          class="lg:flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4 md:p-6"
-          data-testid="curation-panel"
+        <!-- Reader: chapter-loading skeleton, then the two-panel layout.
+             Mirrors the edit-mode layout in EntryDetailView.vue. -->
+        <div
+          v-if="store.chapterLoading && !store.currentChapter"
+          class="flex-1 py-16 text-center text-gray-600 dark:text-gray-300"
+          data-testid="chapter-loading"
         >
-          <div class="flex items-center justify-between gap-3 mb-3">
+          Loading chapter…
+        </div>
+        <!-- Two-panel layout: stacks below lg (1024px), side-by-side above.
+             Each panel scrolls independently; there's no synchronised
+             scrolling primitive in v1. -->
+        <div v-else class="flex-1 flex flex-col lg:flex-row gap-4">
+          <section
+            class="lg:flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4 md:p-6"
+            data-testid="narrative-panel"
+          >
             <h2
-              class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300"
+              class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-3"
             >
-              Curation
+              Narrative
             </h2>
             <div
-              v-if="curationHasAbsoluteDates"
-              class="curation-date-toggle inline-flex rounded-md border border-gray-200 dark:border-gray-700/60 overflow-hidden text-xs"
-              role="group"
-              aria-label="Date display mode"
-              data-testid="curation-date-toggle"
+              v-if="narrativePanel && narrativePanel.segments.length > 0"
+              class="storyline-panel-body"
             >
-              <button
-                type="button"
-                class="px-2 py-1 transition-colors"
-                :class="
-                  curationDateMode === 'relative'
-                    ? 'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
-                    : 'bg-white text-gray-500 dark:bg-gray-800 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                "
-                :aria-pressed="curationDateMode === 'relative'"
-                data-testid="curation-date-toggle-relative"
-                @click="curationDateMode = 'relative'"
-              >
-                Relative
-              </button>
-              <button
-                type="button"
-                class="px-2 py-1 border-l border-gray-200 dark:border-gray-700/60 transition-colors"
-                :class="
-                  curationDateMode === 'absolute'
-                    ? 'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
-                    : 'bg-white text-gray-500 dark:bg-gray-800 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                "
-                :aria-pressed="curationDateMode === 'absolute'"
-                data-testid="curation-date-toggle-absolute"
-                @click="curationDateMode = 'absolute'"
-              >
-                Absolute
-              </button>
+              <StorylineNarrative
+                :segments="narrativePanel.segments"
+                :registry="citationRegistry"
+              />
             </div>
-          </div>
-          <div
-            v-if="curationPanel && curationPanel.segments.length > 0"
-            class="storyline-panel-body"
+            <div
+              v-else
+              class="py-8 text-center text-sm text-gray-500 dark:text-gray-400"
+              data-testid="narrative-empty"
+            >
+              No narrative segments yet. Regenerate to populate.
+            </div>
+          </section>
+
+          <section
+            class="lg:flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4 md:p-6"
+            data-testid="curation-panel"
           >
-            <StorylineCurationList
-              :segments="curationPanel.segments"
-              :registry="citationRegistry"
-              :date-mode="curationDateMode"
-            />
-          </div>
-          <div
-            v-else
-            class="py-8 text-center text-sm text-gray-500 dark:text-gray-400"
-            data-testid="curation-empty"
-          >
-            No curation segments yet. Regenerate to populate.
-          </div>
-        </section>
+            <div class="flex items-center justify-between gap-3 mb-3">
+              <h2
+                class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300"
+              >
+                Curation
+              </h2>
+              <div
+                v-if="curationHasAbsoluteDates"
+                class="curation-date-toggle inline-flex rounded-md border border-gray-200 dark:border-gray-700/60 overflow-hidden text-xs"
+                role="group"
+                aria-label="Date display mode"
+                data-testid="curation-date-toggle"
+              >
+                <button
+                  type="button"
+                  class="px-2 py-1 transition-colors"
+                  :class="
+                    curationDateMode === 'relative'
+                      ? 'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
+                      : 'bg-white text-gray-500 dark:bg-gray-800 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  "
+                  :aria-pressed="curationDateMode === 'relative'"
+                  data-testid="curation-date-toggle-relative"
+                  @click="curationDateMode = 'relative'"
+                >
+                  Relative
+                </button>
+                <button
+                  type="button"
+                  class="px-2 py-1 border-l border-gray-200 dark:border-gray-700/60 transition-colors"
+                  :class="
+                    curationDateMode === 'absolute'
+                      ? 'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
+                      : 'bg-white text-gray-500 dark:bg-gray-800 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  "
+                  :aria-pressed="curationDateMode === 'absolute'"
+                  data-testid="curation-date-toggle-absolute"
+                  @click="curationDateMode = 'absolute'"
+                >
+                  Absolute
+                </button>
+              </div>
+            </div>
+            <div
+              v-if="curationPanel && curationPanel.segments.length > 0"
+              class="storyline-panel-body"
+            >
+              <StorylineCurationList
+                :segments="curationPanel.segments"
+                :registry="citationRegistry"
+                :date-mode="curationDateMode"
+              />
+            </div>
+            <div
+              v-else
+              class="py-8 text-center text-sm text-gray-500 dark:text-gray-400"
+              data-testid="curation-empty"
+            >
+              No curation segments yet. Regenerate to populate.
+            </div>
+          </section>
+        </div>
       </div>
     </template>
 

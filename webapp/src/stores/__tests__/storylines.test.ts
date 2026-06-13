@@ -10,14 +10,20 @@ vi.mock('@/api/storylines', () => ({
   deleteStoryline: vi.fn(),
   setStorylineAnchors: vi.fn(),
   updateStoryline: vi.fn(),
+  fetchStorylineChapter: vi.fn(),
+  regenerateStorylineChapter: vi.fn(),
+  renameStorylineChapter: vi.fn(),
 }))
 
 import {
   createStoryline,
   deleteStoryline,
   fetchStoryline,
+  fetchStorylineChapter,
   fetchStorylines,
   regenerateStoryline,
+  regenerateStorylineChapter,
+  renameStorylineChapter,
   setStorylineAnchors,
   updateStoryline,
 } from '@/api/storylines'
@@ -29,6 +35,32 @@ const mockRegenerateStoryline = vi.mocked(regenerateStoryline)
 const mockDeleteStoryline = vi.mocked(deleteStoryline)
 const mockSetStorylineAnchors = vi.mocked(setStorylineAnchors)
 const mockUpdateStoryline = vi.mocked(updateStoryline)
+const mockFetchStorylineChapter = vi.mocked(fetchStorylineChapter)
+const mockRegenerateStorylineChapter = vi.mocked(regenerateStorylineChapter)
+const mockRenameStorylineChapter = vi.mocked(renameStorylineChapter)
+
+function mockChapterSummary(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 3,
+    storyline_id: 9,
+    seq: 1,
+    title: 'Ch1',
+    start_date: null,
+    end_date: null,
+    state: 'open' as const,
+    last_generated_at: null,
+    citation_count: 0,
+    ...overrides,
+  }
+}
+
+function mockChapterDetail(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    ...mockChapterSummary(),
+    panels: {},
+    ...overrides,
+  }
+}
 
 function mockSummary(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -137,6 +169,7 @@ describe('useStorylinesStore', () => {
       observedDuringFetch = s.detailLoading
       return Promise.resolve({
         ...mockSummary({ id: 5 }),
+        chapters: [],
         panels: {
           curation: {
             panel_kind: 'curation' as const,
@@ -176,6 +209,7 @@ describe('useStorylinesStore', () => {
   it('clearCurrent nulls currentStoryline', async () => {
     mockFetchStoryline.mockResolvedValue({
       ...mockSummary({ id: 1 }),
+      chapters: [],
       panels: {},
     })
     const store = useStorylinesStore()
@@ -183,6 +217,25 @@ describe('useStorylinesStore', () => {
     expect(store.currentStoryline).not.toBeNull()
     store.clearCurrent()
     expect(store.currentStoryline).toBeNull()
+  })
+
+  it('clearCurrent also nulls currentChapter and resets chapterLoading', async () => {
+    mockFetchStoryline.mockResolvedValue({
+      ...mockSummary({ id: 1 }),
+      chapters: [],
+      panels: {},
+    })
+    mockFetchStorylineChapter.mockResolvedValue(
+      mockChapterDetail({ id: 3, storyline_id: 1 }),
+    )
+    const store = useStorylinesStore()
+    await store.loadStoryline(1)
+    await store.loadChapter(1, 3)
+    expect(store.currentChapter).not.toBeNull()
+    store.clearCurrent()
+    expect(store.currentStoryline).toBeNull()
+    expect(store.currentChapter).toBeNull()
+    expect(store.chapterLoading).toBe(false)
   })
 
   it('createStoryline returns the response and resets the creating flag', async () => {
@@ -297,6 +350,7 @@ describe('useStorylinesStore', () => {
   it('removeStoryline clears currentStoryline when the deleted one is loaded', async () => {
     mockFetchStoryline.mockResolvedValue({
       ...mockSummary({ id: 42 }),
+      chapters: [],
       panels: {},
     })
     mockDeleteStoryline.mockResolvedValue({ deleted: true })
@@ -354,6 +408,7 @@ describe('useStorylinesStore', () => {
   it('setAnchors refreshes currentStoryline.anchors from the server response', async () => {
     mockFetchStoryline.mockResolvedValue({
       ...mockSummary({ id: 7 }),
+      chapters: [],
       panels: {},
     })
     // Server response is authoritative: deduped, ascending id order.
@@ -373,6 +428,7 @@ describe('useStorylinesStore', () => {
   it('setAnchors leaves currentStoryline alone when a different storyline is loaded', async () => {
     mockFetchStoryline.mockResolvedValue({
       ...mockSummary({ id: 9 }),
+      chapters: [],
       panels: {},
     })
     mockSetStorylineAnchors.mockResolvedValue({
@@ -422,6 +478,7 @@ describe('useStorylinesStore', () => {
   it('renameStoryline calls the API and refreshes currentStoryline.name', async () => {
     mockFetchStoryline.mockResolvedValue({
       ...mockSummary({ id: 7, name: 'Old' }),
+      chapters: [],
       panels: {},
     })
     mockUpdateStoryline.mockResolvedValue({
@@ -437,6 +494,7 @@ describe('useStorylinesStore', () => {
   it('renameStoryline leaves currentStoryline alone for a different id', async () => {
     mockFetchStoryline.mockResolvedValue({
       ...mockSummary({ id: 9, name: 'Nine' }),
+      chapters: [],
       panels: {},
     })
     mockUpdateStoryline.mockResolvedValue({
@@ -493,5 +551,122 @@ describe('useStorylinesStore', () => {
     const store = useStorylinesStore()
     await expect(store.renameStoryline(1, 'X')).rejects.toBe('boom')
     expect(store.nameError).toBe('Failed to rename storyline')
+  })
+
+  it('loadChapter sets currentChapter and toggles chapterLoading', async () => {
+    let observedDuringFetch = false
+    mockFetchStorylineChapter.mockImplementation(() => {
+      const s = useStorylinesStore()
+      observedDuringFetch = s.chapterLoading
+      return Promise.resolve(mockChapterDetail({ id: 3, storyline_id: 9 }))
+    })
+    const store = useStorylinesStore()
+    await store.loadChapter(9, 3)
+    expect(mockFetchStorylineChapter).toHaveBeenCalledWith(9, 3)
+    expect(observedDuringFetch).toBe(true)
+    expect(store.currentChapter?.id).toBe(3)
+    expect(store.chapterLoading).toBe(false)
+    expect(store.error).toBeNull()
+  })
+
+  it('loadChapter sets error on Error rejection', async () => {
+    mockFetchStorylineChapter.mockRejectedValue(new Error('no chapter'))
+    const store = useStorylinesStore()
+    await store.loadChapter(9, 3)
+    expect(store.currentChapter).toBeNull()
+    expect(store.error).toBe('no chapter')
+    expect(store.chapterLoading).toBe(false)
+  })
+
+  it('loadChapter falls back to a generic message for non-Error', async () => {
+    mockFetchStorylineChapter.mockRejectedValue('boom')
+    const store = useStorylinesStore()
+    await store.loadChapter(9, 3)
+    expect(store.error).toBe('Failed to load chapter')
+  })
+
+  it('regenerateChapter returns the job response', async () => {
+    mockRegenerateStorylineChapter.mockResolvedValue({
+      job_id: 'chap-job-1',
+      status: 'queued',
+    })
+    const store = useStorylinesStore()
+    const resp = await store.regenerateChapter(9, 3)
+    expect(mockRegenerateStorylineChapter).toHaveBeenCalledWith(9, 3)
+    expect(resp.job_id).toBe('chap-job-1')
+    expect(store.regenerating).toBe(false)
+    expect(store.regenerateError).toBeNull()
+  })
+
+  it('regenerateChapter records regenerateError on Error rejection and rethrows', async () => {
+    mockRegenerateStorylineChapter.mockRejectedValue(new Error('down'))
+    const store = useStorylinesStore()
+    await expect(store.regenerateChapter(9, 3)).rejects.toThrow('down')
+    expect(store.regenerateError).toBe('down')
+    expect(store.regenerating).toBe(false)
+  })
+
+  it('regenerateChapter falls back to a generic message for non-Error', async () => {
+    mockRegenerateStorylineChapter.mockRejectedValue('boom')
+    const store = useStorylinesStore()
+    await expect(store.regenerateChapter(9, 3)).rejects.toBe('boom')
+    expect(store.regenerateError).toBe('Failed to queue regeneration')
+  })
+
+  it('renameChapter updates the chapter title in currentStoryline.chapters', async () => {
+    mockFetchStoryline.mockResolvedValue({
+      ...mockSummary({ id: 9 }),
+      chapters: [
+        mockChapterSummary({ id: 3, storyline_id: 9, title: 'Old' }),
+        mockChapterSummary({ id: 4, storyline_id: 9, seq: 2, title: 'Two' }),
+      ],
+      panels: {},
+    })
+    mockRenameStorylineChapter.mockResolvedValue(
+      mockChapterSummary({ id: 3, storyline_id: 9, title: 'New title' }),
+    )
+    const store = useStorylinesStore()
+    await store.loadStoryline(9)
+    await store.renameChapter(9, 3, 'New title')
+    expect(mockRenameStorylineChapter).toHaveBeenCalledWith(9, 3, {
+      title: 'New title',
+    })
+    expect(store.currentStoryline?.chapters[0].title).toBe('New title')
+    // Sibling chapter is untouched.
+    expect(store.currentStoryline?.chapters[1].title).toBe('Two')
+  })
+
+  it('renameChapter updates currentChapter.title when it is the loaded chapter', async () => {
+    mockFetchStorylineChapter.mockResolvedValue(
+      mockChapterDetail({ id: 3, storyline_id: 9, title: 'Old' }),
+    )
+    mockRenameStorylineChapter.mockResolvedValue(
+      mockChapterSummary({ id: 3, storyline_id: 9, title: 'Renamed' }),
+    )
+    const store = useStorylinesStore()
+    await store.loadChapter(9, 3)
+    await store.renameChapter(9, 3, 'Renamed')
+    expect(store.currentChapter?.title).toBe('Renamed')
+  })
+
+  it('renameChapter leaves currentChapter alone for a different chapter id', async () => {
+    mockFetchStorylineChapter.mockResolvedValue(
+      mockChapterDetail({ id: 3, storyline_id: 9, title: 'Three' }),
+    )
+    mockRenameStorylineChapter.mockResolvedValue(
+      mockChapterSummary({ id: 4, storyline_id: 9, title: 'Four renamed' }),
+    )
+    const store = useStorylinesStore()
+    await store.loadChapter(9, 3)
+    await store.renameChapter(9, 4, 'Four renamed')
+    expect(store.currentChapter?.title).toBe('Three')
+  })
+
+  it('renameChapter rethrows on API error', async () => {
+    mockRenameStorylineChapter.mockRejectedValue(new Error('title required'))
+    const store = useStorylinesStore()
+    await expect(store.renameChapter(9, 3, '')).rejects.toThrow(
+      'title required',
+    )
   })
 })

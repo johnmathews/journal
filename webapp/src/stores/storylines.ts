@@ -6,6 +6,7 @@ import type {
   RegenerateStorylineRequest,
   RegenerateStorylineResponse,
   SetStorylineAnchorsResponse,
+  StorylineChapterDetail,
   StorylineDetail,
   StorylineListParams,
   StorylineSummary,
@@ -14,8 +15,11 @@ import {
   createStoryline as createStorylineApi,
   deleteStoryline as deleteStorylineApi,
   fetchStoryline,
+  fetchStorylineChapter,
   fetchStorylines,
   regenerateStoryline as regenerateStorylineApi,
+  regenerateStorylineChapter as regenerateStorylineChapterApi,
+  renameStorylineChapter as renameStorylineChapterApi,
   setStorylineAnchors as setStorylineAnchorsApi,
   updateStoryline as updateStorylineApi,
 } from '@/api/storylines'
@@ -23,6 +27,8 @@ import {
 export const useStorylinesStore = defineStore('storylines', () => {
   const storylines = ref<StorylineSummary[]>([])
   const currentStoryline = ref<StorylineDetail | null>(null)
+  const currentChapter = ref<StorylineChapterDetail | null>(null)
+  const chapterLoading = ref(false)
   const total = ref(0)
   // List + detail loading split (mirrors entities.ts) so a slow detail
   // fetch doesn't blank the list spinner if we ever render both in the
@@ -86,6 +92,8 @@ export const useStorylinesStore = defineStore('storylines', () => {
 
   function clearCurrent(): void {
     currentStoryline.value = null
+    currentChapter.value = null
+    chapterLoading.value = false
   }
 
   async function createStoryline(
@@ -186,6 +194,66 @@ export const useStorylinesStore = defineStore('storylines', () => {
     }
   }
 
+  /** Load a single chapter's detail (panels + summary fields) into
+   *  `currentChapter`. Uses a dedicated `chapterLoading` flag so the
+   *  per-chapter reader can show its own spinner without disturbing the
+   *  storyline detail load. Errors land in the shared `error` ref. */
+  async function loadChapter(
+    storylineId: number,
+    chapterId: number,
+  ): Promise<void> {
+    chapterLoading.value = true
+    error.value = null
+    try {
+      currentChapter.value = await fetchStorylineChapter(storylineId, chapterId)
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to load chapter'
+    } finally {
+      chapterLoading.value = false
+    }
+  }
+
+  /** Queue a regeneration of a single chapter's panels. Mirrors
+   *  `regenerate()` — reuses the shared `regenerating`/`regenerateError`
+   *  flags and returns the job response so callers can poll. */
+  async function regenerateChapter(
+    storylineId: number,
+    chapterId: number,
+  ): Promise<RegenerateStorylineResponse> {
+    regenerating.value = true
+    regenerateError.value = null
+    try {
+      return await regenerateStorylineChapterApi(storylineId, chapterId)
+    } catch (e) {
+      regenerateError.value =
+        e instanceof Error ? e.message : 'Failed to queue regeneration'
+      throw e
+    } finally {
+      regenerating.value = false
+    }
+  }
+
+  /** Rename a chapter (PATCH /chapters/{cid}). The server trims the
+   *  title and returns the authoritative summary, so on success we
+   *  refresh the matching chapter summary on `currentStoryline.chapters`
+   *  and the loaded `currentChapter` title from the response. */
+  async function renameChapter(
+    storylineId: number,
+    chapterId: number,
+    title: string,
+  ): Promise<void> {
+    const resp = await renameStorylineChapterApi(storylineId, chapterId, {
+      title,
+    })
+    if (currentStoryline.value?.id === storylineId) {
+      const ch = currentStoryline.value.chapters.find((c) => c.id === chapterId)
+      if (ch) ch.title = resp.title
+    }
+    if (currentChapter.value?.id === chapterId) {
+      currentChapter.value = { ...currentChapter.value, title: resp.title }
+    }
+  }
+
   async function removeStoryline(id: number): Promise<void> {
     error.value = null
     try {
@@ -205,6 +273,8 @@ export const useStorylinesStore = defineStore('storylines', () => {
   return {
     storylines,
     currentStoryline,
+    currentChapter,
+    chapterLoading,
     total,
     loading,
     detailLoading,
@@ -223,6 +293,9 @@ export const useStorylinesStore = defineStore('storylines', () => {
     hasStorylines,
     loadStorylines,
     loadStoryline,
+    loadChapter,
+    regenerateChapter,
+    renameChapter,
     clearCurrent,
     createStoryline,
     regenerate,

@@ -69,7 +69,45 @@ export interface StorylinePanel {
   generated_at: string | null
 }
 
+/** One chapter's summary, as returned in `StorylineDetail.chapters` and
+ *  the chapter rail. Mirrors the server's `_chapter_to_dict`: a chapter is
+ *  a time-windowed slice of a storyline that owns its own two panels and
+ *  is generated independently. Exactly one chapter per storyline is
+ *  `open` (the live, append-extended slice); the rest are `closed`. */
+export interface StorylineChapterSummary {
+  id: number
+  storyline_id: number
+  seq: number
+  title: string
+  start_date: string | null
+  end_date: string | null
+  state: 'open' | 'closed'
+  last_generated_at: string | null
+  /** Sum of citation_count across the chapter's panels — rail badge. */
+  citation_count: number
+}
+
+/** A single chapter's detail — the summary fields plus its rendered
+ *  panels. Returned by `GET /api/storylines/{id}/chapters/{cid}`. The
+ *  `panels` map is keyed by panel kind so the reader can restart citation
+ *  numbering per chapter. */
+export interface StorylineChapterDetail extends StorylineChapterSummary {
+  panels: Partial<Record<StorylinePanelKind, StorylinePanel>>
+}
+
+/** Request body for `PATCH /api/storylines/{id}/chapters/{cid}`. Renames
+ *  the chapter; the server trims the title and rejects an empty result
+ *  with 400. */
+export interface RenameChapterRequest {
+  title: string
+}
+
 export interface StorylineDetail extends StorylineSummary {
+  /** Chapters in `seq` order. Migrated/legacy storylines have a single
+   *  open chapter; new storylines get their first chapter on create. */
+  chapters: StorylineChapterSummary[]
+  /** Back-compat: the open chapter's panels, kept while the webapp
+   *  migrates to the per-chapter reader. */
   panels: Partial<Record<StorylinePanelKind, StorylinePanel>>
 }
 

@@ -1,19 +1,30 @@
 # Storylines (webapp)
 
-**Status:** active reference. **Last updated:** 2026-06-10 (anchor-edit UX shipped on the detail view).
+**Status:** active reference. **Last updated:** 2026-06-13 (Storyline Chapters Phase 1: per-chapter reader + left rail).
 
 The webapp surface for the storylines feature. A storyline is a cross-entry
 narrative anchored on **one or more entities** (1..15; the multi-anchor cycle
-shipped 2026-05-12 and is verified end-to-end in the browser). Two parallel
-panels — **curation** (verbatim entry excerpts with Haiku-generated
+shipped 2026-05-12 and is verified end-to-end in the browser). As of the
+Chapters Phase 1 cycle a storyline is sliced into **chapters** — time-windowed
+segments that each own their own pair of panels and are generated
+independently (see [Chapters](#chapters-phase-1) below). Each chapter has two
+parallel panels — **curation** (verbatim entry excerpts with Haiku-generated
 transitions) and **narrative** (third-person prose grounded via the Anthropic
-Citations API) — are persisted server-side as `Segment[]`. The curation panel renders as a chronological list of rows; the
-narrative panel renders as prose with a footnote-style "Sources" section
-beneath. Citations share a single `[N]` numbering scheme across both panels.
+Citations API) — persisted server-side as `Segment[]`. The curation panel
+renders as a chronological list of rows; the narrative panel renders as prose
+with a footnote-style "Sources" section beneath. Citations share a single
+`[N]` numbering scheme across both panels of a chapter, restarting at `[1]`
+per chapter.
 
 The server-side reference is in
 [`../../server/docs/storylines.md`](../../server/docs/storylines.md). This
 doc describes only the webapp.
+
+**See also** — the cross-repo design and the Phase 1 / Phase 2 split (rationale
+plus what is deliberately deferred) live in the server repo:
+[`../../server/docs/superpowers/specs/2026-06-13-storyline-chapters-design.md`](../../server/docs/superpowers/specs/2026-06-13-storyline-chapters-design.md)
+and
+[`../../server/docs/superpowers/plans/2026-06-13-storyline-chapters-phase1.md`](../../server/docs/superpowers/plans/2026-06-13-storyline-chapters-phase1.md).
 
 ## Routes
 
@@ -25,9 +36,13 @@ doc describes only the webapp.
   `StorylineCreateModal`; rows carry per-row Delete and Regenerate
   affordances; multi-select with a violet selection toolbar offers bulk
   Delete and Regenerate (pattern copied from `EntityListView.vue`).
-- `/storylines/:id` — detail view with the two-panel layout. Stacks on
-  mobile; at `lg` (1024px) narrative sits on the left, curation on the
-  right (swapped 2026-05-12). The header carries Regenerate + Delete
+- `/storylines/:id` — detail view. A **left chapter rail** (Layout A) lists
+  the storyline's chapters; selecting one lazy-loads that chapter's panels into
+  the two-panel reader on the right. The reader stacks on mobile; at `lg`
+  (1024px) narrative sits on the left, curation on the right (swapped
+  2026-05-12). The rail itself stacks above the reader below `md` (768px). The
+  selected chapter is deep-linkable via `?chapter=<id>` (see
+  [Chapters](#chapters-phase-1)). The header carries Regenerate + Delete
   affordances plus the anchor chips (one violet-pill `RouterLink` per
   anchor, each navigating to the entity). The title is inline-editable:
   a pencil affordance next to the heading swaps it for an input +
@@ -41,10 +56,14 @@ doc describes only the webapp.
 ```
 src/
   types/storyline.ts                    — wire types: Segment, StorylineSummary, StorylineDetail,
-                                          CreateStorylineResponse, RegenerateStorylineRequest
-  api/storylines.ts                     — list / get / create / regenerate / delete
-  stores/storylines.ts                  — Pinia store with `loading` + `detailLoading` split
-  composables/useCitationRegistry.ts    — shared [N] numbering across both panels
+                                          StorylineChapterSummary, StorylineChapterDetail,
+                                          RenameChapterRequest, CreateStorylineResponse,
+                                          RegenerateStorylineRequest
+  api/storylines.ts                     — list / get / create / regenerate / delete +
+                                          per-chapter get / regenerate / rename
+  stores/storylines.ts                  — Pinia store with `loading` + `detailLoading` split,
+                                          plus `currentChapter` + `chapterLoading`
+  composables/useCitationRegistry.ts    — shared [N] numbering across both panels of a chapter
   components/StorylineNarrative.vue     — narrative panel: prose body + footnotes
   components/StorylineCurationList.vue  — curation panel: row list (date column left-aligned)
   components/StorylineCreateModal.vue   — multi-select entity picker (1..15 anchors) + name + optional date range
@@ -86,12 +105,86 @@ narrative panel first, then the curation panel, assigning each unique
 guarantees that the same source entry carries the same `[N]` everywhere
 it appears.
 
+The detail view builds the registry from **the currently-selected
+chapter's** `panels` map (`store.currentChapter?.panels`), so numbering
+restarts at `[1]` whenever the user switches chapters — each chapter reads
+as a self-contained unit.
+
 Narrative drives numbering, so narrative footnotes read `[1] [2] [3] …`
 in sequence. Curation rows may show non-sequential `[N]` — a row whose
 entry is also cited by the narrative inherits the narrative's number,
 while curation-only entries pick up trailing numbers. The chronological
 row order is what carries the reading flow; `[N]` is a secondary
 identifier.
+
+## Chapters (Phase 1)
+
+A storyline is sliced into **chapters** — time-windowed segments that each own
+their own pair of panels and are generated independently. Exactly one chapter
+per storyline is `open` (the live, append-extended slice); the rest are
+`closed`. `GET /api/storylines/{id}` returns the chapters as
+`StorylineChapterSummary[]` on `StorylineDetail.chapters` (in `seq` order);
+each summary carries `id`, `seq`, `title`, `start_date`/`end_date`, `state`
+(`'open' | 'closed'`), `last_generated_at`, and an aggregate `citation_count`.
+
+**Left rail + per-chapter lazy load.** `StorylineDetailView.vue` renders the
+chapters as a left rail (Layout A). The rail item shows the chapter title
+(falling back to `Chapter {seq}`), its date window, and an open/closed dot. The
+storyline detail fetch does **not** include panel bodies for every chapter;
+selecting a chapter calls `store.loadChapter(storylineId, chapterId)`, which
+fetches `GET /api/storylines/{id}/chapters/{cid}` and loads that chapter's
+`StorylineChapterDetail` (summary fields plus a `panels` map keyed by panel
+kind) into `store.currentChapter`. A dedicated `chapterLoading` flag drives the
+reader's own "Loading chapter…" skeleton without disturbing the storyline-level
+`detailLoading` spinner. The two-panel reader binds its `curation` / `narrative`
+panels from `store.currentChapter.panels`.
+
+**Default selection + deep-linking.** On mount the view selects a chapter in
+this order: a valid `?chapter=<id>` query param if it matches a real chapter,
+otherwise the **latest** chapter (the last element, since chapters are `seq`
+ascending — i.e. the open one). `selectChapter` writes `?chapter=<id>` back via
+`router.replace` (preserving other query params), so a reload or shared link
+restores the same chapter.
+
+**Per-chapter citation reset.** Because the citation registry is built from the
+current chapter's panels (see [Shared citation numbering](#shared-citation-numbering)),
+`[N]` numbering restarts at `[1]` for each chapter rather than running
+continuously across the whole storyline.
+
+**Store actions** (all on `useStorylinesStore`):
+
+- `loadChapter(storylineId, chapterId)` — fetch a chapter's detail into
+  `currentChapter`; toggles `chapterLoading`, errors land in the shared `error`
+  ref.
+- `regenerateChapter(storylineId, chapterId)` — queue a single chapter's
+  regeneration (`POST .../chapters/{cid}/regenerate`); reuses the shared
+  `regenerating` / `regenerateError` flags and returns the `{ job_id }` response.
+- `renameChapter(storylineId, chapterId, title)` — `PATCH .../chapters/{cid}`;
+  the server trims the title and returns the authoritative summary, which the
+  store writes back onto the matching `currentStoryline.chapters` entry and the
+  loaded `currentChapter`.
+- `clearCurrent()` now also clears `currentChapter` and `chapterLoading`, so
+  navigating between storylines does not leak a previous chapter's panels.
+
+**API client** (`api/storylines.ts`):
+
+- `fetchStorylineChapter(storylineId, chapterId)` → `StorylineChapterDetail` —
+  `GET /api/storylines/{id}/chapters/{cid}`.
+- `regenerateStorylineChapter(storylineId, chapterId)` →
+  `RegenerateStorylineResponse` — `POST /api/storylines/{id}/chapters/{cid}/regenerate`.
+- `renameStorylineChapter(storylineId, chapterId, { title })` →
+  `StorylineChapterSummary` — `PATCH /api/storylines/{id}/chapters/{cid}`.
+
+**Phase 1 scope.** The header **Regenerate** button is intentionally kept at the
+**storyline level** for Phase 1 — it delegates to the open chapter server-side
+(via the existing storyline-level regenerate flow), so there is no per-chapter
+Regenerate/rename UI yet despite the store + client actions being in place.
+There is also no UI to create or cut chapters; that — the LLM "suggest a cut"
+boundary engine and a draggable timeline editor — is **Phase 2**. The server
+still returns a back-compat storyline-level `panels` field on
+`StorylineDetail` (equal to the open chapter's panels); the webapp now reads
+panels exclusively from the per-chapter endpoint, so that shim is unused here
+and will be removed in Phase 2.
 
 ## Regenerate flow
 

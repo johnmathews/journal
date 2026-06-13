@@ -3,8 +3,11 @@ import type {
   CreateStorylineResponse,
   RegenerateStorylineRequest,
   RegenerateStorylineResponse,
+  RenameChapterRequest,
   SetStorylineAnchorsRequest,
   SetStorylineAnchorsResponse,
+  StorylineChapterDetail,
+  StorylineChapterSummary,
   StorylineDetail,
   StorylineListParams,
   StorylineListResponse,
@@ -77,6 +80,36 @@ export function deleteStoryline(id: number): Promise<{ deleted: boolean }> {
   return apiFetch<{ deleted: boolean }>(`/api/storylines/${id}`, {
     method: 'DELETE',
   })
+}
+
+export function fetchStorylineChapter(
+  storylineId: number,
+  chapterId: number,
+): Promise<StorylineChapterDetail> {
+  return apiFetch<StorylineChapterDetail>(
+    `/api/storylines/${storylineId}/chapters/${chapterId}`,
+  )
+}
+
+export function regenerateStorylineChapter(
+  storylineId: number,
+  chapterId: number,
+): Promise<RegenerateStorylineResponse> {
+  return apiFetch<RegenerateStorylineResponse>(
+    `/api/storylines/${storylineId}/chapters/${chapterId}/regenerate`,
+    { method: 'POST' },
+  )
+}
+
+export function renameStorylineChapter(
+  storylineId: number,
+  chapterId: number,
+  request: RenameChapterRequest,
+): Promise<StorylineChapterSummary> {
+  return apiFetch<StorylineChapterSummary>(
+    `/api/storylines/${storylineId}/chapters/${chapterId}`,
+    { method: 'PATCH', body: JSON.stringify(request) },
+  )
 }
 
 export function setStorylineAnchors(

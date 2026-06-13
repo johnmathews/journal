@@ -12,6 +12,9 @@ vi.mock('@/api/storylines', () => ({
   deleteStoryline: vi.fn(),
   setStorylineAnchors: vi.fn(),
   updateStoryline: vi.fn(),
+  fetchStorylineChapter: vi.fn(),
+  regenerateStorylineChapter: vi.fn(),
+  renameStorylineChapter: vi.fn(),
 }))
 
 // The inline anchor editor searches entities; stub the API so tests
@@ -36,17 +39,66 @@ vi.mock('@/composables/useToast', () => ({
 import {
   deleteStoryline,
   fetchStoryline,
+  fetchStorylineChapter,
   regenerateStoryline,
   setStorylineAnchors,
   updateStoryline,
 } from '@/api/storylines'
 const mockFetchStoryline = vi.mocked(fetchStoryline)
+const mockFetchChapter = vi.mocked(fetchStorylineChapter)
 const mockRegenerate = vi.mocked(regenerateStoryline)
 const mockDelete = vi.mocked(deleteStoryline)
 const mockSetAnchors = vi.mocked(setStorylineAnchors)
 const mockUpdateStoryline = vi.mocked(updateStoryline)
 
+function mockPanels() {
+  return {
+    curation: {
+      panel_kind: 'curation' as const,
+      segments: [
+        { kind: 'text' as const, text: 'On Monday, ' },
+        { kind: 'citation' as const, entry_id: 11, quote: 'I ran 5km.' },
+      ],
+      source_entry_ids: [11],
+      citation_count: 1,
+      model_used: 'haiku-4-5',
+      generated_at: '2026-05-12T10:00:00Z',
+    },
+    narrative: {
+      panel_kind: 'narrative' as const,
+      segments: [
+        { kind: 'text' as const, text: 'A consistent runner. ' },
+        { kind: 'citation' as const, entry_id: 11, quote: 'x'.repeat(600) },
+      ],
+      source_entry_ids: [11],
+      citation_count: 1,
+      model_used: 'opus-4-7',
+      generated_at: '2026-05-12T10:00:00Z',
+    },
+  }
+}
+
+// A default single open chapter so the rail + reader light up. The
+// chapter and the storyline-level `panels` share the SAME object, so
+// tests that mutate `detail.panels.curation.segments` also drive what
+// the reader (which reads `currentChapter.panels`) renders.
+function mockChapterSummary(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 70,
+    storyline_id: 3,
+    seq: 1,
+    title: 'Chapter 1',
+    start_date: null,
+    end_date: null,
+    state: 'open' as const,
+    last_generated_at: '2026-05-12T10:00:00Z',
+    citation_count: 1,
+    ...overrides,
+  }
+}
+
 function mockDetail(overrides: Partial<Record<string, unknown>> = {}) {
+  const panels = mockPanels()
   return {
     id: 3,
     user_id: 1,
@@ -60,32 +112,23 @@ function mockDetail(overrides: Partial<Record<string, unknown>> = {}) {
     last_extension_check_at: null,
     created_at: '2026-05-10T00:00:00Z',
     updated_at: '2026-05-12T10:00:00Z',
-    panels: {
-      curation: {
-        panel_kind: 'curation' as const,
-        segments: [
-          { kind: 'text' as const, text: 'On Monday, ' },
-          { kind: 'citation' as const, entry_id: 11, quote: 'I ran 5km.' },
-        ],
-        source_entry_ids: [11],
-        citation_count: 1,
-        model_used: 'haiku-4-5',
-        generated_at: '2026-05-12T10:00:00Z',
-      },
-      narrative: {
-        panel_kind: 'narrative' as const,
-        segments: [
-          { kind: 'text' as const, text: 'A consistent runner. ' },
-          { kind: 'citation' as const, entry_id: 11, quote: 'x'.repeat(600) },
-        ],
-        source_entry_ids: [11],
-        citation_count: 1,
-        model_used: 'opus-4-7',
-        generated_at: '2026-05-12T10:00:00Z',
-      },
-    },
+    chapters: [mockChapterSummary()],
+    panels,
     ...overrides,
   }
+}
+
+// Build the chapter-detail the `fetchStorylineChapter` mock returns for
+// a given detail. Reuses the detail's panel objects so segment mutations
+// in a test propagate into the reader (which reads currentChapter.panels).
+function chapterDetailFor(
+  detail: ReturnType<typeof mockDetail>,
+  chapterId: number,
+) {
+  const summary =
+    detail.chapters.find((c: { id: number }) => c.id === chapterId) ??
+    detail.chapters[detail.chapters.length - 1]
+  return { ...summary, panels: detail.panels }
 }
 
 const router = createRouter({
@@ -116,11 +159,32 @@ function mountComponent(id = '3') {
   })
 }
 
+// Resolve the chapter mock from whatever detail `fetchStoryline` last
+// returned, so tests only have to set `mockFetchStoryline` and the
+// matching chapter (sharing the same panels) follows automatically.
+function lastResolvedDetail(): ReturnType<typeof mockDetail> | null {
+  const results = mockFetchStoryline.mock.results
+  for (let i = results.length - 1; i >= 0; i--) {
+    const r = results[i]
+    if (r.type === 'return') {
+      // mockResolvedValue stores a resolved promise as the return value.
+      return r.value as unknown as ReturnType<typeof mockDetail>
+    }
+  }
+  return null
+}
+
 describe('StorylineDetailView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
     mockFetchStoryline.mockResolvedValue(mockDetail())
+    // Default chapter fetch: derive from the storyline the test set up.
+    mockFetchChapter.mockImplementation(async (_sid, cid) => {
+      const detail = lastResolvedDetail() ?? mockDetail()
+      const resolved = await detail
+      return chapterDetailFor(resolved, cid) as never
+    })
   })
 
   it('shows a loading state before the storyline arrives', () => {
@@ -596,5 +660,185 @@ describe('StorylineDetailView', () => {
     expect(
       wrapper.find('[data-testid="curation-row-link-2"]').text(),
     ).toContain('[2]')
+  })
+
+  // --- Chapter rail (Task 9) ---
+
+  function mockDetailTwoChapters() {
+    return mockDetail({
+      chapters: [
+        mockChapterSummary({
+          id: 1,
+          seq: 1,
+          title: 'Ch1',
+          state: 'closed',
+          start_date: '2026-01-01',
+          end_date: '2026-02-01',
+        }),
+        mockChapterSummary({
+          id: 2,
+          seq: 2,
+          title: 'Ch2',
+          state: 'open',
+          start_date: '2026-02-01',
+          end_date: null,
+        }),
+      ],
+    })
+  }
+
+  it('renders one rail item per chapter', async () => {
+    mockFetchStoryline.mockResolvedValue(mockDetailTwoChapters())
+    const wrapper = mountComponent()
+    await flushPromises()
+    expect(wrapper.findAll('[data-test="chapter-rail-item"]')).toHaveLength(2)
+  })
+
+  it('default-selects the latest chapter (highest seq) and loads it', async () => {
+    mockFetchStoryline.mockResolvedValue(mockDetailTwoChapters())
+    const wrapper = mountComponent()
+    await flushPromises()
+    // The latest chapter is the last element (seq asc) — id 2.
+    expect(mockFetchChapter).toHaveBeenCalledWith(3, 2)
+    // Its rail item is highlighted as selected.
+    const items = wrapper.findAll('[data-test="chapter-rail-item"]')
+    expect(items[1].classes().join(' ')).toContain('violet')
+  })
+
+  it('selects the chapter named by the ?chapter= query when valid', async () => {
+    mockFetchStoryline.mockResolvedValue(mockDetailTwoChapters())
+    await router.push('/storylines/3?chapter=1')
+    const wrapper = mountComponent()
+    await flushPromises()
+    expect(mockFetchChapter).toHaveBeenCalledWith(3, 1)
+    const items = wrapper.findAll('[data-test="chapter-rail-item"]')
+    expect(items[0].classes().join(' ')).toContain('violet')
+    await router.push('/storylines/3')
+  })
+
+  it('clicking a rail item loads that chapter and updates the query', async () => {
+    mockFetchStoryline.mockResolvedValue(mockDetailTwoChapters())
+    const wrapper = mountComponent()
+    await flushPromises()
+    mockFetchChapter.mockClear()
+    await wrapper.findAll('[data-test="chapter-rail-item"]')[0].trigger('click')
+    await flushPromises()
+    expect(mockFetchChapter).toHaveBeenCalledWith(3, 1)
+    expect(router.currentRoute.value.query.chapter).toBe('1')
+    await router.push('/storylines/3')
+  })
+
+  it('renders the current chapter panels in the reader', async () => {
+    mockFetchStoryline.mockResolvedValue(mockDetailTwoChapters())
+    const wrapper = mountComponent()
+    await flushPromises()
+    // Panels come from currentChapter (loaded via fetchStorylineChapter),
+    // not the storyline-level panels.
+    expect(wrapper.find('[data-testid="narrative-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="narrative-empty"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="curation-empty"]').exists()).toBe(false)
+  })
+
+  it('shows a reader loading affordance while a chapter loads', async () => {
+    mockFetchStoryline.mockResolvedValue(mockDetailTwoChapters())
+    // Never resolve the chapter fetch so the loading branch is observable.
+    mockFetchChapter.mockImplementation(() => new Promise(() => {}))
+    const wrapper = mountComponent()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="chapter-loading"]').exists()).toBe(true)
+  })
+
+  it('renders no rail items when the storyline has no chapters', async () => {
+    mockFetchStoryline.mockResolvedValue(mockDetail({ chapters: [] }))
+    const wrapper = mountComponent()
+    await flushPromises()
+    expect(wrapper.findAll('[data-test="chapter-rail-item"]')).toHaveLength(0)
+    // With no chapters, no chapter fetch is attempted.
+    expect(mockFetchChapter).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the latest chapter when ?chapter= is non-numeric', async () => {
+    mockFetchStoryline.mockResolvedValue(mockDetailTwoChapters())
+    await router.push('/storylines/3?chapter=not-a-number')
+    const wrapper = mountComponent()
+    await flushPromises()
+    // Invalid query → default-select latest (id 2).
+    expect(mockFetchChapter).toHaveBeenCalledWith(3, 2)
+    void wrapper
+    await router.push('/storylines/3')
+  })
+
+  it('restarts citation numbering per chapter (each chapter numbers from [1])', async () => {
+    // Two chapters with DIFFERENT citation panels: chapter 1 cites entry
+    // 7, chapter 2 cites entry 42. The registry is built per-chapter from
+    // currentChapter.panels, so each chapter's first citation must be [1]
+    // — numbering does NOT continue from the previous chapter.
+    const detail = mockDetailTwoChapters()
+    mockFetchStoryline.mockResolvedValue(detail)
+    // Distinct panels per chapter so a leaked/shared registry would show.
+    function panelsFor(entryId: number, quote: string) {
+      return {
+        curation: {
+          panel_kind: 'curation' as const,
+          segments: [
+            { kind: 'text' as const, text: 'On a day' },
+            { kind: 'citation' as const, entry_id: entryId, quote },
+          ],
+          source_entry_ids: [entryId],
+          citation_count: 1,
+          model_used: 'haiku-4-5',
+          generated_at: '2026-05-12T10:00:00Z',
+        },
+        narrative: {
+          panel_kind: 'narrative' as const,
+          segments: [
+            { kind: 'text' as const, text: 'A chapter. ' },
+            { kind: 'citation' as const, entry_id: entryId, quote },
+          ],
+          source_entry_ids: [entryId],
+          citation_count: 1,
+          model_used: 'opus-4-7',
+          generated_at: '2026-05-12T10:00:00Z',
+        },
+      }
+    }
+    const chapterPanels: Record<number, ReturnType<typeof panelsFor>> = {
+      1: panelsFor(7, 'chapter one quote'),
+      2: panelsFor(42, 'chapter two quote'),
+    }
+    mockFetchChapter.mockImplementation(async (_sid, cid) => {
+      const summary = detail.chapters.find((c) => c.id === cid)!
+      return { ...summary, panels: chapterPanels[cid] } as never
+    })
+
+    const wrapper = mountComponent()
+    await flushPromises()
+    // Default-selects the latest chapter (id 2 → entry 42). Its first
+    // citation numbers from [1].
+    expect(wrapper.find('[data-testid="narrative-footnote-1"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('[data-testid="narrative-footnote-2"]').exists()).toBe(
+      false,
+    )
+    expect(
+      wrapper.find('[data-testid="curation-row-link-1"]').text(),
+    ).toContain('[1]')
+
+    // Switch to chapter 1 (entry 7). Numbering must RESET to [1] — it does
+    // not become [2] just because chapter 2 already used [1].
+    await wrapper.findAll('[data-test="chapter-rail-item"]')[0].trigger('click')
+    await flushPromises()
+    expect(mockFetchChapter).toHaveBeenCalledWith(3, 1)
+    expect(wrapper.find('[data-testid="narrative-footnote-1"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('[data-testid="narrative-footnote-2"]').exists()).toBe(
+      false,
+    )
+    expect(
+      wrapper.find('[data-testid="curation-row-link-1"]').text(),
+    ).toContain('[1]')
+    await router.push('/storylines/3')
   })
 })
