@@ -146,7 +146,9 @@ async function onMoodJobSucceeded(): Promise<void> {
     </h1>
 
     <!-- Tab strip — mirrors the /admin pattern. -->
-    <div class="border-b border-gray-200 dark:border-gray-700/60 mb-6">
+    <div
+      class="border-b border-gray-200 dark:border-gray-700/60 mb-6 overflow-x-auto no-scrollbar"
+    >
       <nav
         class="-mb-px flex space-x-6"
         aria-label="Settings tabs"

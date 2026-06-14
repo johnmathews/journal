@@ -906,162 +906,164 @@ async function deleteRow(entity: EntitySummary) {
       class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs overflow-hidden"
       data-testid="entity-table"
     >
-      <table class="w-full text-sm">
-        <thead
-          class="text-xs uppercase text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/40"
-        >
-          <tr>
-            <th class="px-2 py-3 w-8"></th>
-            <th
-              class="px-4 py-3 text-left font-semibold cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
-              data-testid="sort-name"
-              @click="toggleSort('canonical_name')"
-            >
-              Name{{ sortIndicator('canonical_name') }}
-            </th>
-            <th
-              class="px-4 py-3 text-left font-semibold cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
-              data-testid="sort-type"
-              @click="toggleSort('entity_type')"
-            >
-              Type{{ sortIndicator('entity_type') }}
-            </th>
-            <th
-              class="px-4 py-3 text-right font-semibold cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
-              data-testid="sort-mentions"
-              @click="toggleSort('mention_count')"
-            >
-              Mentions{{ sortIndicator('mention_count') }}
-            </th>
-            <th
-              class="px-4 py-3 text-left font-semibold cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
-              data-testid="sort-first-seen"
-              @click="toggleSort('first_seen')"
-            >
-              First seen{{ sortIndicator('first_seen') }}
-            </th>
-            <th
-              class="px-4 py-3 text-left font-semibold cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
-              data-testid="sort-last-seen"
-              @click="toggleSort('last_seen')"
-            >
-              Last seen{{ sortIndicator('last_seen') }}
-            </th>
-            <template v-if="listMode === 'quarantined'">
-              <th
-                class="px-4 py-3 text-left font-semibold select-none"
-                data-testid="col-quarantine-reason"
-              >
-                Reason
-              </th>
-              <th
-                class="px-4 py-3 text-left font-semibold select-none"
-                data-testid="col-quarantine-when"
-              >
-                Quarantined
-              </th>
-              <th class="px-4 py-3 text-right font-semibold select-none"></th>
-            </template>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100 dark:divide-gray-700/60">
-          <tr
-            v-for="entity in sortedEntities"
-            :key="entity.id"
-            class="hover:bg-gray-50 dark:hover:bg-gray-700/30"
-            :class="{
-              'bg-violet-50/50 dark:bg-violet-500/5': isSelected(entity.id),
-            }"
-            data-testid="entity-row"
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[44rem] text-sm">
+          <thead
+            class="text-xs uppercase text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/40"
           >
-            <td class="px-2 py-3 text-center">
-              <input
-                type="checkbox"
-                :checked="isSelected(entity.id)"
-                class="form-checkbox h-4 w-4 text-violet-500 rounded border-gray-300 dark:border-gray-600"
-                data-testid="entity-checkbox"
-                @change="toggleSelect(entity.id)"
-              />
-            </td>
-            <td class="px-4 py-3">
-              <RouterLink
-                :to="{
-                  name: 'entity-detail',
-                  params: { id: entity.id },
-                }"
-                class="text-violet-600 dark:text-violet-400 hover:underline font-medium"
+            <tr>
+              <th class="px-2 py-3 w-8"></th>
+              <th
+                class="px-4 py-3 text-left font-semibold cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+                data-testid="sort-name"
+                @click="toggleSort('canonical_name')"
               >
-                {{ entity.canonical_name }}
-              </RouterLink>
-              <span
-                v-if="entity.aliases.length"
-                class="text-xs text-gray-600 dark:text-gray-300 ml-2"
+                Name{{ sortIndicator('canonical_name') }}
+              </th>
+              <th
+                class="px-4 py-3 text-left font-semibold cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+                data-testid="sort-type"
+                @click="toggleSort('entity_type')"
               >
-                ({{ entity.aliases.join(', ') }})
-              </span>
-            </td>
-            <td class="px-4 py-3">
-              <span
-                class="inline-flex text-xs font-medium rounded-full px-2.5 py-0.5 capitalize"
-                :class="typeBadgeClass(entity.entity_type)"
+                Type{{ sortIndicator('entity_type') }}
+              </th>
+              <th
+                class="px-4 py-3 text-right font-semibold cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+                data-testid="sort-mentions"
+                @click="toggleSort('mention_count')"
               >
-                {{ entity.entity_type }}
-              </span>
-            </td>
-            <td
-              class="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-300"
+                Mentions{{ sortIndicator('mention_count') }}
+              </th>
+              <th
+                class="px-4 py-3 text-left font-semibold cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+                data-testid="sort-first-seen"
+                @click="toggleSort('first_seen')"
+              >
+                First seen{{ sortIndicator('first_seen') }}
+              </th>
+              <th
+                class="px-4 py-3 text-left font-semibold cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+                data-testid="sort-last-seen"
+                @click="toggleSort('last_seen')"
+              >
+                Last seen{{ sortIndicator('last_seen') }}
+              </th>
+              <template v-if="listMode === 'quarantined'">
+                <th
+                  class="px-4 py-3 text-left font-semibold select-none"
+                  data-testid="col-quarantine-reason"
+                >
+                  Reason
+                </th>
+                <th
+                  class="px-4 py-3 text-left font-semibold select-none"
+                  data-testid="col-quarantine-when"
+                >
+                  Quarantined
+                </th>
+                <th class="px-4 py-3 text-right font-semibold select-none"></th>
+              </template>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 dark:divide-gray-700/60">
+            <tr
+              v-for="entity in sortedEntities"
+              :key="entity.id"
+              class="hover:bg-gray-50 dark:hover:bg-gray-700/30"
+              :class="{
+                'bg-violet-50/50 dark:bg-violet-500/5': isSelected(entity.id),
+              }"
+              data-testid="entity-row"
             >
-              {{ entity.mention_count }}
-            </td>
-            <td class="px-4 py-3 text-gray-600 dark:text-gray-300">
-              {{ entity.first_seen || '—' }}
-            </td>
-            <td class="px-4 py-3 text-gray-600 dark:text-gray-300">
-              {{ entity.last_seen || '—' }}
-            </td>
-            <template v-if="listMode === 'quarantined'">
-              <td
-                class="px-4 py-3 text-gray-600 dark:text-gray-300 max-w-[16rem] truncate"
-                :title="entity.quarantine_reason || ''"
-                data-testid="quarantine-reason-cell"
-              >
-                {{ entity.quarantine_reason || '—' }}
+              <td class="px-2 py-3 text-center">
+                <input
+                  type="checkbox"
+                  :checked="isSelected(entity.id)"
+                  class="form-checkbox h-4 w-4 text-violet-500 rounded border-gray-300 dark:border-gray-600"
+                  data-testid="entity-checkbox"
+                  @change="toggleSelect(entity.id)"
+                />
               </td>
-              <td
-                class="px-4 py-3 text-gray-600 dark:text-gray-300"
-                :title="entity.quarantined_at || ''"
-                data-testid="quarantine-when-cell"
-              >
-                {{ relativeFromNow(entity.quarantined_at || '') || '—' }}
-              </td>
-              <td class="px-4 py-3 text-right whitespace-nowrap">
-                <button
-                  type="button"
-                  class="btn text-xs py-1 bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  :disabled="
-                    releasingId === entity.id || deletingId === entity.id
-                  "
-                  data-testid="release-row-button"
-                  @click="releaseRow(entity.id)"
+              <td class="px-4 py-3">
+                <RouterLink
+                  :to="{
+                    name: 'entity-detail',
+                    params: { id: entity.id },
+                  }"
+                  class="text-violet-600 dark:text-violet-400 hover:underline font-medium"
                 >
-                  {{ releasingId === entity.id ? 'Releasing…' : 'Release' }}
-                </button>
-                <button
-                  type="button"
-                  class="btn text-xs py-1 ml-2 bg-red-500 hover:bg-red-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  :disabled="
-                    releasingId === entity.id || deletingId === entity.id
-                  "
-                  data-testid="delete-row-button"
-                  @click="deleteRow(entity)"
+                  {{ entity.canonical_name }}
+                </RouterLink>
+                <span
+                  v-if="entity.aliases.length"
+                  class="text-xs text-gray-600 dark:text-gray-300 ml-2"
                 >
-                  {{ deletingId === entity.id ? 'Deleting…' : 'Delete' }}
-                </button>
+                  ({{ entity.aliases.join(', ') }})
+                </span>
               </td>
-            </template>
-          </tr>
-        </tbody>
-      </table>
+              <td class="px-4 py-3">
+                <span
+                  class="inline-flex text-xs font-medium rounded-full px-2.5 py-0.5 capitalize"
+                  :class="typeBadgeClass(entity.entity_type)"
+                >
+                  {{ entity.entity_type }}
+                </span>
+              </td>
+              <td
+                class="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-300"
+              >
+                {{ entity.mention_count }}
+              </td>
+              <td class="px-4 py-3 text-gray-600 dark:text-gray-300">
+                {{ entity.first_seen || '—' }}
+              </td>
+              <td class="px-4 py-3 text-gray-600 dark:text-gray-300">
+                {{ entity.last_seen || '—' }}
+              </td>
+              <template v-if="listMode === 'quarantined'">
+                <td
+                  class="px-4 py-3 text-gray-600 dark:text-gray-300 max-w-[16rem] truncate"
+                  :title="entity.quarantine_reason || ''"
+                  data-testid="quarantine-reason-cell"
+                >
+                  {{ entity.quarantine_reason || '—' }}
+                </td>
+                <td
+                  class="px-4 py-3 text-gray-600 dark:text-gray-300"
+                  :title="entity.quarantined_at || ''"
+                  data-testid="quarantine-when-cell"
+                >
+                  {{ relativeFromNow(entity.quarantined_at || '') || '—' }}
+                </td>
+                <td class="px-4 py-3 text-right whitespace-nowrap">
+                  <button
+                    type="button"
+                    class="btn text-xs py-1 bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    :disabled="
+                      releasingId === entity.id || deletingId === entity.id
+                    "
+                    data-testid="release-row-button"
+                    @click="releaseRow(entity.id)"
+                  >
+                    {{ releasingId === entity.id ? 'Releasing…' : 'Release' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn text-xs py-1 ml-2 bg-red-500 hover:bg-red-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    :disabled="
+                      releasingId === entity.id || deletingId === entity.id
+                    "
+                    data-testid="delete-row-button"
+                    @click="deleteRow(entity)"
+                  >
+                    {{ deletingId === entity.id ? 'Deleting…' : 'Delete' }}
+                  </button>
+                </td>
+              </template>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Pagination -->

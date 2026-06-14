@@ -172,7 +172,7 @@ onUnmounted(() => {
     <div class="h-64 w-64 flex-shrink-0 mx-auto md:mx-0">
       <canvas ref="canvasRef" data-testid="dashboard-entity-chart"></canvas>
     </div>
-    <div>
+    <div class="min-w-0 overflow-x-auto">
       <table class="text-sm" data-testid="dashboard-entity-legend">
         <tbody>
           <tr

@@ -820,55 +820,60 @@ function widthTitleForFitnessTile(id: FitnessTileId): string {
             time windows overlap by ≥75% collapse to one entry.
           </p>
         </header>
-        <table class="w-full text-sm" data-testid="fitness-recent-activities">
-          <thead>
-            <tr class="text-left text-gray-500 dark:text-gray-400 text-xs">
-              <th class="font-medium pb-2">Date</th>
-              <th class="font-medium pb-2">Type</th>
-              <th class="font-medium pb-2">Source</th>
-              <th class="font-medium pb-2 text-right">Distance</th>
-              <th class="font-medium pb-2 text-right">Duration</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="ds in recentActivities"
-              :key="ds.representative.id"
-              class="border-t border-gray-100 dark:border-gray-700"
-            >
-              <td class="py-2 text-gray-700 dark:text-gray-200">
-                {{ ds.representative.local_date }}
-              </td>
-              <td class="py-2 capitalize text-gray-700 dark:text-gray-200">
-                {{ ds.representative.activity_type }}
-              </td>
-              <td class="py-2 text-gray-700 dark:text-gray-200">
-                {{ sourceLabel(ds.representative.source) }}
-                <span
-                  v-if="ds.secondary_source_ids.length"
-                  class="text-xs text-gray-500"
-                >
-                  + {{ ds.secondary_source_ids.length }} mirror
-                </span>
-              </td>
-              <td class="py-2 text-right text-gray-700 dark:text-gray-200">
-                {{ formatDistance(ds.representative.distance_m) }}
-              </td>
-              <td class="py-2 text-right text-gray-700 dark:text-gray-200">
-                {{ formatDuration(ds.representative.duration_s) }}
-              </td>
-            </tr>
-            <tr v-if="!recentActivities.length">
-              <td
-                class="py-3 text-gray-500 dark:text-gray-400"
-                colspan="5"
-                data-testid="fitness-no-activities"
+        <div class="overflow-x-auto">
+          <table
+            class="w-full min-w-[40rem] text-sm"
+            data-testid="fitness-recent-activities"
+          >
+            <thead>
+              <tr class="text-left text-gray-500 dark:text-gray-400 text-xs">
+                <th class="font-medium pb-2">Date</th>
+                <th class="font-medium pb-2">Type</th>
+                <th class="font-medium pb-2">Source</th>
+                <th class="font-medium pb-2 text-right">Distance</th>
+                <th class="font-medium pb-2 text-right">Duration</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="ds in recentActivities"
+                :key="ds.representative.id"
+                class="border-t border-gray-100 dark:border-gray-700"
               >
-                No workouts in this window.
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                <td class="py-2 text-gray-700 dark:text-gray-200">
+                  {{ ds.representative.local_date }}
+                </td>
+                <td class="py-2 capitalize text-gray-700 dark:text-gray-200">
+                  {{ ds.representative.activity_type }}
+                </td>
+                <td class="py-2 text-gray-700 dark:text-gray-200">
+                  {{ sourceLabel(ds.representative.source) }}
+                  <span
+                    v-if="ds.secondary_source_ids.length"
+                    class="text-xs text-gray-500"
+                  >
+                    + {{ ds.secondary_source_ids.length }} mirror
+                  </span>
+                </td>
+                <td class="py-2 text-right text-gray-700 dark:text-gray-200">
+                  {{ formatDistance(ds.representative.distance_m) }}
+                </td>
+                <td class="py-2 text-right text-gray-700 dark:text-gray-200">
+                  {{ formatDuration(ds.representative.duration_s) }}
+                </td>
+              </tr>
+              <tr v-if="!recentActivities.length">
+                <td
+                  class="py-3 text-gray-500 dark:text-gray-400"
+                  colspan="5"
+                  data-testid="fitness-no-activities"
+                >
+                  No workouts in this window.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </template>
     </TileGrid>
   </section>

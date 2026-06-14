@@ -163,7 +163,9 @@ const hasDimensions = computed(() => store.moodDimensions.length > 0)
           class="px-4 py-4"
           :data-testid="`admin-moods-dimension-${d.name}`"
         >
-          <div class="flex items-baseline justify-between gap-4 mb-2">
+          <div
+            class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-2"
+          >
             <div class="flex items-baseline gap-3">
               <span
                 class="text-base font-semibold text-gray-900 dark:text-gray-100"

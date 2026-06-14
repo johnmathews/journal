@@ -22,7 +22,9 @@ const tabs = [
       >
         Administration
       </h1>
-      <div class="border-b border-gray-200 dark:border-gray-700/60">
+      <div
+        class="border-b border-gray-200 dark:border-gray-700/60 overflow-x-auto no-scrollbar"
+      >
         <nav class="-mb-px flex space-x-6" aria-label="Admin tabs">
           <RouterLink
             v-for="tab in tabs"

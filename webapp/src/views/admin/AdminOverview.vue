@@ -126,7 +126,7 @@ const audioGrandTotal = computed(() => {
         </h2>
 
         <div
-          class="flex items-center gap-4 mb-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs"
+          class="flex flex-wrap items-center gap-x-4 gap-y-3 mb-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs"
         >
           <div>
             <span class="text-sm text-gray-600 dark:text-gray-300">Status</span>

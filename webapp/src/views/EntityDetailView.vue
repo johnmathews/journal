@@ -261,7 +261,7 @@ async function confirmDelete() {
     <template v-else-if="store.currentEntity">
       <!-- Header -->
       <div class="mb-6">
-        <div class="flex items-center gap-3 mb-2">
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2 mb-2">
           <button
             class="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
             data-testid="back-button"
@@ -275,7 +275,7 @@ async function confirmDelete() {
 
           <template v-if="!editing">
             <h1
-              class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold"
+              class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold min-w-0 break-words"
             >
               {{ store.currentEntity.canonical_name }}
             </h1>

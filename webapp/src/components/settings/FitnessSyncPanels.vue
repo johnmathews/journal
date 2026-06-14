@@ -160,45 +160,47 @@ async function onSyncClick(source: FitnessSource) {
         <summary class="cursor-pointer">
           Recent runs ({{ syncStatus[source]?.last_runs.length }})
         </summary>
-        <table class="w-full mt-2">
-          <thead>
-            <tr class="text-left text-gray-500">
-              <th class="font-medium">Started</th>
-              <th class="font-medium">Status</th>
-              <th
-                class="font-medium text-right"
-                title="F/N = Fetched / Normalized"
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[24rem] mt-2">
+            <thead>
+              <tr class="text-left text-gray-500">
+                <th class="font-medium">Started</th>
+                <th class="font-medium">Status</th>
+                <th
+                  class="font-medium text-right"
+                  title="F/N = Fetched / Normalized"
+                >
+                  Workouts F/N
+                </th>
+                <th
+                  v-if="source === 'garmin'"
+                  class="font-medium text-right"
+                  title="F/N = Fetched / Normalized"
+                >
+                  Wellness F/N
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="run in syncStatus[source]?.last_runs"
+                :key="run.id"
+                class="border-t border-gray-100 dark:border-gray-700"
               >
-                Workouts F/N
-              </th>
-              <th
-                v-if="source === 'garmin'"
-                class="font-medium text-right"
-                title="F/N = Fetched / Normalized"
-              >
-                Wellness F/N
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="run in syncStatus[source]?.last_runs"
-              :key="run.id"
-              class="border-t border-gray-100 dark:border-gray-700"
-            >
-              <td>{{ formatTimestamp(run.started_at) }}</td>
-              <td :class="lastRunStatusClass(run.status)">
-                {{ run.status }}
-              </td>
-              <td class="text-right">
-                {{ formatCounts(run, source).workouts }}
-              </td>
-              <td v-if="source === 'garmin'" class="text-right">
-                {{ formatCounts(run, source).wellness }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                <td>{{ formatTimestamp(run.started_at) }}</td>
+                <td :class="lastRunStatusClass(run.status)">
+                  {{ run.status }}
+                </td>
+                <td class="text-right">
+                  {{ formatCounts(run, source).workouts }}
+                </td>
+                <td v-if="source === 'garmin'" class="text-right">
+                  {{ formatCounts(run, source).wellness }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <p
           class="mt-1 text-[11px] text-gray-400 dark:text-gray-500"
           data-testid="fitness-fn-legend"

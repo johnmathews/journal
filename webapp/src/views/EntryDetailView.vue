@@ -1032,7 +1032,7 @@ onBeforeUnmount(() => {
         <!-- Floating uncertain region navigation bar -->
         <div
           v-if="showReview && hasUncertainSpans"
-          class="sticky top-0 z-30 flex items-center justify-between gap-3 mb-4 px-4 py-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700/60 rounded-lg shadow-sm text-sm"
+          class="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-4 px-4 py-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700/60 rounded-lg shadow-sm text-sm"
           data-testid="uncertain-nav-bar"
         >
           <span class="text-yellow-800 dark:text-yellow-200 font-medium">
