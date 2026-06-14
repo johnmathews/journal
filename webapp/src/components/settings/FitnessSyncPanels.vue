@@ -165,8 +165,17 @@ async function onSyncClick(source: FitnessSource) {
             <tr class="text-left text-gray-500">
               <th class="font-medium">Started</th>
               <th class="font-medium">Status</th>
-              <th class="font-medium text-right">Workouts F/N</th>
-              <th v-if="source === 'garmin'" class="font-medium text-right">
+              <th
+                class="font-medium text-right"
+                title="F/N = Fetched / Normalized"
+              >
+                Workouts F/N
+              </th>
+              <th
+                v-if="source === 'garmin'"
+                class="font-medium text-right"
+                title="F/N = Fetched / Normalized"
+              >
                 Wellness F/N
               </th>
             </tr>
@@ -190,6 +199,12 @@ async function onSyncClick(source: FitnessSource) {
             </tr>
           </tbody>
         </table>
+        <p
+          class="mt-1 text-[11px] text-gray-400 dark:text-gray-500"
+          data-testid="fitness-fn-legend"
+        >
+          F/N = Fetched / Normalized
+        </p>
       </details>
     </article>
   </section>

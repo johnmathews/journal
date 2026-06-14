@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useStorage } from '@vueuse/core'
 import { Chart, type ChartType } from 'chart.js'
 import { useFitnessStore } from '@/stores/fitness'
+import { useJobsStore } from '@/stores/jobs'
+import { isTerminal } from '@/types/job'
 import {
   getChartColors,
   getThemedGridColor,
@@ -11,7 +14,7 @@ import {
 import { adjustColorOpacity } from '@/utils/mosaic'
 import RangeBinControls from '@/components/RangeBinControls.vue'
 import TileGrid from '@/components/TileGrid.vue'
-import { movingAverage3 } from '@/utils/moving-average'
+import { movingAverage } from '@/utils/moving-average'
 import {
   FITNESS_TILES,
   fitnessWidthToGridColumn,
@@ -22,6 +25,7 @@ import {
 } from '@/types/fitness'
 
 const store = useFitnessStore()
+const jobsStore = useJobsStore()
 const {
   activities,
   daily,
@@ -82,15 +86,40 @@ const ACTIVITY_TYPE_COLOR: Record<FitnessActivityType, string> = {
   other: '#94a3b8', // slate
 }
 
+// Toggle between counting workouts and summing their duration in the
+// "Workouts per week" tile. Local to this tile (the daily-wellness
+// charts have their own smoothing control); defaults to counts.
+type WeeklyMetric = 'count' | 'duration'
+const weeklyMetric = ref<WeeklyMetric>('count')
+
+function emptyTypeTotals(): Record<FitnessActivityType, number> {
+  return {
+    run: 0,
+    ride: 0,
+    swim: 0,
+    walk: 0,
+    hike: 0,
+    row: 0,
+    strength: 0,
+    other: 0,
+  }
+}
+
 interface WeeklyBucket {
   weekStart: string // ISO date — Monday
+  // Distinct-activity count per type.
   byType: Record<FitnessActivityType, number>
+  // Summed `duration_s` per type, so the tile can render hours as well
+  // as counts without re-bucketing.
+  durationByType: Record<FitnessActivityType, number>
 }
 
 /**
  * Bucket distinct workouts into ISO weeks (Monday start). Returns
  * one bucket per week in [startDate, endDate], even empty ones, so
- * Chart.js doesn't compress visually identical gaps.
+ * Chart.js doesn't compress visually identical gaps. Each bucket
+ * tracks both the distinct-activity count and the summed duration
+ * (seconds) per activity type.
  */
 function bucketByWeek(): WeeklyBucket[] {
   const start = new Date(startDate.value + 'T00:00:00Z')
@@ -107,16 +136,8 @@ function bucketByWeek(): WeeklyBucket[] {
     const weekStart = cursor.toISOString().slice(0, 10)
     buckets.push({
       weekStart,
-      byType: {
-        run: 0,
-        ride: 0,
-        swim: 0,
-        walk: 0,
-        hike: 0,
-        row: 0,
-        strength: 0,
-        other: 0,
-      },
+      byType: emptyTypeTotals(),
+      durationByType: emptyTypeTotals(),
     })
     cursor.setUTCDate(cursor.getUTCDate() + 7)
   }
@@ -133,6 +154,7 @@ function bucketByWeek(): WeeklyBucket[] {
     })
     if (idx === -1) continue
     buckets[idx].byType[a.activity_type] += 1
+    buckets[idx].durationByType[a.activity_type] += a.duration_s
   }
 
   return buckets
@@ -148,6 +170,16 @@ const weekLabels = computed(() =>
   }),
 )
 
+// --- Smoothing window for the daily-wellness trend lines ---
+//
+// The Sleep / HRV / RHR panels overlay a centred moving average on the
+// noisy daily series. The window is user-selectable (3 / 5 / 7 days)
+// and persisted so it survives reloads. Default 3 keeps the historical
+// behaviour. See docs/chart-style-guide.md.
+type MaWindow = 3 | 5 | 7
+const MA_WINDOWS: readonly MaWindow[] = [3, 5, 7]
+const maWindow = useStorage<MaWindow>('fitness:maWindow', 3)
+
 // --- Chart canvases and instances ---
 
 const activitiesChartCanvas = ref<HTMLCanvasElement | null>(null)
@@ -160,13 +192,27 @@ let sleepChart: Chart | null = null
 let hrvChart: Chart | null = null
 let rhrChart: Chart | null = null
 
+/** Human-readable duration from a fractional number of hours. */
+function formatHours(hours: number): string {
+  const totalMinutes = Math.round(hours * 60)
+  const h = Math.floor(totalMinutes / 60)
+  const m = totalMinutes % 60
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
+}
+
 function renderActivitiesChart(): void {
   if (!activitiesChartCanvas.value) return
   const colors = getChartColors()
   activitiesChart?.destroy()
+  const byDuration = weeklyMetric.value === 'duration'
   const datasets = ACTIVITY_TYPE_ORDER.map((type) => ({
     label: type.charAt(0).toUpperCase() + type.slice(1),
-    data: weeklyBuckets.value.map((b) => b.byType[type]),
+    data: weeklyBuckets.value.map((b) =>
+      // Count mode: distinct activities. Duration mode: summed hours
+      // (seconds / 3600) so the y-axis reads in a human unit.
+      byDuration ? b.durationByType[type] / 3600 : b.byType[type],
+    ),
     backgroundColor: ACTIVITY_TYPE_COLOR[type],
     borderRadius: 2,
     borderSkipped: false as const,
@@ -187,6 +233,14 @@ function renderActivitiesChart(): void {
         tooltip: {
           filter: (item) => (item.parsed?.y ?? 0) > 0,
           itemSort: (a, b) => b.datasetIndex - a.datasetIndex,
+          callbacks: byDuration
+            ? {
+                label: (item) => {
+                  const hours = item.parsed?.y ?? 0
+                  return `${item.dataset.label}: ${formatHours(hours)}`
+                },
+              }
+            : undefined,
           backgroundColor: colors.tooltipBgColor.light,
           titleColor: colors.tooltipTitleColor.light,
           bodyColor: colors.tooltipBodyColor.light,
@@ -202,8 +256,16 @@ function renderActivitiesChart(): void {
         y: {
           stacked: true,
           beginAtZero: true,
+          title: byDuration
+            ? { display: true, text: 'Hours', color: colors.textColor.light }
+            : undefined,
           grid: { color: getThemedGridColor() },
-          ticks: { color: colors.textColor.light, precision: 0 },
+          ticks: {
+            color: colors.textColor.light,
+            // Count mode shows whole activities; duration shows hours
+            // where a fractional axis is fine.
+            precision: byDuration ? 1 : 0,
+          },
         },
       },
     },
@@ -238,18 +300,18 @@ function renderLineChart(
   if (!canvas) return null
   const colors = getChartColors()
   // Sleep / HRV / RHR are noisy day-to-day but trend cleanly when
-  // smoothed. Show the centred 3-day moving average as the bold
-  // primary line and fade the raw daily series so the user sees both
-  // the trend and the underlying data without one obscuring the other.
-  // See docs/chart-style-guide.md.
-  const smoothed = movingAverage3(series.values)
+  // smoothed. Show the centred moving average as the bold primary line
+  // and fade the raw daily series so the user sees both the trend and
+  // the underlying data without one obscuring the other. The window is
+  // user-selectable (3/5/7). See docs/chart-style-guide.md.
+  const smoothed = movingAverage(series.values, maWindow.value)
   return new Chart(canvas, {
     type: 'line' as ChartType,
     data: {
       labels: series.labels,
       datasets: [
         {
-          label: '3-day avg',
+          label: `${maWindow.value}-day avg`,
           data: smoothed,
           borderColor: color,
           backgroundColor: adjustColorOpacity(color, 0.18),
@@ -313,6 +375,8 @@ watch(
   () => activities.value,
   () => renderActivitiesChart(),
 )
+// Re-render the weekly chart when the user flips Count ↔ Duration.
+watch(weeklyMetric, () => renderActivitiesChart())
 watch(
   () => daily.value,
   () => {
@@ -321,6 +385,12 @@ watch(
     renderRhrChart()
   },
 )
+// Re-render the daily-wellness charts when the smoothing window changes.
+watch(maWindow, () => {
+  renderSleepChart()
+  renderHrvChart()
+  renderRhrChart()
+})
 
 // `reloadAll` populates `activities` and `daily`, which the watchers
 // above pick up and translate into chart renders. No explicit render
@@ -335,11 +405,78 @@ onMounted(() => {
   void reloadAll()
 })
 
+// ── On-page sync buttons (Item 3) ──────────────────────────────────
+//
+// Sync Garmin / Sync Strava submit a sync job via the store and then
+// "spin until done": the button shows a spinner while the submit is in
+// flight AND while the tracked job runs, watched via the jobs store
+// (same pattern as StorylineDetailView.regenerate). On terminal
+// success we reload all data so the charts/tables refresh immediately;
+// on submit or job failure we surface a brief inline error with a
+// deep-link to Settings · Fitness for the details.
+
+// True while a sync for the source is either submitting or its job is
+// still running. Drives the per-button spinner.
+const syncBusy = ref<Record<FitnessSource, boolean>>({
+  strava: false,
+  garmin: false,
+})
+// Brief inline error per source (submit failure or terminal job failure).
+const syncJobError = ref<Record<FitnessSource, string | null>>({
+  strava: null,
+  garmin: null,
+})
+// Active job watchers, so we can stop them on resolve/unmount.
+const syncWatchers: Record<FitnessSource, (() => void) | null> = {
+  strava: null,
+  garmin: null,
+}
+
+function stopSyncWatcher(source: FitnessSource): void {
+  syncWatchers[source]?.()
+  syncWatchers[source] = null
+}
+
+async function onSyncSource(source: FitnessSource): Promise<void> {
+  if (syncBusy.value[source]) return
+  syncBusy.value[source] = true
+  syncJobError.value[source] = null
+  stopSyncWatcher(source)
+
+  const jobId = await store.startSync(source)
+  if (!jobId) {
+    // Submission failed — store.syncError carries the reason.
+    syncJobError.value[source] =
+      store.syncError[source] ?? 'Failed to queue sync'
+    syncBusy.value[source] = false
+    return
+  }
+
+  // Watch the tracked job until it reaches a terminal state.
+  syncWatchers[source] = watch(
+    () => jobsStore.getJobById(jobId),
+    (job) => {
+      if (job && isTerminal(job.status)) {
+        stopSyncWatcher(source)
+        syncBusy.value[source] = false
+        if (job.status === 'succeeded') {
+          void reloadAll()
+        } else {
+          syncJobError.value[source] =
+            job.error_message ?? 'Sync failed — see Settings · Fitness.'
+        }
+      }
+    },
+  )
+}
+
 onBeforeUnmount(() => {
   activitiesChart?.destroy()
   sleepChart?.destroy()
   hrvChart?.destroy()
   rhrChart?.destroy()
+  stopSyncWatcher('strava')
+  stopSyncWatcher('garmin')
   store.cancelPendingStatusRefresh()
 })
 
@@ -406,6 +543,39 @@ function widthTitleForFitnessTile(id: FitnessTileId): string {
           {{ store.editingLayout ? 'Done editing' : 'Edit layout' }}
         </button>
         <button
+          v-for="source in ['garmin', 'strava'] as FitnessSource[]"
+          :key="source"
+          type="button"
+          class="btn bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-sm h-9 disabled:opacity-60"
+          :disabled="syncBusy[source]"
+          :data-testid="`fitness-sync-${source}`"
+          @click="onSyncSource(source)"
+        >
+          <svg
+            v-if="syncBusy[source]"
+            class="animate-spin w-4 h-4 mr-1.5 -ml-0.5 text-violet-500"
+            :data-testid="`fitness-sync-${source}-spinner`"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            />
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+            />
+          </svg>
+          Sync {{ sourceLabel(source) }}
+        </button>
+        <button
           type="button"
           data-testid="fitness-reload"
           class="btn bg-violet-500 hover:bg-violet-600 text-white text-sm h-9"
@@ -416,13 +586,71 @@ function widthTitleForFitnessTile(id: FitnessTileId): string {
       </div>
     </header>
 
-    <RangeBinControls
-      test-id-prefix="fitness"
-      :range="range"
-      :bin="bin"
-      @update:range="store.setRange($event)"
-      @update:bin="store.setBin($event)"
-    />
+    <!-- Per-source sync error: submit failed, or the job ended failed.
+         Deep-links to Settings · Fitness for the run history. -->
+    <div v-if="syncJobError.garmin || syncJobError.strava" class="space-y-1">
+      <p
+        v-for="source in ['garmin', 'strava'] as FitnessSource[]"
+        v-show="syncJobError[source]"
+        :key="source"
+        class="text-sm text-rose-500"
+        :data-testid="`fitness-sync-${source}-error`"
+      >
+        {{ sourceLabel(source) }} sync failed: {{ syncJobError[source] }}
+        <RouterLink
+          to="/settings#fitness"
+          class="underline hover:text-rose-600"
+          :data-testid="`fitness-sync-${source}-error-link`"
+        >
+          Settings · Fitness
+        </RouterLink>
+      </p>
+    </div>
+
+    <div class="flex flex-wrap items-end gap-4">
+      <RangeBinControls
+        test-id-prefix="fitness"
+        :range="range"
+        :bin="bin"
+        @update:range="store.setRange($event)"
+        @update:bin="store.setBin($event)"
+      />
+      <!-- Global smoothing selector for the Sleep / HRV / RHR trend
+           lines. Styled to match the RangeBinControls chip strip. -->
+      <div
+        class="flex items-end gap-2 rounded-xl border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-800 shadow-xs px-5 py-3"
+      >
+        <div>
+          <label
+            class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
+            >Smoothing</label
+          >
+          <div
+            class="flex flex-wrap gap-2"
+            role="radiogroup"
+            aria-label="Moving-average window"
+            data-testid="fitness-ma-window"
+          >
+            <button
+              v-for="w in MA_WINDOWS"
+              :key="w"
+              type="button"
+              class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
+              :class="
+                maWindow === w
+                  ? 'bg-violet-500 text-white border-violet-500'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
+              "
+              :data-testid="`fitness-ma-window-${w}`"
+              :aria-pressed="maWindow === w"
+              @click="maWindow = w"
+            >
+              {{ w }}-day
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- First-run hint when no sources have ever connected -->
     <div
@@ -498,16 +726,44 @@ function widthTitleForFitnessTile(id: FitnessTileId): string {
       @reset="store.resetLayout()"
     >
       <template #tile-weekly-distinct>
-        <header class="flex items-baseline justify-between mb-3">
+        <header
+          class="flex flex-wrap items-baseline justify-between gap-2 mb-3"
+        >
           <div>
             <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100">
-              Distinct workouts per week
+              Workouts per week
             </h2>
           </div>
-          <span class="text-xs text-gray-500 dark:text-gray-400">
-            {{ activities.length }} raw rows · {{ distinctActivities.length }}
-            distinct
-          </span>
+          <div class="flex items-center gap-3">
+            <!-- Count ↔ Duration toggle for this tile's stacked bars. -->
+            <div
+              class="flex gap-1"
+              role="radiogroup"
+              aria-label="Weekly metric"
+              data-testid="fitness-weekly-metric"
+            >
+              <button
+                v-for="opt in ['count', 'duration'] as WeeklyMetric[]"
+                :key="opt"
+                type="button"
+                class="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors capitalize"
+                :class="
+                  weeklyMetric === opt
+                    ? 'bg-violet-500 text-white border-violet-500'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
+                "
+                :data-testid="`fitness-weekly-metric-${opt}`"
+                :aria-pressed="weeklyMetric === opt"
+                @click="weeklyMetric = opt"
+              >
+                {{ opt }}
+              </button>
+            </div>
+            <span class="text-xs text-gray-500 dark:text-gray-400">
+              {{ activities.length }} raw rows · {{ distinctActivities.length }}
+              distinct
+            </span>
+          </div>
         </header>
         <div class="h-64">
           <canvas ref="activitiesChartCanvas" data-testid="fitness-weekly-chart"

@@ -71,19 +71,24 @@ for filled line charts that want a fade from solid (top) to transparent
 Sleep, HRV, and resting heart rate are noisy day-to-day but trend cleanly when
 smoothed. The convention (F7) is two datasets per chart:
 
-1. **3-day centred moving average** — bold (`borderWidth: 2.5`), filled with
-   the chart's primary color at ~0.18 opacity, `pointRadius: 0` so it reads as
-   a line not a scatter, `order: 1` so it draws on top. Dataset label is just
-   `'3-day avg'` — the panel header already names the metric, so the tooltip
-   doesn't need to repeat it.
+1. **Centred moving average** — bold (`borderWidth: 2.5`), filled with the
+   chart's primary color at ~0.18 opacity, `pointRadius: 0` so it reads as a
+   line not a scatter, `order: 1` so it draws on top. Dataset label reflects the
+   active window, e.g. `'3-day avg'` / `'5-day avg'` — the panel header already
+   names the metric, so the tooltip doesn't need to repeat it.
 2. **Daily series** — thin (`borderWidth: 1`), no fill, color at ~0.35 opacity,
    `pointRadius: 2`, `order: 2` so it sits underneath. Dataset label is just
    `'Daily'`.
 
-Compute the MA with [`movingAverage3()`](../src/utils/moving-average.ts) — it
-truncates the window at series edges so the smoothed line spans the full date
-range, and skips nulls inside the window so single missing days don't blow a
-hole in the smoothing.
+The smoothing window is **user-selectable on the fitness page** (3 / 5 / 7 days,
+default 3) via a segmented "Smoothing" control next to the Range/Bin chips. The
+choice persists across reloads (`@vueuse/core` `useStorage`, key
+`fitness:maWindow`) and applies to all three daily-wellness charts at once.
+
+Compute the MA with [`movingAverage(values, window)`](../src/utils/moving-average.ts)
+(or the `movingAverage3` wrapper for the fixed-3 case) — it truncates the window
+at series edges so the smoothed line spans the full date range, and skips nulls
+inside the window so single missing days don't blow a hole in the smoothing.
 
 ### When NOT to use `buildLineChartOptions`
 

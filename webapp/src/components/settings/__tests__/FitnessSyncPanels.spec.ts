@@ -75,6 +75,27 @@ describe('FitnessSyncPanels', () => {
     ).toBe('Not connected')
   })
 
+  it('explains the F/N abbreviation under the Recent runs table', async () => {
+    const wrapper = mountPanels(statusOk())
+    await flushPromises()
+
+    // Strava card has at least one run, so the details/table render.
+    const legend = wrapper.find('[data-testid="fitness-fn-legend"]')
+    expect(legend.exists()).toBe(true)
+    expect(legend.text()).toBe('F/N = Fetched / Normalized')
+
+    // The column header also carries a hover tooltip.
+    const stravaCard = wrapper.find(
+      '[data-testid="fitness-source-card-strava"]',
+    )
+    const workoutsHeader = stravaCard
+      .findAll('th')
+      .find((th) => th.text().includes('Workouts F/N'))
+    expect(workoutsHeader?.attributes('title')).toBe(
+      'F/N = Fetched / Normalized',
+    )
+  })
+
   it('queues a sync job when the Strava button is clicked', async () => {
     mockTriggerSync.mockResolvedValue({ job_id: 'job-1', status: 'queued' })
     const wrapper = mountPanels(statusOk())

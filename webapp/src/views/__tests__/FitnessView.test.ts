@@ -17,6 +17,40 @@ vi.mock('@/api/fitness', () => ({
   fetchIntegrity: vi.fn(),
 }))
 
+// Item 3 watches a tracked sync job via the jobs store. Stub it so the
+// view's job-watching wiring is driven by a controllable fake rather
+// than the real polling machinery. The job is held in a reactive ref so
+// the view's `watch(() => getJobById(id))` re-fires when a test mutates
+// it (running → terminal), mirroring the real store's reactivity.
+import { ref } from 'vue'
+import type { Job } from '@/types/job'
+const jobRef = ref<Job | undefined>(undefined)
+const trackJobSpy = vi.fn()
+vi.mock('@/stores/jobs', () => ({
+  useJobsStore: () => ({
+    trackJob: trackJobSpy,
+    getJobById: () => jobRef.value,
+  }),
+}))
+
+function makeJob(over: Partial<Job> = {}): Job {
+  return {
+    id: 'job-1',
+    type: 'fitness_sync_garmin',
+    status: 'running',
+    params: {},
+    progress_current: 0,
+    progress_total: 0,
+    result: null,
+    error_message: null,
+    status_detail: null,
+    created_at: '2026-05-09T00:00:00Z',
+    started_at: null,
+    finished_at: null,
+    ...over,
+  }
+}
+
 // Same chartjs-config stub the dashboard test uses — happy-dom can't
 // resolve the real CSS variables, and we don't need real rendering for
 // this test (we're checking the view's data/template behaviour, not
@@ -99,10 +133,16 @@ vi.mock('chart.js', () => {
   }
 })
 
-import { fetchActivities, fetchDaily, fetchSyncStatus } from '@/api/fitness'
+import {
+  fetchActivities,
+  fetchDaily,
+  fetchSyncStatus,
+  triggerSync,
+} from '@/api/fitness'
 const mockFetchActivities = vi.mocked(fetchActivities)
 const mockFetchDaily = vi.mocked(fetchDaily)
 const mockFetchSyncStatus = vi.mocked(fetchSyncStatus)
+const mockTriggerSync = vi.mocked(triggerSync)
 
 function makeActivity(over: Partial<FitnessActivity> = {}): FitnessActivity {
   return {
@@ -207,6 +247,9 @@ describe('FitnessView', () => {
     mockFetchActivities.mockResolvedValue({ items: [] })
     mockFetchDaily.mockResolvedValue({ items: [] })
     mockFetchSyncStatus.mockResolvedValue(statusOk())
+    trackJobSpy.mockClear()
+    jobRef.value = undefined
+    localStorage.clear()
   })
 
   afterEach(() => {
@@ -424,6 +467,234 @@ describe('FitnessView', () => {
     // MA at the edges truncates to mean of available neighbours:
     // [80, 78] → MA at index 0 = mean(80, 78) = 79; index 1 = mean(80, 78) = 79.
     expect(cfg.data.datasets[0].data).toEqual([79, 79])
+    wrapper.unmount()
+  })
+
+  // ── Item 1: Workouts-per-week Count ↔ Duration toggle ──────────────
+
+  function weeklyChartConfig() {
+    // The weekly chart is the only `type: 'bar'` chart constructed.
+    const call = chartConstructorSpy.mock.calls.find(
+      (c) => (c[1] as { type?: string })?.type === 'bar',
+    )
+    return call?.[1] as
+      | {
+          data: {
+            datasets: Array<{ label: string; data: number[] }>
+          }
+          options: {
+            scales: { y: { title?: { text?: string } } }
+          }
+        }
+      | undefined
+  }
+
+  it('renames the weekly tile heading to "Workouts per week"', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const heading = wrapper.find('[data-testid="fitness-tile-weekly-distinct"]')
+    expect(heading.text()).toContain('Workouts per week')
+    expect(heading.text()).not.toContain('Distinct workouts per week')
+    wrapper.unmount()
+  })
+
+  it('weekly chart shows counts in count mode and hours in duration mode', async () => {
+    // Two runs in the same ISO week: 1800s + 3600s = 5400s = 1.5h total.
+    mockFetchActivities.mockResolvedValue({
+      items: [
+        makeActivity({
+          id: 1,
+          source: 'strava',
+          source_id: 's1',
+          activity_type: 'run',
+          start_time: '2026-05-04T07:00:00Z', // Monday
+          duration_s: 1800,
+        }),
+        makeActivity({
+          id: 2,
+          source: 'strava',
+          source_id: 's2',
+          activity_type: 'run',
+          start_time: '2026-05-06T07:00:00Z', // Wednesday, same week
+          duration_s: 3600,
+        }),
+      ],
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Default = count: the run series should contain a bucket with 2.
+    const countCfg = weeklyChartConfig()
+    const runCount = countCfg!.data.datasets.find((d) => d.label === 'Run')!
+    expect(Math.max(...runCount.data)).toBe(2)
+    expect(countCfg!.options.scales.y.title).toBeUndefined()
+
+    // Flip to duration: same series now sums to 1.5 hours in one bucket.
+    chartConstructorSpy.mockClear()
+    await wrapper
+      .find('[data-testid="fitness-weekly-metric-duration"]')
+      .trigger('click')
+    await flushPromises()
+
+    const durCfg = weeklyChartConfig()
+    const runDur = durCfg!.data.datasets.find((d) => d.label === 'Run')!
+    expect(Math.max(...runDur.data)).toBeCloseTo(1.5, 5)
+    // Duration mode labels the y-axis in hours.
+    expect(durCfg!.options.scales.y.title?.text).toBe('Hours')
+    wrapper.unmount()
+  })
+
+  // ── Item 2: selectable moving-average window ───────────────────────
+
+  function sleepChartConfig() {
+    const call = chartConstructorSpy.mock.calls.find((c) => {
+      const datasets = (
+        c[1] as { data?: { datasets?: Array<{ borderColor?: string }> } }
+      )?.data?.datasets
+      return datasets?.[0]?.borderColor === '#6366f1'
+    })
+    return call?.[1] as
+      | {
+          data: {
+            datasets: Array<{ label: string; data: Array<number | null> }>
+          }
+        }
+      | undefined
+  }
+
+  it('re-renders the wellness charts with the chosen MA window label', async () => {
+    mockFetchDaily.mockResolvedValue({
+      items: [
+        makeDaily({ id: 1, local_date: '2026-05-07', sleep_score: 70 }),
+        makeDaily({ id: 2, local_date: '2026-05-08', sleep_score: 80 }),
+        makeDaily({ id: 3, local_date: '2026-05-09', sleep_score: 90 }),
+      ],
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Default window = 3.
+    expect(sleepChartConfig()!.data.datasets[0].label).toBe('3-day avg')
+
+    chartConstructorSpy.mockClear()
+    await wrapper.find('[data-testid="fitness-ma-window-5"]').trigger('click')
+    await flushPromises()
+
+    const cfg = sleepChartConfig()!
+    expect(cfg.data.datasets[0].label).toBe('5-day avg')
+    // Window 5 over [70,80,90] at index 1 = mean(70,80,90) = 80.
+    expect(cfg.data.datasets[0].data[1]).toBe(80)
+    wrapper.unmount()
+  })
+
+  it('reads the persisted MA window from storage on mount', async () => {
+    localStorage.setItem('fitness:maWindow', '7')
+    mockFetchDaily.mockResolvedValue({
+      items: [makeDaily({ id: 1, local_date: '2026-05-09', sleep_score: 70 })],
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(sleepChartConfig()!.data.datasets[0].label).toBe('7-day avg')
+    expect(
+      wrapper
+        .find('[data-testid="fitness-ma-window-7"]')
+        .attributes('aria-pressed'),
+    ).toBe('true')
+    wrapper.unmount()
+  })
+
+  // ── Item 3: on-page Garmin/Strava sync buttons ─────────────────────
+
+  it('clicking Sync Garmin calls startSync and spins the button', async () => {
+    mockTriggerSync.mockResolvedValue({ job_id: 'job-1', status: 'queued' })
+    // Job stays running so the spinner persists after submit.
+    jobRef.value = makeJob({ status: 'running' })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('[data-testid="fitness-sync-garmin"]').trigger('click')
+    await flushPromises()
+
+    expect(mockTriggerSync).toHaveBeenCalledWith('garmin')
+    expect(
+      wrapper.find('[data-testid="fitness-sync-garmin-spinner"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper
+        .find('[data-testid="fitness-sync-garmin"]')
+        .attributes('disabled'),
+    ).toBeDefined()
+    wrapper.unmount()
+  })
+
+  it('reloads all data when the sync job succeeds', async () => {
+    mockTriggerSync.mockResolvedValue({ job_id: 'job-1', status: 'queued' })
+    jobRef.value = makeJob({ status: 'running' })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('[data-testid="fitness-sync-strava"]').trigger('click')
+    await flushPromises()
+
+    mockFetchActivities.mockClear()
+    mockFetchDaily.mockClear()
+
+    // Job transitions to succeeded — the watcher should fire reloadAll.
+    jobRef.value = makeJob({ status: 'succeeded' })
+    await flushPromises()
+
+    expect(mockFetchActivities).toHaveBeenCalled()
+    expect(mockFetchDaily).toHaveBeenCalled()
+    // Spinner cleared after terminal.
+    expect(
+      wrapper.find('[data-testid="fitness-sync-strava-spinner"]').exists(),
+    ).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('shows an inline error with a settings link when the sync job fails', async () => {
+    mockTriggerSync.mockResolvedValue({ job_id: 'job-1', status: 'queued' })
+    jobRef.value = makeJob({ status: 'running' })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('[data-testid="fitness-sync-garmin"]').trigger('click')
+    await flushPromises()
+
+    jobRef.value = makeJob({ status: 'failed', error_message: 'token expired' })
+    await flushPromises()
+
+    const err = wrapper.find('[data-testid="fitness-sync-garmin-error"]')
+    expect(err.exists()).toBe(true)
+    expect(err.text()).toContain('token expired')
+    const link = wrapper.find('[data-testid="fitness-sync-garmin-error-link"]')
+    expect(link.attributes('href')).toContain('/settings#fitness')
+    wrapper.unmount()
+  })
+
+  it('shows an inline error when sync submission fails', async () => {
+    mockTriggerSync.mockRejectedValue(new Error('network down'))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('[data-testid="fitness-sync-strava"]').trigger('click')
+    await flushPromises()
+
+    const err = wrapper.find('[data-testid="fitness-sync-strava-error"]')
+    expect(err.exists()).toBe(true)
+    expect(err.text()).toContain('network down')
+    // No spinner once submission resolved as a failure.
+    expect(
+      wrapper.find('[data-testid="fitness-sync-strava-spinner"]').exists(),
+    ).toBe(false)
     wrapper.unmount()
   })
 
