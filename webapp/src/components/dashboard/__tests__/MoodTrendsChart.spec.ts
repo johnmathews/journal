@@ -335,6 +335,20 @@ describe('MoodTrendsChart', () => {
     expect(lastConfig.options.scales.y.max).toBe(1)
   })
 
+  it('mood chart tooltip inherits the all-series (index) default, not nearest', async () => {
+    // The mood chart is multi-series; hovering a date must surface every
+    // mood dimension at that date, not just the closest line. It must NOT
+    // locally pin tooltip mode to 'nearest' — it relies on the global
+    // 'index' default set in chartjs-config.ts.
+    await setupWithMoodData()
+
+    const calls = chartConstructorSpy.mock.calls
+    const lastConfig = calls[calls.length - 1][1] as {
+      options: { plugins?: { tooltip?: { mode?: string } } }
+    }
+    expect(lastConfig.options.plugins?.tooltip?.mode).not.toBe('nearest')
+  })
+
   it('mood chart y-axis stays [-1, +1] after toggling a single series', async () => {
     const wrapper = await setupWithMoodData()
     chartConstructorSpy.mockClear()

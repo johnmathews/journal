@@ -147,10 +147,10 @@ describe('EntityTrendsChart', () => {
   })
 
   // Regression: hovering a stacked bar segment used to surface the wrong
-  // dataset (often a zero-value one) because the global tooltip defaults
-  // are `mode: 'nearest'` + `intersect: false`. The stacked Topic Trends
-  // chart needs to opt into `interaction: { mode: 'index', intersect:
-  // false }` and filter zero-valued items out of the tooltip body.
+  // dataset (often a zero-value one). The chart pins `interaction:
+  // { mode: 'index', intersect: false }` so hover hit-testing picks the
+  // whole column (independent of the global tooltip mode), and filters
+  // zero-valued items out of the tooltip body.
   it('stacked entity trends chart uses index mode and filters zero values', async () => {
     mockEntityTrends.mockResolvedValue({
       from: null,

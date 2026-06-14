@@ -42,7 +42,12 @@ Chart.defaults.font.family = '"Inter", sans-serif'
 Chart.defaults.font.weight = 500
 Chart.defaults.plugins.tooltip.borderWidth = 1
 Chart.defaults.plugins.tooltip.displayColors = false
-Chart.defaults.plugins.tooltip.mode = 'nearest'
+// 'index' (not 'nearest') so a tooltip lists every series at the hovered
+// x-position rather than only the closest point. Data has meaning in
+// context — seeing all dimensions at one date is the point of these charts.
+// Single-dataset charts (doughnut distribution, correlation bars) are
+// unaffected since 'index' and 'nearest' coincide when there's one item per x.
+Chart.defaults.plugins.tooltip.mode = 'index'
 Chart.defaults.plugins.tooltip.intersect = false
 Chart.defaults.plugins.tooltip.position = 'nearest'
 Chart.defaults.plugins.tooltip.caretSize = 0

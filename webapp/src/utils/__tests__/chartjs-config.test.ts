@@ -16,7 +16,9 @@ describe('chartjs-config module', () => {
     expect(Chart.defaults.font.weight).toBe(500)
     expect(Chart.defaults.plugins.tooltip.borderWidth).toBe(1)
     expect(Chart.defaults.plugins.tooltip.displayColors).toBe(false)
-    expect(Chart.defaults.plugins.tooltip.mode).toBe('nearest')
+    // 'index' so every chart's tooltip lists ALL series at the hovered
+    // x-position ("data has meaning in context"), not just the nearest one.
+    expect(Chart.defaults.plugins.tooltip.mode).toBe('index')
     expect(Chart.defaults.plugins.tooltip.intersect).toBe(false)
     expect(Chart.defaults.plugins.tooltip.caretSize).toBe(0)
     expect(Chart.defaults.plugins.tooltip.caretPadding).toBe(20)

@@ -56,7 +56,7 @@ export const chartJsMockModule = {
           tooltip: {
             borderWidth: 1,
             displayColors: false,
-            mode: 'nearest',
+            mode: 'index',
             intersect: false,
             position: 'nearest',
             caretSize: 0,
