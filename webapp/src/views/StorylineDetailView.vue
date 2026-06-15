@@ -9,8 +9,12 @@ import { isTerminal } from '@/types/job'
 import StorylineNarrative from '@/components/StorylineNarrative.vue'
 import StorylineCurationList from '@/components/StorylineCurationList.vue'
 import StorylineAnchorEditor from '@/components/StorylineAnchorEditor.vue'
+import ChapterEditMenu from '@/components/storylines/ChapterEditMenu.vue'
+import ChapterDateModal from '@/components/storylines/ChapterDateModal.vue'
+import ChapterConfirmModal from '@/components/storylines/ChapterConfirmModal.vue'
 import { buildCitationRegistry } from '@/composables/useCitationRegistry'
 import { useBackNavigation } from '@/composables/useBackNavigation'
+import type { StorylineChapterSummary } from '@/types/storyline'
 
 const props = defineProps<{
   id: string
@@ -46,6 +50,130 @@ const citationCount = computed(() => narrativePanel.value?.citation_count ?? 0)
 // chapter (last element) is the live, open one and is selected by default.
 const chapters = computed(() => store.currentStoryline?.chapters ?? [])
 const selectedChapterId = ref<number | null>(null)
+
+// --- Chapter editing modal state ---
+type ChapterModal = 'add' | 'edit' | 'split' | 'delete' | null
+const activeModal = ref<ChapterModal>(null)
+const modalTargetChapter = ref<StorylineChapterSummary | null>(null)
+const chapterActionError = ref<string | null>(null)
+
+function openAddChapter(): void {
+  modalTargetChapter.value = null
+  activeModal.value = 'add'
+}
+
+function openEditChapter(ch: StorylineChapterSummary): void {
+  modalTargetChapter.value = ch
+  activeModal.value = 'edit'
+}
+
+function openSplitChapter(ch: StorylineChapterSummary): void {
+  modalTargetChapter.value = ch
+  activeModal.value = 'split'
+}
+
+function closeModal(): void {
+  activeModal.value = null
+  modalTargetChapter.value = null
+}
+
+async function onAddChapterSubmit(payload: {
+  start_date?: string
+  end_date?: string
+}): Promise<void> {
+  if (!store.currentStoryline || !payload.start_date) return
+  chapterActionError.value = null
+  try {
+    await store.addChapter(store.currentStoryline.id, {
+      start_date: payload.start_date,
+      ...(payload.end_date ? { end_date: payload.end_date } : {}),
+    })
+    closeModal()
+  } catch (e) {
+    chapterActionError.value =
+      e instanceof Error ? e.message : 'Failed to add chapter'
+  }
+}
+
+async function onEditChapterSubmit(payload: {
+  start_date?: string
+  end_date?: string
+}): Promise<void> {
+  if (!store.currentStoryline || !modalTargetChapter.value) return
+  chapterActionError.value = null
+  try {
+    await store.updateChapterDates(
+      store.currentStoryline.id,
+      modalTargetChapter.value.id,
+      payload,
+    )
+    closeModal()
+  } catch (e) {
+    chapterActionError.value =
+      e instanceof Error ? e.message : 'Failed to update chapter dates'
+  }
+}
+
+async function onSplitChapterSubmit(payload: {
+  start_date?: string
+  end_date?: string
+}): Promise<void> {
+  if (
+    !store.currentStoryline ||
+    !modalTargetChapter.value ||
+    !payload.start_date
+  )
+    return
+  chapterActionError.value = null
+  try {
+    await store.splitChapter(
+      store.currentStoryline.id,
+      modalTargetChapter.value.id,
+      payload.start_date,
+    )
+    closeModal()
+  } catch (e) {
+    chapterActionError.value =
+      e instanceof Error ? e.message : 'Failed to split chapter'
+  }
+}
+
+async function onMergeChapter(ch: StorylineChapterSummary): Promise<void> {
+  if (!store.currentStoryline) return
+  const idx = chapters.value.findIndex((c) => c.id === ch.id)
+  const next = chapters.value[idx + 1]
+  if (!next) return
+  chapterActionError.value = null
+  try {
+    await store.mergeChapters(store.currentStoryline.id, [ch.id, next.id])
+  } catch (e) {
+    chapterActionError.value =
+      e instanceof Error ? e.message : 'Failed to merge chapters'
+  }
+}
+
+function openDeleteChapter(ch: StorylineChapterSummary): void {
+  modalTargetChapter.value = ch
+  activeModal.value = 'delete'
+}
+
+async function onDeleteChapterConfirm(payload: {
+  allow_gap: boolean
+}): Promise<void> {
+  if (!store.currentStoryline || !modalTargetChapter.value) return
+  chapterActionError.value = null
+  try {
+    await store.deleteChapter(
+      store.currentStoryline.id,
+      modalTargetChapter.value.id,
+      payload.allow_gap,
+    )
+    closeModal()
+  } catch (e) {
+    chapterActionError.value =
+      e instanceof Error ? e.message : 'Failed to delete chapter'
+  }
+}
 
 // Shared numbering across both panels of the CURRENT chapter. Narrative
 // drives [1] [2] [3] in encounter order; curation-only entries pick up
@@ -398,17 +526,41 @@ onMounted(async () => {
           class="md:w-56 md:shrink-0 md:border-r border-gray-200 dark:border-gray-700/60 md:pr-3"
           data-testid="chapter-rail"
         >
-          <h2
-            class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-2"
+          <div class="flex items-center justify-between mb-2">
+            <h2
+              class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300"
+            >
+              Chapters
+            </h2>
+            <button
+              type="button"
+              data-test="add-chapter"
+              class="text-xs text-violet-600 dark:text-violet-400 hover:underline"
+              @click="openAddChapter"
+            >
+              + Add chapter
+            </button>
+          </div>
+
+          <!-- Chapter action error banner -->
+          <div
+            v-if="chapterActionError"
+            class="mb-2 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 px-2 py-1 text-xs text-red-700 dark:text-red-400"
+            data-testid="chapter-action-error"
           >
-            Chapters
-          </h2>
+            {{ chapterActionError }}
+          </div>
+
           <ul class="space-y-1">
-            <li v-for="c in chapters" :key="c.id">
+            <li
+              v-for="(c, index) in chapters"
+              :key="c.id"
+              class="flex items-start gap-1"
+            >
               <button
                 type="button"
                 data-test="chapter-rail-item"
-                class="w-full text-left px-2 py-1.5 rounded-md text-sm transition-colors"
+                class="flex-1 min-w-0 text-left px-2 py-1.5 rounded-md text-sm transition-colors"
                 :class="
                   c.id === selectedChapterId
                     ? 'bg-violet-500/10 text-violet-700 dark:text-violet-300'
@@ -432,9 +584,58 @@ onMounted(async () => {
                   >
                 </span>
               </button>
+              <span
+                v-if="store.generatingChapterIds.has(c.id)"
+                data-test="chapter-generating"
+                class="text-xs text-violet-500 dark:text-violet-400 animate-pulse self-center"
+                aria-label="Generating chapter content"
+                >generating…</span
+              >
+              <ChapterEditMenu
+                :chapter="c"
+                :has-next="index < chapters.length - 1"
+                @edit="openEditChapter(c)"
+                @split="openSplitChapter(c)"
+                @merge="onMergeChapter(c)"
+                @delete="openDeleteChapter(c)"
+              />
             </li>
           </ul>
         </aside>
+
+        <!-- Chapter date modal (add / edit / split) -->
+        <ChapterDateModal
+          v-if="activeModal === 'add'"
+          title="Add chapter"
+          :show-end="true"
+          hint="Leave End blank to start a new open chapter, or set it to add a chapter over a fixed date range."
+          @submit="onAddChapterSubmit"
+          @cancel="closeModal"
+        />
+        <ChapterDateModal
+          v-else-if="activeModal === 'edit' && modalTargetChapter"
+          title="Edit chapter dates"
+          :show-end="modalTargetChapter.state === 'closed'"
+          :initial-start="modalTargetChapter.start_date ?? undefined"
+          :initial-end="modalTargetChapter.end_date ?? undefined"
+          @submit="onEditChapterSubmit"
+          @cancel="closeModal"
+        />
+        <ChapterDateModal
+          v-else-if="activeModal === 'split' && modalTargetChapter"
+          title="Split chapter"
+          :show-end="false"
+          @submit="onSplitChapterSubmit"
+          @cancel="closeModal"
+        />
+        <ChapterConfirmModal
+          v-else-if="activeModal === 'delete' && modalTargetChapter"
+          title="Delete chapter"
+          :message="`Delete '${modalTargetChapter.title || `Chapter ${modalTargetChapter.seq}`}'? The source journal entries are kept.`"
+          :show-allow-gap="true"
+          @confirm="onDeleteChapterConfirm"
+          @cancel="closeModal"
+        />
 
         <!-- Reader: chapter-loading skeleton, then the two-panel layout.
              Mirrors the edit-mode layout in EntryDetailView.vue. -->

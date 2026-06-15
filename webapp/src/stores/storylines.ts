@@ -1,6 +1,9 @@
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import type {
+  AddChapterRequest,
+  ChapterMutationResponse,
+  ChapterMultiMutationResponse,
   CreateStorylineRequest,
   CreateStorylineResponse,
   RegenerateStorylineRequest,
@@ -10,19 +13,27 @@ import type {
   StorylineDetail,
   StorylineListParams,
   StorylineSummary,
+  UpdateChapterWindowRequest,
 } from '@/types/storyline'
 import {
+  addChapter as addChapterApi,
   createStoryline as createStorylineApi,
+  deleteChapter as deleteChapterApi,
   deleteStoryline as deleteStorylineApi,
   fetchStoryline,
   fetchStorylineChapter,
   fetchStorylines,
+  mergeChapters as mergeChaptersApi,
   regenerateStoryline as regenerateStorylineApi,
   regenerateStorylineChapter as regenerateStorylineChapterApi,
   renameStorylineChapter as renameStorylineChapterApi,
   setStorylineAnchors as setStorylineAnchorsApi,
+  splitChapter as splitChapterApi,
+  updateChapterWindow as updateChapterWindowApi,
   updateStoryline as updateStorylineApi,
 } from '@/api/storylines'
+import { useJobsStore } from '@/stores/jobs'
+import { isTerminal } from '@/types/job'
 
 export const useStorylinesStore = defineStore('storylines', () => {
   const storylines = ref<StorylineSummary[]>([])
@@ -48,6 +59,10 @@ export const useStorylinesStore = defineStore('storylines', () => {
     limit: 20,
     offset: 0,
   })
+
+  /** Chapter ids that have queued regeneration jobs currently in-flight.
+   *  Templates can call `.has(ch.id)` to show a "generating…" indicator. */
+  const generatingChapterIds = ref<Set<number>>(new Set())
 
   const totalPages = computed(() =>
     Math.ceil(total.value / (currentParams.value.limit || 20)),
@@ -254,6 +269,122 @@ export const useStorylinesStore = defineStore('storylines', () => {
     }
   }
 
+  /** Register per-chapter regeneration jobs and remove ids from the
+   *  generating set when all jobs reach a terminal status.
+   *
+   *  When `chapterIds` is non-empty, each id is added to
+   *  `generatingChapterIds` immediately so the UI can show a badge.
+   *  When all jobs are terminal (or there were none to begin with and
+   *  `chapterIds` was also empty), the ids are cleared and the storyline
+   *  is reloaded to pick up fresh panels.
+   *
+   *  If `jobIds` is empty but `chapterIds` is non-empty, the ids are
+   *  cleared right away (no async work to wait for). */
+  function _trackChapterRegens(
+    storylineId: number,
+    chapterIds: number[],
+    jobIds: string[],
+  ): void {
+    const jobsStore = useJobsStore()
+    chapterIds.forEach((id) => {
+      generatingChapterIds.value = new Set(generatingChapterIds.value)
+      generatingChapterIds.value.add(id)
+    })
+    jobIds.forEach((id) => jobsStore.trackJob(id, 'storyline_generation'))
+    if (jobIds.length === 0) {
+      if (chapterIds.length > 0) {
+        const next = new Set(generatingChapterIds.value)
+        chapterIds.forEach((id) => next.delete(id))
+        generatingChapterIds.value = next
+      }
+      return
+    }
+    // Use a wrapper ref to avoid TDZ: `immediate: true` can fire the
+    // callback before `watch()` returns, so we must not reference the
+    // return value of `watch()` directly inside the callback.
+    const stopRef = { fn: (): void => {} }
+    stopRef.fn = watch(
+      () => jobIds.map((id) => jobsStore.getJobById(id)?.status),
+      (statuses) => {
+        if (statuses.every((s) => s != null && isTerminal(s))) {
+          const next = new Set(generatingChapterIds.value)
+          chapterIds.forEach((id) => next.delete(id))
+          generatingChapterIds.value = next
+          stopRef.fn()
+          void loadStoryline(storylineId)
+        }
+      },
+      { immediate: true },
+    )
+  }
+
+  async function addChapter(
+    storylineId: number,
+    request: AddChapterRequest,
+  ): Promise<ChapterMutationResponse> {
+    const resp = await addChapterApi(storylineId, request)
+    await loadStoryline(storylineId)
+    _trackChapterRegens(storylineId, [resp.chapter.id], resp.job_ids)
+    return resp
+  }
+
+  async function splitChapter(
+    storylineId: number,
+    chapterId: number,
+    date: string,
+  ): Promise<ChapterMultiMutationResponse> {
+    const resp = await splitChapterApi(storylineId, chapterId, { date })
+    await loadStoryline(storylineId)
+    _trackChapterRegens(
+      storylineId,
+      resp.chapters.map((c) => c.id),
+      resp.job_ids,
+    )
+    return resp
+  }
+
+  async function mergeChapters(
+    storylineId: number,
+    chapterIds: number[],
+  ): Promise<ChapterMutationResponse> {
+    const resp = await mergeChaptersApi(storylineId, {
+      chapter_ids: chapterIds,
+    })
+    await loadStoryline(storylineId)
+    _trackChapterRegens(storylineId, [resp.chapter.id], resp.job_ids)
+    return resp
+  }
+
+  async function updateChapterDates(
+    storylineId: number,
+    chapterId: number,
+    request: UpdateChapterWindowRequest,
+  ): Promise<ChapterMultiMutationResponse> {
+    const resp = await updateChapterWindowApi(storylineId, chapterId, request)
+    await loadStoryline(storylineId)
+    _trackChapterRegens(
+      storylineId,
+      resp.chapters.map((c) => c.id),
+      resp.job_ids,
+    )
+    return resp
+  }
+
+  async function deleteChapter(
+    storylineId: number,
+    chapterId: number,
+    allowGap = false,
+  ): Promise<void> {
+    const resp = await deleteChapterApi(storylineId, chapterId, {
+      allow_gap: allowGap,
+    })
+    await loadStoryline(storylineId)
+    // No chapter objects returned — skip per-chapter marking, but still
+    // set up the watcher to reload when jobs complete (empty chapterIds
+    // skips the marking but the watcher fires as usual).
+    _trackChapterRegens(storylineId, [], resp.job_ids)
+  }
+
   async function removeStoryline(id: number): Promise<void> {
     error.value = null
     try {
@@ -288,6 +419,7 @@ export const useStorylinesStore = defineStore('storylines', () => {
     savingName,
     nameError,
     currentParams,
+    generatingChapterIds,
     totalPages,
     currentPage,
     hasStorylines,
@@ -302,5 +434,10 @@ export const useStorylinesStore = defineStore('storylines', () => {
     setAnchors,
     renameStoryline,
     removeStoryline,
+    addChapter,
+    splitChapter,
+    mergeChapters,
+    updateChapterDates,
+    deleteChapter,
   }
 })

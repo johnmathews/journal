@@ -209,3 +209,42 @@ export interface RegenerateStorylineRequest {
   end_date?: string
   mode?: 'replace' | 'append'
 }
+
+/** Response for chapter-edit endpoints that return one affected chapter
+ *  (add, merge). */
+export interface ChapterMutationResponse {
+  chapter: StorylineChapterSummary
+  job_ids: string[]
+}
+
+/** Response for edits that return multiple affected chapters (split,
+ *  date-edit). */
+export interface ChapterMultiMutationResponse {
+  chapters: StorylineChapterSummary[]
+  job_ids: string[]
+}
+
+export interface AddChapterRequest {
+  start_date: string
+  /** Omit for a new-latest open chapter; set for a ranged closed one. */
+  end_date?: string
+}
+
+export interface SplitChapterRequest {
+  date: string
+}
+
+export interface MergeChaptersRequest {
+  chapter_ids: number[]
+}
+
+/** PATCH body for a chapter date edit (rename uses RenameChapterRequest). */
+export interface UpdateChapterWindowRequest {
+  start_date?: string
+  end_date?: string
+  allow_gap?: boolean
+}
+
+export interface DeleteChapterRequest {
+  allow_gap?: boolean
+}

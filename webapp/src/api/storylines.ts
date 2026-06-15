@@ -1,16 +1,23 @@
 import type {
+  AddChapterRequest,
+  ChapterMultiMutationResponse,
+  ChapterMutationResponse,
   CreateStorylineRequest,
   CreateStorylineResponse,
+  DeleteChapterRequest,
+  MergeChaptersRequest,
   RegenerateStorylineRequest,
   RegenerateStorylineResponse,
   RenameChapterRequest,
   SetStorylineAnchorsRequest,
   SetStorylineAnchorsResponse,
+  SplitChapterRequest,
   StorylineChapterDetail,
   StorylineChapterSummary,
   StorylineDetail,
   StorylineListParams,
   StorylineListResponse,
+  UpdateChapterWindowRequest,
   UpdateStorylineRequest,
   UpdateStorylineResponse,
 } from '@/types/storyline'
@@ -122,5 +129,58 @@ export function setStorylineAnchors(
       method: 'PUT',
       body: JSON.stringify(request),
     },
+  )
+}
+
+export function addChapter(
+  storylineId: number,
+  request: AddChapterRequest,
+): Promise<ChapterMutationResponse> {
+  return apiFetch<ChapterMutationResponse>(
+    `/api/storylines/${storylineId}/chapters`,
+    { method: 'POST', body: JSON.stringify(request) },
+  )
+}
+
+export function splitChapter(
+  storylineId: number,
+  chapterId: number,
+  request: SplitChapterRequest,
+): Promise<ChapterMultiMutationResponse> {
+  return apiFetch<ChapterMultiMutationResponse>(
+    `/api/storylines/${storylineId}/chapters/${chapterId}/split`,
+    { method: 'POST', body: JSON.stringify(request) },
+  )
+}
+
+export function mergeChapters(
+  storylineId: number,
+  request: MergeChaptersRequest,
+): Promise<ChapterMutationResponse> {
+  return apiFetch<ChapterMutationResponse>(
+    `/api/storylines/${storylineId}/chapters/merge`,
+    { method: 'POST', body: JSON.stringify(request) },
+  )
+}
+
+export function updateChapterWindow(
+  storylineId: number,
+  chapterId: number,
+  request: UpdateChapterWindowRequest,
+): Promise<ChapterMultiMutationResponse> {
+  return apiFetch<ChapterMultiMutationResponse>(
+    `/api/storylines/${storylineId}/chapters/${chapterId}`,
+    { method: 'PATCH', body: JSON.stringify(request) },
+  )
+}
+
+export function deleteChapter(
+  storylineId: number,
+  chapterId: number,
+  request: DeleteChapterRequest = {},
+): Promise<{ deleted: boolean; job_ids: string[] }> {
+  return apiFetch<{ deleted: boolean; job_ids: string[] }>(
+    `/api/storylines/${storylineId}/chapters/${chapterId}`,
+    { method: 'DELETE', body: JSON.stringify(request) },
   )
 }
