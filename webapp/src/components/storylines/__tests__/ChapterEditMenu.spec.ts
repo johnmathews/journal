@@ -17,16 +17,16 @@ const chapter = {
 describe('ChapterEditMenu', () => {
   it('emits edit/split intents', async () => {
     const w = mount(ChapterEditMenu, { props: { chapter, hasNext: true } })
-    await w.find('[data-test="menu-toggle"]').trigger('click')
-    await w.find('[data-test="action-edit"]').trigger('click')
+    await w.find('[data-testid="menu-toggle"]').trigger('click')
+    await w.find('[data-testid="action-edit"]').trigger('click')
     expect(w.emitted('edit')).toBeTruthy()
-    await w.find('[data-test="menu-toggle"]').trigger('click')
-    await w.find('[data-test="action-split"]').trigger('click')
+    await w.find('[data-testid="menu-toggle"]').trigger('click')
+    await w.find('[data-testid="action-split"]').trigger('click')
     expect(w.emitted('split')).toBeTruthy()
   })
   it('hides "merge with next" when there is no next chapter', async () => {
     const w = mount(ChapterEditMenu, { props: { chapter, hasNext: false } })
-    await w.find('[data-test="menu-toggle"]').trigger('click')
-    expect(w.find('[data-test="action-merge"]').exists()).toBe(false)
+    await w.find('[data-testid="menu-toggle"]').trigger('click')
+    expect(w.find('[data-testid="action-merge"]').exists()).toBe(false)
   })
 })

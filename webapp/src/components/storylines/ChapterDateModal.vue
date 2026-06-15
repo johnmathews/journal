@@ -32,7 +32,7 @@ function save() {
         Start
         <input
           v-model="start"
-          data-test="start"
+          data-testid="start"
           type="date"
           class="mt-1 w-full rounded border px-2 py-1 dark:bg-slate-700"
         />
@@ -41,28 +41,28 @@ function save() {
         End
         <input
           v-model="end"
-          data-test="end"
+          data-testid="end"
           type="date"
           class="mt-1 w-full rounded border px-2 py-1 dark:bg-slate-700"
         />
       </label>
       <p
         v-if="hint"
-        data-test="chapter-modal-hint"
+        data-testid="chapter-modal-hint"
         class="mt-3 text-xs text-gray-500 dark:text-gray-400"
       >
         {{ hint }}
       </p>
       <div class="mt-4 flex justify-end gap-2">
         <button
-          data-test="cancel"
+          data-testid="cancel"
           class="px-3 py-1 text-sm"
           @click="emit('cancel')"
         >
           Cancel
         </button>
         <button
-          data-test="save"
+          data-testid="save"
           class="rounded bg-indigo-600 px-3 py-1 text-sm text-white"
           @click="save"
         >
