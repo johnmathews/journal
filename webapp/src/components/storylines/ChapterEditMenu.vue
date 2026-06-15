@@ -15,7 +15,7 @@ function pick(action: 'edit' | 'split' | 'merge' | 'delete') {
 <template>
   <div class="relative inline-block">
     <button
-      data-test="menu-toggle"
+      data-testid="menu-toggle"
       class="px-2 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
       @click.stop="open = !open"
     >
@@ -27,7 +27,7 @@ function pick(action: 'edit' | 'split' | 'merge' | 'delete') {
     >
       <li>
         <button
-          data-test="action-edit"
+          data-testid="action-edit"
           class="block w-full px-3 py-1.5 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700"
           @click="pick('edit')"
         >
@@ -36,7 +36,7 @@ function pick(action: 'edit' | 'split' | 'merge' | 'delete') {
       </li>
       <li>
         <button
-          data-test="action-split"
+          data-testid="action-split"
           class="block w-full px-3 py-1.5 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700"
           @click="pick('split')"
         >
@@ -45,7 +45,7 @@ function pick(action: 'edit' | 'split' | 'merge' | 'delete') {
       </li>
       <li v-if="hasNext">
         <button
-          data-test="action-merge"
+          data-testid="action-merge"
           class="block w-full px-3 py-1.5 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700"
           @click="pick('merge')"
         >
@@ -54,7 +54,7 @@ function pick(action: 'edit' | 'split' | 'merge' | 'delete') {
       </li>
       <li>
         <button
-          data-test="action-delete"
+          data-testid="action-delete"
           class="block w-full px-3 py-1.5 text-left text-sm text-red-600 hover:bg-slate-100 dark:hover:bg-slate-700"
           @click="pick('delete')"
         >

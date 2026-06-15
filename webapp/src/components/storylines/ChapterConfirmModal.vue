@@ -16,19 +16,19 @@ const allowGap = ref(false)
       <h3 class="mb-2 font-semibold">{{ title }}</h3>
       <p class="text-sm text-slate-600 dark:text-slate-300">{{ message }}</p>
       <label v-if="showAllowGap" class="mt-3 flex items-center gap-2 text-sm">
-        <input v-model="allowGap" type="checkbox" data-test="allow-gap" />
+        <input v-model="allowGap" type="checkbox" data-testid="allow-gap" />
         Leave a gap instead of merging into the neighbour
       </label>
       <div class="mt-4 flex justify-end gap-2">
         <button
-          data-test="cancel"
+          data-testid="cancel"
           class="px-3 py-1 text-sm"
           @click="emit('cancel')"
         >
           Cancel
         </button>
         <button
-          data-test="confirm"
+          data-testid="confirm"
           class="rounded bg-red-600 px-3 py-1 text-sm text-white"
           @click="emit('confirm', { allow_gap: allowGap })"
         >

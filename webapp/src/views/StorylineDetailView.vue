@@ -517,232 +517,239 @@ onMounted(async () => {
         />
       </div>
 
-      <!-- Chapter rail (left) + two-panel reader (right). The rail lists
-           the storyline's chapters; selecting one lazy-loads its panels
-           into the reader, and citation numbering restarts per chapter. -->
-      <div class="flex flex-col md:flex-row gap-4">
-        <!-- Left chapter rail (Layout A). -->
-        <aside
-          class="md:w-56 md:shrink-0 md:border-r border-gray-200 dark:border-gray-700/60 md:pr-3"
-          data-testid="chapter-rail"
+      <!-- Chapters strip: a horizontal, wrapping row of chapter chips placed
+           below the anchors/meta row (chapters are chronological, so they read
+           naturally left-to-right). This frees the full width for the two-panel
+           reader below. `flex-wrap` (not horizontal scroll) keeps it robust on
+           portrait phones AND avoids clipping ChapterEditMenu's absolute
+           dropdown inside a scroll container. -->
+      <div class="mb-6" data-testid="chapters-bar">
+        <div class="flex items-center justify-between mb-2">
+          <h2
+            class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300"
+          >
+            Chapters
+          </h2>
+          <button
+            type="button"
+            data-testid="add-chapter"
+            class="text-xs text-violet-600 dark:text-violet-400 hover:underline"
+            @click="openAddChapter"
+          >
+            + Add chapter
+          </button>
+        </div>
+
+        <!-- Chapter action error banner -->
+        <div
+          v-if="chapterActionError"
+          class="mb-2 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 px-2 py-1 text-xs text-red-700 dark:text-red-400"
+          data-testid="chapter-action-error"
         >
-          <div class="flex items-center justify-between mb-2">
+          {{ chapterActionError }}
+        </div>
+
+        <div
+          class="flex flex-wrap items-center gap-2"
+          data-testid="chapter-strip"
+        >
+          <div
+            v-for="(c, index) in chapters"
+            :key="c.id"
+            data-testid="chapter-chip"
+            class="flex items-center gap-0.5 shrink-0"
+          >
+            <button
+              type="button"
+              data-testid="chapter-rail-item"
+              class="text-left px-3 py-1.5 rounded-md border text-sm transition-colors"
+              :class="
+                c.id === selectedChapterId
+                  ? 'border-violet-300 dark:border-violet-700/60 bg-violet-500/10 text-violet-700 dark:text-violet-300'
+                  : 'border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/40'
+              "
+              :aria-current="c.id === selectedChapterId ? 'true' : undefined"
+              @click="selectChapter(c.id)"
+            >
+              <span class="font-medium whitespace-nowrap">{{
+                c.title || `Chapter ${c.seq}`
+              }}</span>
+              <span
+                class="block text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap"
+              >
+                {{ c.start_date ?? '…' }} – {{ c.end_date ?? 'now' }}
+                <span
+                  v-if="c.state === 'open'"
+                  class="ml-1 text-emerald-600 dark:text-emerald-400"
+                  >• open</span
+                >
+                <span v-else class="ml-1 text-gray-400 dark:text-gray-500"
+                  >• closed</span
+                >
+              </span>
+            </button>
+            <span
+              v-if="store.generatingChapterIds.has(c.id)"
+              data-testid="chapter-generating"
+              class="text-xs text-violet-500 dark:text-violet-400 animate-pulse self-center"
+              aria-label="Generating chapter content"
+              >generating…</span
+            >
+            <ChapterEditMenu
+              :chapter="c"
+              :has-next="index < chapters.length - 1"
+              @edit="openEditChapter(c)"
+              @split="openSplitChapter(c)"
+              @merge="onMergeChapter(c)"
+              @delete="openDeleteChapter(c)"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- Chapter date modal (add / edit / split) -->
+      <ChapterDateModal
+        v-if="activeModal === 'add'"
+        title="Add chapter"
+        :show-end="true"
+        hint="Leave End blank to start a new open chapter, or set it to add a chapter over a fixed date range."
+        @submit="onAddChapterSubmit"
+        @cancel="closeModal"
+      />
+      <ChapterDateModal
+        v-else-if="activeModal === 'edit' && modalTargetChapter"
+        title="Edit chapter dates"
+        :show-end="modalTargetChapter.state === 'closed'"
+        :initial-start="modalTargetChapter.start_date ?? undefined"
+        :initial-end="modalTargetChapter.end_date ?? undefined"
+        @submit="onEditChapterSubmit"
+        @cancel="closeModal"
+      />
+      <ChapterDateModal
+        v-else-if="activeModal === 'split' && modalTargetChapter"
+        title="Split chapter"
+        :show-end="false"
+        @submit="onSplitChapterSubmit"
+        @cancel="closeModal"
+      />
+      <ChapterConfirmModal
+        v-else-if="activeModal === 'delete' && modalTargetChapter"
+        title="Delete chapter"
+        :message="`Delete '${modalTargetChapter.title || `Chapter ${modalTargetChapter.seq}`}'? The source journal entries are kept.`"
+        :show-allow-gap="true"
+        @confirm="onDeleteChapterConfirm"
+        @cancel="closeModal"
+      />
+
+      <!-- Reader: chapter-loading skeleton, then the two-panel layout.
+             Mirrors the edit-mode layout in EntryDetailView.vue. -->
+      <div
+        v-if="store.chapterLoading && !store.currentChapter"
+        class="py-16 text-center text-gray-600 dark:text-gray-300"
+        data-testid="chapter-loading"
+      >
+        Loading chapter…
+      </div>
+      <!-- Two-panel reader, now full-width: stacks below lg (1024px),
+             side-by-side above. Each panel scrolls independently; there's no
+             synchronised scrolling primitive in v1. -->
+      <div
+        v-else
+        class="flex flex-col lg:flex-row gap-4"
+        data-testid="storyline-reader"
+      >
+        <section
+          class="lg:flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4 md:p-6"
+          data-testid="narrative-panel"
+        >
+          <h2
+            class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-3"
+          >
+            Narrative
+          </h2>
+          <div
+            v-if="narrativePanel && narrativePanel.segments.length > 0"
+            class="storyline-panel-body"
+          >
+            <StorylineNarrative
+              :segments="narrativePanel.segments"
+              :registry="citationRegistry"
+            />
+          </div>
+          <div
+            v-else
+            class="py-8 text-center text-sm text-gray-500 dark:text-gray-400"
+            data-testid="narrative-empty"
+          >
+            No narrative segments yet. Regenerate to populate.
+          </div>
+        </section>
+
+        <section
+          class="lg:flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4 md:p-6"
+          data-testid="curation-panel"
+        >
+          <div class="flex items-center justify-between gap-3 mb-3">
             <h2
               class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300"
             >
-              Chapters
+              Curation
             </h2>
-            <button
-              type="button"
-              data-test="add-chapter"
-              class="text-xs text-violet-600 dark:text-violet-400 hover:underline"
-              @click="openAddChapter"
-            >
-              + Add chapter
-            </button>
-          </div>
-
-          <!-- Chapter action error banner -->
-          <div
-            v-if="chapterActionError"
-            class="mb-2 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 px-2 py-1 text-xs text-red-700 dark:text-red-400"
-            data-testid="chapter-action-error"
-          >
-            {{ chapterActionError }}
-          </div>
-
-          <ul class="space-y-1">
-            <li
-              v-for="(c, index) in chapters"
-              :key="c.id"
-              class="flex items-start gap-1"
+            <div
+              v-if="curationHasAbsoluteDates"
+              class="curation-date-toggle inline-flex rounded-md border border-gray-200 dark:border-gray-700/60 overflow-hidden text-xs"
+              role="group"
+              aria-label="Date display mode"
+              data-testid="curation-date-toggle"
             >
               <button
                 type="button"
-                data-test="chapter-rail-item"
-                class="flex-1 min-w-0 text-left px-2 py-1.5 rounded-md text-sm transition-colors"
+                class="px-2 py-1 transition-colors"
                 :class="
-                  c.id === selectedChapterId
-                    ? 'bg-violet-500/10 text-violet-700 dark:text-violet-300'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/40'
+                  curationDateMode === 'relative'
+                    ? 'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
+                    : 'bg-white text-gray-500 dark:bg-gray-800 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                 "
-                :aria-current="c.id === selectedChapterId ? 'true' : undefined"
-                @click="selectChapter(c.id)"
+                :aria-pressed="curationDateMode === 'relative'"
+                data-testid="curation-date-toggle-relative"
+                @click="curationDateMode = 'relative'"
               >
-                <span class="font-medium">{{
-                  c.title || `Chapter ${c.seq}`
-                }}</span>
-                <span class="block text-xs text-gray-500 dark:text-gray-400">
-                  {{ c.start_date ?? '…' }} – {{ c.end_date ?? 'now' }}
-                  <span
-                    v-if="c.state === 'open'"
-                    class="ml-1 text-emerald-600 dark:text-emerald-400"
-                    >• open</span
-                  >
-                  <span v-else class="ml-1 text-gray-400 dark:text-gray-500"
-                    >• closed</span
-                  >
-                </span>
+                Relative
               </button>
-              <span
-                v-if="store.generatingChapterIds.has(c.id)"
-                data-test="chapter-generating"
-                class="text-xs text-violet-500 dark:text-violet-400 animate-pulse self-center"
-                aria-label="Generating chapter content"
-                >generating…</span
+              <button
+                type="button"
+                class="px-2 py-1 border-l border-gray-200 dark:border-gray-700/60 transition-colors"
+                :class="
+                  curationDateMode === 'absolute'
+                    ? 'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
+                    : 'bg-white text-gray-500 dark:bg-gray-800 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                "
+                :aria-pressed="curationDateMode === 'absolute'"
+                data-testid="curation-date-toggle-absolute"
+                @click="curationDateMode = 'absolute'"
               >
-              <ChapterEditMenu
-                :chapter="c"
-                :has-next="index < chapters.length - 1"
-                @edit="openEditChapter(c)"
-                @split="openSplitChapter(c)"
-                @merge="onMergeChapter(c)"
-                @delete="openDeleteChapter(c)"
-              />
-            </li>
-          </ul>
-        </aside>
-
-        <!-- Chapter date modal (add / edit / split) -->
-        <ChapterDateModal
-          v-if="activeModal === 'add'"
-          title="Add chapter"
-          :show-end="true"
-          hint="Leave End blank to start a new open chapter, or set it to add a chapter over a fixed date range."
-          @submit="onAddChapterSubmit"
-          @cancel="closeModal"
-        />
-        <ChapterDateModal
-          v-else-if="activeModal === 'edit' && modalTargetChapter"
-          title="Edit chapter dates"
-          :show-end="modalTargetChapter.state === 'closed'"
-          :initial-start="modalTargetChapter.start_date ?? undefined"
-          :initial-end="modalTargetChapter.end_date ?? undefined"
-          @submit="onEditChapterSubmit"
-          @cancel="closeModal"
-        />
-        <ChapterDateModal
-          v-else-if="activeModal === 'split' && modalTargetChapter"
-          title="Split chapter"
-          :show-end="false"
-          @submit="onSplitChapterSubmit"
-          @cancel="closeModal"
-        />
-        <ChapterConfirmModal
-          v-else-if="activeModal === 'delete' && modalTargetChapter"
-          title="Delete chapter"
-          :message="`Delete '${modalTargetChapter.title || `Chapter ${modalTargetChapter.seq}`}'? The source journal entries are kept.`"
-          :show-allow-gap="true"
-          @confirm="onDeleteChapterConfirm"
-          @cancel="closeModal"
-        />
-
-        <!-- Reader: chapter-loading skeleton, then the two-panel layout.
-             Mirrors the edit-mode layout in EntryDetailView.vue. -->
-        <div
-          v-if="store.chapterLoading && !store.currentChapter"
-          class="flex-1 py-16 text-center text-gray-600 dark:text-gray-300"
-          data-testid="chapter-loading"
-        >
-          Loading chapter…
-        </div>
-        <!-- Two-panel layout: stacks below lg (1024px), side-by-side above.
-             Each panel scrolls independently; there's no synchronised
-             scrolling primitive in v1. -->
-        <div v-else class="flex-1 flex flex-col lg:flex-row gap-4">
-          <section
-            class="lg:flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4 md:p-6"
-            data-testid="narrative-panel"
+                Absolute
+              </button>
+            </div>
+          </div>
+          <div
+            v-if="curationPanel && curationPanel.segments.length > 0"
+            class="storyline-panel-body"
           >
-            <h2
-              class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-3"
-            >
-              Narrative
-            </h2>
-            <div
-              v-if="narrativePanel && narrativePanel.segments.length > 0"
-              class="storyline-panel-body"
-            >
-              <StorylineNarrative
-                :segments="narrativePanel.segments"
-                :registry="citationRegistry"
-              />
-            </div>
-            <div
-              v-else
-              class="py-8 text-center text-sm text-gray-500 dark:text-gray-400"
-              data-testid="narrative-empty"
-            >
-              No narrative segments yet. Regenerate to populate.
-            </div>
-          </section>
-
-          <section
-            class="lg:flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4 md:p-6"
-            data-testid="curation-panel"
+            <StorylineCurationList
+              :segments="curationPanel.segments"
+              :registry="citationRegistry"
+              :date-mode="curationDateMode"
+            />
+          </div>
+          <div
+            v-else
+            class="py-8 text-center text-sm text-gray-500 dark:text-gray-400"
+            data-testid="curation-empty"
           >
-            <div class="flex items-center justify-between gap-3 mb-3">
-              <h2
-                class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300"
-              >
-                Curation
-              </h2>
-              <div
-                v-if="curationHasAbsoluteDates"
-                class="curation-date-toggle inline-flex rounded-md border border-gray-200 dark:border-gray-700/60 overflow-hidden text-xs"
-                role="group"
-                aria-label="Date display mode"
-                data-testid="curation-date-toggle"
-              >
-                <button
-                  type="button"
-                  class="px-2 py-1 transition-colors"
-                  :class="
-                    curationDateMode === 'relative'
-                      ? 'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
-                      : 'bg-white text-gray-500 dark:bg-gray-800 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                  "
-                  :aria-pressed="curationDateMode === 'relative'"
-                  data-testid="curation-date-toggle-relative"
-                  @click="curationDateMode = 'relative'"
-                >
-                  Relative
-                </button>
-                <button
-                  type="button"
-                  class="px-2 py-1 border-l border-gray-200 dark:border-gray-700/60 transition-colors"
-                  :class="
-                    curationDateMode === 'absolute'
-                      ? 'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
-                      : 'bg-white text-gray-500 dark:bg-gray-800 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                  "
-                  :aria-pressed="curationDateMode === 'absolute'"
-                  data-testid="curation-date-toggle-absolute"
-                  @click="curationDateMode = 'absolute'"
-                >
-                  Absolute
-                </button>
-              </div>
-            </div>
-            <div
-              v-if="curationPanel && curationPanel.segments.length > 0"
-              class="storyline-panel-body"
-            >
-              <StorylineCurationList
-                :segments="curationPanel.segments"
-                :registry="citationRegistry"
-                :date-mode="curationDateMode"
-              />
-            </div>
-            <div
-              v-else
-              class="py-8 text-center text-sm text-gray-500 dark:text-gray-400"
-              data-testid="curation-empty"
-            >
-              No curation segments yet. Regenerate to populate.
-            </div>
-          </section>
-        </div>
+            No curation segments yet. Regenerate to populate.
+          </div>
+        </section>
       </div>
     </template>
 

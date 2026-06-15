@@ -706,7 +706,7 @@ describe('StorylineDetailView', () => {
     mockFetchStoryline.mockResolvedValue(mockDetailTwoChapters())
     const wrapper = mountComponent()
     await flushPromises()
-    expect(wrapper.findAll('[data-test="chapter-rail-item"]')).toHaveLength(2)
+    expect(wrapper.findAll('[data-testid="chapter-rail-item"]')).toHaveLength(2)
   })
 
   it('default-selects the latest chapter (highest seq) and loads it', async () => {
@@ -716,7 +716,7 @@ describe('StorylineDetailView', () => {
     // The latest chapter is the last element (seq asc) — id 2.
     expect(mockFetchChapter).toHaveBeenCalledWith(3, 2)
     // Its rail item is highlighted as selected.
-    const items = wrapper.findAll('[data-test="chapter-rail-item"]')
+    const items = wrapper.findAll('[data-testid="chapter-rail-item"]')
     expect(items[1].classes().join(' ')).toContain('violet')
   })
 
@@ -726,7 +726,7 @@ describe('StorylineDetailView', () => {
     const wrapper = mountComponent()
     await flushPromises()
     expect(mockFetchChapter).toHaveBeenCalledWith(3, 1)
-    const items = wrapper.findAll('[data-test="chapter-rail-item"]')
+    const items = wrapper.findAll('[data-testid="chapter-rail-item"]')
     expect(items[0].classes().join(' ')).toContain('violet')
     await router.push('/storylines/3')
   })
@@ -736,7 +736,9 @@ describe('StorylineDetailView', () => {
     const wrapper = mountComponent()
     await flushPromises()
     mockFetchChapter.mockClear()
-    await wrapper.findAll('[data-test="chapter-rail-item"]')[0].trigger('click')
+    await wrapper
+      .findAll('[data-testid="chapter-rail-item"]')[0]
+      .trigger('click')
     await flushPromises()
     expect(mockFetchChapter).toHaveBeenCalledWith(3, 1)
     expect(router.currentRoute.value.query.chapter).toBe('1')
@@ -767,7 +769,7 @@ describe('StorylineDetailView', () => {
     mockFetchStoryline.mockResolvedValue(mockDetail({ chapters: [] }))
     const wrapper = mountComponent()
     await flushPromises()
-    expect(wrapper.findAll('[data-test="chapter-rail-item"]')).toHaveLength(0)
+    expect(wrapper.findAll('[data-testid="chapter-rail-item"]')).toHaveLength(0)
     // With no chapters, no chapter fetch is attempted.
     expect(mockFetchChapter).not.toHaveBeenCalled()
   })
@@ -842,7 +844,9 @@ describe('StorylineDetailView', () => {
 
     // Switch to chapter 1 (entry 7). Numbering must RESET to [1] — it does
     // not become [2] just because chapter 2 already used [1].
-    await wrapper.findAll('[data-test="chapter-rail-item"]')[0].trigger('click')
+    await wrapper
+      .findAll('[data-testid="chapter-rail-item"]')[0]
+      .trigger('click')
     await flushPromises()
     expect(mockFetchChapter).toHaveBeenCalledWith(3, 1)
     expect(wrapper.find('[data-testid="narrative-footnote-1"]').exists()).toBe(
@@ -862,7 +866,7 @@ describe('StorylineDetailView', () => {
   it('renders an "Add chapter" button in the chapter rail', async () => {
     const wrapper = mountComponent()
     await flushPromises()
-    expect(wrapper.find('[data-test="add-chapter"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="add-chapter"]').exists()).toBe(true)
   })
 
   it('Add chapter button opens the date modal and addChapter is called on submit (start only → open chapter)', async () => {
@@ -884,19 +888,19 @@ describe('StorylineDetailView', () => {
     await flushPromises()
 
     // Open the modal
-    await wrapper.find('[data-test="add-chapter"]').trigger('click')
+    await wrapper.find('[data-testid="add-chapter"]').trigger('click')
     // ChapterDateModal should appear with both start and end fields (show-end=true)
-    expect(wrapper.find('[data-test="start"]').exists()).toBe(true)
-    expect(wrapper.find('[data-test="end"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="start"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="end"]').exists()).toBe(true)
     // Fill in only the start date — leaves End blank → new-latest open chapter
-    await wrapper.find('[data-test="start"]').setValue('2026-06-01')
+    await wrapper.find('[data-testid="start"]').setValue('2026-06-01')
     // Submit
-    await wrapper.find('[data-test="save"]').trigger('click')
+    await wrapper.find('[data-testid="save"]').trigger('click')
     await flushPromises()
 
     expect(mockAddChapter).toHaveBeenCalledWith(3, { start_date: '2026-06-01' })
     // Modal closes
-    expect(wrapper.find('[data-test="start"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="start"]').exists()).toBe(false)
   })
 
   it('Add chapter with both start and end calls addChapter with { start_date, end_date } (ranged chapter)', async () => {
@@ -917,13 +921,13 @@ describe('StorylineDetailView', () => {
     const wrapper = mountComponent()
     await flushPromises()
 
-    await wrapper.find('[data-test="add-chapter"]').trigger('click')
-    expect(wrapper.find('[data-test="start"]').exists()).toBe(true)
-    expect(wrapper.find('[data-test="end"]').exists()).toBe(true)
+    await wrapper.find('[data-testid="add-chapter"]').trigger('click')
+    expect(wrapper.find('[data-testid="start"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="end"]').exists()).toBe(true)
 
-    await wrapper.find('[data-test="start"]').setValue('2026-01-01')
-    await wrapper.find('[data-test="end"]').setValue('2026-03-31')
-    await wrapper.find('[data-test="save"]').trigger('click')
+    await wrapper.find('[data-testid="start"]').setValue('2026-01-01')
+    await wrapper.find('[data-testid="end"]').setValue('2026-03-31')
+    await wrapper.find('[data-testid="save"]').trigger('click')
     await flushPromises()
 
     expect(mockAddChapter).toHaveBeenCalledWith(3, {
@@ -931,17 +935,19 @@ describe('StorylineDetailView', () => {
       end_date: '2026-03-31',
     })
     // Modal closes
-    expect(wrapper.find('[data-test="start"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="start"]').exists()).toBe(false)
   })
 
   it('Add modal shows a hint about the optional End field', async () => {
     const wrapper = mountComponent()
     await flushPromises()
 
-    await wrapper.find('[data-test="add-chapter"]').trigger('click')
+    await wrapper.find('[data-testid="add-chapter"]').trigger('click')
     // The hint text should be visible in the add modal
-    expect(wrapper.find('[data-test="chapter-modal-hint"]').exists()).toBe(true)
-    expect(wrapper.find('[data-test="chapter-modal-hint"]').text()).toContain(
+    expect(wrapper.find('[data-testid="chapter-modal-hint"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('[data-testid="chapter-modal-hint"]').text()).toContain(
       'End blank',
     )
   })
@@ -950,7 +956,7 @@ describe('StorylineDetailView', () => {
     mockFetchStoryline.mockResolvedValue(mockDetailTwoChapters())
     const wrapper = mountComponent()
     await flushPromises()
-    expect(wrapper.findAll('[data-test="menu-toggle"]')).toHaveLength(2)
+    expect(wrapper.findAll('[data-testid="menu-toggle"]')).toHaveLength(2)
   })
 
   it('edit intent opens the date modal and updateChapterDates is called on submit', async () => {
@@ -963,12 +969,12 @@ describe('StorylineDetailView', () => {
     await flushPromises()
 
     // Open menu for first chapter and click Edit dates
-    await wrapper.findAll('[data-test="menu-toggle"]')[0].trigger('click')
-    await wrapper.find('[data-test="action-edit"]').trigger('click')
+    await wrapper.findAll('[data-testid="menu-toggle"]')[0].trigger('click')
+    await wrapper.find('[data-testid="action-edit"]').trigger('click')
     // ChapterDateModal should appear
-    expect(wrapper.find('[data-test="start"]').exists()).toBe(true)
-    await wrapper.find('[data-test="start"]').setValue('2026-01-15')
-    await wrapper.find('[data-test="save"]').trigger('click')
+    expect(wrapper.find('[data-testid="start"]').exists()).toBe(true)
+    await wrapper.find('[data-testid="start"]').setValue('2026-01-15')
+    await wrapper.find('[data-testid="save"]').trigger('click')
     await flushPromises()
 
     expect(mockUpdateChapterWindow).toHaveBeenCalledWith(
@@ -976,7 +982,7 @@ describe('StorylineDetailView', () => {
       1,
       expect.objectContaining({ start_date: '2026-01-15' }),
     )
-    expect(wrapper.find('[data-test="start"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="start"]').exists()).toBe(false)
   })
 
   it('split intent opens the date modal and splitChapter is called on submit', async () => {
@@ -985,15 +991,15 @@ describe('StorylineDetailView', () => {
     const wrapper = mountComponent()
     await flushPromises()
 
-    await wrapper.findAll('[data-test="menu-toggle"]')[0].trigger('click')
-    await wrapper.find('[data-test="action-split"]').trigger('click')
-    expect(wrapper.find('[data-test="start"]').exists()).toBe(true)
-    await wrapper.find('[data-test="start"]').setValue('2026-01-20')
-    await wrapper.find('[data-test="save"]').trigger('click')
+    await wrapper.findAll('[data-testid="menu-toggle"]')[0].trigger('click')
+    await wrapper.find('[data-testid="action-split"]').trigger('click')
+    expect(wrapper.find('[data-testid="start"]').exists()).toBe(true)
+    await wrapper.find('[data-testid="start"]').setValue('2026-01-20')
+    await wrapper.find('[data-testid="save"]').trigger('click')
     await flushPromises()
 
     expect(mockSplitChapter).toHaveBeenCalledWith(3, 1, { date: '2026-01-20' })
-    expect(wrapper.find('[data-test="start"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="start"]').exists()).toBe(false)
   })
 
   it('merge intent calls mergeChapters with the current and next chapter ids', async () => {
@@ -1016,8 +1022,8 @@ describe('StorylineDetailView', () => {
     await flushPromises()
 
     // First chapter has hasNext=true so merge option is visible
-    await wrapper.findAll('[data-test="menu-toggle"]')[0].trigger('click')
-    await wrapper.find('[data-test="action-merge"]').trigger('click')
+    await wrapper.findAll('[data-testid="menu-toggle"]')[0].trigger('click')
+    await wrapper.find('[data-testid="action-merge"]').trigger('click')
     await flushPromises()
 
     expect(mockMergeChapters).toHaveBeenCalledWith(3, { chapter_ids: [1, 2] })
@@ -1029,24 +1035,24 @@ describe('StorylineDetailView', () => {
     const wrapper = mountComponent()
     await flushPromises()
 
-    await wrapper.findAll('[data-test="menu-toggle"]')[0].trigger('click')
-    await wrapper.find('[data-test="action-delete"]').trigger('click')
+    await wrapper.findAll('[data-testid="menu-toggle"]')[0].trigger('click')
+    await wrapper.find('[data-testid="action-delete"]').trigger('click')
     // ChapterConfirmModal should appear
-    expect(wrapper.find('[data-test="confirm"]').exists()).toBe(true)
-    await wrapper.find('[data-test="confirm"]').trigger('click')
+    expect(wrapper.find('[data-testid="confirm"]').exists()).toBe(true)
+    await wrapper.find('[data-testid="confirm"]').trigger('click')
     await flushPromises()
 
     expect(mockDeleteChapter).toHaveBeenCalledWith(3, 1, { allow_gap: false })
-    expect(wrapper.find('[data-test="confirm"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="confirm"]').exists()).toBe(false)
   })
 
   it('Cancel in the date modal closes it without calling any action', async () => {
     const wrapper = mountComponent()
     await flushPromises()
-    await wrapper.find('[data-test="add-chapter"]').trigger('click')
-    expect(wrapper.find('[data-test="start"]').exists()).toBe(true)
-    await wrapper.find('[data-test="cancel"]').trigger('click')
-    expect(wrapper.find('[data-test="start"]').exists()).toBe(false)
+    await wrapper.find('[data-testid="add-chapter"]').trigger('click')
+    expect(wrapper.find('[data-testid="start"]').exists()).toBe(true)
+    await wrapper.find('[data-testid="cancel"]').trigger('click')
+    expect(wrapper.find('[data-testid="start"]').exists()).toBe(false)
     expect(mockAddChapter).not.toHaveBeenCalled()
   })
 
@@ -1054,23 +1060,25 @@ describe('StorylineDetailView', () => {
     mockFetchStoryline.mockResolvedValue(mockDetailTwoChapters())
     const wrapper = mountComponent()
     await flushPromises()
-    await wrapper.findAll('[data-test="menu-toggle"]')[0].trigger('click')
-    await wrapper.find('[data-test="action-delete"]').trigger('click')
-    expect(wrapper.find('[data-test="confirm"]').exists()).toBe(true)
-    await wrapper.find('[data-test="cancel"]').trigger('click')
-    expect(wrapper.find('[data-test="confirm"]').exists()).toBe(false)
+    await wrapper.findAll('[data-testid="menu-toggle"]')[0].trigger('click')
+    await wrapper.find('[data-testid="action-delete"]').trigger('click')
+    expect(wrapper.find('[data-testid="confirm"]').exists()).toBe(true)
+    await wrapper.find('[data-testid="cancel"]').trigger('click')
+    expect(wrapper.find('[data-testid="confirm"]').exists()).toBe(false)
     expect(mockDeleteChapter).not.toHaveBeenCalled()
   })
 
   // --- per-chapter generating badge (feat/storyline-chapter-editing) ---
 
-  it('shows [data-test="chapter-generating"] badge for chapters in generatingChapterIds', async () => {
+  it('shows [data-testid="chapter-generating"] badge for chapters in generatingChapterIds', async () => {
     mockFetchStoryline.mockResolvedValue(mockDetailTwoChapters())
     const wrapper = mountComponent()
     await flushPromises()
 
     // Initially no generating badge anywhere.
-    expect(wrapper.findAll('[data-test="chapter-generating"]')).toHaveLength(0)
+    expect(wrapper.findAll('[data-testid="chapter-generating"]')).toHaveLength(
+      0,
+    )
 
     // Directly mutate the store's generatingChapterIds to include chapter 1.
     const { useStorylinesStore } = await import('@/stores/storylines')
@@ -1079,7 +1087,7 @@ describe('StorylineDetailView', () => {
     await wrapper.vm.$nextTick()
 
     // The badge appears for chapter 1 only.
-    const badges = wrapper.findAll('[data-test="chapter-generating"]')
+    const badges = wrapper.findAll('[data-testid="chapter-generating"]')
     expect(badges).toHaveLength(1)
   })
 
@@ -1094,17 +1102,19 @@ describe('StorylineDetailView', () => {
     store.generatingChapterIds = new Set([2])
     await wrapper.vm.$nextTick()
 
-    const badges = wrapper.findAll('[data-test="chapter-generating"]')
+    const badges = wrapper.findAll('[data-testid="chapter-generating"]')
     expect(badges).toHaveLength(1)
     // Confirm the badge is on the second rail item (chapter 2).
-    const items = wrapper.findAll('[data-test="chapter-rail-item"]')
+    const items = wrapper.findAll('[data-testid="chapter-rail-item"]')
     // The second li should contain the badge.
     const secondLi = items[1].element.parentElement!
     expect(
-      secondLi.querySelector('[data-test="chapter-generating"]'),
+      secondLi.querySelector('[data-testid="chapter-generating"]'),
     ).not.toBeNull()
     // The first li should NOT contain the badge.
     const firstLi = items[0].element.parentElement!
-    expect(firstLi.querySelector('[data-test="chapter-generating"]')).toBeNull()
+    expect(
+      firstLi.querySelector('[data-testid="chapter-generating"]'),
+    ).toBeNull()
   })
 })

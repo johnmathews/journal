@@ -7,15 +7,15 @@ describe('ChapterConfirmModal', () => {
     const w = mount(ChapterConfirmModal, {
       props: { title: 'Delete chapter', message: 'Sure?', showAllowGap: true },
     })
-    await w.find('[data-test="confirm"]').trigger('click')
+    await w.find('[data-testid="confirm"]').trigger('click')
     expect(w.emitted('confirm')?.[0]).toEqual([{ allow_gap: false }])
   })
   it('reflects the allow_gap checkbox', async () => {
     const w = mount(ChapterConfirmModal, {
       props: { title: 'Delete', message: 'Sure?', showAllowGap: true },
     })
-    await w.find('[data-test="allow-gap"]').setValue(true)
-    await w.find('[data-test="confirm"]').trigger('click')
+    await w.find('[data-testid="allow-gap"]').setValue(true)
+    await w.find('[data-testid="confirm"]').trigger('click')
     expect(w.emitted('confirm')?.[0]).toEqual([{ allow_gap: true }])
   })
 })
