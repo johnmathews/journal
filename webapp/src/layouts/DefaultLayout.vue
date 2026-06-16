@@ -9,9 +9,7 @@ const sidebarOpen = ref(false)
 </script>
 
 <template>
-  <div
-    class="flex h-[100dvh] overflow-hidden pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)]"
-  >
+  <div class="flex h-[100dvh] overflow-hidden pb-[env(safe-area-inset-bottom)]">
     <AppSidebar
       :sidebar-open="sidebarOpen"
       @close-sidebar="sidebarOpen = false"

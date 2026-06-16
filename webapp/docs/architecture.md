@@ -203,22 +203,28 @@ reserves the notch / home-indicator regions as solid background bars (visible as
 "blank space" beside the content) and the sticky header sits inside that inset
 rather than flush to the screen edge.
 
-With `viewport-fit=cover`, content fills the screen, so the shell adds
-`env(safe-area-inset-*)` padding to keep interactive UI clear of the notch while
-backgrounds still bleed to the edge:
+With `viewport-fit=cover`, content fills the screen. The shell deliberately
+keeps **surfaces full-bleed to the left/right edges** (no horizontal inset on the
+layout root) — applying a horizontal `safe-area-inset` to the root left visible
+gray gutters beside the content in landscape on Dynamic Island phones, which is
+not wanted. Insets are applied only where they prevent real occlusion:
 
-- `DefaultLayout.vue` root: left/right/bottom insets on the flex container
-  (content column + home-indicator clearance).
-- `AppHeader.vue` inner wrapper: top inset so header controls clear a portrait
-  notch; the blurred header background still extends to `top: 0`.
-- `AppSidebar.vue`: left+top insets via `calc(1rem + env(...))` (the mobile
-  off-canvas sidebar is `absolute` to the viewport, so it can't inherit the
-  root's padding and must inset itself).
+- `DefaultLayout.vue` root: **bottom** inset only (home-indicator clearance). No
+  left/right inset, so the header and content fill the full screen width in
+  landscape.
+- `AppHeader.vue` inner wrapper: **top** inset so header controls clear a portrait
+  notch / Dynamic Island; the blurred header background still extends to
+  `top: 0`. (In landscape the top inset is ~0 — the island moves to the side,
+  vertically centred, below the header row — so the header is not occluded.)
+- `AppSidebar.vue`: top inset via `calc(1rem + env(...))`, plus a left inset on
+  its own content padding (the mobile off-canvas sidebar is `absolute` to the
+  viewport, so it can't inherit the root's padding). Its white background still
+  reaches the screen edge; only the nav content is inset, clearing a
+  landscape-left island when the menu is open.
 
-`body` is `bg-gray-100 dark:bg-gray-900` — the same color as the shell — so any
-exposed safe-area strip blends seamlessly. The insets resolve to `0` on
-non-notched devices and in JSDOM/happy-dom, so they're inert in unit tests and
-on desktop.
+`body` is `bg-gray-100 dark:bg-gray-900` — the same color as the shell. The insets
+resolve to `0` on non-notched devices and in JSDOM/happy-dom, so they're inert in
+unit tests and on desktop.
 
 ## Data Flow
 

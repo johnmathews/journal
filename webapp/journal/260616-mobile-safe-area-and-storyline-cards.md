@@ -76,7 +76,26 @@ untouched.
   real notched device — headless Chromium reports 0 — so the landscape fix must
   be confirmed on-device. The change is the standard iOS pattern.
 
-## 1.5 Follow-up (not done)
+## 1.5 On-device follow-up (landscape edge-to-edge)
+
+Deployed to prod (`ssh media`, `/srv/media`, `docker compose pull/up -d
+journal-webapp`) and checked on a Dynamic Island iPhone. Portrait (cards) looked
+right. Landscape still showed gray gutters on both sides — those were the
+`pl/pr env(safe-area-inset-*)` I'd put on the `DefaultLayout` root: on a Dynamic
+Island phone the landscape side insets are ~45px each, rendered as body-gray
+strips. User wanted surfaces edge-to-edge.
+
+Fix: **removed the horizontal safe-area insets from the layout root** (kept
+`viewport-fit=cover`, the header `top` inset for the portrait notch, the root
+`bottom` inset for the home indicator, and the sidebar's own content inset). The
+header and content now fill the full screen width in landscape. The island in
+landscape sits vertically centred on the side edge (below the header row), so the
+header isn't occluded; content keeps its normal `px-4`+ gutter. Lesson: with
+`viewport-fit=cover`, keep **surfaces** full-bleed and only inset **content that
+would actually be occluded** — don't inset the root container, which pushes the
+whole app inward.
+
+## 1.6 Follow-up (not done)
 
 Apply the stacked-card pattern to the other table views (Entries, Job History) for
 a complete mobile pass — recorded in the run's evaluation report, out of scope
