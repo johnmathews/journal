@@ -1,4 +1,9 @@
-import type { SearchRequestParams, SearchResponse } from '@/types/search'
+import type {
+  SearchRequestParams,
+  SearchResponse,
+  AnswerRequestParams,
+  AnswerResponse,
+} from '@/types/search'
 import { apiFetch } from './client'
 
 function buildQuery(
@@ -25,6 +30,18 @@ function buildQuery(
  * 400 `invalid_query` which callers can surface directly as a
  * user-visible error.
  */
+export function answerQuestion(
+  params: AnswerRequestParams,
+): Promise<AnswerResponse> {
+  const body: Record<string, string> = { q: params.q }
+  if (params.start_date) body.start_date = params.start_date
+  if (params.end_date) body.end_date = params.end_date
+  return apiFetch<AnswerResponse>('/api/search/answer', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
 export function searchEntries(
   params: SearchRequestParams,
 ): Promise<SearchResponse> {
