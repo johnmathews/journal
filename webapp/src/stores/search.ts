@@ -1,8 +1,9 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { ApiRequestError } from '@/api/client'
-import { searchEntries } from '@/api/search'
+import { searchEntries, answerQuestion } from '@/api/search'
 import type {
+  AnswerCitation,
   SearchRequestParams,
   SearchResultItem,
   SearchSort,
@@ -47,7 +48,21 @@ export const useSearchStore = defineStore('search', () => {
   // yet" without relying on the items array alone.
   const hasRun = ref(false)
 
+  // Answer-synthesis state.
+  const answer = ref('')
+  const answered = ref(false)
+  const answerCitations = ref<AnswerCitation[]>([])
+  const answerLoading = ref(false)
+  const answerError = ref<string | null>(null)
+
   const hasResults = computed(() => items.value.length > 0)
+
+  function clearAnswer(): void {
+    answer.value = ''
+    answered.value = false
+    answerCitations.value = []
+    answerError.value = null
+  }
 
   /**
    * Fire a search against the current filter state. The optional
@@ -66,6 +81,7 @@ export const useSearchStore = defineStore('search', () => {
       sort: SearchSort
     }> = {},
   ): Promise<void> {
+    clearAnswer()
     if (partial.q !== undefined) query.value = partial.q
     if (partial.start_date !== undefined) startDate.value = partial.start_date
     if (partial.end_date !== undefined) endDate.value = partial.end_date
@@ -122,6 +138,39 @@ export const useSearchStore = defineStore('search', () => {
     }
   }
 
+  async function runAnswer(): Promise<void> {
+    const trimmed = query.value.trim()
+    if (!trimmed) return
+    answerLoading.value = true
+    answerError.value = null
+    try {
+      const params = { q: trimmed } as {
+        q: string
+        start_date?: string
+        end_date?: string
+      }
+      if (startDate.value) params.start_date = startDate.value
+      if (endDate.value) params.end_date = endDate.value
+      const res = await answerQuestion(params)
+      answer.value = res.answer
+      answered.value = res.answered
+      answerCitations.value = res.citations
+    } catch (e) {
+      if (e instanceof ApiRequestError) {
+        answerError.value = 'Answer unavailable — see the results below.'
+      } else if (e instanceof Error) {
+        answerError.value = e.message
+      } else {
+        answerError.value = 'Answer failed'
+      }
+      answer.value = ''
+      answered.value = false
+      answerCitations.value = []
+    } finally {
+      answerLoading.value = false
+    }
+  }
+
   function reset(): void {
     query.value = ''
     startDate.value = null
@@ -134,6 +183,8 @@ export const useSearchStore = defineStore('search', () => {
     loading.value = false
     error.value = null
     hasRun.value = false
+    clearAnswer()
+    answerLoading.value = false
   }
 
   return {
@@ -149,7 +200,13 @@ export const useSearchStore = defineStore('search', () => {
     error,
     hasRun,
     hasResults,
+    answer,
+    answered,
+    answerCitations,
+    answerLoading,
+    answerError,
     runSearch,
+    runAnswer,
     reset,
   }
 })

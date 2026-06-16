@@ -4,6 +4,7 @@ import { useSearchStore } from '../search'
 
 vi.mock('@/api/search', () => ({
   searchEntries: vi.fn(),
+  answerQuestion: vi.fn(),
 }))
 vi.mock('@/api/client', () => ({
   ApiRequestError: class extends Error {
@@ -17,9 +18,10 @@ vi.mock('@/api/client', () => ({
   },
 }))
 
-import { searchEntries } from '@/api/search'
+import { searchEntries, answerQuestion } from '@/api/search'
 import { ApiRequestError } from '@/api/client'
 const mockSearch = vi.mocked(searchEntries)
+const mockAnswer = vi.mocked(answerQuestion)
 
 function fakeResponse(
   overrides: Partial<{
@@ -277,5 +279,64 @@ describe('useSearchStore', () => {
     expect(store.query).toBe('')
     expect(store.items).toEqual([])
     expect(store.hasRun).toBe(false)
+  })
+
+  it('runAnswer populates answer state on success', async () => {
+    const store = useSearchStore()
+    store.query = 'when did my back start hurting?'
+    mockAnswer.mockResolvedValue({
+      question: 'when did my back start hurting?',
+      answer: 'Your back pain began on 2026-02-14.',
+      answered: true,
+      citations: [
+        { entry_id: 42, entry_date: '2026-02-14', snippet: 'lower back' },
+      ],
+      model: 'claude-sonnet-4-6',
+    })
+    await store.runAnswer()
+    expect(store.answer).toContain('2026-02-14')
+    expect(store.answered).toBe(true)
+    expect(store.answerCitations).toHaveLength(1)
+    expect(store.answerError).toBeNull()
+  })
+
+  it('runAnswer surfaces a friendly error on failure', async () => {
+    const { ApiRequestError } = await import('@/api/client')
+    const store = useSearchStore()
+    store.query = 'x'
+    mockAnswer.mockRejectedValueOnce(
+      new ApiRequestError(502, 'answer_unavailable', 'nope'),
+    )
+    await store.runAnswer()
+    expect(store.answerError).toBeTruthy()
+    expect(store.answer).toBe('')
+  })
+
+  it('runAnswer does nothing for an empty query', async () => {
+    const store = useSearchStore()
+    store.query = '   '
+    await store.runAnswer()
+    expect(mockAnswer).not.toHaveBeenCalled()
+  })
+
+  it('running a new search clears any prior answer', async () => {
+    mockSearch.mockResolvedValue({
+      query: 'fresh',
+      limit: 20,
+      offset: 0,
+      sort: 'relevance' as const,
+      reranker: 'NoopReranker',
+      items: [],
+    })
+    const store = useSearchStore()
+    store.answer = 'stale answer'
+    store.answered = true
+    store.answerCitations = [
+      { entry_id: 1, entry_date: '2026-01-01', snippet: 's' },
+    ]
+    await store.runSearch({ q: 'fresh' })
+    expect(store.answer).toBe('')
+    expect(store.answered).toBe(false)
+    expect(store.answerCitations).toEqual([])
   })
 })
