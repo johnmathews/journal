@@ -1803,4 +1803,69 @@ describe('EntityListView', () => {
       vi.useRealTimers()
     }
   })
+
+  // --- Mobile stacked-card layout ---
+  // happy-dom renders both the table and the cards; card tests scope to
+  // card-specific testids to avoid colliding with the table's. These set their
+  // own data so they don't depend on mock state left by earlier tests.
+
+  async function mountWithEntities() {
+    const { fetchEntities } = await import('@/api/entities')
+    vi.mocked(fetchEntities).mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          entity_type: 'person',
+          canonical_name: 'Ritsya',
+          aliases: ['Ritzya'],
+          mention_count: 12,
+          first_seen: '2026-01-02',
+          last_seen: '2026-03-22',
+        },
+        {
+          id: 2,
+          entity_type: 'place',
+          canonical_name: 'Blue Bottle',
+          aliases: [],
+          mention_count: 4,
+          first_seen: '2026-02-15',
+          last_seen: '2026-03-01',
+        },
+      ],
+      total: 2,
+      limit: 50,
+      offset: 0,
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    return wrapper
+  }
+
+  it('renders one entity card per entity', async () => {
+    const wrapper = await mountWithEntities()
+    const list = wrapper.find('[data-testid="entity-card-list"]')
+    expect(list.exists()).toBe(true)
+    expect(wrapper.findAll('[data-testid="entity-card"]')).toHaveLength(2)
+  })
+
+  it('entity card shows name, type and mention count', async () => {
+    const wrapper = await mountWithEntities()
+    // Default sort: last_seen desc → Ritsya first.
+    const card = wrapper.findAll('[data-testid="entity-card"]')[0]
+    expect(card.text()).toContain('Ritsya')
+    expect(card.text()).toContain('person')
+    expect(card.text()).toContain('12')
+  })
+
+  it('entity card checkbox toggles selection', async () => {
+    const wrapper = await mountWithEntities()
+    const cardCheckboxes = wrapper.findAll(
+      '[data-testid="entity-card-checkbox"]',
+    )
+    expect(cardCheckboxes).toHaveLength(2)
+    await cardCheckboxes[0].trigger('change')
+    await flushPromises()
+    // Selecting surfaces the bulk toolbar (shared with the table).
+    expect(wrapper.text()).toContain('selected')
+  })
 })

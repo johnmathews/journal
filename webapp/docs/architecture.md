@@ -226,6 +226,26 @@ not wanted. Insets are applied only where they prevent real occlusion:
 resolve to `0` on non-notched devices and in JSDOM/happy-dom, so they're inert in
 unit tests and on desktop.
 
+**Public routes** (login, register, forgot/reset password, verify email) render
+*without* `DefaultLayout` (see `App.vue`), so they handle their own safe area:
+each is a full-bleed `min-h-[100dvh]` centered card with
+`pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]` so the card
+clears the notch while the background fills the screen.
+
+## Responsive list views (table ↔ stacked cards)
+
+The list/table views switch to a stacked-card layout below the `sm` breakpoint
+(table is `hidden sm:block`, cards are `sm:hidden`), so wide columns don't force
+horizontal scroll on phones. Both renderings iterate the same source list and
+reuse the same handlers; card elements carry distinct `data-testid`s (e.g.
+`storyline-card`, `entity-card`, `entry-card`, `job-card-*`) so the two branches
+don't collide in tests — happy-dom renders both regardless of CSS. Implemented in
+`StorylineListView`, `EntryListView`, `EntityListView`, and `JobHistoryView`.
+`EntryListView`'s card respects the user's column prefs: Date + Source form the
+headline and the remaining *visible* columns render as a meta grid in the user's
+chosen order (via the `cardMetaColumns` computed). Still tables on mobile:
+`FitnessView`, `ApiKeysView`, `admin/AdminDashboard`.
+
 ## Data Flow
 
 ```

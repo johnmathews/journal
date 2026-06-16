@@ -648,4 +648,37 @@ describe('JobHistoryView', () => {
     expect(details.text()).toContain('Entry Id')
     expect(details.text()).toContain('75')
   })
+
+  // --- Mobile stacked-card layout ---
+  // happy-dom renders both the table and the card list; card tests scope to
+  // card-specific testids.
+
+  it('renders one job card per job', async () => {
+    const wrapper = await mountView([
+      makeJob({ id: 'j-1' }),
+      makeJob({ id: 'j-2' }),
+    ])
+    const list = wrapper.find('[data-testid="job-card-list"]')
+    expect(list.exists()).toBe(true)
+    expect(list.findAll('li').length).toBe(2)
+  })
+
+  it('job card shows the type label and status', async () => {
+    const wrapper = await mountView([
+      makeJob({ id: 'j-1', type: 'entity_extraction', status: 'succeeded' }),
+    ])
+    const card = wrapper.find('[data-testid="job-card-j-1"]')
+    expect(card.text()).toContain('Entity extraction')
+    expect(card.text()).toContain('succeeded')
+  })
+
+  it('job card shows an entry link when entry_id is present', async () => {
+    const wrapper = await mountView([
+      makeJob({ id: 'j-1', params: { entry_id: 42 } }),
+    ])
+    const card = wrapper.find('[data-testid="job-card-j-1"]')
+    const link = card.find('[data-testid="card-entry-link"]')
+    expect(link.exists()).toBe(true)
+    expect(link.text()).toBe('#42')
+  })
 })

@@ -48,7 +48,7 @@ onMounted(async () => {
 
 <template>
   <div
-    class="min-h-[100dvh] flex items-center justify-center bg-gray-100 dark:bg-gray-900 px-4"
+    class="min-h-[100dvh] flex items-center justify-center bg-gray-100 dark:bg-gray-900 px-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
   >
     <div class="w-full max-w-md">
       <div

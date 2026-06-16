@@ -823,3 +823,70 @@ describe('Column order', () => {
     expect(mockUpdatePreferences).toHaveBeenCalled()
   })
 })
+
+// --- Mobile stacked-card layout ---
+// happy-dom renders both the table and the cards; card tests scope to the
+// card-specific `entry-card` testid (the table uses `entry-row`).
+describe('EntryListView mobile cards', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia())
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+    mockUpdatePreferences.mockClear()
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValue({
+      items: [
+        mockEntry({ id: 1, entry_date: '2026-03-22', word_count: 347 }),
+        mockEntry({
+          id: 2,
+          entry_date: '2026-03-21',
+          source_type: 'voice',
+          word_count: 120,
+        }),
+      ],
+      total: 2,
+      limit: 20,
+      offset: 0,
+    })
+  })
+
+  it('renders one entry card per entry', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.findAll('[data-testid="entry-card"]')).toHaveLength(2)
+  })
+
+  it('entry card headline shows date and source label', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+    // Default sort: entry_date desc → id 1 (2026-03-22, photo) first.
+    const card = wrapper.findAll('[data-testid="entry-card"]')[0]
+    expect(card.text()).toContain('22 Mar 2026')
+    expect(card.text()).toContain('OCR') // photo → OCR label
+  })
+
+  it('entry card meta grid respects visible columns (Words shown, Chunks hidden by default)', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+    const card = wrapper.findAll('[data-testid="entry-card"]')[0]
+    // Words is visible by default → appears with its value.
+    expect(card.text()).toContain('Words')
+    expect(card.text()).toContain('347')
+    // Chunks is hidden by default → not in the card meta.
+    expect(card.text()).not.toContain('Chunks')
+  })
+
+  it('clicking an entry card navigates to the detail view', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+    const push = vi.spyOn(router, 'push')
+    await wrapper.findAll('[data-testid="entry-card"]')[0].trigger('click')
+    expect(push).toHaveBeenCalledWith({
+      name: 'entry-detail',
+      params: { id: 1 },
+    })
+  })
+})

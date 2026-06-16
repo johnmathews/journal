@@ -212,6 +212,15 @@ const visibleOrderedColumns = computed(() =>
   orderedColumns.value.filter((col) => isVisible(col.key)),
 )
 
+// Columns shown in the mobile card's meta grid: every visible column except
+// the two that form the card headline (Date + Source), kept in the user's
+// chosen order so the card respects their column prefs.
+const cardMetaColumns = computed(() =>
+  visibleOrderedColumns.value.filter(
+    (col) => col.key !== 'entry_date' && col.key !== 'source_type',
+  ),
+)
+
 // Drag-and-drop state for column reordering
 const dragIndex = ref<number | null>(null)
 const dragOverIndex = ref<number | null>(null)
@@ -560,48 +569,98 @@ function cellTestId(col: ColumnDef): string | undefined {
         No journal entries found.
       </div>
 
-      <!-- Entry table with user-configurable column visibility and order -->
-      <div v-else class="overflow-x-auto">
-        <table class="table-auto w-full dark:text-gray-300">
-          <thead
-            class="text-xs font-semibold uppercase text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700/60"
-          >
-            <tr>
-              <th
-                v-for="col in visibleOrderedColumns"
-                :key="col.key"
-                class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
-                :class="ALIGN_CLASSES[col.align]"
-                :data-testid="col.sortTestId"
-                @click="toggleSort(col.key as SortKey)"
-              >
-                {{ col.label }}{{ sortIndicator(col.key as SortKey) }}
-              </th>
-            </tr>
-          </thead>
-          <tbody
-            class="text-sm divide-y divide-gray-200 dark:divide-gray-700/60"
-          >
-            <tr
-              v-for="entry in sortedEntries"
-              :key="entry.id"
-              class="cursor-pointer hover:bg-violet-50 dark:hover:bg-violet-500/[0.08] transition-colors"
-              data-testid="entry-row"
-              @click="onRowClick(entry.id)"
+      <!-- Entry table (tablet & desktop) + cards (mobile) -->
+      <template v-else>
+        <!-- Entry table with user-configurable column visibility and order -->
+        <div class="hidden sm:block overflow-x-auto">
+          <table class="table-auto w-full dark:text-gray-300">
+            <thead
+              class="text-xs font-semibold uppercase text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700/60"
             >
-              <td
-                v-for="col in visibleOrderedColumns"
-                :key="col.key"
-                class="px-4 py-3 whitespace-nowrap"
-                :class="cellClasses(col, entry)"
-                :data-testid="cellTestId(col)"
+              <tr>
+                <th
+                  v-for="col in visibleOrderedColumns"
+                  :key="col.key"
+                  class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none"
+                  :class="ALIGN_CLASSES[col.align]"
+                  :data-testid="col.sortTestId"
+                  @click="toggleSort(col.key as SortKey)"
+                >
+                  {{ col.label }}{{ sortIndicator(col.key as SortKey) }}
+                </th>
+              </tr>
+            </thead>
+            <tbody
+              class="text-sm divide-y divide-gray-200 dark:divide-gray-700/60"
+            >
+              <tr
+                v-for="entry in sortedEntries"
+                :key="entry.id"
+                class="cursor-pointer hover:bg-violet-50 dark:hover:bg-violet-500/[0.08] transition-colors"
+                data-testid="entry-row"
+                @click="onRowClick(entry.id)"
               >
-                {{ cellValue(col, entry) }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+                <td
+                  v-for="col in visibleOrderedColumns"
+                  :key="col.key"
+                  class="px-4 py-3 whitespace-nowrap"
+                  :class="cellClasses(col, entry)"
+                  :data-testid="cellTestId(col)"
+                >
+                  {{ cellValue(col, entry) }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Cards: mobile (stacked) — headline Date + Source, remaining
+             visible columns as a meta grid in the user's chosen order -->
+        <ul class="sm:hidden divide-y divide-gray-200 dark:divide-gray-700/60">
+          <li
+            v-for="entry in sortedEntries"
+            :key="entry.id"
+            class="p-4 cursor-pointer hover:bg-violet-50 dark:hover:bg-violet-500/[0.08] transition-colors"
+            data-testid="entry-card"
+            @click="onRowClick(entry.id)"
+          >
+            <div class="flex items-center justify-between gap-2">
+              <span class="font-medium text-gray-800 dark:text-gray-100">
+                <template v-if="isVisible('entry_date')">{{
+                  formatDate(entry.entry_date)
+                }}</template>
+                <template v-else>Entry #{{ entry.id }}</template>
+              </span>
+              <span
+                v-if="isVisible('source_type')"
+                class="shrink-0 inline-block bg-gray-100 dark:bg-gray-700/60 rounded-full px-2 py-0.5 text-xs text-gray-600 dark:text-gray-300"
+              >
+                {{ sourceLabel(entry.source_type) }}
+              </span>
+            </div>
+
+            <div
+              v-if="cardMetaColumns.length"
+              class="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs"
+            >
+              <div v-for="col in cardMetaColumns" :key="col.key">
+                <span class="text-gray-500 dark:text-gray-400"
+                  >{{ col.label }}:</span
+                >
+                <span
+                  class="ml-1"
+                  :class="
+                    col.key === 'uncertain_span_count'
+                      ? doubtsColor(entry.uncertain_span_count)
+                      : 'text-gray-700 dark:text-gray-300'
+                  "
+                  >{{ cellValue(col, entry) }}</span
+                >
+              </div>
+            </div>
+          </li>
+        </ul>
+      </template>
 
       <!-- Pagination footer -->
       <div

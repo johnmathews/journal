@@ -384,57 +384,242 @@ function nextPage() {
       No jobs found.
     </div>
 
-    <!-- Table -->
-    <div
-      v-else
-      class="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700/60"
-    >
-      <table class="w-full text-sm" data-testid="job-history-table">
-        <thead>
-          <tr
-            class="bg-gray-50 dark:bg-gray-800/60 text-left text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wider"
-          >
-            <th class="px-4 py-3">Type</th>
-            <th class="px-4 py-3">Status</th>
-            <th class="px-4 py-3">Entry</th>
-            <th class="px-4 py-3">Params</th>
-            <th class="px-4 py-3">Created</th>
-            <th class="px-4 py-3">Duration</th>
-            <th class="px-4 py-3">Details</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100 dark:divide-gray-700/40">
-          <tr
-            v-for="job in jobs"
-            :key="job.id"
-            class="bg-white dark:bg-gray-900/40"
-            :data-testid="`job-row-${job.id}`"
-          >
-            <!-- Type column with color badge -->
-            <td class="px-4 py-3 whitespace-nowrap">
-              <span
-                class="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
-                :class="typeBadgeClass(job.type as JobType)"
-                data-testid="type-badge"
-              >
-                {{ jobLabel(job.type as JobType) }}
-              </span>
-            </td>
-
-            <!-- Status badge -->
-            <td class="px-4 py-3">
-              <span
-                class="inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize"
-                :class="statusBadgeClass(job.status as JobStatus)"
-              >
-                {{ job.status }}
-              </span>
-            </td>
-
-            <!-- Entry column (clickable link) -->
-            <td
-              class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap"
+    <!-- Table (tablet & desktop) + cards (mobile) -->
+    <template v-else>
+      <div
+        class="hidden sm:block overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700/60"
+      >
+        <table class="w-full text-sm" data-testid="job-history-table">
+          <thead>
+            <tr
+              class="bg-gray-50 dark:bg-gray-800/60 text-left text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wider"
             >
+              <th class="px-4 py-3">Type</th>
+              <th class="px-4 py-3">Status</th>
+              <th class="px-4 py-3">Entry</th>
+              <th class="px-4 py-3">Params</th>
+              <th class="px-4 py-3">Created</th>
+              <th class="px-4 py-3">Duration</th>
+              <th class="px-4 py-3">Details</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 dark:divide-gray-700/40">
+            <tr
+              v-for="job in jobs"
+              :key="job.id"
+              class="bg-white dark:bg-gray-900/40"
+              :data-testid="`job-row-${job.id}`"
+            >
+              <!-- Type column with color badge -->
+              <td class="px-4 py-3 whitespace-nowrap">
+                <span
+                  class="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
+                  :class="typeBadgeClass(job.type as JobType)"
+                  data-testid="type-badge"
+                >
+                  {{ jobLabel(job.type as JobType) }}
+                </span>
+              </td>
+
+              <!-- Status badge -->
+              <td class="px-4 py-3">
+                <span
+                  class="inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize"
+                  :class="statusBadgeClass(job.status as JobStatus)"
+                >
+                  {{ job.status }}
+                </span>
+              </td>
+
+              <!-- Entry column (clickable link) -->
+              <td
+                class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap"
+              >
+                <RouterLink
+                  v-if="entryId(job) != null"
+                  :to="{
+                    name: 'entry-detail',
+                    params: { id: String(entryId(job)) },
+                  }"
+                  class="text-violet-600 dark:text-violet-400 hover:underline"
+                  data-testid="entry-link"
+                >
+                  #{{ entryId(job) }}
+                </RouterLink>
+                <span v-else>-</span>
+              </td>
+
+              <!-- Params column (no longer shows entry_id — that's in Entry column) -->
+              <td
+                class="px-4 py-3 text-gray-600 dark:text-gray-300 align-middle"
+              >
+                <JobParamsCell :job="job" />
+              </td>
+
+              <!-- Created column with relative time -->
+              <td
+                class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap"
+              >
+                <span>{{ formatTime(job.created_at) }}</span>
+                <span
+                  v-if="relativeTime(job.created_at)"
+                  class="ml-1.5 text-xs text-gray-400 dark:text-gray-500"
+                  data-testid="relative-time"
+                >
+                  {{ relativeTime(job.created_at) }}
+                </span>
+              </td>
+
+              <!-- Duration -->
+              <td
+                class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap"
+              >
+                {{ duration(job) }}
+              </td>
+
+              <!-- Details column -->
+              <td
+                class="px-4 py-3 text-gray-600 dark:text-gray-300 max-w-[400px]"
+              >
+                <template v-if="job.status === 'failed' && job.error_message">
+                  <div class="flex items-start gap-1.5">
+                    <span
+                      class="text-red-500 dark:text-red-400 truncate"
+                      :title="job.error_message"
+                      >{{ job.error_message }}</span
+                    >
+                    <JsonPopover
+                      v-if="job.error_message.length > 80"
+                      :content="job.error_message"
+                      title="Full error"
+                      trigger-label="full"
+                      trigger-class="!text-red-500 !border-red-200 dark:!border-red-800/40 hover:!bg-red-50 dark:hover:!bg-red-900/20"
+                      data-testid="job-error-full-popover"
+                    />
+                  </div>
+                </template>
+                <template v-else-if="job.status === 'running'">
+                  <span v-if="job.progress_total > 0"
+                    >{{ job.progress_current }}/{{ job.progress_total }}</span
+                  >
+                  <span v-else class="text-violet-500">Running...</span>
+                </template>
+                <template v-else-if="job.status === 'succeeded' && job.result">
+                  <!-- Static summary when nothing extra to reveal -->
+                  <div
+                    v-if="!isExpandable(job)"
+                    class="truncate"
+                    :data-testid="`job-details-static-${job.id}`"
+                  >
+                    {{ resultSummary(job.result, job.type as JobType) }}
+                  </div>
+                  <button
+                    v-else
+                    type="button"
+                    class="text-left w-full group"
+                    :data-testid="`job-details-toggle-${job.id}`"
+                    @click="toggleExpand(job.id)"
+                  >
+                    <!-- Collapsed summary -->
+                    <div
+                      v-if="!expandedRows.has(job.id)"
+                      class="truncate group-hover:text-gray-700 dark:group-hover:text-gray-200 cursor-pointer"
+                    >
+                      {{ resultSummary(job.result, job.type as JobType) }}
+                      <span
+                        class="ml-1 text-xs text-gray-400 dark:text-gray-500 group-hover:text-violet-500"
+                        >...</span
+                      >
+                    </div>
+
+                    <!-- Expanded details (text-sm to match table) -->
+                    <dl
+                      v-else
+                      class="space-y-0.5 cursor-pointer"
+                      data-testid="expanded-details"
+                    >
+                      <div
+                        v-for="[k, v] in visibleResultEntries(job.result)"
+                        :key="String(k)"
+                        class="flex gap-2"
+                      >
+                        <dt
+                          class="font-medium text-gray-600 dark:text-gray-300 whitespace-nowrap"
+                        >
+                          {{ formatResultKey(String(k)) }}:
+                        </dt>
+                        <dd>
+                          <template v-if="Array.isArray(v) && v.length === 0"
+                            >none</template
+                          >
+                          <template v-else-if="Array.isArray(v)">{{
+                            v.join(', ')
+                          }}</template>
+                          <template v-else>{{ v }}</template>
+                        </dd>
+                      </div>
+
+                      <!-- Follow-up job statuses -->
+                      <div
+                        v-if="followUpStatuses[job.id]"
+                        class="flex gap-2 pt-1 mt-1 border-t border-gray-100 dark:border-gray-700/40"
+                        data-testid="follow-up-jobs"
+                      >
+                        <dt
+                          class="font-medium text-gray-600 dark:text-gray-300 whitespace-nowrap"
+                        >
+                          Follow-ups:
+                        </dt>
+                        <dd class="flex flex-wrap gap-1.5">
+                          <span
+                            v-for="(fj, label) in followUpStatuses[job.id]"
+                            :key="label"
+                            class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium"
+                            :class="statusBadgeClass(fj.status)"
+                            data-testid="follow-up-badge"
+                          >
+                            {{ formatResultKey(label) }}
+                          </span>
+                        </dd>
+                      </div>
+                    </dl>
+                  </button>
+                </template>
+                <template v-else>-</template>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Cards: mobile (stacked) -->
+      <ul class="sm:hidden space-y-3" data-testid="job-card-list">
+        <li
+          v-for="job in jobs"
+          :key="job.id"
+          class="rounded-lg border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-900/40 p-4"
+          :data-testid="`job-card-${job.id}`"
+        >
+          <div class="flex items-center justify-between gap-2 flex-wrap">
+            <span
+              class="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
+              :class="typeBadgeClass(job.type as JobType)"
+            >
+              {{ jobLabel(job.type as JobType) }}
+            </span>
+            <span
+              class="inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize"
+              :class="statusBadgeClass(job.status as JobStatus)"
+            >
+              {{ job.status }}
+            </span>
+          </div>
+
+          <div
+            class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400"
+          >
+            <span>
+              Entry:
               <RouterLink
                 v-if="entryId(job) != null"
                 :to="{
@@ -442,153 +627,43 @@ function nextPage() {
                   params: { id: String(entryId(job)) },
                 }"
                 class="text-violet-600 dark:text-violet-400 hover:underline"
-                data-testid="entry-link"
+                data-testid="card-entry-link"
               >
                 #{{ entryId(job) }}
               </RouterLink>
               <span v-else>-</span>
-            </td>
+            </span>
+            <span>{{ formatTime(job.created_at) }}</span>
+            <span v-if="duration(job) !== '-'">· {{ duration(job) }}</span>
+          </div>
 
-            <!-- Params column (no longer shows entry_id — that's in Entry column) -->
-            <td class="px-4 py-3 text-gray-600 dark:text-gray-300 align-middle">
-              <JobParamsCell :job="job" />
-            </td>
+          <div class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+            <JobParamsCell :job="job" />
+          </div>
 
-            <!-- Created column with relative time -->
-            <td
-              class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap"
-            >
-              <span>{{ formatTime(job.created_at) }}</span>
+          <div class="mt-1 text-sm">
+            <template v-if="job.status === 'failed' && job.error_message">
+              <span class="text-red-500 dark:text-red-400 break-words">{{
+                job.error_message
+              }}</span>
+            </template>
+            <template v-else-if="job.status === 'running'">
               <span
-                v-if="relativeTime(job.created_at)"
-                class="ml-1.5 text-xs text-gray-400 dark:text-gray-500"
-                data-testid="relative-time"
+                v-if="job.progress_total > 0"
+                class="text-gray-600 dark:text-gray-300"
+                >{{ job.progress_current }}/{{ job.progress_total }}</span
               >
-                {{ relativeTime(job.created_at) }}
-              </span>
-            </td>
-
-            <!-- Duration -->
-            <td
-              class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap"
-            >
-              {{ duration(job) }}
-            </td>
-
-            <!-- Details column -->
-            <td
-              class="px-4 py-3 text-gray-600 dark:text-gray-300 max-w-[400px]"
-            >
-              <template v-if="job.status === 'failed' && job.error_message">
-                <div class="flex items-start gap-1.5">
-                  <span
-                    class="text-red-500 dark:text-red-400 truncate"
-                    :title="job.error_message"
-                    >{{ job.error_message }}</span
-                  >
-                  <JsonPopover
-                    v-if="job.error_message.length > 80"
-                    :content="job.error_message"
-                    title="Full error"
-                    trigger-label="full"
-                    trigger-class="!text-red-500 !border-red-200 dark:!border-red-800/40 hover:!bg-red-50 dark:hover:!bg-red-900/20"
-                    data-testid="job-error-full-popover"
-                  />
-                </div>
-              </template>
-              <template v-else-if="job.status === 'running'">
-                <span v-if="job.progress_total > 0"
-                  >{{ job.progress_current }}/{{ job.progress_total }}</span
-                >
-                <span v-else class="text-violet-500">Running...</span>
-              </template>
-              <template v-else-if="job.status === 'succeeded' && job.result">
-                <!-- Static summary when nothing extra to reveal -->
-                <div
-                  v-if="!isExpandable(job)"
-                  class="truncate"
-                  :data-testid="`job-details-static-${job.id}`"
-                >
-                  {{ resultSummary(job.result, job.type as JobType) }}
-                </div>
-                <button
-                  v-else
-                  type="button"
-                  class="text-left w-full group"
-                  :data-testid="`job-details-toggle-${job.id}`"
-                  @click="toggleExpand(job.id)"
-                >
-                  <!-- Collapsed summary -->
-                  <div
-                    v-if="!expandedRows.has(job.id)"
-                    class="truncate group-hover:text-gray-700 dark:group-hover:text-gray-200 cursor-pointer"
-                  >
-                    {{ resultSummary(job.result, job.type as JobType) }}
-                    <span
-                      class="ml-1 text-xs text-gray-400 dark:text-gray-500 group-hover:text-violet-500"
-                      >...</span
-                    >
-                  </div>
-
-                  <!-- Expanded details (text-sm to match table) -->
-                  <dl
-                    v-else
-                    class="space-y-0.5 cursor-pointer"
-                    data-testid="expanded-details"
-                  >
-                    <div
-                      v-for="[k, v] in visibleResultEntries(job.result)"
-                      :key="String(k)"
-                      class="flex gap-2"
-                    >
-                      <dt
-                        class="font-medium text-gray-600 dark:text-gray-300 whitespace-nowrap"
-                      >
-                        {{ formatResultKey(String(k)) }}:
-                      </dt>
-                      <dd>
-                        <template v-if="Array.isArray(v) && v.length === 0"
-                          >none</template
-                        >
-                        <template v-else-if="Array.isArray(v)">{{
-                          v.join(', ')
-                        }}</template>
-                        <template v-else>{{ v }}</template>
-                      </dd>
-                    </div>
-
-                    <!-- Follow-up job statuses -->
-                    <div
-                      v-if="followUpStatuses[job.id]"
-                      class="flex gap-2 pt-1 mt-1 border-t border-gray-100 dark:border-gray-700/40"
-                      data-testid="follow-up-jobs"
-                    >
-                      <dt
-                        class="font-medium text-gray-600 dark:text-gray-300 whitespace-nowrap"
-                      >
-                        Follow-ups:
-                      </dt>
-                      <dd class="flex flex-wrap gap-1.5">
-                        <span
-                          v-for="(fj, label) in followUpStatuses[job.id]"
-                          :key="label"
-                          class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium"
-                          :class="statusBadgeClass(fj.status)"
-                          data-testid="follow-up-badge"
-                        >
-                          {{ formatResultKey(label) }}
-                        </span>
-                      </dd>
-                    </div>
-                  </dl>
-                </button>
-              </template>
-              <template v-else>-</template>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+              <span v-else class="text-violet-500">Running...</span>
+            </template>
+            <template v-else-if="job.status === 'succeeded' && job.result">
+              <span class="text-gray-600 dark:text-gray-300 break-words">{{
+                resultSummary(job.result, job.type as JobType)
+              }}</span>
+            </template>
+          </div>
+        </li>
+      </ul>
+    </template>
 
     <!-- Pagination -->
     <div
