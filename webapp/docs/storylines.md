@@ -315,6 +315,20 @@ Append-mode requires a `start_date` (validated client-side before
 submit) — the server then validates `start_date >= last_generated_at`
 and surfaces a 400 if violated.
 
+The modal also exposes **Re-segment into chapters**
+(`data-testid="storyline-regenerate-resegment"`, default off): when
+checked it posts `{resegment: true}`, which re-carves the storyline into
+titled ~200-word chapters instead of refreshing the current ones.
+Re-segment is mutually exclusive with Append — toggling it on forces
+Replace and hides the mode/date controls, so an invalid `append +
+resegment` body can never be submitted. A secondary **Ignore my
+hand-painted chapters** checkbox
+(`data-testid="storyline-regenerate-override-locked"`) appears only when
+re-segment is on; when checked it adds `{override_locked: true}` so the
+re-carve also crosses chapters the user split, dated, or renamed. False
+booleans are never sent. (There is no word-count badge — chapter length
+is a soft server-side target.)
+
 The response returns 202 with `{job_id}`. The detail view registers
 the job via `useJobsStore().trackJob(jobId, 'storyline_generation',
 { storyline_id })`. When the job reaches a terminal state (`succeeded`

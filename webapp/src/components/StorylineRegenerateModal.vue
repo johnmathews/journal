@@ -36,6 +36,8 @@ type Mode = 'replace' | 'append'
 const mode = ref<Mode>('replace')
 const startDate = ref('')
 const endDate = ref('')
+const resegment = ref(false)
+const overrideLocked = ref(false)
 const submitting = ref(false)
 // Per-storyline errors collected during a bulk submit, so a partial
 // failure doesn't silently swallow the bad ones.
@@ -45,9 +47,23 @@ function resetState(): void {
   mode.value = 'replace'
   startDate.value = ''
   endDate.value = ''
+  resegment.value = false
+  overrideLocked.value = false
   submitting.value = false
   submitErrors.value = []
 }
+
+// Re-segment is incompatible with append mode (server returns 400 if
+// combined). When re-segment is switched on, force mode back to
+// replace so an invalid append+resegment body can never be submitted,
+// and clear the now-irrelevant override flag when it's switched off.
+watch(resegment, (on) => {
+  if (on) {
+    mode.value = 'replace'
+  } else {
+    overrideLocked.value = false
+  }
+})
 
 watch(
   () => props.modelValue,
@@ -60,8 +76,10 @@ watch(
 
 const affectedCount = computed<number>(() => props.storylineIds.length)
 
+// When re-segmenting, mode + date controls don't apply, so the
+// append-needs-start guard is moot.
 const appendNeedsStart = computed<boolean>(
-  () => mode.value === 'append' && !startDate.value,
+  () => !resegment.value && mode.value === 'append' && !startDate.value,
 )
 
 const canSubmit = computed<boolean>(() => {
@@ -76,11 +94,22 @@ async function onSubmit(): Promise<void> {
   submitting.value = true
   submitErrors.value = []
   const jobIds: string[] = []
-  const body: { start_date?: string; end_date?: string; mode?: Mode } = {
-    mode: mode.value,
+  const body: {
+    start_date?: string
+    end_date?: string
+    mode?: Mode
+    resegment?: boolean
+    override_locked?: boolean
+  } = {}
+  if (resegment.value) {
+    // Re-segment path: mode (append) and date range do not apply.
+    body.resegment = true
+    if (overrideLocked.value) body.override_locked = true
+  } else {
+    body.mode = mode.value
+    if (startDate.value) body.start_date = startDate.value
+    if (endDate.value) body.end_date = endDate.value
   }
-  if (startDate.value) body.start_date = startDate.value
-  if (endDate.value) body.end_date = endDate.value
 
   try {
     for (const id of props.storylineIds) {
@@ -144,7 +173,48 @@ function onCancel(): void {
         }}.
       </p>
 
-      <fieldset class="space-y-2">
+      <div class="space-y-2">
+        <label class="flex items-start gap-2 cursor-pointer">
+          <input
+            v-model="resegment"
+            type="checkbox"
+            class="form-checkbox mt-0.5 text-violet-500"
+            data-testid="storyline-regenerate-resegment"
+          />
+          <span class="text-sm">
+            <span class="font-medium text-gray-800 dark:text-gray-100">
+              Re-segment into chapters
+            </span>
+            <span class="block text-xs text-gray-600 dark:text-gray-300">
+              Re-carve this storyline into titled ~200-word chapters. Leave off
+              to just refresh the current chapters.
+            </span>
+          </span>
+        </label>
+
+        <label
+          v-if="resegment"
+          class="flex items-start gap-2 cursor-pointer ml-6"
+        >
+          <input
+            v-model="overrideLocked"
+            type="checkbox"
+            class="form-checkbox mt-0.5 text-violet-500"
+            data-testid="storyline-regenerate-override-locked"
+          />
+          <span class="text-sm">
+            <span class="font-medium text-gray-800 dark:text-gray-100">
+              Ignore my hand-painted chapters
+            </span>
+            <span class="block text-xs text-gray-600 dark:text-gray-300">
+              Also re-carve chapters you've manually split, dated, or renamed.
+              Off keeps them as-is.
+            </span>
+          </span>
+        </label>
+      </div>
+
+      <fieldset v-if="!resegment" class="space-y-2">
         <legend
           class="text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
         >
@@ -189,7 +259,7 @@ function onCancel(): void {
         </label>
       </fieldset>
 
-      <div class="grid grid-cols-2 gap-3">
+      <div v-if="!resegment" class="grid grid-cols-2 gap-3">
         <div>
           <label
             for="storyline-regenerate-start"

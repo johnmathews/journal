@@ -110,6 +110,24 @@ describe('storylines API', () => {
     })
   })
 
+  it('regenerateStoryline forwards resegment and override_locked booleans', async () => {
+    mockApiFetch.mockResolvedValue({ job_id: 'job-45', status: 'queued' })
+    await regenerateStoryline(8, { resegment: true, override_locked: true })
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/storylines/8/regenerate', {
+      method: 'POST',
+      body: JSON.stringify({ resegment: true, override_locked: true }),
+    })
+  })
+
+  it('regenerateStoryline forwards resegment alone', async () => {
+    mockApiFetch.mockResolvedValue({ job_id: 'job-46', status: 'queued' })
+    await regenerateStoryline(9, { resegment: true })
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/storylines/9/regenerate', {
+      method: 'POST',
+      body: JSON.stringify({ resegment: true }),
+    })
+  })
+
   it('regenerateStoryline omits the body when all fields are undefined', async () => {
     mockApiFetch.mockResolvedValue({ job_id: 'job-44', status: 'queued' })
     await regenerateStoryline(6, {

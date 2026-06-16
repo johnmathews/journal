@@ -203,11 +203,20 @@ export interface RegenerateStorylineResponse {
  * - `mode`: `"replace"` (default) regenerates both panels from
  *   scratch; `"append"` appends new-range segments and requires
  *   `start_date >= storyline.last_generated_at` (server validates,
- *   returns 400 on violation). */
+ *   returns 400 on violation).
+ * - `resegment`: when `true`, re-carve the storyline into titled
+ *   ~200-word chapters instead of just refreshing existing chapters'
+ *   panels. INCOMPATIBLE with `mode="append"` (server returns 400 if
+ *   combined), so the UI never sends append alongside resegment.
+ * - `override_locked`: only meaningful with `resegment=true`. When
+ *   `true`, also re-carve across hand-painted (locked) chapters;
+ *   otherwise those are preserved. */
 export interface RegenerateStorylineRequest {
   start_date?: string
   end_date?: string
   mode?: 'replace' | 'append'
+  resegment?: boolean
+  override_locked?: boolean
 }
 
 /** Response for chapter-edit endpoints that return one affected chapter

@@ -709,6 +709,16 @@ describe('StorylineDetailView', () => {
     expect(wrapper.findAll('[data-testid="chapter-rail-item"]')).toHaveLength(2)
   })
 
+  it('renders each chapter title in the rail for multiple chapters', async () => {
+    mockFetchStoryline.mockResolvedValue(mockDetailTwoChapters())
+    const wrapper = mountComponent()
+    await flushPromises()
+    const items = wrapper.findAll('[data-testid="chapter-rail-item"]')
+    expect(items).toHaveLength(2)
+    expect(items[0].text()).toContain('Ch1')
+    expect(items[1].text()).toContain('Ch2')
+  })
+
   it('default-selects the latest chapter (highest seq) and loads it', async () => {
     mockFetchStoryline.mockResolvedValue(mockDetailTwoChapters())
     const wrapper = mountComponent()

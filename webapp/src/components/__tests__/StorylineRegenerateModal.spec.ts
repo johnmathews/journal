@@ -215,6 +215,230 @@ describe('StorylineRegenerateModal', () => {
     expect(updates.some((u) => u[0] === false)).toBe(false)
   })
 
+  it('renders the re-segment checkbox unchecked by default with the override checkbox hidden', async () => {
+    mountModal({ modelValue: true, storylineIds: [1] })
+    await nextTick()
+    const resegment = document.body.querySelector(
+      '[data-testid="storyline-regenerate-resegment"]',
+    ) as HTMLInputElement
+    expect(resegment).not.toBeNull()
+    expect(resegment.checked).toBe(false)
+    expect(
+      document.body.querySelector(
+        '[data-testid="storyline-regenerate-override-locked"]',
+      ),
+    ).toBeNull()
+  })
+
+  it('checking re-segment reveals the override checkbox and hides the mode/date controls', async () => {
+    mountModal({ modelValue: true, storylineIds: [1] })
+    await nextTick()
+
+    // Mode + date controls present before re-segment is toggled.
+    expect(
+      document.body.querySelector(
+        '[data-testid="storyline-regenerate-mode-replace"]',
+      ),
+    ).not.toBeNull()
+    expect(
+      document.body.querySelector(
+        '[data-testid="storyline-regenerate-start-date"]',
+      ),
+    ).not.toBeNull()
+
+    const resegment = document.body.querySelector(
+      '[data-testid="storyline-regenerate-resegment"]',
+    ) as HTMLInputElement
+    resegment.checked = true
+    resegment.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+
+    // Override checkbox now visible.
+    expect(
+      document.body.querySelector(
+        '[data-testid="storyline-regenerate-override-locked"]',
+      ),
+    ).not.toBeNull()
+    // Mode + date controls hidden.
+    expect(
+      document.body.querySelector(
+        '[data-testid="storyline-regenerate-mode-replace"]',
+      ),
+    ).toBeNull()
+    expect(
+      document.body.querySelector(
+        '[data-testid="storyline-regenerate-start-date"]',
+      ),
+    ).toBeNull()
+  })
+
+  it('submitting with re-segment checked posts resegment:true and no mode', async () => {
+    mountModal({ modelValue: true, storylineIds: [7] })
+    await nextTick()
+
+    const store = useStorylinesStore()
+    const regenSpy = vi
+      .spyOn(store, 'regenerate')
+      .mockResolvedValue({ job_id: 'job-r', status: 'queued' })
+    const jobsStore = useJobsStore()
+    vi.spyOn(jobsStore, 'trackJob').mockImplementation(() => {})
+
+    const resegment = document.body.querySelector(
+      '[data-testid="storyline-regenerate-resegment"]',
+    ) as HTMLInputElement
+    resegment.checked = true
+    resegment.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+
+    const submit = document.body.querySelector(
+      '[data-testid="storyline-regenerate-submit"]',
+    ) as HTMLElement
+    submit.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+
+    expect(regenSpy).toHaveBeenCalledWith(7, { resegment: true })
+    const body = regenSpy.mock.calls[0][1] as Record<string, unknown>
+    expect(body).not.toHaveProperty('mode')
+  })
+
+  it('submitting with re-segment + override checked posts both booleans', async () => {
+    mountModal({ modelValue: true, storylineIds: [7] })
+    await nextTick()
+
+    const store = useStorylinesStore()
+    const regenSpy = vi
+      .spyOn(store, 'regenerate')
+      .mockResolvedValue({ job_id: 'job-r', status: 'queued' })
+    const jobsStore = useJobsStore()
+    vi.spyOn(jobsStore, 'trackJob').mockImplementation(() => {})
+
+    const resegment = document.body.querySelector(
+      '[data-testid="storyline-regenerate-resegment"]',
+    ) as HTMLInputElement
+    resegment.checked = true
+    resegment.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+
+    const override = document.body.querySelector(
+      '[data-testid="storyline-regenerate-override-locked"]',
+    ) as HTMLInputElement
+    override.checked = true
+    override.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+
+    const submit = document.body.querySelector(
+      '[data-testid="storyline-regenerate-submit"]',
+    ) as HTMLElement
+    submit.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+
+    expect(regenSpy).toHaveBeenCalledWith(7, {
+      resegment: true,
+      override_locked: true,
+    })
+  })
+
+  it('re-segment toggled on after selecting append never submits append', async () => {
+    mountModal({ modelValue: true, storylineIds: [7] })
+    await nextTick()
+
+    const store = useStorylinesStore()
+    const regenSpy = vi
+      .spyOn(store, 'regenerate')
+      .mockResolvedValue({ job_id: 'job-r', status: 'queued' })
+    const jobsStore = useJobsStore()
+    vi.spyOn(jobsStore, 'trackJob').mockImplementation(() => {})
+
+    // Select append + a start date first.
+    const appendRadio = document.body.querySelector(
+      '[data-testid="storyline-regenerate-mode-append"]',
+    ) as HTMLInputElement
+    appendRadio.checked = true
+    appendRadio.dispatchEvent(new Event('change', { bubbles: true }))
+    const start = document.body.querySelector(
+      '[data-testid="storyline-regenerate-start-date"]',
+    ) as HTMLInputElement
+    start.value = '2026-04-01'
+    start.dispatchEvent(new Event('input', { bubbles: true }))
+    await nextTick()
+
+    // Now switch on re-segment.
+    const resegment = document.body.querySelector(
+      '[data-testid="storyline-regenerate-resegment"]',
+    ) as HTMLInputElement
+    resegment.checked = true
+    resegment.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+
+    const submit = document.body.querySelector(
+      '[data-testid="storyline-regenerate-submit"]',
+    ) as HTMLButtonElement
+    expect(submit.disabled).toBe(false)
+    submit.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+
+    const body = regenSpy.mock.calls[0][1] as Record<string, unknown>
+    expect(body).toEqual({ resegment: true })
+    expect(body.mode).toBeUndefined()
+  })
+
+  it('submitting with re-segment unchecked is unchanged (no resegment key)', async () => {
+    mountModal({ modelValue: true, storylineIds: [7] })
+    await nextTick()
+
+    const store = useStorylinesStore()
+    const regenSpy = vi
+      .spyOn(store, 'regenerate')
+      .mockResolvedValue({ job_id: 'job-r', status: 'queued' })
+    const jobsStore = useJobsStore()
+    vi.spyOn(jobsStore, 'trackJob').mockImplementation(() => {})
+
+    const submit = document.body.querySelector(
+      '[data-testid="storyline-regenerate-submit"]',
+    ) as HTMLElement
+    submit.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+
+    expect(regenSpy).toHaveBeenCalledWith(7, { mode: 'replace' })
+    const body = regenSpy.mock.calls[0][1] as Record<string, unknown>
+    expect(body).not.toHaveProperty('resegment')
+    expect(body).not.toHaveProperty('override_locked')
+  })
+
+  it('resets the re-segment + override refs when reopened', async () => {
+    const wrapper = mountModal({ modelValue: true, storylineIds: [1] })
+    await nextTick()
+
+    const resegment = document.body.querySelector(
+      '[data-testid="storyline-regenerate-resegment"]',
+    ) as HTMLInputElement
+    resegment.checked = true
+    resegment.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+    const override = document.body.querySelector(
+      '[data-testid="storyline-regenerate-override-locked"]',
+    ) as HTMLInputElement
+    override.checked = true
+    override.dispatchEvent(new Event('change', { bubbles: true }))
+    await nextTick()
+
+    await wrapper.setProps({ modelValue: false })
+    await nextTick()
+    await wrapper.setProps({ modelValue: true })
+    await nextTick()
+
+    const resegmentAfter = document.body.querySelector(
+      '[data-testid="storyline-regenerate-resegment"]',
+    ) as HTMLInputElement
+    expect(resegmentAfter.checked).toBe(false)
+    // Override checkbox hidden again once re-segment is unchecked.
+    expect(
+      document.body.querySelector(
+        '[data-testid="storyline-regenerate-override-locked"]',
+      ),
+    ).toBeNull()
+  })
+
   it('Cancel closes the modal', async () => {
     const wrapper = mountModal({ modelValue: true, storylineIds: [1] })
     await nextTick()
