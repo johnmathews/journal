@@ -62,6 +62,10 @@ function onDateInput(): void {
   }
 }
 
+function onAnswer(): void {
+  store.runAnswer()
+}
+
 function submit(): void {
   // "All time" means unconstrained: the inputs stay visually
   // backfilled (see onMounted), but sending the synthetic
@@ -288,7 +292,59 @@ function matchExplanation(item: SearchResultItem): string {
         </svg>
         {{ store.loading ? 'Searching…' : 'Search' }}
       </button>
+      <button
+        type="button"
+        class="btn border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
+        data-testid="search-answer"
+        :disabled="store.answerLoading || !queryInput.trim()"
+        @click="onAnswer"
+      >
+        {{ store.answerLoading ? 'Thinking…' : 'Answer this' }}
+      </button>
     </form>
+
+    <!-- Answer panel (opt-in synthesis) -->
+    <div
+      v-if="store.answerLoading || store.answer || store.answerError"
+      class="mb-4 rounded-md border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-800 p-4"
+      data-testid="answer-panel"
+    >
+      <div
+        v-if="store.answerLoading"
+        class="text-sm text-gray-600 dark:text-gray-300"
+      >
+        Thinking…
+      </div>
+      <div
+        v-else-if="store.answerError"
+        class="text-sm text-red-600 dark:text-red-400"
+        data-testid="answer-error"
+      >
+        {{ store.answerError }}
+      </div>
+      <template v-else>
+        <p
+          class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed"
+          data-testid="answer-text"
+        >
+          {{ store.answer }}
+        </p>
+        <div
+          v-if="store.answerCitations.length"
+          class="mt-3 flex flex-wrap gap-2"
+        >
+          <RouterLink
+            v-for="c in store.answerCitations"
+            :key="c.entry_id"
+            :to="`/entries/${c.entry_id}`"
+            class="text-xs px-2 py-1 rounded bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 hover:bg-violet-100"
+            data-testid="answer-citation"
+          >
+            {{ c.entry_date }}
+          </RouterLink>
+        </div>
+      </template>
+    </div>
 
     <!-- Loading / error / empty states -->
     <div
