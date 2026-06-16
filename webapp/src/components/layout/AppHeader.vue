@@ -28,7 +28,7 @@ async function handleSignOut() {
   <header
     class="sticky top-0 before:absolute before:inset-0 before:backdrop-blur-md max-lg:before:bg-white/90 dark:max-lg:before:bg-gray-800/90 before:-z-10 z-30 max-lg:shadow-xs lg:before:bg-gray-100/90 dark:lg:before:bg-gray-900/90"
   >
-    <div class="px-4 sm:px-6 lg:px-8">
+    <div class="px-4 sm:px-6 lg:px-8 pt-[env(safe-area-inset-top)]">
       <div
         class="flex items-center justify-between h-16 lg:border-b border-gray-200 dark:border-gray-700/60"
       >

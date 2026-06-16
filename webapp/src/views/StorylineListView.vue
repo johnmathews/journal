@@ -354,101 +354,187 @@ function openRegenerateBulk(): void {
         <code>POST /api/storylines</code> endpoint to get started.
       </div>
 
-      <!-- Table -->
-      <div v-else class="overflow-x-auto">
-        <table class="table-auto w-full dark:text-gray-300">
-          <thead
-            class="text-xs font-semibold uppercase text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700/60"
-          >
-            <tr>
-              <th class="px-2 py-3 w-8">
-                <input
-                  type="checkbox"
-                  :checked="allOnPageSelected"
-                  class="form-checkbox h-4 w-4 text-violet-500 rounded border-gray-300 dark:border-gray-600"
-                  data-testid="select-all-checkbox"
-                  @change="toggleSelectAllOnPage"
-                  @click.stop
-                />
-              </th>
-              <th
-                class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none text-left"
-                data-testid="sort-name"
-                @click="toggleSort('name')"
-              >
-                Name{{ sortIndicator('name') }}
-              </th>
-              <th
-                class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none text-left"
-                data-testid="sort-anchors"
-                @click="toggleSort('anchors')"
-              >
-                Anchors{{ sortIndicator('anchors') }}
-              </th>
-              <th
-                class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none text-left"
-                data-testid="sort-generated"
-                @click="toggleSort('last_generated_at')"
-              >
-                Last generated{{ sortIndicator('last_generated_at') }}
-              </th>
-              <th
-                class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none text-left"
-                data-testid="sort-created"
-                @click="toggleSort('created_at')"
-              >
-                Created{{ sortIndicator('created_at') }}
-              </th>
-              <th
-                class="px-4 py-3 whitespace-nowrap select-none text-right"
-                data-testid="col-actions"
-              >
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody
-            class="text-sm divide-y divide-gray-200 dark:divide-gray-700/60"
-          >
-            <tr
-              v-for="storyline in sortedStorylines"
-              :key="storyline.id"
-              class="cursor-pointer hover:bg-violet-50 dark:hover:bg-violet-500/[0.08] transition-colors"
-              :class="{
-                'bg-violet-50/50 dark:bg-violet-500/5': isSelected(
-                  storyline.id,
-                ),
-              }"
-              data-testid="storyline-row"
-              @click="onRowClick(storyline.id)"
+      <template v-else>
+        <!-- Table: tablet & desktop -->
+        <div class="hidden sm:block overflow-x-auto">
+          <table class="table-auto w-full dark:text-gray-300">
+            <thead
+              class="text-xs font-semibold uppercase text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700/60"
             >
-              <td class="px-2 py-3 text-center">
-                <input
-                  type="checkbox"
-                  :checked="isSelected(storyline.id)"
-                  class="form-checkbox h-4 w-4 text-violet-500 rounded border-gray-300 dark:border-gray-600"
-                  data-testid="storyline-checkbox"
-                  @click.stop
-                  @change="toggleSelect(storyline.id)"
-                />
-              </td>
-              <td
-                class="px-4 py-3 whitespace-nowrap text-gray-800 dark:text-gray-100 font-medium"
-                data-testid="storyline-name-cell"
+              <tr>
+                <th class="px-2 py-3 w-8">
+                  <input
+                    type="checkbox"
+                    :checked="allOnPageSelected"
+                    class="form-checkbox h-4 w-4 text-violet-500 rounded border-gray-300 dark:border-gray-600"
+                    data-testid="select-all-checkbox"
+                    @change="toggleSelectAllOnPage"
+                    @click.stop
+                  />
+                </th>
+                <th
+                  class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none text-left"
+                  data-testid="sort-name"
+                  @click="toggleSort('name')"
+                >
+                  Name{{ sortIndicator('name') }}
+                </th>
+                <th
+                  class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none text-left"
+                  data-testid="sort-anchors"
+                  @click="toggleSort('anchors')"
+                >
+                  Anchors{{ sortIndicator('anchors') }}
+                </th>
+                <th
+                  class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none text-left"
+                  data-testid="sort-generated"
+                  @click="toggleSort('last_generated_at')"
+                >
+                  Last generated{{ sortIndicator('last_generated_at') }}
+                </th>
+                <th
+                  class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none text-left"
+                  data-testid="sort-created"
+                  @click="toggleSort('created_at')"
+                >
+                  Created{{ sortIndicator('created_at') }}
+                </th>
+                <th
+                  class="px-4 py-3 whitespace-nowrap select-none text-right"
+                  data-testid="col-actions"
+                >
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody
+              class="text-sm divide-y divide-gray-200 dark:divide-gray-700/60"
+            >
+              <tr
+                v-for="storyline in sortedStorylines"
+                :key="storyline.id"
+                class="cursor-pointer hover:bg-violet-50 dark:hover:bg-violet-500/[0.08] transition-colors"
+                :class="{
+                  'bg-violet-50/50 dark:bg-violet-500/5': isSelected(
+                    storyline.id,
+                  ),
+                }"
+                data-testid="storyline-row"
+                @click="onRowClick(storyline.id)"
               >
-                {{ storyline.name }}
-              </td>
-              <td
-                class="px-4 py-3 text-gray-600 dark:text-gray-300"
-                data-testid="storyline-anchors-cell"
-              >
-                <div class="flex flex-wrap gap-1">
+                <td class="px-2 py-3 text-center">
+                  <input
+                    type="checkbox"
+                    :checked="isSelected(storyline.id)"
+                    class="form-checkbox h-4 w-4 text-violet-500 rounded border-gray-300 dark:border-gray-600"
+                    data-testid="storyline-checkbox"
+                    @click.stop
+                    @change="toggleSelect(storyline.id)"
+                  />
+                </td>
+                <td
+                  class="px-4 py-3 whitespace-nowrap text-gray-800 dark:text-gray-100 font-medium"
+                  data-testid="storyline-name-cell"
+                >
+                  {{ storyline.name }}
+                </td>
+                <td
+                  class="px-4 py-3 text-gray-600 dark:text-gray-300"
+                  data-testid="storyline-anchors-cell"
+                >
+                  <div class="flex flex-wrap gap-1">
+                    <RouterLink
+                      v-for="anchor in storyline.anchors"
+                      :key="anchor.id"
+                      :to="`/entities/${anchor.id}`"
+                      class="inline-block bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700/40 rounded-full px-2 py-0.5 text-xs text-violet-700 dark:text-violet-300 hover:underline"
+                      :data-testid="`storyline-anchor-chip-${anchor.id}`"
+                      @click.stop
+                    >
+                      {{ anchor.canonical_name || `#${anchor.id}` }}
+                    </RouterLink>
+                    <span
+                      v-if="storyline.anchors.length === 0"
+                      class="text-xs text-gray-400"
+                    >
+                      (none)
+                    </span>
+                  </div>
+                </td>
+                <td
+                  class="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300"
+                  data-testid="storyline-last-generated-cell"
+                >
+                  {{ formatDateTime(storyline.last_generated_at) }}
+                </td>
+                <td
+                  class="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300"
+                >
+                  {{ formatDate(storyline.created_at) }}
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap text-right space-x-2">
+                  <button
+                    type="button"
+                    class="text-xs text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
+                    data-testid="row-regenerate-button"
+                    :title="`Regenerate ${storyline.name}`"
+                    @click.stop="openRegenerateRow(storyline)"
+                  >
+                    Regenerate
+                  </button>
+                  <button
+                    type="button"
+                    class="text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                    data-testid="row-delete-button"
+                    :title="`Delete ${storyline.name}`"
+                    @click.stop="onDeleteRow(storyline)"
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Cards: mobile (stacked) -->
+        <ul class="sm:hidden divide-y divide-gray-200 dark:divide-gray-700/60">
+          <li
+            v-for="storyline in sortedStorylines"
+            :key="storyline.id"
+            class="p-4 cursor-pointer hover:bg-violet-50 dark:hover:bg-violet-500/[0.08] transition-colors"
+            :class="{
+              'bg-violet-50/50 dark:bg-violet-500/5': isSelected(storyline.id),
+            }"
+            data-testid="storyline-card"
+            @click="onRowClick(storyline.id)"
+          >
+            <div class="flex items-start gap-3">
+              <input
+                type="checkbox"
+                :checked="isSelected(storyline.id)"
+                class="form-checkbox h-4 w-4 mt-0.5 shrink-0 text-violet-500 rounded border-gray-300 dark:border-gray-600"
+                data-testid="storyline-card-checkbox"
+                @click.stop
+                @change="toggleSelect(storyline.id)"
+              />
+              <div class="min-w-0 flex-1">
+                <div
+                  class="text-gray-800 dark:text-gray-100 font-medium"
+                  data-testid="storyline-card-name"
+                >
+                  {{ storyline.name }}
+                </div>
+
+                <!-- Anchors -->
+                <div class="mt-2 flex flex-wrap gap-1">
                   <RouterLink
                     v-for="anchor in storyline.anchors"
                     :key="anchor.id"
                     :to="`/entities/${anchor.id}`"
                     class="inline-block bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700/40 rounded-full px-2 py-0.5 text-xs text-violet-700 dark:text-violet-300 hover:underline"
-                    :data-testid="`storyline-anchor-chip-${anchor.id}`"
+                    :data-testid="`storyline-card-anchor-chip-${anchor.id}`"
                     @click.stop
                   >
                     {{ anchor.canonical_name || `#${anchor.id}` }}
@@ -460,42 +546,40 @@ function openRegenerateBulk(): void {
                     (none)
                   </span>
                 </div>
-              </td>
-              <td
-                class="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300"
-                data-testid="storyline-last-generated-cell"
-              >
-                {{ formatDateTime(storyline.last_generated_at) }}
-              </td>
-              <td
-                class="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300"
-              >
-                {{ formatDate(storyline.created_at) }}
-              </td>
-              <td class="px-4 py-3 whitespace-nowrap text-right space-x-2">
-                <button
-                  type="button"
-                  class="text-xs text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
-                  data-testid="row-regenerate-button"
-                  :title="`Regenerate ${storyline.name}`"
-                  @click.stop="openRegenerateRow(storyline)"
-                >
-                  Regenerate
-                </button>
-                <button
-                  type="button"
-                  class="text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                  data-testid="row-delete-button"
-                  :title="`Delete ${storyline.name}`"
-                  @click.stop="onDeleteRow(storyline)"
-                >
-                  Delete
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+
+                <!-- Meta -->
+                <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  Last generated
+                  {{ formatDateTime(storyline.last_generated_at) }} · Created
+                  {{ formatDate(storyline.created_at) }}
+                </div>
+
+                <!-- Actions -->
+                <div class="mt-3 flex items-center gap-4">
+                  <button
+                    type="button"
+                    class="text-xs font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
+                    data-testid="card-regenerate-button"
+                    :title="`Regenerate ${storyline.name}`"
+                    @click.stop="openRegenerateRow(storyline)"
+                  >
+                    Regenerate
+                  </button>
+                  <button
+                    type="button"
+                    class="text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                    data-testid="card-delete-button"
+                    :title="`Delete ${storyline.name}`"
+                    @click.stop="onDeleteRow(storyline)"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          </li>
+        </ul>
+      </template>
 
       <!-- Pagination footer -->
       <div

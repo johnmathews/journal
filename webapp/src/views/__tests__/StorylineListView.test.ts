@@ -407,4 +407,81 @@ describe('StorylineListView', () => {
     expect(mockRegenerateStoryline).toHaveBeenCalledTimes(2)
     document.body.innerHTML = ''
   })
+
+  // --- Mobile stacked-card layout ---
+  // The table is hidden below `sm` and a card list is shown instead. Both
+  // branches are in the DOM under happy-dom regardless of CSS, so card tests
+  // scope to card-specific testids to avoid colliding with the table.
+
+  it('renders one storyline card per row', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    const cards = wrapper.findAll('[data-testid="storyline-card"]')
+    expect(cards.length).toBe(2)
+  })
+
+  it('each card shows the storyline name and its anchor chips', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    const firstCard = wrapper.findAll('[data-testid="storyline-card"]')[0]
+    expect(firstCard.find('[data-testid="storyline-card-name"]').text()).toBe(
+      'Running',
+    )
+    // 'Running' (id 1) has anchor 'Vienna'.
+    expect(firstCard.text()).toContain('Vienna')
+  })
+
+  it('clicking a card navigates to the detail view', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    const push = vi.spyOn(router, 'push')
+    await wrapper.find('[data-testid="storyline-card"]').trigger('click')
+    expect(push).toHaveBeenCalledWith({
+      name: 'storyline-detail',
+      params: { id: 1 },
+    })
+  })
+
+  it('card checkbox toggles a single selection', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    const cardCheckboxes = wrapper.findAll(
+      '[data-testid="storyline-card-checkbox"]',
+    )
+    expect(cardCheckboxes.length).toBe(2)
+    await cardCheckboxes[0].trigger('change')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="selection-toolbar"]').text()).toContain(
+      '1 selected',
+    )
+  })
+
+  it('card Delete button confirms and calls removeStoryline', async () => {
+    const confirmSpy = vi.fn(() => true)
+    vi.stubGlobal('confirm', confirmSpy)
+    mockDeleteStoryline.mockResolvedValue({ deleted: true })
+
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper
+      .findAll('[data-testid="card-delete-button"]')[0]
+      .trigger('click')
+    await flushPromises()
+    expect(confirmSpy).toHaveBeenCalled()
+    expect(mockDeleteStoryline).toHaveBeenCalledWith(1)
+    vi.unstubAllGlobals()
+  })
+
+  it('card Regenerate button opens the regenerate modal with that id', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper
+      .findAll('[data-testid="card-regenerate-button"]')[0]
+      .trigger('click')
+    await flushPromises()
+    expect(
+      document.body.querySelector('[data-testid="storyline-regenerate-modal"]'),
+    ).not.toBeNull()
+    document.body.innerHTML = ''
+  })
 })

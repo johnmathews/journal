@@ -89,7 +89,7 @@ Page-level components, one per route. Each view composes layout, components, and
 - **AdminMoodsView** (`/admin/moods`) — Read-only inspector for the active mood-dimension configuration loaded by the server.
 - **CreateEntryView** (`/entries/new`) — Multi-modal entry creation page that hosts the file-import, file-upload, image-upload, voice-record, and text-entry panel components.
 - **EntityListView** (`/entities`) and **EntityDetailView** (`/entities/:id`) — Browse and edit tracked entities (people, places, tags). Detail view exposes alias and merge management.
-- **StorylineListView** (`/storylines`) — Paginated table of storylines mirroring `EntryListView`'s patterns: sortable columns (name, anchors, last generated, created), anchor chips as clickable violet pills linking to each entity, per-row Delete/Regenerate affordances, multi-select with a bulk-action toolbar, and a **New storyline** button opening `StorylineCreateModal` (multi-select entity picker, 1..15 anchors). See [`storylines.md`](./storylines.md) for the full feature reference.
+- **StorylineListView** (`/storylines`) — Paginated table of storylines mirroring `EntryListView`'s patterns: sortable columns (name, anchors, last generated, created), anchor chips as clickable violet pills linking to each entity, per-row Delete/Regenerate affordances, multi-select with a bulk-action toolbar, and a **New storyline** button opening `StorylineCreateModal` (multi-select entity picker, 1..15 anchors). **Responsive:** the table is `hidden sm:block`; below the `sm` breakpoint it is replaced by a `sm:hidden` stacked-card list (one tappable card per storyline — checkbox + name, wrapped anchor chips, a `Last generated · Created` meta line, and Regenerate/Delete actions) so the wide Anchors column no longer forces horizontal scroll on phones. Both renderings iterate the same `sortedStorylines` and reuse the same handlers; card elements carry distinct `data-testid`s (`storyline-card`, `card-delete-button`, …) so the two branches don't collide in tests (happy-dom renders both regardless of CSS). See [`storylines.md`](./storylines.md) for the full feature reference.
 - **StorylineDetailView** (`/storylines/:id`) — A **left chapter rail** (Storyline Chapters Phase 1, 2026-06-13) lists the storyline's time-windowed chapters; selecting one lazy-loads that chapter's panels via `GET /api/storylines/{id}/chapters/{cid}` into the two-panel reader. The reader renders third-person **narrative** (prose + footnote Sources, grounded via the server's Citations pipeline) beside the **curation** list of verbatim entry excerpts, sharing one `[N]` citation numbering via `useCitationRegistry` — built from the current chapter's panels, so numbering restarts at `[1]` per chapter. The selected chapter is deep-linkable via `?chapter=<id>` and defaults to the latest (open) chapter. Header carries Regenerate/Delete plus the anchor chips; in Phase 1 Regenerate stays storyline-level (delegates to the open chapter server-side) and there is no chapter create/cut UI yet (Phase 2). The **StorylineAnchorEditor** component (shipped 2026-06-10, PR #15) provides inline anchor editing: an entity multi-select seeded with the current anchors, a diff-vs-current display, a confirm step warning that saved panels go stale, and an optional regenerate kick on save — wired to `PUT /api/storylines/{id}/anchors`. See [`storylines.md`](./storylines.md) for the full feature reference.
 - **FitnessView** (`/fitness`) — Fitness dashboard over the server's Strava + Garmin pipeline. Reuses the dashboard's tile-layout system (`TileGrid` — rearrange, hide/show, three-width resize, persisted preferences) and `RangeBinControls`. Tiles cover activities and Garmin wellness series (Sleep/HRV/RHR with a bold `movingAverage3` trend over the faded daily line, per the chart style guide). A `FitnessAuthBanner` surfaces broken provider auth with a reconnect path into Settings.
 - **StravaCallbackView** (`/settings/fitness/strava/callback`) — Landing page for Strava's OAuth redirect: forwards the `code`/`error` query params to the server via `exchangeStravaCode` (`src/api/fitness.ts`), shows progress/success/failure states, and routes back to Settings.
@@ -194,6 +194,31 @@ collapsed. Toggling the expand button persists the explicit
 preference to localStorage, which always wins over the viewport
 default on subsequent visits. The mobile hamburger state
 (`sidebarOpen` prop) is a separate concern and is unaffected.
+
+## Mobile safe-area handling
+
+The app opts into iOS edge-to-edge rendering: `index.html`'s viewport meta
+carries `viewport-fit=cover`. Without it, a notched iPhone in **landscape**
+reserves the notch / home-indicator regions as solid background bars (visible as
+"blank space" beside the content) and the sticky header sits inside that inset
+rather than flush to the screen edge.
+
+With `viewport-fit=cover`, content fills the screen, so the shell adds
+`env(safe-area-inset-*)` padding to keep interactive UI clear of the notch while
+backgrounds still bleed to the edge:
+
+- `DefaultLayout.vue` root: left/right/bottom insets on the flex container
+  (content column + home-indicator clearance).
+- `AppHeader.vue` inner wrapper: top inset so header controls clear a portrait
+  notch; the blurred header background still extends to `top: 0`.
+- `AppSidebar.vue`: left+top insets via `calc(1rem + env(...))` (the mobile
+  off-canvas sidebar is `absolute` to the viewport, so it can't inherit the
+  root's padding and must inset itself).
+
+`body` is `bg-gray-100 dark:bg-gray-900` — the same color as the shell — so any
+exposed safe-area strip blends seamlessly. The insets resolve to `0` on
+non-notched devices and in JSDOM/happy-dom, so they're inert in unit tests and
+on desktop.
 
 ## Data Flow
 
