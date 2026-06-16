@@ -66,6 +66,29 @@ function onAnswer(): void {
   store.runAnswer()
 }
 
+// Whether the last-run query reads like a question. Gates the
+// contextual "Answer this question" prompt so it only appears when an
+// LLM answer is plausibly useful — ends with '?' or opens with a
+// wh-word. Based on lastRunQuery (the query the shown results are for),
+// not the live input, so the prompt tracks the displayed results.
+const looksLikeQuestion = computed(() => {
+  const q = store.lastRunQuery.trim().toLowerCase()
+  if (!q) return false
+  return q.endsWith('?') || /^(who|what|when|where|why|how)\b/.test(q)
+})
+
+// Show the prompt once a question search has run and no answer is
+// already loading, shown, or errored (the answer panel owns those
+// states, and the prompt would be redundant beside it).
+const showAnswerPrompt = computed(
+  () =>
+    store.hasRun &&
+    looksLikeQuestion.value &&
+    !store.answerLoading &&
+    !store.answer &&
+    !store.answerError,
+)
+
 function submit(): void {
   // "All time" means unconstrained: the inputs stay visually
   // backfilled (see onMounted), but sending the synthetic
@@ -292,16 +315,21 @@ function matchExplanation(item: SearchResultItem): string {
         </svg>
         {{ store.loading ? 'Searching…' : 'Search' }}
       </button>
-      <button
-        type="button"
-        class="btn border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
-        data-testid="search-answer"
-        :disabled="store.answerLoading || !queryInput.trim()"
-        @click="onAnswer"
-      >
-        {{ store.answerLoading ? 'Thinking…' : 'Answer this' }}
-      </button>
     </form>
+
+    <!-- Contextual answer prompt — surfaces only for question-shaped
+         queries after results load. One primary action (Search); the
+         answer stays opt-in (LLM cost paid only on click). -->
+    <button
+      v-if="showAnswerPrompt"
+      type="button"
+      class="mb-4 inline-flex items-center gap-1.5 rounded-md border border-violet-200 dark:border-violet-800/60 bg-violet-50 dark:bg-violet-900/20 px-3 py-2 text-sm text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition"
+      data-testid="answer-prompt"
+      @click="onAnswer"
+    >
+      <span aria-hidden="true">✨</span>
+      Answer this question
+    </button>
 
     <!-- Answer panel (opt-in synthesis) -->
     <div
