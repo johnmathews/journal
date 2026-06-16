@@ -6,6 +6,7 @@ import SearchView from '../SearchView.vue'
 
 vi.mock('@/api/search', () => ({
   searchEntries: vi.fn(),
+  answerQuestion: vi.fn(),
 }))
 
 import { searchEntries } from '@/api/search'
@@ -570,6 +571,43 @@ describe('SearchView', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="loading-state"]').exists()).toBe(false)
+  })
+
+  it('clicking Answer this calls runAnswer and renders the answer + citations', async () => {
+    const { useSearchStore } = await import('@/stores/search')
+    const wrapper = mountView()
+    const store = useSearchStore()
+    const spy = vi.spyOn(store, 'runAnswer').mockImplementation(async () => {
+      store.answer = 'Your back pain began on 2026-02-14.'
+      store.answered = true
+      store.answerCitations = [
+        { entry_id: 42, entry_date: '2026-02-14', snippet: 'lower back' },
+      ]
+    })
+    await wrapper.find('[data-testid="search-query-input"]').setValue('when?')
+    await wrapper.find('[data-testid="search-answer"]').trigger('click')
+    await flushPromises()
+    expect(spy).toHaveBeenCalled()
+    const panel = wrapper.find('[data-testid="answer-panel"]')
+    expect(panel.exists()).toBe(true)
+    expect(panel.text()).toContain('2026-02-14')
+    const cite = wrapper.find('[data-testid="answer-citation"]')
+    expect(cite.attributes('href')).toContain('/entries/42')
+  })
+
+  it('shows the answer error when runAnswer fails', async () => {
+    const { useSearchStore } = await import('@/stores/search')
+    const wrapper = mountView()
+    const store = useSearchStore()
+    vi.spyOn(store, 'runAnswer').mockImplementation(async () => {
+      store.answerError = 'Answer unavailable — see the results below.'
+    })
+    await wrapper.find('[data-testid="search-query-input"]').setValue('x')
+    await wrapper.find('[data-testid="search-answer"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="answer-error"]').text()).toContain(
+      'Answer unavailable',
+    )
   })
 
   it('Next button fires a new search with the advanced offset', async () => {

@@ -1,4 +1,9 @@
-import type { SearchRequestParams, SearchResponse } from '@/types/search'
+import type {
+  SearchRequestParams,
+  SearchResponse,
+  AnswerRequestParams,
+  AnswerResponse,
+} from '@/types/search'
 import { apiFetch } from './client'
 
 function buildQuery(
@@ -12,6 +17,23 @@ function buildQuery(
     '?' +
     new URLSearchParams(entries.map(([k, v]) => [k, String(v)])).toString()
   )
+}
+
+/**
+ * Synthesize a grounded, cited answer to a natural-language question via
+ * `POST /api/search/answer`. Opt-in — call only when the user asks for an
+ * answer, since it triggers an LLM call server-side.
+ */
+export function answerQuestion(
+  params: AnswerRequestParams,
+): Promise<AnswerResponse> {
+  const body: Record<string, string> = { q: params.q }
+  if (params.start_date) body.start_date = params.start_date
+  if (params.end_date) body.end_date = params.end_date
+  return apiFetch<AnswerResponse>('/api/search/answer', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 }
 
 /**

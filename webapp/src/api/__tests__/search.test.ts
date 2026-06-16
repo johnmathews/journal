@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { searchEntries } from '../search'
+import { searchEntries, answerQuestion } from '../search'
 
 vi.mock('../client', () => ({
   apiFetch: vi.fn(),
@@ -90,6 +90,47 @@ describe('search API', () => {
     const url = mockApiFetch.mock.calls[0][0] as string
     expect(url).toBe('/api/search')
     expect(url).not.toContain('?')
+  })
+
+  describe('answerQuestion', () => {
+    it('POSTs the question and date filters as JSON', async () => {
+      const payload = {
+        question: 'q?',
+        answer: 'a',
+        answered: true,
+        citations: [],
+        model: 'claude-sonnet-4-6',
+      }
+      mockApiFetch.mockResolvedValue(payload)
+
+      const res = await answerQuestion({ q: 'q?', start_date: '2026-01-01' })
+
+      expect(res.answered).toBe(true)
+      expect(mockApiFetch).toHaveBeenCalledTimes(1)
+
+      const [url, options] = mockApiFetch.mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/search/answer')
+      expect(options.method).toBe('POST')
+      expect(JSON.parse(options.body as string)).toEqual({
+        q: 'q?',
+        start_date: '2026-01-01',
+      })
+    })
+
+    it('omits start_date when not provided', async () => {
+      mockApiFetch.mockResolvedValue({
+        question: 'anything?',
+        answer: 'nothing',
+        answered: false,
+        citations: [],
+        model: 'claude-sonnet-4-6',
+      })
+
+      await answerQuestion({ q: 'anything?' })
+
+      const [, options] = mockApiFetch.mock.calls[0] as [string, RequestInit]
+      expect(JSON.parse(options.body as string)).toEqual({ q: 'anything?' })
+    })
   })
 
   it('returns the response body unchanged', async () => {
