@@ -93,6 +93,18 @@ describe('SearchView', () => {
     )
   })
 
+  it('renders the query input at 16px on mobile to avoid iOS focus zoom', () => {
+    // iOS Safari force-zooms when a focused input's font-size is < 16px.
+    // The query input must use the design system's responsive
+    // `text-base sm:text-sm` (16px mobile, 14px desktop) and must NOT
+    // hard-code a bare `text-sm` (14px everywhere), which triggers the zoom.
+    const wrapper = mountView()
+    const classes = wrapper.find('[data-testid="search-query-input"]').classes()
+    expect(classes).toContain('text-base')
+    expect(classes).toContain('sm:text-sm')
+    expect(classes).not.toContain('text-sm')
+  })
+
   it('submitting with an empty query does not fire a request', async () => {
     const wrapper = mountView()
     await wrapper.find('[data-testid="search-form"]').trigger('submit')

@@ -182,7 +182,7 @@ function matchExplanation(item: SearchResultItem): string {
           type="search"
           placeholder="Search your journal…"
           data-testid="search-query-input"
-          class="form-input w-full text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          class="form-input w-full text-base sm:text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
         />
       </div>
       <div>
@@ -195,7 +195,7 @@ function matchExplanation(item: SearchResultItem): string {
           id="search-range"
           :value="rangePreset"
           data-testid="search-range-preset"
-          class="form-select text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          class="form-select text-base sm:text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
           @change="
             applyPreset(
               ($event.target as HTMLSelectElement).value as SearchRangePreset,
@@ -222,7 +222,7 @@ function matchExplanation(item: SearchResultItem): string {
           v-model="startDateInput"
           type="date"
           data-testid="search-start-date"
-          class="form-input text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          class="form-input text-base sm:text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
           @input="onDateInput"
         />
       </div>
@@ -237,7 +237,7 @@ function matchExplanation(item: SearchResultItem): string {
           v-model="endDateInput"
           type="date"
           data-testid="search-end-date"
-          class="form-input text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          class="form-input text-base sm:text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
           @input="onDateInput"
         />
       </div>
@@ -251,7 +251,7 @@ function matchExplanation(item: SearchResultItem): string {
           id="search-sort"
           v-model="sortInput"
           data-testid="search-sort"
-          class="form-select text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          class="form-select text-base sm:text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
         >
           <option value="relevance">Relevance</option>
           <option value="date_desc">Newest first</option>
