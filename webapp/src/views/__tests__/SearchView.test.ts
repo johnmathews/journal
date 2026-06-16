@@ -6,6 +6,7 @@ import SearchView from '../SearchView.vue'
 
 vi.mock('@/api/search', () => ({
   searchEntries: vi.fn(),
+  answerQuestion: vi.fn(),
 }))
 
 import { searchEntries } from '@/api/search'

@@ -155,14 +155,8 @@ export const useSearchStore = defineStore('search', () => {
       answer.value = res.answer
       answered.value = res.answered
       answerCitations.value = res.citations
-    } catch (e) {
-      if (e instanceof ApiRequestError) {
-        answerError.value = 'Answer unavailable — see the results below.'
-      } else if (e instanceof Error) {
-        answerError.value = e.message
-      } else {
-        answerError.value = 'Answer failed'
-      }
+    } catch {
+      answerError.value = 'Answer unavailable — see the results below.'
       answer.value = ''
       answered.value = false
       answerCitations.value = []
@@ -184,6 +178,7 @@ export const useSearchStore = defineStore('search', () => {
     error.value = null
     hasRun.value = false
     clearAnswer()
+    // clearAnswer() intentionally leaves answerLoading alone; a full reset clears it too.
     answerLoading.value = false
   }
 

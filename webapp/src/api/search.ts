@@ -20,15 +20,9 @@ function buildQuery(
 }
 
 /**
- * Call the journal-server `/api/search` endpoint. `q` is required
- * and non-empty; everything else is optional. Returns the server's
- * full envelope (query, mode, limit, offset, items) so callers can
- * detect "is there more" from `items.length === limit`.
- *
- * Throws `ApiRequestError` on 4xx/5xx. Notably, a malformed FTS5
- * query (unterminated quote, bare operator, etc.) produces a
- * 400 `invalid_query` which callers can surface directly as a
- * user-visible error.
+ * Synthesize a grounded, cited answer to a natural-language question via
+ * `POST /api/search/answer`. Opt-in — call only when the user asks for an
+ * answer, since it triggers an LLM call server-side.
  */
 export function answerQuestion(
   params: AnswerRequestParams,
@@ -42,6 +36,17 @@ export function answerQuestion(
   })
 }
 
+/**
+ * Call the journal-server `/api/search` endpoint. `q` is required
+ * and non-empty; everything else is optional. Returns the server's
+ * full envelope (query, mode, limit, offset, items) so callers can
+ * detect "is there more" from `items.length === limit`.
+ *
+ * Throws `ApiRequestError` on 4xx/5xx. Notably, a malformed FTS5
+ * query (unterminated quote, bare operator, etc.) produces a
+ * 400 `invalid_query` which callers can surface directly as a
+ * user-visible error.
+ */
 export function searchEntries(
   params: SearchRequestParams,
 ): Promise<SearchResponse> {
