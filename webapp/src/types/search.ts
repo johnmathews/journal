@@ -64,3 +64,28 @@ export interface SearchResponse {
   reranker: string
   items: SearchResultItem[]
 }
+
+/** Request body for the opt-in answer-synthesis endpoint. */
+export interface AnswerRequestParams extends DateFilterParams {
+  q: string
+}
+
+/** One cited entry backing a synthesized answer. */
+export interface AnswerCitation {
+  entry_id: number
+  entry_date: string
+  snippet: string
+}
+
+/**
+ * Response from `POST /api/search/answer`. `answered` is false (with a
+ * fixed "couldn't find" message in `answer`) when the journal doesn't
+ * cover the question.
+ */
+export interface AnswerResponse {
+  question: string
+  answer: string
+  answered: boolean
+  citations: AnswerCitation[]
+  model: string
+}
