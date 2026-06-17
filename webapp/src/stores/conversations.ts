@@ -51,9 +51,15 @@ export const useConversationsStore = defineStore('conversations', () => {
     // Clear the prior thread so a slow fetch can't flash another
     // conversation's messages while loading.
     messages.value = []
-    const conv = await getConversation(id)
-    conversation.value = conv
-    messages.value = conv.messages
+    try {
+      const conv = await getConversation(id)
+      conversation.value = conv
+      messages.value = conv.messages
+    } catch (e) {
+      // Surface load failures (network, 404 from a bad id) in the view's
+      // error line rather than throwing an unhandled rejection.
+      error.value = friendlyError(e, 'Failed to load conversation.')
+    }
   }
 
   async function reply(message: string): Promise<void> {

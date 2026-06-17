@@ -68,6 +68,14 @@ it('open loads a conversation', async () => {
   expect(store.messages).toHaveLength(2)
 })
 
+it('open surfaces an error and does not throw on load failure', async () => {
+  mGet.mockRejectedValue(new Error('boom'))
+  const store = useConversationsStore()
+  await store.open(999)
+  expect(store.error).toBeTruthy()
+  expect(store.messages).toHaveLength(0)
+})
+
 it('reply appends the assistant turn', async () => {
   mGet.mockResolvedValue({
     id: 5,
