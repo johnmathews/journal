@@ -142,3 +142,15 @@ it('remove deletes and drops the summary', async () => {
   expect(store.summaries).toHaveLength(0)
   expect(mDelete).toHaveBeenCalledWith(1)
 })
+
+it('remove surfaces an error and keeps the summary on failure', async () => {
+  mList.mockResolvedValue({
+    conversations: [{ id: 1, title: 't', updated_at: 't', message_count: 2 }],
+  })
+  mDelete.mockRejectedValue(new Error('boom'))
+  const store = useConversationsStore()
+  await store.loadList()
+  await store.remove(1)
+  expect(store.error).toBeTruthy()
+  expect(store.summaries).toHaveLength(1)
+})

@@ -102,8 +102,13 @@ export const useConversationsStore = defineStore('conversations', () => {
   }
 
   async function remove(id: number): Promise<void> {
-    await deleteConversation(id)
-    summaries.value = summaries.value.filter((c) => c.id !== id)
+    error.value = null
+    try {
+      await deleteConversation(id)
+      summaries.value = summaries.value.filter((c) => c.id !== id)
+    } catch (e) {
+      error.value = friendlyError(e, 'Failed to delete conversation.')
+    }
   }
 
   return {
