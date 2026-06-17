@@ -86,6 +86,12 @@ export interface AnswerResponse {
   question: string
   answer: string
   answered: boolean
+  /**
+   * Whether the server classified the query as an answerable question.
+   * `false` means it was a plain keyword search — `answer` is empty and
+   * the client shows no answer tile.
+   */
+  is_question: boolean
   citations: AnswerCitation[]
   model: string
 }

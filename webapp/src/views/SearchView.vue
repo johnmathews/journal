@@ -62,58 +62,58 @@ function onDateInput(): void {
   }
 }
 
-function onAnswer(): void {
-  store.runAnswer()
-}
-
-// Whether the last-run query reads like a question. Gates the
-// contextual "Answer this question" prompt so it only appears when an
-// LLM answer is plausibly useful — ends with '?' or opens with a
-// wh-word. Based on lastRunQuery (the query the shown results are for),
-// not the live input, so the prompt tracks the displayed results.
+// Whether the last-run query reads like a question. Used only to decide
+// whether to show the "Thinking…" tile optimistically while the answer
+// call is in flight — the server's classifier is authoritative for
+// whether an answer is actually produced. Ends with '?' or opens with a
+// wh-word; based on lastRunQuery so it tracks the displayed results.
 const looksLikeQuestion = computed(() => {
   const q = store.lastRunQuery.trim().toLowerCase()
   if (!q) return false
   return q.endsWith('?') || /^(who|what|when|where|why|how)\b/.test(q)
 })
 
-// Show the prompt once a question search has run and no answer is
-// already loading, shown, or errored (the answer panel owns those
-// states, and the prompt would be redundant beside it).
-const showAnswerPrompt = computed(
+// Show the answer tile while loading (only for question-shaped queries,
+// so keyword searches don't flash a tile), or once there's an answer or
+// error to display.
+const showAnswerPanel = computed(
   () =>
-    store.hasRun &&
-    looksLikeQuestion.value &&
-    !store.answerLoading &&
-    !store.answer &&
-    !store.answerError,
+    (store.answerLoading && looksLikeQuestion.value) ||
+    !!store.answer ||
+    !!store.answerError,
 )
 
-function submit(): void {
+async function submit(): Promise<void> {
   // "All time" means unconstrained: the inputs stay visually
   // backfilled (see onMounted), but sending the synthetic
   // ALL_TIME_START → today bounds would constrain the dense
   // post-filter and bust the server cache key for nothing — so the
   // request carries no date params at all.
   const allTime = rangePreset.value === 'all'
-  store.runSearch({
+  await store.runSearch({
     q: queryInput.value,
     start_date: allTime ? null : startDateInput.value || null,
     end_date: allTime ? null : endDateInput.value || null,
     sort: sortInput.value,
     offset: 0,
   })
+  // Auto-answer: every successful search asks the server to classify the
+  // query (cheap) and synthesize an answer if it's a question. Keyword
+  // searches return immediately with no answer. The list is already
+  // shown; the answer (if any) streams into the tile above it.
+  if (store.hasRun && !store.error) {
+    store.runAnswer()
+  }
 }
 
 // Auto-resubmit when the user picks a different sort order — the
 // dropdown reads as a live control, not "change-then-press-Search".
-// The server-side cache makes this near-free for the common case
-// (same query, same filters), so we don't end up paying a full
-// pipeline run for each toggle. We only fire after at least one
-// search has run; otherwise initial mount or store-restore would
-// fire a request with an empty query.
+// Re-orders the list only (same query → no re-classification or
+// re-answer; the existing answer stays in place). We only fire after at
+// least one search has run; otherwise initial mount or store-restore
+// would fire a request with an empty query.
 watch(sortInput, () => {
-  if (store.hasRun) submit()
+  if (store.hasRun) store.runSearch({ sort: sortInput.value, offset: 0 })
 })
 
 function nextPage(): void {
@@ -317,26 +317,21 @@ function matchExplanation(item: SearchResultItem): string {
       </button>
     </form>
 
-    <!-- Contextual answer prompt — surfaces only for question-shaped
-         queries after results load. One primary action (Search); the
-         answer stays opt-in (LLM cost paid only on click). -->
-    <button
-      v-if="showAnswerPrompt"
-      type="button"
-      class="mb-4 inline-flex items-center gap-1.5 rounded-md border border-violet-200 dark:border-violet-800/60 bg-violet-50 dark:bg-violet-900/20 px-3 py-2 text-sm text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition"
-      data-testid="answer-prompt"
-      @click="onAnswer"
-    >
-      <span aria-hidden="true">✨</span>
-      Answer this question
-    </button>
-
-    <!-- Answer panel (opt-in synthesis) -->
+    <!-- Answer tile — auto-generated for question-shaped searches.
+         Deliberately distinct from result cards: thicker violet accent
+         border + tint + an "Answer" header, so it reads as the AI answer,
+         not another match. -->
     <div
-      v-if="store.answerLoading || store.answer || store.answerError"
-      class="mb-4 rounded-md border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-800 p-4"
+      v-if="showAnswerPanel"
+      class="mb-4 rounded-lg border-2 border-violet-400 dark:border-violet-600 bg-violet-50/60 dark:bg-violet-900/15 p-4 shadow-sm"
       data-testid="answer-panel"
     >
+      <div
+        class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300"
+      >
+        <span aria-hidden="true">✨</span>
+        Answer
+      </div>
       <div
         v-if="store.answerLoading"
         class="text-sm text-gray-600 dark:text-gray-300"
