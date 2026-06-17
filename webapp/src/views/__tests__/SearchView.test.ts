@@ -9,8 +9,9 @@ vi.mock('@/api/search', () => ({
   answerQuestion: vi.fn(),
 }))
 
-import { searchEntries } from '@/api/search'
+import { searchEntries, answerQuestion } from '@/api/search'
 const mockSearch = vi.mocked(searchEntries)
+const mockAnswer = vi.mocked(answerQuestion)
 
 const router = createRouter({
   history: createWebHistory(),
@@ -75,6 +76,16 @@ describe('SearchView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    // Default: auto-answer (fired after every search) resolves to "not a
+    // question" so unrelated result-assertion tests aren't disturbed.
+    mockAnswer.mockResolvedValue({
+      question: '',
+      answer: '',
+      answered: false,
+      is_question: false,
+      citations: [],
+      model: '',
+    })
   })
 
   it('mounts and shows the initial state before any search', () => {
@@ -573,95 +584,92 @@ describe('SearchView', () => {
     expect(wrapper.find('[data-testid="loading-state"]').exists()).toBe(false)
   })
 
-  it('no longer renders a standalone Answer this button', () => {
+  it('renders no standalone answer button or manual prompt', () => {
     const wrapper = mountView()
     expect(wrapper.find('[data-testid="search-answer"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="answer-prompt"]').exists()).toBe(false)
   })
 
-  it('shows an answer prompt only after a question-shaped search', async () => {
+  it('auto-calls runAnswer after a successful search', async () => {
+    const { useSearchStore } = await import('@/stores/search')
+    mockSearch.mockResolvedValue(fakeResponse([fakeItem({ snippet: 'back' })]))
+    const wrapper = mountView()
+    const store = useSearchStore()
+    const spy = vi.spyOn(store, 'runAnswer').mockResolvedValue()
+
+    await wrapper
+      .find('[data-testid="search-query-input"]')
+      .setValue('when did my back start hurting?')
+    await wrapper.find('[data-testid="search-form"]').trigger('submit')
+    await flushPromises()
+
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not auto-answer when the search itself errors', async () => {
+    const { useSearchStore } = await import('@/stores/search')
+    const { ApiRequestError } = await import('@/api/client')
+    mockSearch.mockRejectedValueOnce(
+      new ApiRequestError(400, 'invalid_query', 'bad'),
+    )
+    const wrapper = mountView()
+    const store = useSearchStore()
+    const spy = vi.spyOn(store, 'runAnswer').mockResolvedValue()
+
+    await wrapper.find('[data-testid="search-query-input"]').setValue('boom')
+    await wrapper.find('[data-testid="search-form"]').trigger('submit')
+    await flushPromises()
+
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('renders the answer in a visually distinct tile with citations', async () => {
     const { useSearchStore } = await import('@/stores/search')
     const wrapper = mountView()
     const store = useSearchStore()
-
-    // No prompt before any search has run.
-    expect(wrapper.find('[data-testid="answer-prompt"]').exists()).toBe(false)
-
-    // A plain keyword search shows no prompt.
-    store.hasRun = true
-    store.lastRunQuery = 'vienna atlas'
-    await flushPromises()
-    expect(wrapper.find('[data-testid="answer-prompt"]').exists()).toBe(false)
-
-    // A question-shaped query surfaces the prompt.
-    store.lastRunQuery = 'when did my back start hurting?'
-    await flushPromises()
-    expect(wrapper.find('[data-testid="answer-prompt"]').exists()).toBe(true)
-  })
-
-  it('detects wh-word questions without a trailing question mark', async () => {
-    const { useSearchStore } = await import('@/stores/search')
-    const wrapper = mountView()
-    const store = useSearchStore()
-    store.hasRun = true
-    store.lastRunQuery = 'how often did I run'
-    await flushPromises()
-    expect(wrapper.find('[data-testid="answer-prompt"]').exists()).toBe(true)
-  })
-
-  it('clicking the answer prompt calls runAnswer and renders the answer + citations', async () => {
-    const { useSearchStore } = await import('@/stores/search')
-    const wrapper = mountView()
-    const store = useSearchStore()
-    store.hasRun = true
-    store.lastRunQuery = 'when did my back start hurting?'
+    store.answer = 'Your back pain began on 2026-02-14.'
+    store.answered = true
+    store.answerCitations = [
+      { entry_id: 42, entry_date: '2026-02-14', snippet: 'lower back' },
+    ]
     await flushPromises()
 
-    const spy = vi.spyOn(store, 'runAnswer').mockImplementation(async () => {
-      store.answer = 'Your back pain began on 2026-02-14.'
-      store.answered = true
-      store.answerCitations = [
-        { entry_id: 42, entry_date: '2026-02-14', snippet: 'lower back' },
-      ]
-    })
-    await wrapper.find('[data-testid="answer-prompt"]').trigger('click')
-    await flushPromises()
-
-    expect(spy).toHaveBeenCalled()
-    // The prompt yields to the answer panel once an answer exists.
-    expect(wrapper.find('[data-testid="answer-prompt"]').exists()).toBe(false)
     const panel = wrapper.find('[data-testid="answer-panel"]')
     expect(panel.exists()).toBe(true)
+    // Distinct from result cards: thicker accent border + "Answer" header.
+    expect(panel.classes()).toContain('border-2')
+    expect(panel.text()).toContain('Answer')
     expect(panel.text()).toContain('2026-02-14')
     expect(
       wrapper.find('[data-testid="answer-citation"]').attributes('href'),
     ).toContain('/entries/42')
   })
 
-  it('hides the prompt and shows the loading state while answering', async () => {
+  it('shows Thinking… while answering a question but not a keyword search', async () => {
     const { useSearchStore } = await import('@/stores/search')
     const wrapper = mountView()
     const store = useSearchStore()
+
+    // Keyword query loading → no tile (avoids a flash on non-questions).
     store.hasRun = true
-    store.lastRunQuery = 'why am I tired?'
+    store.lastRunQuery = 'vienna atlas'
     store.answerLoading = true
     await flushPromises()
-    expect(wrapper.find('[data-testid="answer-prompt"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="answer-panel"]').text()).toContain(
-      'Thinking…',
-    )
+    expect(wrapper.find('[data-testid="answer-panel"]').exists()).toBe(false)
+
+    // Question query loading → Thinking… tile.
+    store.lastRunQuery = 'when did my back start hurting?'
+    await flushPromises()
+    const panel = wrapper.find('[data-testid="answer-panel"]')
+    expect(panel.exists()).toBe(true)
+    expect(panel.text()).toContain('Thinking…')
   })
 
-  it('shows the answer error when a prompt-triggered answer fails', async () => {
+  it('renders the answer error in the tile', async () => {
     const { useSearchStore } = await import('@/stores/search')
     const wrapper = mountView()
     const store = useSearchStore()
-    store.hasRun = true
-    store.lastRunQuery = 'where did I go?'
-    await flushPromises()
-    vi.spyOn(store, 'runAnswer').mockImplementation(async () => {
-      store.answerError = 'Answer unavailable — see the results below.'
-    })
-    await wrapper.find('[data-testid="answer-prompt"]').trigger('click')
+    store.answerError = 'Answer unavailable — see the results below.'
     await flushPromises()
     expect(wrapper.find('[data-testid="answer-error"]').text()).toContain(
       'Answer unavailable',

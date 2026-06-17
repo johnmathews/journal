@@ -81,7 +81,11 @@ export const useSearchStore = defineStore('search', () => {
       sort: SearchSort
     }> = {},
   ): Promise<void> {
-    clearAnswer()
+    // Drop any prior answer only when the query text itself changes —
+    // paging or re-sorting the same query keeps the answer in place.
+    if (partial.q !== undefined && partial.q.trim() !== query.value.trim()) {
+      clearAnswer()
+    }
     if (partial.q !== undefined) query.value = partial.q
     if (partial.start_date !== undefined) startDate.value = partial.start_date
     if (partial.end_date !== undefined) endDate.value = partial.end_date

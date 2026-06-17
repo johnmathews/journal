@@ -288,6 +288,7 @@ describe('useSearchStore', () => {
       question: 'when did my back start hurting?',
       answer: 'Your back pain began on 2026-02-14.',
       answered: true,
+      is_question: true,
       citations: [
         { entry_id: 42, entry_date: '2026-02-14', snippet: 'lower back' },
       ],
@@ -338,5 +339,24 @@ describe('useSearchStore', () => {
     expect(store.answer).toBe('')
     expect(store.answered).toBe(false)
     expect(store.answerCitations).toEqual([])
+  })
+
+  it('paging the same query keeps the existing answer', async () => {
+    mockSearch.mockResolvedValue({
+      query: 'when did my back start hurting?',
+      limit: 20,
+      offset: 0,
+      sort: 'relevance' as const,
+      reranker: 'NoopReranker',
+      items: [],
+    })
+    const store = useSearchStore()
+    store.query = 'when did my back start hurting?'
+    store.answer = 'Your back pain began on 2026-02-14.'
+    store.answered = true
+    // Paginate (no `q` change) — the answer must survive.
+    await store.runSearch({ offset: 20 })
+    expect(store.answer).toContain('2026-02-14')
+    expect(store.answered).toBe(true)
   })
 })
