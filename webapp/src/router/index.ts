@@ -68,6 +68,16 @@ const router = createRouter({
       component: () => import('@/views/SearchView.vue'),
     },
     {
+      path: '/conversations',
+      name: 'conversations',
+      component: () => import('@/views/ConversationListView.vue'),
+    },
+    {
+      path: '/conversations/:id',
+      name: 'conversation',
+      component: () => import('@/views/ConversationView.vue'),
+    },
+    {
       path: '/entities',
       name: 'entities',
       component: () => import('@/views/EntityListView.vue'),
