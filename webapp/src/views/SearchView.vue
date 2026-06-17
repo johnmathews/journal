@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useSearchStore } from '@/stores/search'
+import { useConversationsStore } from '@/stores/conversations'
 import { renderSnippetHtml } from '@/utils/searchSnippet'
 import {
   ALL_TIME_START,
@@ -12,6 +14,27 @@ import {
 import type { SearchResultItem, SearchSort } from '@/types/search'
 
 const store = useSearchStore()
+const router = useRouter()
+const conversationsStore = useConversationsStore()
+
+const conversationError = ref<string | null>(null)
+
+async function continueConversation(): Promise<void> {
+  conversationError.value = null
+  try {
+    const id = await conversationsStore.start({
+      question: store.lastRunQuery,
+      answer: store.answer,
+      citations: store.answerCitations,
+    })
+    router.push(`/conversations/${id}`)
+  } catch {
+    // Surface the failure inline (SearchView has no toast) rather than
+    // leaving the button a silent dead-end.
+    conversationError.value =
+      'Could not start the conversation — please try again.'
+  }
+}
 
 // Local form state — bound to inputs and pushed into the store only
 // when the user submits. This keeps every keystroke from firing a
@@ -329,7 +352,6 @@ function matchExplanation(item: SearchResultItem): string {
       <div
         class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300"
       >
-        <span aria-hidden="true">✨</span>
         Answer
       </div>
       <div
@@ -365,6 +387,23 @@ function matchExplanation(item: SearchResultItem): string {
           >
             {{ c.entry_date }}
           </RouterLink>
+        </div>
+        <div v-if="store.answer" class="mt-3">
+          <button
+            type="button"
+            class="text-sm font-medium text-violet-700 dark:text-violet-300 hover:underline"
+            data-testid="continue-conversation"
+            @click="continueConversation"
+          >
+            Continue this conversation →
+          </button>
+          <p
+            v-if="conversationError"
+            class="mt-1 text-sm text-red-600 dark:text-red-400"
+            data-testid="continue-conversation-error"
+          >
+            {{ conversationError }}
+          </p>
         </div>
       </template>
     </div>

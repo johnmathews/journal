@@ -9,6 +9,14 @@ vi.mock('@/api/search', () => ({
   answerQuestion: vi.fn(),
 }))
 
+vi.mock('@/api/conversations', () => ({
+  createConversation: vi.fn(),
+  listConversations: vi.fn(),
+  getConversation: vi.fn(),
+  sendMessage: vi.fn(),
+  deleteConversation: vi.fn(),
+}))
+
 import { searchEntries, answerQuestion } from '@/api/search'
 const mockSearch = vi.mocked(searchEntries)
 const mockAnswer = vi.mocked(answerQuestion)
@@ -20,6 +28,11 @@ const router = createRouter({
     {
       path: '/entries/:id',
       name: 'entry-detail',
+      component: { template: '<div />' },
+    },
+    {
+      path: '/conversations/:id',
+      name: 'conversation',
       component: { template: '<div />' },
     },
   ],
@@ -674,6 +687,113 @@ describe('SearchView', () => {
     expect(wrapper.find('[data-testid="answer-error"]').text()).toContain(
       'Answer unavailable',
     )
+  })
+
+  it('answer tile no longer shows the ✨ star', async () => {
+    mockSearch.mockResolvedValue({
+      query: 'when',
+      reranker: 'r',
+      limit: 20,
+      offset: 0,
+      sort: 'relevance' as const,
+      items: [],
+    })
+    mockAnswer.mockResolvedValue({
+      question: 'when?',
+      answer: 'On 2026-02-14.',
+      answered: true,
+      is_question: true,
+      citations: [{ entry_id: 42, entry_date: '2026-02-14', snippet: 'back' }],
+      model: 'm',
+    })
+    const wrapper = mountView()
+    await wrapper
+      .find('[data-testid="search-query-input"]')
+      .setValue('when did my back hurt?')
+    await wrapper.find('[data-testid="search-form"]').trigger('submit')
+    await flushPromises()
+    const panel = wrapper.find('[data-testid="answer-panel"]')
+    expect(panel.exists()).toBe(true)
+    expect(panel.text()).not.toContain('✨')
+    expect(panel.text()).toContain('Answer')
+  })
+
+  it('"Continue this conversation" starts a conversation and navigates', async () => {
+    mockSearch.mockResolvedValue({
+      query: 'when did my back hurt?',
+      reranker: 'r',
+      limit: 20,
+      offset: 0,
+      sort: 'relevance' as const,
+      items: [],
+    })
+    mockAnswer.mockResolvedValue({
+      question: 'when?',
+      answer: 'On 2026-02-14.',
+      answered: true,
+      is_question: true,
+      citations: [{ entry_id: 42, entry_date: '2026-02-14', snippet: 'back' }],
+      model: 'm',
+    })
+    const wrapper = mountView()
+    await wrapper
+      .find('[data-testid="search-query-input"]')
+      .setValue('when did my back hurt?')
+    await wrapper.find('[data-testid="search-form"]').trigger('submit')
+    await flushPromises()
+
+    const { useConversationsStore } = await import('@/stores/conversations')
+    const convStore = useConversationsStore()
+    const startSpy = vi.spyOn(convStore, 'start').mockResolvedValue(7)
+    const pushSpy = vi.spyOn(router, 'push')
+
+    await wrapper.find('[data-testid="continue-conversation"]').trigger('click')
+    await flushPromises()
+
+    expect(startSpy).toHaveBeenCalledWith({
+      question: 'when did my back hurt?',
+      answer: 'On 2026-02-14.',
+      citations: [{ entry_id: 42, entry_date: '2026-02-14', snippet: 'back' }],
+    })
+    expect(pushSpy).toHaveBeenCalledWith('/conversations/7')
+  })
+
+  it('"Continue this conversation" surfaces an error and does not navigate on failure', async () => {
+    mockSearch.mockResolvedValue({
+      query: 'when did my back hurt?',
+      reranker: 'r',
+      limit: 20,
+      offset: 0,
+      sort: 'relevance' as const,
+      items: [],
+    })
+    mockAnswer.mockResolvedValue({
+      question: 'when?',
+      answer: 'On 2026-02-14.',
+      answered: true,
+      is_question: true,
+      citations: [{ entry_id: 42, entry_date: '2026-02-14', snippet: 'back' }],
+      model: 'm',
+    })
+    const wrapper = mountView()
+    await wrapper
+      .find('[data-testid="search-query-input"]')
+      .setValue('when did my back hurt?')
+    await wrapper.find('[data-testid="search-form"]').trigger('submit')
+    await flushPromises()
+
+    const { useConversationsStore } = await import('@/stores/conversations')
+    const convStore = useConversationsStore()
+    vi.spyOn(convStore, 'start').mockRejectedValue(new Error('boom'))
+    const pushSpy = vi.spyOn(router, 'push')
+
+    await wrapper.find('[data-testid="continue-conversation"]').trigger('click')
+    await flushPromises()
+
+    expect(pushSpy).not.toHaveBeenCalled()
+    expect(
+      wrapper.find('[data-testid="continue-conversation-error"]').exists(),
+    ).toBe(true)
   })
 
   it('Next button fires a new search with the advanced offset', async () => {

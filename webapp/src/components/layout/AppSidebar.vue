@@ -429,6 +429,56 @@ watch(
               </li>
             </RouterLink>
 
+            <!-- Conversations link -->
+            <RouterLink
+              v-slot="{ href, navigate, isActive }"
+              to="/conversations"
+              custom
+            >
+              <li
+                class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
+                :class="
+                  isActive &&
+                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                "
+              >
+                <a
+                  :href="href"
+                  class="block truncate transition"
+                  data-testid="sidebar-conversations-link"
+                  :class="
+                    isActive
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-800 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white'
+                  "
+                  @click="navigate"
+                >
+                  <div class="flex items-center">
+                    <svg
+                      class="shrink-0 fill-current"
+                      :class="
+                        isActive
+                          ? 'text-violet-500'
+                          : 'text-gray-600 dark:text-gray-300'
+                      "
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M8 0C3.6 0 0 3.1 0 7c0 1.9.9 3.6 2.3 4.9L1 16l4.6-1.4C6.4 14.9 7.2 15 8 15c4.4 0 8-3.1 8-7s-3.6-8-8-8Z"
+                      />
+                    </svg>
+                    <span
+                      class="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                      >Conversations</span
+                    >
+                  </div>
+                </a>
+              </li>
+            </RouterLink>
+
             <!-- Entities link -->
             <RouterLink
               v-slot="{ href, navigate, isActive }"
