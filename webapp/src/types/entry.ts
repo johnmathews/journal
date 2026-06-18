@@ -57,6 +57,10 @@ export interface EntryDetail {
    * ingested before migration 0005, for entries where the model
    * was fully confident, and for verified entries. */
   uncertain_spans: UncertainSpan[]
+  /** Half-open [char_start, char_end) into raw_text marking the entry's
+   *  in-bounds content. null = whole text. Out-of-bounds text is greyed
+   *  and excluded from search/embeddings/mood. */
+  content_boundary: { char_start: number; char_end: number } | null
 }
 
 export interface EntryListResponse {

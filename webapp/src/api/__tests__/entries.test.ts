@@ -5,6 +5,7 @@ import {
   fetchEntryChunks,
   fetchEntryTokens,
   updateEntryText,
+  updateEntryBoundary,
   deleteEntry,
   fetchStats,
   ingestText,
@@ -140,5 +141,29 @@ describe('entries API', () => {
     await ingestAudio([blob])
     const body = mockApiFetch.mock.calls[0][1]?.body as FormData
     expect(body.get('entry_date')).toBeNull()
+  })
+
+  it('updateEntryBoundary PATCHes content window offsets', async () => {
+    mockApiFetch.mockResolvedValue({
+      id: 1,
+      content_boundary: { char_start: 5, char_end: 9 },
+    })
+    await updateEntryBoundary(1, 5, 9)
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/entries/1', {
+      method: 'PATCH',
+      body: JSON.stringify({ content_start_char: 5, content_end_char: 9 }),
+    })
+  })
+
+  it('updateEntryBoundary passes null offsets to clear the boundary', async () => {
+    mockApiFetch.mockResolvedValue({ id: 2, content_boundary: null })
+    await updateEntryBoundary(2, null, null)
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/entries/2', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        content_start_char: null,
+        content_end_char: null,
+      }),
+    })
   })
 })
