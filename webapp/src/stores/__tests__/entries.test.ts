@@ -103,6 +103,7 @@ describe('useEntriesStore', () => {
       updated_at: '',
       doubts_verified: false,
       uncertain_spans: [],
+      content_boundary: null,
     }
     mockFetchEntry.mockResolvedValue(entry)
 
@@ -128,6 +129,7 @@ describe('useEntriesStore', () => {
       updated_at: '',
       doubts_verified: false,
       uncertain_spans: [],
+      content_boundary: null,
     }
     mockUpdateEntryText.mockResolvedValue(updated)
 
@@ -264,6 +266,7 @@ describe('useEntriesStore', () => {
       updated_at: '',
       doubts_verified: false,
       uncertain_spans: [],
+      content_boundary: null,
     }
     mockUpdateEntryDate.mockResolvedValue(updated)
 
@@ -357,6 +360,7 @@ describe('useEntriesStore', () => {
       updated_at: '',
       doubts_verified: false,
       uncertain_spans: [],
+      content_boundary: null,
     }
     mockFetchEntry.mockResolvedValue(entry)
     mockDeleteEntry.mockResolvedValue({ deleted: true, id: 42 })
@@ -403,6 +407,7 @@ describe('useEntriesStore', () => {
       updated_at: '',
       doubts_verified: true,
       uncertain_spans: [],
+      content_boundary: null,
     }
     mockVerifyDoubts.mockResolvedValue(verified)
 
@@ -468,6 +473,7 @@ describe('useEntriesStore', () => {
       updated_at: '',
       doubts_verified: false,
       uncertain_spans: [],
+      content_boundary: null,
     }
     let creatingDuringCall = false
     mockIngestText.mockImplementation(() => {
@@ -508,6 +514,7 @@ describe('useEntriesStore', () => {
         updated_at: '',
         doubts_verified: false,
         uncertain_spans: [],
+        content_boundary: null,
       },
       mood_job_id: 'mood-1',
       entity_extraction_job_id: null,
@@ -560,6 +567,7 @@ describe('useEntriesStore', () => {
         updated_at: '',
         doubts_verified: false,
         uncertain_spans: [],
+        content_boundary: null,
       },
       mood_job_id: null,
       entity_extraction_job_id: null,

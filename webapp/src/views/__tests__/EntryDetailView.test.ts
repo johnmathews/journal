@@ -62,6 +62,7 @@ vi.mock('@/api/entries', () => ({
     updated_at: '2026-03-23T10:30:00Z',
     doubts_verified: true,
     uncertain_spans: [],
+    content_boundary: null,
   }),
   deleteEntry: vi.fn().mockResolvedValue({ deleted: true, id: 1 }),
   fetchEntryChunks: vi.fn().mockResolvedValue({
@@ -980,6 +981,7 @@ describe('EntryDetailView', () => {
         updated_at: '2026-03-23T10:30:00Z',
         doubts_verified: false,
         uncertain_spans: [],
+        content_boundary: null,
       })
       await flushPromises()
     })
@@ -1154,6 +1156,7 @@ describe('EntryDetailView', () => {
         updated_at: '2026-03-22T10:00:00Z',
         doubts_verified: false,
         uncertain_spans: [],
+        content_boundary: null,
       })
 
       const { fetchEntryEntities } = await import('@/api/entities')
@@ -1209,6 +1212,7 @@ describe('EntryDetailView', () => {
         updated_at: '2026-03-22T10:00:00Z',
         doubts_verified: false,
         uncertain_spans: [],
+        content_boundary: null,
       })
 
       const { fetchEntryEntities } = await import('@/api/entities')
@@ -1280,6 +1284,7 @@ describe('EntryDetailView', () => {
         updated_at: '2026-03-22T10:00:00Z',
         doubts_verified: false,
         uncertain_spans: [],
+        content_boundary: null,
       })
 
       const { fetchEntryEntities } = await import('@/api/entities')
@@ -1337,6 +1342,7 @@ describe('EntryDetailView', () => {
         updated_at: '2026-03-22T10:00:00Z',
         doubts_verified: false,
         uncertain_spans: [],
+        content_boundary: null,
       })
 
       const { fetchEntryEntities } = await import('@/api/entities')
