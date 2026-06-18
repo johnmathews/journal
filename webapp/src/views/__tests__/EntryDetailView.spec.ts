@@ -288,4 +288,94 @@ describe('EntryDetailView — boundary controls', () => {
       false,
     )
   })
+
+  // 10. start >= end guard: selecting start at/after end does NOT call saveEntryBoundary
+  it('does not call updateEntryBoundary when selected start >= persisted end', async () => {
+    const { updateEntryBoundary } = await import('@/api/entries')
+
+    // raw_text has breaks at 0, 18, 36; persisted end is 18 (paragraph 2 start)
+    const wrapper = await mountWithEntry({
+      content_boundary: { char_start: 0, char_end: 18 },
+    })
+    await switchToEditMode(wrapper)
+
+    // Select paragraph index 1 (offset 18) as start — equals the persisted end (18)
+    const startSelect = wrapper.find('[data-testid="boundary-start-select"]')
+    await startSelect.setValue('1')
+    await flushPromises()
+
+    expect(updateEntryBoundary).not.toHaveBeenCalled()
+  })
+
+  // 11. Adjusting start keeps the persisted char_end exactly (no re-snap)
+  it('adjusting start passes the exact persisted char_end to saveEntryBoundary', async () => {
+    const { updateEntryBoundary } = await import('@/api/entries')
+    vi.mocked(updateEntryBoundary).mockResolvedValue(
+      makeEntry({
+        content_boundary: { char_start: 0, char_end: 36 },
+      }) as never,
+    )
+
+    // Persisted end is 36; paragraph breaks are at 0, 18, 36
+    // Selecting start=index 0 (offset 0) while end is persisted at 36
+    const wrapper = await mountWithEntry({
+      content_boundary: { char_start: 18, char_end: 36 },
+    })
+    await switchToEditMode(wrapper)
+
+    // Switch start back to index 0 (offset 0) — end should stay at exact persisted 36
+    const startSelect = wrapper.find('[data-testid="boundary-start-select"]')
+    await startSelect.setValue('0')
+    await flushPromises()
+
+    const calls = vi.mocked(updateEntryBoundary).mock.calls
+    expect(calls.length).toBeGreaterThan(0)
+    const lastCall = calls[calls.length - 1]
+    expect(lastCall[1]).toBe(0) // start offset
+    expect(lastCall[2]).toBe(36) // end — exact persisted value, not re-snapped
+  })
+
+  // 12. Adjusting end keeps the persisted char_start exactly (no re-snap)
+  it('adjusting end passes the exact persisted char_start to saveEntryBoundary', async () => {
+    const { updateEntryBoundary } = await import('@/api/entries')
+    vi.mocked(updateEntryBoundary).mockResolvedValue(
+      makeEntry({
+        content_boundary: { char_start: 0, char_end: 37 },
+      }) as never,
+    )
+
+    // Persisted start is 0; paragraph breaks are at 0, 18, 37
+    const wrapper = await mountWithEntry({
+      content_boundary: { char_start: 0, char_end: 18 },
+    })
+    await switchToEditMode(wrapper)
+
+    // Switch end to index 2 (offset 37) — start should stay at exact persisted 0
+    const endSelect = wrapper.find('[data-testid="boundary-end-select"]')
+    await endSelect.setValue('2')
+    await flushPromises()
+
+    const calls = vi.mocked(updateEntryBoundary).mock.calls
+    expect(calls.length).toBeGreaterThan(0)
+    const lastCall = calls[calls.length - 1]
+    expect(lastCall[1]).toBe(0) // start — exact persisted value, not re-snapped
+    expect(lastCall[2]).toBe(37) // end offset (paragraph break at index 2)
+  })
+
+  // 13. start >= end guard for end select: selecting end <= start does NOT call saveEntryBoundary
+  it('does not call updateEntryBoundary when selected end <= persisted start', async () => {
+    const { updateEntryBoundary } = await import('@/api/entries')
+
+    // Persisted start is 18; selecting end at index 0 (offset 0) → 0 <= 18, invalid
+    const wrapper = await mountWithEntry({
+      content_boundary: { char_start: 18, char_end: 36 },
+    })
+    await switchToEditMode(wrapper)
+
+    const endSelect = wrapper.find('[data-testid="boundary-end-select"]')
+    await endSelect.setValue('0')
+    await flushPromises()
+
+    expect(updateEntryBoundary).not.toHaveBeenCalled()
+  })
 })

@@ -688,23 +688,19 @@ async function onStartBreakChange(event: Event) {
   const idx = Number((event.target as HTMLSelectElement).value)
   selectedStartBreakIdx.value = idx
   const start = paragraphBreaks.value[idx]
-  const endIdx = effectiveEndBreakIdx.value
-  const end =
-    endIdx < paragraphBreaks.value.length
-      ? paragraphBreaks.value[endIdx]
-      : (store.currentEntry?.raw_text.length ?? null)
+  // Use the exact persisted char_end so the untouched endpoint doesn't re-snap.
+  const end = store.currentEntry?.content_boundary?.char_end ?? null
+  if (end === null || start >= end) return
   await saveBoundary(start, end)
 }
 
 async function onEndBreakChange(event: Event) {
   const idx = Number((event.target as HTMLSelectElement).value)
   selectedEndBreakIdx.value = idx
-  const end =
-    idx < paragraphBreaks.value.length
-      ? paragraphBreaks.value[idx]
-      : (store.currentEntry?.raw_text.length ?? null)
-  const startIdx = effectiveStartBreakIdx.value
-  const start = paragraphBreaks.value[startIdx] ?? 0
+  const end = paragraphBreaks.value[idx]
+  // Use the exact persisted char_start so the untouched endpoint doesn't re-snap.
+  const start = store.currentEntry?.content_boundary?.char_start ?? 0
+  if (end === undefined || start >= end) return
   await saveBoundary(start, end)
 }
 // --- End boundary controls -----------------------------------------------
