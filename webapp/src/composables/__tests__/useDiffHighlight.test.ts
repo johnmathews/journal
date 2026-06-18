@@ -723,4 +723,27 @@ describe('applyOutOfBoundsOverlay', () => {
     const outBounds = out.filter((s) => s.kind === 'out-of-bounds')
     expect(outBounds.length).toBeGreaterThan(0)
   })
+
+  it('accumulates pos correctly across multiple input segments', () => {
+    // Input: two segments totalling 14 chars: "tail " (5 chars) + "body next" (9 chars)
+    // Boundary [5, 9) should mark "tail " as out-of-bounds, "body" as in-bounds,
+    // " next" as out-of-bounds — testing that pos accumulates across segment joins
+    const segs = [
+      { text: 'tail ', kind: 'equal' as const },
+      { text: 'body next', kind: 'equal' as const },
+    ]
+    const out = applyOutOfBoundsOverlay(
+      segs,
+      { char_start: 5, char_end: 9 },
+      14,
+    )
+    // Should produce 3 segments: out-of-bounds "tail ", equal "body", out-of-bounds " next"
+    expect(out).toEqual([
+      { kind: 'out-of-bounds', text: 'tail ' },
+      { kind: 'equal', text: 'body' },
+      { kind: 'out-of-bounds', text: ' next' },
+    ])
+    // Concatenation must equal the original combined text
+    expect(out.map((s) => s.text).join('')).toBe('tail body next')
+  })
 })
