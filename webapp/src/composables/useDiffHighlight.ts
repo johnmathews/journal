@@ -22,6 +22,7 @@ export type HighlightKind =
   | 'diff-insert'
   | 'uncertain'
   | 'diff-delete-uncertain'
+  | 'out-of-bounds'
 
 export interface HighlightSegment {
   kind: HighlightKind
@@ -56,6 +57,11 @@ const CLASS_FOR_KIND: Record<HighlightKind, string> = {
   // class list must not conflict with the diff-delete base.
   'diff-delete-uncertain':
     'bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200 ring-1 ring-yellow-500 dark:ring-yellow-400 rounded-[2px]',
+  // Out-of-bounds: text outside the content_boundary window. Greyed
+  // and struck through to visually separate it from the in-bounds
+  // reading.
+  'out-of-bounds':
+    'opacity-40 line-through decoration-gray-400 text-gray-500 dark:text-gray-500',
 }
 
 /**
@@ -182,6 +188,55 @@ export function applyUncertainOverlay(
   }
 
   return result
+}
+
+/**
+ * Overlay the out-of-bounds region onto a list of original-side segments.
+ *
+ * `content_boundary` marks which portion of the raw_text is the actual
+ * journal entry body (`[char_start, char_end)`). Everything outside that
+ * range — e.g. page headers, footers, or trailing scan artefacts — is
+ * promoted to `'out-of-bounds'` and rendered greyed/struck-through in
+ * the Original OCR view.
+ *
+ * Returns `segments` unchanged (same reference) when:
+ * - `boundary` is null (no boundary data from the server), or
+ * - the boundary covers the entire text (`char_start <= 0 && char_end >=
+ *   textLength`), i.e. everything is in-bounds.
+ *
+ * In-bounds portions keep their original kind (equal, diff-delete, etc.)
+ * so diff and uncertain overlays already applied to those pieces are
+ * preserved.
+ */
+export function applyOutOfBoundsOverlay(
+  segments: HighlightSegment[],
+  boundary: { char_start: number; char_end: number } | null,
+  textLength: number,
+): HighlightSegment[] {
+  if (!boundary) return segments
+  const { char_start, char_end } = boundary
+  if (char_start <= 0 && char_end >= textLength) return segments
+  const out: HighlightSegment[] = []
+  let pos = 0
+  for (const seg of segments) {
+    const segStart = pos
+    const segEnd = pos + seg.text.length
+    // Walk the segment, splitting at the two boundary offsets.
+    let cur = segStart
+    while (cur < segEnd) {
+      const inBounds = cur >= char_start && cur < char_end
+      const nextEdge = inBounds
+        ? Math.min(char_end, segEnd)
+        : Math.min(cur < char_start ? char_start : segEnd, segEnd)
+      const piece = seg.text.slice(cur - segStart, nextEdge - segStart)
+      if (piece.length > 0) {
+        out.push({ text: piece, kind: inBounds ? seg.kind : 'out-of-bounds' })
+      }
+      cur = nextEdge
+    }
+    pos = segEnd
+  }
+  return out
 }
 
 /**
@@ -438,6 +493,11 @@ export interface DiffHighlightOptions {
   /** Review toggle state. When false, uncertainty overlays are
    * suppressed regardless of `uncertainSpans`. */
   showReview?: Ref<boolean>
+  /** Content boundary for the original (raw) text. When provided,
+   * characters outside `[char_start, char_end)` are rendered greyed and
+   * struck through in the Original OCR view. Applied after the uncertain
+   * overlay so other highlights are preserved for in-bounds regions. */
+  contentBoundary?: Ref<{ char_start: number; char_end: number } | null>
 }
 
 /**
@@ -470,13 +530,19 @@ export function useDiffHighlight(
       options.showReview?.value && options.uncertainSpans
         ? options.uncertainSpans.value
         : []
+    const boundary = options.contentBoundary?.value ?? null
     if (!enabled.value) {
       // Diff overlay off. Build a single "equal" segment and apply
       // the uncertainty overlay by hand so the Review toggle still
       // works on its own — both original and corrected sides.
-      const originalSegments = applyUncertainOverlay(
+      const withUncertain = applyUncertainOverlay(
         [{ kind: 'equal' as const, text: originalText }],
         spans,
+      )
+      const originalSegments = applyOutOfBoundsOverlay(
+        withUncertain,
+        boundary,
+        originalText.length,
       )
       // Compute diff just for positional mapping of uncertain spans
       const dmp = new DiffMatchPatch()
@@ -489,7 +555,14 @@ export function useDiffHighlight(
       )
       return { originalSegments, correctedSegments }
     }
-    return diffToSegments(originalText, correctedText, spans)
+    const { originalSegments: diffOriginal, correctedSegments } =
+      diffToSegments(originalText, correctedText, spans)
+    const originalSegments = applyOutOfBoundsOverlay(
+      diffOriginal,
+      boundary,
+      originalText.length,
+    )
+    return { originalSegments, correctedSegments }
   })
 
   const originalHtml = computed(() =>

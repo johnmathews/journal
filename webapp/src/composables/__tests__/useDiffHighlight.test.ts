@@ -3,6 +3,7 @@ import { ref, nextTick } from 'vue'
 import DiffMatchPatch from 'diff-match-patch'
 import {
   applyUncertainOverlay,
+  applyOutOfBoundsOverlay,
   diffToSegments,
   mapUncertainToCorrected,
   mapSpansViaDiff,
@@ -637,5 +638,89 @@ describe('mapSpansViaDiff', () => {
     const diffs = makeDiffs(original, corrected)
     const spans = mapSpansViaDiff(diffs, [{ char_start: 6, char_end: 9 }]) // "end"
     expect(spans).toEqual([{ char_start: 6, char_end: 9 }])
+  })
+})
+
+describe('applyOutOfBoundsOverlay', () => {
+  it('greys segments outside the content boundary', () => {
+    // raw_text = "tail body next" → window [5,9) == "body"
+    const segs = [{ text: 'tail body next', kind: 'equal' as const }]
+    const out = applyOutOfBoundsOverlay(
+      segs,
+      { char_start: 5, char_end: 9 },
+      14,
+    )
+    const html = segmentsToHtml(out)
+    // "tail " and " next" greyed, "body" plain
+    expect(html).toContain('opacity-40')
+    expect(html).toContain('body')
+    // the in-bounds slice is not inside an out-of-bounds mark
+    const bodyIdx = html.indexOf('body')
+    const greyBeforeBody = html.lastIndexOf('opacity-40', bodyIdx)
+    const closeBeforeBody = html.lastIndexOf('</mark>', bodyIdx)
+    expect(closeBeforeBody).toBeGreaterThan(greyBeforeBody)
+  })
+
+  it('is a no-op when boundary is null', () => {
+    const segs = [{ text: 'hello', kind: 'equal' as const }]
+    expect(applyOutOfBoundsOverlay(segs, null, 5)).toEqual(segs)
+  })
+
+  it('is a no-op when boundary covers the whole text', () => {
+    const segs = [{ text: 'hello', kind: 'equal' as const }]
+    expect(
+      applyOutOfBoundsOverlay(segs, { char_start: 0, char_end: 5 }, 5),
+    ).toEqual(segs)
+  })
+
+  it('greys prefix when boundary starts mid-text', () => {
+    const segs = [{ text: 'prefixbody', kind: 'equal' as const }]
+    const out = applyOutOfBoundsOverlay(
+      segs,
+      { char_start: 6, char_end: 10 },
+      10,
+    )
+    expect(out).toEqual([
+      { kind: 'out-of-bounds', text: 'prefix' },
+      { kind: 'equal', text: 'body' },
+    ])
+  })
+
+  it('greys suffix when boundary ends before end of text', () => {
+    const segs = [{ text: 'bodysuffix', kind: 'equal' as const }]
+    const out = applyOutOfBoundsOverlay(
+      segs,
+      { char_start: 0, char_end: 4 },
+      10,
+    )
+    expect(out).toEqual([
+      { kind: 'equal', text: 'body' },
+      { kind: 'out-of-bounds', text: 'suffix' },
+    ])
+  })
+
+  it('preserves text concatenation under boundary split', () => {
+    const text = 'tail body next'
+    const segs = [{ text, kind: 'equal' as const }]
+    const out = applyOutOfBoundsOverlay(
+      segs,
+      { char_start: 5, char_end: 9 },
+      14,
+    )
+    expect(out.map((s) => s.text).join('')).toBe(text)
+  })
+
+  it('preserves non-equal kinds for in-bounds portions', () => {
+    const segs = [{ text: 'deleted text here', kind: 'diff-delete' as const }]
+    // boundary covers chars [8, 12) = "text"
+    const out = applyOutOfBoundsOverlay(
+      segs,
+      { char_start: 8, char_end: 12 },
+      17,
+    )
+    const inBounds = out.find((s) => s.text === 'text')
+    expect(inBounds?.kind).toBe('diff-delete')
+    const outBounds = out.filter((s) => s.kind === 'out-of-bounds')
+    expect(outBounds.length).toBeGreaterThan(0)
   })
 })
