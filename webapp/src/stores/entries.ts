@@ -5,6 +5,7 @@ import {
   fetchEntries,
   fetchEntry,
   updateEntryText,
+  updateEntryBoundary,
   updateEntryDate as updateEntryDateApi,
   deleteEntry as deleteEntryApi,
   verifyDoubts as verifyDoubtsApi,
@@ -94,6 +95,33 @@ export const useEntriesStore = defineStore('entries', () => {
       }
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to save entry'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function saveEntryBoundary(
+    id: number,
+    start: number | null,
+    end: number | null,
+  ): Promise<{
+    extractionJobId?: string
+    reprocessJobId?: string
+    moodJobId?: string
+  }> {
+    loading.value = true
+    error.value = null
+    try {
+      const resp = await updateEntryBoundary(id, start, end)
+      currentEntry.value = resp
+      return {
+        extractionJobId: resp.entity_extraction_job_id,
+        reprocessJobId: resp.reprocess_job_id,
+        moodJobId: resp.mood_job_id,
+      }
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to save boundary'
       throw e
     } finally {
       loading.value = false
@@ -231,6 +259,7 @@ export const useEntriesStore = defineStore('entries', () => {
     loadEntries,
     loadEntry,
     saveEntryText,
+    saveEntryBoundary,
     updateDate,
     deleteEntry,
     verifyDoubts,

@@ -197,10 +197,15 @@ watch(
   },
 )
 
+const contentBoundary = computed(
+  () => store.currentEntry?.content_boundary ?? null,
+)
+
 const { originalHtml: rawOriginalHtml, correctedHtml: rawCorrectedHtml } =
   useDiffHighlight(originalText, editedText, showDiff, {
     showReview,
     uncertainSpans,
+    contentBoundary,
   })
 
 // Entity highlight — from ?highlight= query param or from clicking a chip.
@@ -575,6 +580,131 @@ async function save() {
   }
 }
 
+// --- Boundary controls --------------------------------------------------
+// Paragraph break offsets in raw_text. Index 0 is always 0 (start of text).
+const paragraphBreaks = computed<number[]>(() => {
+  const text = store.currentEntry?.raw_text ?? ''
+  const breaks: number[] = [0]
+  const re = /\n\n+/g
+  let m
+  while ((m = re.exec(text)) !== null) {
+    breaks.push(m.index + m[0].length)
+  }
+  return breaks
+})
+
+// Find the break index nearest to a given char offset.
+function nearestBreakIdx(offset: number): number {
+  const breaks = paragraphBreaks.value
+  let best = 0
+  let bestDist = Math.abs(breaks[0] - offset)
+  for (let i = 1; i < breaks.length; i++) {
+    const d = Math.abs(breaks[i] - offset)
+    if (d < bestDist) {
+      bestDist = d
+      best = i
+    }
+  }
+  return best
+}
+
+const boundaryStartBreakIdx = computed(() => {
+  const b = store.currentEntry?.content_boundary
+  if (!b) return 0
+  return nearestBreakIdx(b.char_start)
+})
+
+const boundaryEndBreakIdx = computed(() => {
+  const b = store.currentEntry?.content_boundary
+  if (!b) return paragraphBreaks.value.length - 1
+  return nearestBreakIdx(b.char_end)
+})
+
+const selectedStartBreakIdx = ref<number | null>(null)
+const selectedEndBreakIdx = ref<number | null>(null)
+
+// Reset selects when entry changes or boundary changes.
+watch(
+  () => store.currentEntry?.content_boundary,
+  () => {
+    selectedStartBreakIdx.value = null
+    selectedEndBreakIdx.value = null
+  },
+)
+
+const effectiveStartBreakIdx = computed(
+  () => selectedStartBreakIdx.value ?? boundaryStartBreakIdx.value,
+)
+const effectiveEndBreakIdx = computed(
+  () => selectedEndBreakIdx.value ?? boundaryEndBreakIdx.value,
+)
+
+async function saveBoundary(start: number | null, end: number | null) {
+  if (!store.currentEntry) return
+  const entryId = store.currentEntry.id
+  try {
+    const { extractionJobId, reprocessJobId, moodJobId } =
+      await store.saveEntryBoundary(entryId, start, end)
+    chunks.value = null
+    tokens.value = null
+    overlayError.value = null
+
+    const hasJobs = reprocessJobId || extractionJobId || moodJobId
+    const groupId = hasJobs ? crypto.randomUUID() : undefined
+    if (groupId) {
+      jobsStore.createGroup(groupId, 'Boundary update')
+    }
+    if (reprocessJobId) {
+      jobsStore.trackJob(
+        reprocessJobId,
+        'reprocess_embeddings',
+        { entry_id: entryId },
+        groupId,
+      )
+    }
+    if (extractionJobId) {
+      jobsStore.trackJob(
+        extractionJobId,
+        'entity_extraction',
+        { entry_id: entryId },
+        groupId,
+      )
+    }
+    if (moodJobId) {
+      jobsStore.trackJob(
+        moodJobId,
+        'mood_score_entry',
+        { entry_id: entryId },
+        groupId,
+      )
+    }
+    toast.success('Boundary saved. Background jobs running.')
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Failed to save boundary')
+  }
+}
+
+async function onStartBreakChange(event: Event) {
+  const idx = Number((event.target as HTMLSelectElement).value)
+  selectedStartBreakIdx.value = idx
+  const start = paragraphBreaks.value[idx]
+  // Use the exact persisted char_end so the untouched endpoint doesn't re-snap.
+  const end = store.currentEntry?.content_boundary?.char_end ?? null
+  if (end === null || start >= end) return
+  await saveBoundary(start, end)
+}
+
+async function onEndBreakChange(event: Event) {
+  const idx = Number((event.target as HTMLSelectElement).value)
+  selectedEndBreakIdx.value = idx
+  const end = paragraphBreaks.value[idx]
+  // Use the exact persisted char_start so the untouched endpoint doesn't re-snap.
+  const start = store.currentEntry?.content_boundary?.char_start ?? 0
+  if (end === undefined || start >= end) return
+  await saveBoundary(start, end)
+}
+// --- End boundary controls -----------------------------------------------
+
 const goBack = useBackNavigation({ name: 'entries' })
 
 async function confirmDelete() {
@@ -859,6 +989,57 @@ onBeforeUnmount(() => {
           data-testid="overlay-error-banner"
         >
           {{ overlayError }}
+        </div>
+
+        <!-- Boundary control bar — only when entry has a content_boundary set -->
+        <div
+          v-if="store.currentEntry.content_boundary"
+          class="mb-4 flex flex-wrap items-center gap-3 px-4 py-2 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700/60 rounded-lg text-sm"
+          data-testid="boundary-controls"
+        >
+          <span class="font-medium text-gray-700 dark:text-gray-200">
+            Boundary: chars
+            {{ store.currentEntry.content_boundary.char_start }}–{{
+              store.currentEntry.content_boundary.char_end
+            }}
+          </span>
+          <button
+            class="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 text-xs px-2 py-1"
+            data-testid="boundary-reset-btn"
+            @click="saveBoundary(null, null)"
+          >
+            Use full page
+          </button>
+          <label
+            class="flex items-center gap-1 text-gray-600 dark:text-gray-300"
+          >
+            Start paragraph:
+            <select
+              :value="effectiveStartBreakIdx"
+              class="form-select text-xs rounded border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 py-0.5 pl-1 pr-6"
+              data-testid="boundary-start-select"
+              @change="onStartBreakChange"
+            >
+              <option v-for="(brk, i) in paragraphBreaks" :key="i" :value="i">
+                Paragraph {{ i + 1 }} (char {{ brk }})
+              </option>
+            </select>
+          </label>
+          <label
+            class="flex items-center gap-1 text-gray-600 dark:text-gray-300"
+          >
+            End paragraph:
+            <select
+              :value="effectiveEndBreakIdx"
+              class="form-select text-xs rounded border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 py-0.5 pl-1 pr-6"
+              data-testid="boundary-end-select"
+              @change="onEndBreakChange"
+            >
+              <option v-for="(brk, i) in paragraphBreaks" :key="i" :value="i">
+                Paragraph {{ i + 1 }} (char {{ brk }})
+              </option>
+            </select>
+          </label>
         </div>
 
         <!-- Editor toolbar -->

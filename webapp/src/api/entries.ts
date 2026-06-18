@@ -54,6 +54,17 @@ export function updateEntryText(
   })
 }
 
+export function updateEntryBoundary(
+  id: number,
+  start: number | null,
+  end: number | null,
+): Promise<UpdateEntryTextResponse> {
+  return apiFetch<UpdateEntryTextResponse>(`/api/entries/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ content_start_char: start, content_end_char: end }),
+  })
+}
+
 export function updateEntryDate(
   id: number,
   entryDate: string,
