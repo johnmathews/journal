@@ -252,6 +252,83 @@ describe('GarminConnectionCard', () => {
     ).toBe(true)
   })
 
+  it('renders upstream_rate_limited with stop-retrying guidance and a wait hint', async () => {
+    mockConnect.mockRejectedValue(
+      new ApiRequestError(429, 'upstream_rate_limited', 'rate limited', {
+        error: '...',
+        reason: 'upstream_rate_limited',
+        retry_after_seconds: 300,
+      }),
+    )
+
+    const wrapper = mountCard(null)
+    await wrapper.get('[data-testid="garmin-connect-btn"]').trigger('click')
+    await wrapper
+      .get('[data-testid="garmin-username-input"]')
+      .setValue('a@example.com')
+    await wrapper.get('[data-testid="garmin-password-input"]').setValue('x')
+    await wrapper
+      .get('[data-testid="garmin-credentials-submit"]')
+      .trigger('click')
+    await flushPromises()
+
+    const text = wrapper.get('[data-testid="garmin-error"]').text()
+    expect(text).toContain('Stop retrying and wait about 5 minutes')
+    expect(text).toContain('re-arms the block')
+    // Form stays open so the user can retry once the wait is over.
+    expect(
+      wrapper.find('[data-testid="garmin-credentials-form"]').exists(),
+    ).toBe(true)
+  })
+
+  it('renders local_cooldown with a per-account wait message', async () => {
+    mockConnect.mockRejectedValue(
+      new ApiRequestError(429, 'local_cooldown', 'too many', {
+        error: '...',
+        reason: 'local_cooldown',
+        retry_after_seconds: 90,
+      }),
+    )
+
+    const wrapper = mountCard(null)
+    await wrapper.get('[data-testid="garmin-connect-btn"]').trigger('click')
+    await wrapper
+      .get('[data-testid="garmin-username-input"]')
+      .setValue('a@example.com')
+    await wrapper.get('[data-testid="garmin-password-input"]').setValue('x')
+    await wrapper
+      .get('[data-testid="garmin-credentials-submit"]')
+      .trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="garmin-error"]').text()).toContain(
+      'Too many recent Garmin login attempts for that account. Wait about 2 minutes',
+    )
+  })
+
+  it('omits the wait hint when the server gives no retry_after_seconds', async () => {
+    mockConnect.mockRejectedValue(
+      new ApiRequestError(429, 'upstream_rate_limited', 'rate limited', {
+        error: '...',
+        reason: 'upstream_rate_limited',
+      }),
+    )
+
+    const wrapper = mountCard(null)
+    await wrapper.get('[data-testid="garmin-connect-btn"]').trigger('click')
+    await wrapper
+      .get('[data-testid="garmin-username-input"]')
+      .setValue('a@example.com')
+    await wrapper.get('[data-testid="garmin-password-input"]').setValue('x')
+    await wrapper
+      .get('[data-testid="garmin-credentials-submit"]')
+      .trigger('click')
+    await flushPromises()
+
+    const text = wrapper.get('[data-testid="garmin-error"]').text()
+    expect(text).toContain('Stop retrying and wait — each attempt re-arms')
+  })
+
   it('translates expired_pending_session on MFA into a recovery hint', async () => {
     mockConnect.mockResolvedValue({
       mfa_required: true,

@@ -115,6 +115,15 @@ async function onDisconnect(): Promise<void> {
   }
 }
 
+// Turn the server's `retry_after_seconds` into a human "about N minutes"
+// clause (with a leading space so it slots into a sentence), or '' when the
+// server didn't say how long to wait.
+function waitHint(seconds: number | null): string {
+  if (!seconds || seconds <= 0) return ''
+  const minutes = Math.ceil(seconds / 60)
+  return minutes <= 1 ? ' about a minute' : ` about ${minutes} minutes`
+}
+
 function errorMessage(e: unknown, fallback: string): string {
   if (e instanceof ApiRequestError) {
     // The server uses a `reason` field for machine-readable categories.
@@ -122,6 +131,10 @@ function errorMessage(e: unknown, fallback: string): string {
     // back to the server message for anything else.
     const reason =
       e.body && typeof e.body.reason === 'string' ? e.body.reason : null
+    const retryAfter =
+      e.body && typeof e.body.retry_after_seconds === 'number'
+        ? e.body.retry_after_seconds
+        : null
     switch (reason) {
       case 'invalid_credentials':
         return 'Garmin rejected those credentials.'
@@ -133,6 +146,20 @@ function errorMessage(e: unknown, fallback: string): string {
         return 'Garmin accepted the code but the follow-up profile fetch failed. Try Connect again.'
       case 'upstream_account_mismatch':
         return 'This Garmin account differs from the one currently connected. Disconnect first.'
+      case 'upstream_rate_limited':
+        // Garmin/Cloudflare blocked the server's IP. Each retry re-arms the
+        // block, so the actionable guidance is to stop and wait — not to
+        // re-check the password.
+        return (
+          'Garmin is rate-limiting login attempts from this server. Stop ' +
+          `retrying and wait${waitHint(retryAfter)} — each attempt re-arms ` +
+          'the block. If it persists, try again later from a different network.'
+        )
+      case 'local_cooldown':
+        return (
+          'Too many recent Garmin login attempts for that account. Wait' +
+          `${waitHint(retryAfter)} before trying again.`
+        )
       default:
         return e.message || fallback
     }
