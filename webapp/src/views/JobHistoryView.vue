@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import {
   listJobs,
@@ -8,6 +8,11 @@ import {
   type JobListResponse,
 } from '@/api/jobs'
 import type { Job, JobType, JobStatus } from '@/types/job'
+import {
+  formatDurationSeconds,
+  formatTokens,
+  formatUsd,
+} from '@/utils/format-metrics'
 import JobParamsCell from '@/components/JobParamsCell.vue'
 import JsonPopover from '@/components/JsonPopover.vue'
 
@@ -135,7 +140,72 @@ watch([filterStatus, filterType], () => {
   load()
 })
 
-onMounted(load)
+// ── Live clock + auto-poll ─────────────────────────────────────────
+// A running job's elapsed time must tick every second and the list must
+// refresh itself while work is in flight, so the user can watch a job
+// progress (or spot a stall) without hitting Refresh.
+
+/** A job running longer than this reads as stuck and turns amber. */
+const STUCK_THRESHOLD_SECONDS = 120
+
+/** Ticks once a second so `liveDuration`/`isStuck` re-render live. */
+const now = ref(Date.now())
+let clockTimer: ReturnType<typeof setInterval> | null = null
+let pollTimer: ReturnType<typeof setInterval> | null = null
+
+/** True while any loaded job is still queued or running. */
+const hasRunningJob = computed(() =>
+  jobs.value.some((j) => j.status === 'running' || j.status === 'queued'),
+)
+
+/** Seconds a running job has been executing, or null if not started. */
+function elapsedSeconds(job: Job): number | null {
+  if (!job.started_at) return null
+  const started = Date.parse(job.started_at)
+  if (Number.isNaN(started)) return null
+  return (now.value - started) / 1000
+}
+
+/** Live, up-counting duration string for a running job ("12s", "1m 04s"). */
+function liveDuration(job: Job): string {
+  const secs = elapsedSeconds(job)
+  if (secs == null) return '-'
+  return formatDurationSeconds(secs)
+}
+
+/** A running job that has been going long enough to look stuck. */
+function isStuck(job: Job): boolean {
+  if (job.status !== 'running') return false
+  const secs = elapsedSeconds(job)
+  return secs != null && secs > STUCK_THRESHOLD_SECONDS
+}
+
+// Running totals across the loaded page (the list paginates, so these
+// are page-scoped, not global — the template labels them "(this page)").
+const totalInputTokens = computed(() =>
+  jobs.value.reduce((sum, j) => sum + (j.input_tokens ?? 0), 0),
+)
+const totalOutputTokens = computed(() =>
+  jobs.value.reduce((sum, j) => sum + (j.output_tokens ?? 0), 0),
+)
+const totalCost = computed(() =>
+  jobs.value.reduce((sum, j) => sum + (j.cost_usd ?? 0), 0),
+)
+
+onMounted(() => {
+  load()
+  clockTimer = setInterval(() => {
+    now.value = Date.now()
+  }, 1000)
+  pollTimer = setInterval(() => {
+    if (hasRunningJob.value && !loading.value) load()
+  }, 3000)
+})
+
+onUnmounted(() => {
+  if (clockTimer != null) clearInterval(clockTimer)
+  if (pollTimer != null) clearInterval(pollTimer)
+})
 
 function jobLabel(type: JobType): string {
   switch (type) {
@@ -187,7 +257,9 @@ function statusBadgeClass(status: JobStatus): string {
     case 'succeeded':
       return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
     case 'failed':
-      return 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300'
+      // Ring makes failures pop out of the list — this view is how the
+      // user spots a failed job (and, in future, an out-of-credits state).
+      return 'bg-red-100 text-red-700 ring-1 ring-red-400/60 dark:bg-red-500/20 dark:text-red-300 dark:ring-red-500/40'
   }
 }
 
@@ -357,6 +429,59 @@ function nextPage() {
       </button>
     </div>
 
+    <!-- Running totals across the loaded page -->
+    <div
+      v-if="jobs.length > 0"
+      class="flex flex-wrap gap-3 mb-4"
+      data-testid="job-history-totals"
+    >
+      <div
+        class="rounded-lg border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-900/40 px-3 py-2"
+      >
+        <div
+          class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+        >
+          Cost (this page)
+        </div>
+        <div
+          class="text-lg font-semibold text-gray-800 dark:text-gray-100 tabular-nums"
+          data-testid="total-cost"
+        >
+          {{ formatUsd(totalCost) }}
+        </div>
+      </div>
+      <div
+        class="rounded-lg border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-900/40 px-3 py-2"
+      >
+        <div
+          class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+        >
+          Input tokens (this page)
+        </div>
+        <div
+          class="text-lg font-semibold text-gray-800 dark:text-gray-100 tabular-nums"
+          data-testid="total-input-tokens"
+        >
+          {{ formatTokens(totalInputTokens) }}
+        </div>
+      </div>
+      <div
+        class="rounded-lg border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-900/40 px-3 py-2"
+      >
+        <div
+          class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+        >
+          Output tokens (this page)
+        </div>
+        <div
+          class="text-lg font-semibold text-gray-800 dark:text-gray-100 tabular-nums"
+          data-testid="total-output-tokens"
+        >
+          {{ formatTokens(totalOutputTokens) }}
+        </div>
+      </div>
+    </div>
+
     <!-- Error -->
     <div
       v-if="error"
@@ -400,6 +525,9 @@ function nextPage() {
               <th class="px-4 py-3">Params</th>
               <th class="px-4 py-3">Created</th>
               <th class="px-4 py-3">Duration</th>
+              <th class="px-4 py-3">In</th>
+              <th class="px-4 py-3">Out</th>
+              <th class="px-4 py-3">Cost</th>
               <th class="px-4 py-3">Details</th>
             </tr>
           </thead>
@@ -470,11 +598,68 @@ function nextPage() {
                 </span>
               </td>
 
-              <!-- Duration -->
+              <!-- Duration (live up-counter + spinner while running) -->
               <td
                 class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap"
               >
-                {{ duration(job) }}
+                <span
+                  v-if="job.status === 'running'"
+                  class="inline-flex items-center font-medium tabular-nums"
+                  :class="
+                    isStuck(job)
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-violet-600 dark:text-violet-400'
+                  "
+                  :data-testid="`live-duration-${job.id}`"
+                >
+                  <svg
+                    class="animate-spin w-4 h-4 mr-1.5 -ml-0.5"
+                    :data-testid="`job-spinner-${job.id}`"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      class="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      stroke-width="4"
+                    />
+                    <path
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                    />
+                  </svg>
+                  {{ liveDuration(job) }}
+                </span>
+                <span v-else>{{ duration(job) }}</span>
+              </td>
+
+              <!-- Input tokens -->
+              <td
+                class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap tabular-nums"
+                :data-testid="`job-input-tokens-${job.id}`"
+              >
+                {{ formatTokens(job.input_tokens) }}
+              </td>
+
+              <!-- Output tokens -->
+              <td
+                class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap tabular-nums"
+                :data-testid="`job-output-tokens-${job.id}`"
+              >
+                {{ formatTokens(job.output_tokens) }}
+              </td>
+
+              <!-- Cost -->
+              <td
+                class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap tabular-nums"
+                :data-testid="`job-cost-${job.id}`"
+              >
+                {{ formatUsd(job.cost_usd) }}
               </td>
 
               <!-- Details column -->
@@ -634,7 +819,53 @@ function nextPage() {
               <span v-else>-</span>
             </span>
             <span>{{ formatTime(job.created_at) }}</span>
-            <span v-if="duration(job) !== '-'">· {{ duration(job) }}</span>
+            <span
+              v-if="job.status === 'running'"
+              class="inline-flex items-center font-medium"
+              :class="
+                isStuck(job)
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-violet-600 dark:text-violet-400'
+              "
+              :data-testid="`card-live-duration-${job.id}`"
+            >
+              <svg
+                class="animate-spin w-3 h-3 mr-1"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                />
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                />
+              </svg>
+              {{ liveDuration(job) }}
+            </span>
+            <span v-else-if="duration(job) !== '-'">· {{ duration(job) }}</span>
+          </div>
+
+          <div
+            v-if="
+              job.input_tokens != null ||
+              job.output_tokens != null ||
+              job.cost_usd != null
+            "
+            class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400 tabular-nums"
+            :data-testid="`card-metrics-${job.id}`"
+          >
+            <span>In: {{ formatTokens(job.input_tokens) }}</span>
+            <span>Out: {{ formatTokens(job.output_tokens) }}</span>
+            <span>Cost: {{ formatUsd(job.cost_usd) }}</span>
           </div>
 
           <div class="mt-2 text-sm text-gray-600 dark:text-gray-300">

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
@@ -680,5 +680,198 @@ describe('JobHistoryView', () => {
     const link = card.find('[data-testid="card-entry-link"]')
     expect(link.exists()).toBe(true)
     expect(link.text()).toBe('#42')
+  })
+})
+
+// --- Live running indicator, throughput metrics, and auto-poll ---
+// These exercise the 1s clock + 3s poll intervals, so they run under fake
+// timers with a fixed system clock; started_at values are relative to it.
+describe('JobHistoryView live metrics and polling', () => {
+  const NOW = '2026-04-13T10:00:00Z'
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(NOW))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  async function mountView(jobs: Job[] = [], total?: number) {
+    mockListJobs.mockResolvedValue({
+      items: jobs,
+      total: total ?? jobs.length,
+      limit: 25,
+      offset: 0,
+    })
+    const router = makeRouter()
+    await router.push('/jobs')
+    await router.isReady()
+    const wrapper = mount(JobHistoryView, {
+      global: { plugins: [createPinia(), router] },
+    })
+    await flushPromises()
+    return wrapper
+  }
+
+  function runningJob(overrides: Partial<Job> = {}): Job {
+    return makeJob({
+      id: 'j-run',
+      status: 'running',
+      started_at: NOW,
+      finished_at: null,
+      progress_current: 0,
+      progress_total: 0,
+      ...overrides,
+    })
+  }
+
+  it('renders a spinner + live duration only for the running job', async () => {
+    const wrapper = await mountView([
+      runningJob({ id: 'j-run' }),
+      makeJob({ id: 'j-done', status: 'succeeded' }),
+    ])
+    expect(wrapper.find('[data-testid="job-spinner-j-run"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('[data-testid="job-spinner-j-done"]').exists()).toBe(
+      false,
+    )
+    expect(
+      wrapper.find('[data-testid="live-duration-j-run"]').text(),
+    ).toContain('0s')
+  })
+
+  it('advances the live duration as the clock ticks', async () => {
+    const wrapper = await mountView([runningJob()])
+    expect(
+      wrapper.find('[data-testid="live-duration-j-run"]').text(),
+    ).toContain('0s')
+    vi.advanceTimersByTime(3000)
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="live-duration-j-run"]').text(),
+    ).toContain('3s')
+  })
+
+  it('uses violet for a fresh running job and amber for a stuck one', async () => {
+    const fresh = await mountView([
+      runningJob({ id: 'j-run', started_at: NOW }),
+    ])
+    expect(
+      fresh.find('[data-testid="live-duration-j-run"]').classes(),
+    ).toContain('text-violet-600')
+
+    vi.clearAllMocks()
+    const stuck = await mountView([
+      // Started 3 minutes before "now" → well past the 120s stuck threshold.
+      runningJob({ id: 'j-run', started_at: '2026-04-13T09:57:00Z' }),
+    ])
+    const stuckClasses = stuck
+      .find('[data-testid="live-duration-j-run"]')
+      .classes()
+    expect(stuckClasses).toContain('text-amber-600')
+    expect(stuckClasses).not.toContain('text-violet-600')
+  })
+
+  it('renders token and cost cells with formatted values', async () => {
+    const wrapper = await mountView([
+      makeJob({
+        id: 'j-1',
+        status: 'succeeded',
+        input_tokens: 1500,
+        output_tokens: 250,
+        cost_usd: 0.0123,
+      }),
+    ])
+    expect(wrapper.find('[data-testid="job-input-tokens-j-1"]').text()).toBe(
+      '1.5k',
+    )
+    expect(wrapper.find('[data-testid="job-output-tokens-j-1"]').text()).toBe(
+      '250',
+    )
+    expect(wrapper.find('[data-testid="job-cost-j-1"]').text()).toBe('$0.0123')
+  })
+
+  it('renders an em dash when token/cost fields are null or absent', async () => {
+    const wrapper = await mountView([
+      makeJob({
+        id: 'j-1',
+        status: 'succeeded',
+        input_tokens: null,
+        output_tokens: undefined,
+        cost_usd: null,
+      }),
+    ])
+    expect(wrapper.find('[data-testid="job-input-tokens-j-1"]').text()).toBe(
+      '—',
+    )
+    expect(wrapper.find('[data-testid="job-output-tokens-j-1"]').text()).toBe(
+      '—',
+    )
+    expect(wrapper.find('[data-testid="job-cost-j-1"]').text()).toBe('—')
+  })
+
+  it('sums running totals across the loaded page', async () => {
+    const wrapper = await mountView([
+      makeJob({
+        id: 'j-1',
+        input_tokens: 1000,
+        output_tokens: 200,
+        cost_usd: 0.5,
+      }),
+      makeJob({
+        id: 'j-2',
+        input_tokens: 500,
+        output_tokens: 100,
+        cost_usd: 1.25,
+      }),
+      makeJob({
+        id: 'j-3',
+        input_tokens: null,
+        output_tokens: null,
+        cost_usd: null,
+      }),
+    ])
+    expect(wrapper.find('[data-testid="total-input-tokens"]').text()).toBe(
+      '1.5k',
+    )
+    expect(wrapper.find('[data-testid="total-output-tokens"]').text()).toBe(
+      '300',
+    )
+    expect(wrapper.find('[data-testid="total-cost"]').text()).toBe('$1.75')
+  })
+
+  it('auto-polls while a job is running', async () => {
+    await mountView([runningJob()])
+    const before = mockListJobs.mock.calls.length
+    vi.advanceTimersByTime(3000)
+    await flushPromises()
+    expect(mockListJobs.mock.calls.length).toBeGreaterThan(before)
+  })
+
+  it('does not auto-poll when no job is running', async () => {
+    await mountView([makeJob({ status: 'succeeded' })])
+    const before = mockListJobs.mock.calls.length
+    vi.advanceTimersByTime(6000)
+    await flushPromises()
+    expect(mockListJobs.mock.calls.length).toBe(before)
+  })
+
+  it('clears both intervals on unmount and does not poll afterwards', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const wrapper = await mountView([runningJob()])
+    const before = mockListJobs.mock.calls.length
+    wrapper.unmount()
+    vi.advanceTimersByTime(9000)
+    await flushPromises()
+    expect(mockListJobs.mock.calls.length).toBe(before)
+    expect(
+      warn.mock.calls.some((c) => String(c[0]).includes('unmounted component')),
+    ).toBe(false)
+    warn.mockRestore()
   })
 })

@@ -50,6 +50,12 @@ export interface Job {
   created_at: string
   started_at: string | null
   finished_at: string | null
+  // Per-job throughput metrics. Nullable: older jobs (and job types that
+  // don't call an LLM) have no recorded token/cost figures. The client
+  // passes these through untouched from GET /api/jobs.
+  input_tokens?: number | null
+  output_tokens?: number | null
+  cost_usd?: number | null
 }
 
 /**
