@@ -8,6 +8,7 @@ import {
   type JobListResponse,
 } from '@/api/jobs'
 import type { Job, JobType, JobStatus } from '@/types/job'
+import { fetchPreferences, updatePreferences } from '@/api/preferences'
 import {
   formatDurationSeconds,
   formatTokens,
@@ -31,6 +32,201 @@ const expandedRows = ref<Set<string>>(new Set())
 const followUpStatuses = ref<
   Record<string, Record<string, { status: JobStatus; type: string }>>
 >({})
+
+// ── Column organisation ────────────────────────────────────────────
+// Mirrors the show/hide + drag-reorder tool from EntryListView. Unlike
+// EntryListView (plain-text cells) the job cells are rich, so the column
+// engine only drives header labels/order and which per-key cell branch
+// renders — the cell markup itself is preserved verbatim below.
+
+interface ColumnDef {
+  key: string
+  label: string
+  defaultVisible: boolean
+  align: 'left' | 'center' | 'right'
+}
+
+const COLUMNS: ColumnDef[] = [
+  { key: 'type', label: 'Type', defaultVisible: true, align: 'left' },
+  { key: 'status', label: 'Status', defaultVisible: true, align: 'left' },
+  { key: 'input_tokens', label: 'In', defaultVisible: true, align: 'left' },
+  { key: 'output_tokens', label: 'Out', defaultVisible: true, align: 'left' },
+  { key: 'cost', label: 'Cost', defaultVisible: true, align: 'left' },
+  { key: 'entry', label: 'Entry', defaultVisible: true, align: 'left' },
+  { key: 'created', label: 'Created', defaultVisible: true, align: 'left' },
+  { key: 'duration', label: 'Duration', defaultVisible: true, align: 'left' },
+  { key: 'params', label: 'Params', defaultVisible: false, align: 'left' },
+  { key: 'details', label: 'Details', defaultVisible: true, align: 'left' },
+]
+
+const COLUMN_MAP: Record<string, ColumnDef> = Object.fromEntries(
+  COLUMNS.map((c) => [c.key, c]),
+)
+
+const ALIGN_CLASSES: Record<string, string> = {
+  left: 'text-left',
+  center: 'text-center',
+  right: 'text-right',
+}
+
+// Column visibility and order — persisted to server via user preferences
+const DEFAULT_VISIBILITY = Object.fromEntries(
+  COLUMNS.map((c) => [c.key, c.defaultVisible]),
+)
+const DEFAULT_ORDER = COLUMNS.map((c) => c.key)
+
+const columnVisibility = ref<Record<string, boolean>>({ ...DEFAULT_VISIBILITY })
+const columnOrder = ref<string[]>([...DEFAULT_ORDER])
+const showColumnMenu = ref(false)
+
+function isVisible(key: string): boolean {
+  return columnVisibility.value[key] ?? true
+}
+
+// Debounced save to server
+let _saveTimer: ReturnType<typeof setTimeout> | null = null
+
+function _persistColumnPrefs(): void {
+  if (_saveTimer) clearTimeout(_saveTimer)
+  _saveTimer = setTimeout(() => {
+    updatePreferences({
+      job_list_columns: {
+        visibility: columnVisibility.value,
+        order: columnOrder.value,
+      },
+    }).catch(() => {
+      // Silent — prefs are still in-memory, will retry on next change.
+    })
+  }, 500)
+}
+
+async function loadColumnPrefs(): Promise<void> {
+  try {
+    const { preferences } = await fetchPreferences()
+    const prefs = preferences.job_list_columns as
+      | { visibility?: Record<string, boolean>; order?: string[] }
+      | undefined
+    if (prefs) {
+      if (prefs.visibility) {
+        // Merge with defaults so new columns get their default visibility
+        columnVisibility.value = { ...DEFAULT_VISIBILITY, ...prefs.visibility }
+      }
+      if (prefs.order) {
+        const validKeys = new Set(DEFAULT_ORDER)
+        const filtered = prefs.order.filter((k: string) => validKeys.has(k))
+        const missing = DEFAULT_ORDER.filter((k) => !filtered.includes(k))
+        columnOrder.value = [...filtered, ...missing]
+      }
+    }
+  } catch {
+    // Preferences endpoint not available — use defaults.
+  }
+}
+
+function toggleColumn(key: string) {
+  columnVisibility.value[key] = !columnVisibility.value[key]
+  _persistColumnPrefs()
+}
+
+const orderedColumns = computed(() =>
+  columnOrder.value.map((key) => COLUMN_MAP[key]).filter(Boolean),
+)
+
+const visibleOrderedColumns = computed(() =>
+  orderedColumns.value.filter((col) => isVisible(col.key)),
+)
+
+// Drag-and-drop state for column reordering
+const dragIndex = ref<number | null>(null)
+const dragOverIndex = ref<number | null>(null)
+
+function onDragStart(e: DragEvent, index: number) {
+  dragIndex.value = index
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move'
+  }
+}
+
+function onDragOver(e: DragEvent, index: number) {
+  e.preventDefault()
+  if (e.dataTransfer) {
+    e.dataTransfer.dropEffect = 'move'
+  }
+  dragOverIndex.value = index
+}
+
+function onDrop(e: DragEvent, index: number) {
+  e.preventDefault()
+  if (dragIndex.value === null || dragIndex.value === index) return
+  const order = [...columnOrder.value]
+  const [moved] = order.splice(dragIndex.value, 1)
+  order.splice(index, 0, moved)
+  columnOrder.value = order
+  _persistColumnPrefs()
+  dragIndex.value = null
+  dragOverIndex.value = null
+}
+
+function onDragEnd() {
+  dragIndex.value = null
+  dragOverIndex.value = null
+}
+
+function resetColumns() {
+  columnVisibility.value = { ...DEFAULT_VISIBILITY }
+  columnOrder.value = [...DEFAULT_ORDER]
+  _persistColumnPrefs()
+}
+
+// Close column menu on outside click
+function onDocumentClick(e: MouseEvent) {
+  if (!showColumnMenu.value) return
+  const target = e.target as Node
+  const container = document.querySelector(
+    '[data-testid="columns-button"]',
+  )?.parentElement
+  if (container && !container.contains(target)) {
+    showColumnMenu.value = false
+  }
+}
+
+/** Per-column `<td>` classes, preserving the original cell styling. */
+function tdClass(col: ColumnDef): string {
+  switch (col.key) {
+    case 'type':
+      return 'px-4 py-3 whitespace-nowrap'
+    case 'status':
+      return 'px-4 py-3'
+    case 'input_tokens':
+    case 'output_tokens':
+    case 'cost':
+      return 'px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap tabular-nums'
+    case 'entry':
+    case 'created':
+    case 'duration':
+      return 'px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap'
+    case 'params':
+      return 'px-4 py-3 text-gray-600 dark:text-gray-300 align-middle'
+    case 'details':
+      return 'px-4 py-3 text-gray-600 dark:text-gray-300 max-w-[400px]'
+    default:
+      return 'px-4 py-3'
+  }
+}
+
+/** Preserve the per-cell token/cost testids on the `<td>`. */
+function tdTestId(col: ColumnDef, job: Job): string | undefined {
+  switch (col.key) {
+    case 'input_tokens':
+      return `job-input-tokens-${job.id}`
+    case 'output_tokens':
+      return `job-output-tokens-${job.id}`
+    case 'cost':
+      return `job-cost-${job.id}`
+    default:
+      return undefined
+  }
+}
 
 function toggleExpand(jobId: string) {
   const s = expandedRows.value
@@ -180,20 +376,10 @@ function isStuck(job: Job): boolean {
   return secs != null && secs > STUCK_THRESHOLD_SECONDS
 }
 
-// Running totals across the loaded page (the list paginates, so these
-// are page-scoped, not global — the template labels them "(this page)").
-const totalInputTokens = computed(() =>
-  jobs.value.reduce((sum, j) => sum + (j.input_tokens ?? 0), 0),
-)
-const totalOutputTokens = computed(() =>
-  jobs.value.reduce((sum, j) => sum + (j.output_tokens ?? 0), 0),
-)
-const totalCost = computed(() =>
-  jobs.value.reduce((sum, j) => sum + (j.cost_usd ?? 0), 0),
-)
-
 onMounted(() => {
   load()
+  loadColumnPrefs()
+  document.addEventListener('click', onDocumentClick)
   clockTimer = setInterval(() => {
     now.value = Date.now()
   }, 1000)
@@ -203,6 +389,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  document.removeEventListener('click', onDocumentClick)
   if (clockTimer != null) clearInterval(clockTimer)
   if (pollTimer != null) clearInterval(pollTimer)
 })
@@ -392,7 +579,10 @@ function nextPage() {
     </header>
 
     <!-- Filters -->
-    <div class="flex flex-wrap gap-3 mb-4" data-testid="job-history-filters">
+    <div
+      class="flex flex-wrap items-center gap-3 mb-4"
+      data-testid="job-history-filters"
+    >
       <select
         v-model="filterStatus"
         class="text-sm min-w-32 rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 px-3 py-1.5"
@@ -427,57 +617,88 @@ function nextPage() {
       >
         Refresh
       </button>
-    </div>
 
-    <!-- Running totals across the loaded page -->
-    <div
-      v-if="jobs.length > 0"
-      class="flex flex-wrap gap-3 mb-4"
-      data-testid="job-history-totals"
-    >
-      <div
-        class="rounded-lg border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-900/40 px-3 py-2"
-      >
-        <div
-          class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+      <!-- Column visibility and order menu -->
+      <div class="relative ml-auto">
+        <button
+          class="btn bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5"
+          data-testid="columns-button"
+          @click="showColumnMenu = !showColumnMenu"
         >
-          Cost (this page)
-        </div>
+          <svg
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M9 4h6m-6 4h6m-6 4h6m-6 4h6M4 4v16m16-16v16"
+            />
+          </svg>
+          Columns
+        </button>
         <div
-          class="text-lg font-semibold text-gray-800 dark:text-gray-100 tabular-nums"
-          data-testid="total-cost"
+          v-if="showColumnMenu"
+          class="absolute right-0 mt-1 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-lg z-40 py-1"
+          data-testid="columns-menu"
         >
-          {{ formatUsd(totalCost) }}
-        </div>
-      </div>
-      <div
-        class="rounded-lg border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-900/40 px-3 py-2"
-      >
-        <div
-          class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
-        >
-          Input tokens (this page)
-        </div>
-        <div
-          class="text-lg font-semibold text-gray-800 dark:text-gray-100 tabular-nums"
-          data-testid="total-input-tokens"
-        >
-          {{ formatTokens(totalInputTokens) }}
-        </div>
-      </div>
-      <div
-        class="rounded-lg border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-900/40 px-3 py-2"
-      >
-        <div
-          class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
-        >
-          Output tokens (this page)
-        </div>
-        <div
-          class="text-lg font-semibold text-gray-800 dark:text-gray-100 tabular-nums"
-          data-testid="total-output-tokens"
-        >
-          {{ formatTokens(totalOutputTokens) }}
+          <div
+            v-for="(col, index) in orderedColumns"
+            :key="col.key"
+            class="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+            :class="{
+              'border-t-2 border-violet-400':
+                dragOverIndex === index &&
+                dragIndex !== null &&
+                dragIndex !== index,
+              'opacity-50': dragIndex === index,
+            }"
+            draggable="true"
+            :data-testid="`col-item-${col.key}`"
+            @dragstart="onDragStart($event, index)"
+            @dragover="onDragOver($event, index)"
+            @drop="onDrop($event, index)"
+            @dragend="onDragEnd"
+          >
+            <!-- Drag handle for column reordering -->
+            <svg
+              class="w-4 h-4 text-gray-400 cursor-grab shrink-0"
+              data-testid="drag-handle"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <circle cx="9" cy="5" r="1.5" />
+              <circle cx="15" cy="5" r="1.5" />
+              <circle cx="9" cy="12" r="1.5" />
+              <circle cx="15" cy="12" r="1.5" />
+              <circle cx="9" cy="19" r="1.5" />
+              <circle cx="15" cy="19" r="1.5" />
+            </svg>
+            <label class="flex items-center gap-2 cursor-pointer flex-1">
+              <input
+                type="checkbox"
+                :checked="isVisible(col.key)"
+                class="form-checkbox rounded text-violet-500"
+                :data-testid="`col-toggle-${col.key}`"
+                @change="toggleColumn(col.key)"
+              />
+              {{ col.label }}
+            </label>
+          </div>
+          <div
+            class="border-t border-gray-200 dark:border-gray-700/60 mt-1 pt-1"
+          >
+            <button
+              class="w-full text-left px-3 py-1.5 text-sm text-violet-600 dark:text-violet-400 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              data-testid="columns-reset"
+              @click="resetColumns"
+            >
+              Reset to defaults
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -519,16 +740,15 @@ function nextPage() {
             <tr
               class="bg-gray-50 dark:bg-gray-800/60 text-left text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wider"
             >
-              <th class="px-4 py-3">Type</th>
-              <th class="px-4 py-3">Status</th>
-              <th class="px-4 py-3">Entry</th>
-              <th class="px-4 py-3">Params</th>
-              <th class="px-4 py-3">Created</th>
-              <th class="px-4 py-3">Duration</th>
-              <th class="px-4 py-3">In</th>
-              <th class="px-4 py-3">Out</th>
-              <th class="px-4 py-3">Cost</th>
-              <th class="px-4 py-3">Details</th>
+              <th
+                v-for="col in visibleOrderedColumns"
+                :key="col.key"
+                class="px-4 py-3 whitespace-nowrap"
+                :class="ALIGN_CLASSES[col.align]"
+                :data-testid="`col-header-${col.key}`"
+              >
+                {{ col.label }}
+              </th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 dark:divide-gray-700/40">
@@ -538,239 +758,229 @@ function nextPage() {
               class="bg-white dark:bg-gray-900/40"
               :data-testid="`job-row-${job.id}`"
             >
-              <!-- Type column with color badge -->
-              <td class="px-4 py-3 whitespace-nowrap">
-                <span
-                  class="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
-                  :class="typeBadgeClass(job.type as JobType)"
-                  data-testid="type-badge"
-                >
-                  {{ jobLabel(job.type as JobType) }}
-                </span>
-              </td>
-
-              <!-- Status badge -->
-              <td class="px-4 py-3">
-                <span
-                  class="inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize"
-                  :class="statusBadgeClass(job.status as JobStatus)"
-                >
-                  {{ job.status }}
-                </span>
-              </td>
-
-              <!-- Entry column (clickable link) -->
               <td
-                class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap"
+                v-for="col in visibleOrderedColumns"
+                :key="col.key"
+                :class="tdClass(col)"
+                :data-testid="tdTestId(col, job)"
               >
-                <RouterLink
-                  v-if="entryId(job) != null"
-                  :to="{
-                    name: 'entry-detail',
-                    params: { id: String(entryId(job)) },
-                  }"
-                  class="text-violet-600 dark:text-violet-400 hover:underline"
-                  data-testid="entry-link"
-                >
-                  #{{ entryId(job) }}
-                </RouterLink>
-                <span v-else>-</span>
-              </td>
-
-              <!-- Params column (no longer shows entry_id — that's in Entry column) -->
-              <td
-                class="px-4 py-3 text-gray-600 dark:text-gray-300 align-middle"
-              >
-                <JobParamsCell :job="job" />
-              </td>
-
-              <!-- Created column with relative time -->
-              <td
-                class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap"
-              >
-                <span>{{ formatTime(job.created_at) }}</span>
-                <span
-                  v-if="relativeTime(job.created_at)"
-                  class="ml-1.5 text-xs text-gray-400 dark:text-gray-500"
-                  data-testid="relative-time"
-                >
-                  {{ relativeTime(job.created_at) }}
-                </span>
-              </td>
-
-              <!-- Duration (live up-counter + spinner while running) -->
-              <td
-                class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap"
-              >
-                <span
-                  v-if="job.status === 'running'"
-                  class="inline-flex items-center font-medium tabular-nums"
-                  :class="
-                    isStuck(job)
-                      ? 'text-amber-600 dark:text-amber-400'
-                      : 'text-violet-600 dark:text-violet-400'
-                  "
-                  :data-testid="`live-duration-${job.id}`"
-                >
-                  <svg
-                    class="animate-spin w-4 h-4 mr-1.5 -ml-0.5"
-                    :data-testid="`job-spinner-${job.id}`"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
+                <!-- Type column with color badge -->
+                <template v-if="col.key === 'type'">
+                  <span
+                    class="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
+                    :class="typeBadgeClass(job.type as JobType)"
+                    data-testid="type-badge"
                   >
-                    <circle
-                      class="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      stroke-width="4"
-                    />
-                    <path
-                      class="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                    />
-                  </svg>
-                  {{ liveDuration(job) }}
-                </span>
-                <span v-else>{{ duration(job) }}</span>
-              </td>
+                    {{ jobLabel(job.type as JobType) }}
+                  </span>
+                </template>
 
-              <!-- Input tokens -->
-              <td
-                class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap tabular-nums"
-                :data-testid="`job-input-tokens-${job.id}`"
-              >
-                {{ formatTokens(job.input_tokens) }}
-              </td>
+                <!-- Status badge -->
+                <template v-else-if="col.key === 'status'">
+                  <span
+                    class="inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize"
+                    :class="statusBadgeClass(job.status as JobStatus)"
+                  >
+                    {{ job.status }}
+                  </span>
+                </template>
 
-              <!-- Output tokens -->
-              <td
-                class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap tabular-nums"
-                :data-testid="`job-output-tokens-${job.id}`"
-              >
-                {{ formatTokens(job.output_tokens) }}
-              </td>
+                <!-- Input tokens -->
+                <template v-else-if="col.key === 'input_tokens'">
+                  {{ formatTokens(job.input_tokens) }}
+                </template>
 
-              <!-- Cost -->
-              <td
-                class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap tabular-nums"
-                :data-testid="`job-cost-${job.id}`"
-              >
-                {{ formatUsd(job.cost_usd) }}
-              </td>
+                <!-- Output tokens -->
+                <template v-else-if="col.key === 'output_tokens'">
+                  {{ formatTokens(job.output_tokens) }}
+                </template>
 
-              <!-- Details column -->
-              <td
-                class="px-4 py-3 text-gray-600 dark:text-gray-300 max-w-[400px]"
-              >
-                <template v-if="job.status === 'failed' && job.error_message">
-                  <div class="flex items-start gap-1.5">
-                    <span
-                      class="text-red-500 dark:text-red-400 truncate"
-                      :title="job.error_message"
-                      >{{ job.error_message }}</span
+                <!-- Cost -->
+                <template v-else-if="col.key === 'cost'">
+                  {{ formatUsd(job.cost_usd) }}
+                </template>
+
+                <!-- Entry column (clickable link) -->
+                <template v-else-if="col.key === 'entry'">
+                  <RouterLink
+                    v-if="entryId(job) != null"
+                    :to="{
+                      name: 'entry-detail',
+                      params: { id: String(entryId(job)) },
+                    }"
+                    class="text-violet-600 dark:text-violet-400 hover:underline"
+                    data-testid="entry-link"
+                  >
+                    #{{ entryId(job) }}
+                  </RouterLink>
+                  <span v-else>-</span>
+                </template>
+
+                <!-- Created column with relative time -->
+                <template v-else-if="col.key === 'created'">
+                  <span>{{ formatTime(job.created_at) }}</span>
+                  <span
+                    v-if="relativeTime(job.created_at)"
+                    class="ml-1.5 text-xs text-gray-400 dark:text-gray-500"
+                    data-testid="relative-time"
+                  >
+                    {{ relativeTime(job.created_at) }}
+                  </span>
+                </template>
+
+                <!-- Duration (live up-counter + spinner while running) -->
+                <template v-else-if="col.key === 'duration'">
+                  <span
+                    v-if="job.status === 'running'"
+                    class="inline-flex items-center font-medium tabular-nums"
+                    :class="
+                      isStuck(job)
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-violet-600 dark:text-violet-400'
+                    "
+                    :data-testid="`live-duration-${job.id}`"
+                  >
+                    <svg
+                      class="animate-spin w-4 h-4 mr-1.5 -ml-0.5"
+                      :data-testid="`job-spinner-${job.id}`"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
                     >
-                    <JsonPopover
-                      v-if="job.error_message.length > 80"
-                      :content="job.error_message"
-                      title="Full error"
-                      trigger-label="full"
-                      trigger-class="!text-red-500 !border-red-200 dark:!border-red-800/40 hover:!bg-red-50 dark:hover:!bg-red-900/20"
-                      data-testid="job-error-full-popover"
-                    />
-                  </div>
+                      <circle
+                        class="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        stroke-width="4"
+                      />
+                      <path
+                        class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
+                    </svg>
+                    {{ liveDuration(job) }}
+                  </span>
+                  <span v-else>{{ duration(job) }}</span>
                 </template>
-                <template v-else-if="job.status === 'running'">
-                  <span v-if="job.progress_total > 0"
-                    >{{ job.progress_current }}/{{ job.progress_total }}</span
-                  >
-                  <span v-else class="text-violet-500">Running...</span>
+
+                <!-- Params column (no longer shows entry_id — that's in Entry column) -->
+                <template v-else-if="col.key === 'params'">
+                  <JobParamsCell :job="job" />
                 </template>
-                <template v-else-if="job.status === 'succeeded' && job.result">
-                  <!-- Static summary when nothing extra to reveal -->
-                  <div
-                    v-if="!isExpandable(job)"
-                    class="truncate"
-                    :data-testid="`job-details-static-${job.id}`"
+
+                <!-- Details column -->
+                <template v-else-if="col.key === 'details'">
+                  <template v-if="job.status === 'failed' && job.error_message">
+                    <div class="flex items-start gap-1.5">
+                      <span
+                        class="text-red-500 dark:text-red-400 truncate"
+                        :title="job.error_message"
+                        >{{ job.error_message }}</span
+                      >
+                      <JsonPopover
+                        v-if="job.error_message.length > 80"
+                        :content="job.error_message"
+                        title="Full error"
+                        trigger-label="full"
+                        trigger-class="!text-red-500 !border-red-200 dark:!border-red-800/40 hover:!bg-red-50 dark:hover:!bg-red-900/20"
+                        data-testid="job-error-full-popover"
+                      />
+                    </div>
+                  </template>
+                  <template v-else-if="job.status === 'running'">
+                    <span v-if="job.progress_total > 0"
+                      >{{ job.progress_current }}/{{ job.progress_total }}</span
+                    >
+                    <span v-else class="text-violet-500">Running...</span>
+                  </template>
+                  <template
+                    v-else-if="job.status === 'succeeded' && job.result"
                   >
-                    {{ resultSummary(job.result, job.type as JobType) }}
-                  </div>
-                  <button
-                    v-else
-                    type="button"
-                    class="text-left w-full group"
-                    :data-testid="`job-details-toggle-${job.id}`"
-                    @click="toggleExpand(job.id)"
-                  >
-                    <!-- Collapsed summary -->
+                    <!-- Static summary when nothing extra to reveal -->
                     <div
-                      v-if="!expandedRows.has(job.id)"
-                      class="truncate group-hover:text-gray-700 dark:group-hover:text-gray-200 cursor-pointer"
+                      v-if="!isExpandable(job)"
+                      class="truncate"
+                      :data-testid="`job-details-static-${job.id}`"
                     >
                       {{ resultSummary(job.result, job.type as JobType) }}
-                      <span
-                        class="ml-1 text-xs text-gray-400 dark:text-gray-500 group-hover:text-violet-500"
-                        >...</span
-                      >
                     </div>
-
-                    <!-- Expanded details (text-sm to match table) -->
-                    <dl
+                    <button
                       v-else
-                      class="space-y-0.5 cursor-pointer"
-                      data-testid="expanded-details"
+                      type="button"
+                      class="text-left w-full group"
+                      :data-testid="`job-details-toggle-${job.id}`"
+                      @click="toggleExpand(job.id)"
                     >
+                      <!-- Collapsed summary -->
                       <div
-                        v-for="[k, v] in visibleResultEntries(job.result)"
-                        :key="String(k)"
-                        class="flex gap-2"
+                        v-if="!expandedRows.has(job.id)"
+                        class="truncate group-hover:text-gray-700 dark:group-hover:text-gray-200 cursor-pointer"
                       >
-                        <dt
-                          class="font-medium text-gray-600 dark:text-gray-300 whitespace-nowrap"
+                        {{ resultSummary(job.result, job.type as JobType) }}
+                        <span
+                          class="ml-1 text-xs text-gray-400 dark:text-gray-500 group-hover:text-violet-500"
+                          >...</span
                         >
-                          {{ formatResultKey(String(k)) }}:
-                        </dt>
-                        <dd>
-                          <template v-if="Array.isArray(v) && v.length === 0"
-                            >none</template
-                          >
-                          <template v-else-if="Array.isArray(v)">{{
-                            v.join(', ')
-                          }}</template>
-                          <template v-else>{{ v }}</template>
-                        </dd>
                       </div>
 
-                      <!-- Follow-up job statuses -->
-                      <div
-                        v-if="followUpStatuses[job.id]"
-                        class="flex gap-2 pt-1 mt-1 border-t border-gray-100 dark:border-gray-700/40"
-                        data-testid="follow-up-jobs"
+                      <!-- Expanded details (text-sm to match table) -->
+                      <dl
+                        v-else
+                        class="space-y-0.5 cursor-pointer"
+                        data-testid="expanded-details"
                       >
-                        <dt
-                          class="font-medium text-gray-600 dark:text-gray-300 whitespace-nowrap"
+                        <div
+                          v-for="[k, v] in visibleResultEntries(job.result)"
+                          :key="String(k)"
+                          class="flex gap-2"
                         >
-                          Follow-ups:
-                        </dt>
-                        <dd class="flex flex-wrap gap-1.5">
-                          <span
-                            v-for="(fj, label) in followUpStatuses[job.id]"
-                            :key="label"
-                            class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium"
-                            :class="statusBadgeClass(fj.status)"
-                            data-testid="follow-up-badge"
+                          <dt
+                            class="font-medium text-gray-600 dark:text-gray-300 whitespace-nowrap"
                           >
-                            {{ formatResultKey(label) }}
-                          </span>
-                        </dd>
-                      </div>
-                    </dl>
-                  </button>
+                            {{ formatResultKey(String(k)) }}:
+                          </dt>
+                          <dd>
+                            <template v-if="Array.isArray(v) && v.length === 0"
+                              >none</template
+                            >
+                            <template v-else-if="Array.isArray(v)">{{
+                              v.join(', ')
+                            }}</template>
+                            <template v-else>{{ v }}</template>
+                          </dd>
+                        </div>
+
+                        <!-- Follow-up job statuses -->
+                        <div
+                          v-if="followUpStatuses[job.id]"
+                          class="flex gap-2 pt-1 mt-1 border-t border-gray-100 dark:border-gray-700/40"
+                          data-testid="follow-up-jobs"
+                        >
+                          <dt
+                            class="font-medium text-gray-600 dark:text-gray-300 whitespace-nowrap"
+                          >
+                            Follow-ups:
+                          </dt>
+                          <dd class="flex flex-wrap gap-1.5">
+                            <span
+                              v-for="(fj, label) in followUpStatuses[job.id]"
+                              :key="label"
+                              class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium"
+                              :class="statusBadgeClass(fj.status)"
+                              data-testid="follow-up-badge"
+                            >
+                              {{ formatResultKey(label) }}
+                            </span>
+                          </dd>
+                        </div>
+                      </dl>
+                    </button>
+                  </template>
+                  <template v-else>-</template>
                 </template>
-                <template v-else>-</template>
               </td>
             </tr>
           </tbody>
@@ -787,12 +997,14 @@ function nextPage() {
         >
           <div class="flex items-center justify-between gap-2 flex-wrap">
             <span
+              v-if="isVisible('type')"
               class="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
               :class="typeBadgeClass(job.type as JobType)"
             >
               {{ jobLabel(job.type as JobType) }}
             </span>
             <span
+              v-if="isVisible('status')"
               class="inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize"
               :class="statusBadgeClass(job.status as JobStatus)"
             >
@@ -803,7 +1015,7 @@ function nextPage() {
           <div
             class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400"
           >
-            <span>
+            <span v-if="isVisible('entry')">
               Entry:
               <RouterLink
                 v-if="entryId(job) != null"
@@ -818,7 +1030,12 @@ function nextPage() {
               </RouterLink>
               <span v-else>-</span>
             </span>
-            <span>{{ formatTime(job.created_at) }}</span>
+            <span v-if="isVisible('created')">{{
+              formatTime(job.created_at)
+            }}</span>
+            <!-- A running job always shows its live duration on the card,
+                 even if the Duration column is hidden, so progress stays
+                 visible on mobile. -->
             <span
               v-if="job.status === 'running'"
               class="inline-flex items-center font-medium"
@@ -851,28 +1068,42 @@ function nextPage() {
               </svg>
               {{ liveDuration(job) }}
             </span>
-            <span v-else-if="duration(job) !== '-'">· {{ duration(job) }}</span>
+            <span v-else-if="isVisible('duration') && duration(job) !== '-'"
+              >· {{ duration(job) }}</span
+            >
           </div>
 
           <div
             v-if="
-              job.input_tokens != null ||
-              job.output_tokens != null ||
-              job.cost_usd != null
+              (isVisible('input_tokens') ||
+                isVisible('output_tokens') ||
+                isVisible('cost')) &&
+              (job.input_tokens != null ||
+                job.output_tokens != null ||
+                job.cost_usd != null)
             "
             class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400 tabular-nums"
             :data-testid="`card-metrics-${job.id}`"
           >
-            <span>In: {{ formatTokens(job.input_tokens) }}</span>
-            <span>Out: {{ formatTokens(job.output_tokens) }}</span>
-            <span>Cost: {{ formatUsd(job.cost_usd) }}</span>
+            <span v-if="isVisible('input_tokens')"
+              >In: {{ formatTokens(job.input_tokens) }}</span
+            >
+            <span v-if="isVisible('output_tokens')"
+              >Out: {{ formatTokens(job.output_tokens) }}</span
+            >
+            <span v-if="isVisible('cost')"
+              >Cost: {{ formatUsd(job.cost_usd) }}</span
+            >
           </div>
 
-          <div class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+          <div
+            v-if="isVisible('params')"
+            class="mt-2 text-sm text-gray-600 dark:text-gray-300"
+          >
             <JobParamsCell :job="job" />
           </div>
 
-          <div class="mt-1 text-sm">
+          <div v-if="isVisible('details')" class="mt-1 text-sm">
             <template v-if="job.status === 'failed' && job.error_message">
               <span class="text-red-500 dark:text-red-400 break-words">{{
                 job.error_message

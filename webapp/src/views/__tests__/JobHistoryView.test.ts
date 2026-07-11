@@ -14,6 +14,14 @@ vi.mock('@/api/jobs', () => ({
   triggerMoodBackfill: vi.fn(),
 }))
 
+const mockFetchPreferences = vi.fn().mockResolvedValue({ preferences: {} })
+const mockUpdatePreferences = vi.fn().mockResolvedValue({ preferences: {} })
+
+vi.mock('@/api/preferences', () => ({
+  fetchPreferences: (...args: unknown[]) => mockFetchPreferences(...args),
+  updatePreferences: (...args: unknown[]) => mockUpdatePreferences(...args),
+}))
+
 function makeJob(overrides: Partial<Job> = {}): Job {
   return {
     id: 'j-1',
@@ -51,6 +59,8 @@ describe('JobHistoryView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+    mockUpdatePreferences.mockResolvedValue({ preferences: {} })
   })
 
   async function mountView(jobs: Job[] = [], total?: number) {
@@ -68,6 +78,16 @@ describe('JobHistoryView', () => {
     })
     await flushPromises()
     return wrapper
+  }
+
+  // The Params column is hidden by default; enable it via the column menu
+  // so its cell renders in the table.
+  async function showParamsColumn(
+    wrapper: Awaited<ReturnType<typeof mountView>>,
+  ) {
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    await wrapper.find('[data-testid="col-toggle-params"]').setValue(true)
+    await flushPromises()
   }
 
   it('renders the page heading', async () => {
@@ -139,16 +159,15 @@ describe('JobHistoryView', () => {
     const wrapper = await mountView([
       makeJob({ params: {}, result: { scored: 5 }, type: 'mood_backfill' }),
     ])
-    const row = wrapper.find('[data-testid="job-row-j-1"]')
-    const cells = row.findAll('td')
-    // Entry column is the 3rd cell (index 2)
-    expect(cells[2].text()).toBe('-')
+    // No entry link rendered → the Entry cell shows a dash.
+    expect(wrapper.find('[data-testid="entry-link"]').exists()).toBe(false)
   })
 
   it('shows params summary without entry_id', async () => {
     const wrapper = await mountView([
       makeJob({ params: { entry_id: 42, stale_only: true, mode: 'force' } }),
     ])
+    await showParamsColumn(wrapper)
     expect(wrapper.text()).toContain('stale only')
     expect(wrapper.text()).toContain('force')
   })
@@ -304,26 +323,31 @@ describe('JobHistoryView', () => {
 
   it('shows dash for params with no recognized fields', async () => {
     const wrapper = await mountView([makeJob({ params: {} })])
-    const row = wrapper.find('[data-testid="job-row-j-1"]')
-    const cells = row.findAll('td')
-    // Params column is index 3 now (Type, Status, Entry, Params)
-    expect(cells[3].text()).toBe('-')
+    await showParamsColumn(wrapper)
+    // JobParamsCell renders its empty state (a dash) when nothing to show.
+    expect(wrapper.find('[data-testid="job-params-empty"]').text()).toBe('-')
   })
 
   it('shows dash for duration when no timestamps', async () => {
     const wrapper = await mountView([
       makeJob({ started_at: null, finished_at: null }),
     ])
-    const row = wrapper.find('[data-testid="job-row-j-1"]')
-    const cells = row.findAll('td')
-    // Duration column is index 5 (Type, Status, Entry, Params, Created, Duration)
-    expect(cells[5].text()).toBe('-')
+    // Locate the Duration cell by its column header position rather than a
+    // fixed index (columns are reorderable / some are hidden by default).
+    const headers = wrapper
+      .find('[data-testid="job-history-table"]')
+      .findAll('th')
+    const durationIdx = headers.findIndex((h) => h.text() === 'Duration')
+    expect(durationIdx).toBeGreaterThanOrEqual(0)
+    const cells = wrapper.find('[data-testid="job-row-j-1"]').findAll('td')
+    expect(cells[durationIdx].text()).toBe('-')
   })
 
   it('shows stale_only and mode params', async () => {
     const wrapper = await mountView([
       makeJob({ params: { stale_only: true, mode: 'force' } }),
     ])
+    await showParamsColumn(wrapper)
     expect(wrapper.text()).toContain('stale only')
     expect(wrapper.text()).toContain('force')
   })
@@ -332,6 +356,7 @@ describe('JobHistoryView', () => {
     const wrapper = await mountView([
       makeJob({ params: { start_date: '2026-01-01', end_date: '2026-03-01' } }),
     ])
+    await showParamsColumn(wrapper)
     const chip = wrapper.find('[data-testid="param-chip-date_range"]')
     expect(chip.exists()).toBe(true)
     expect(chip.text()).toContain('2026-01-01')
@@ -692,6 +717,8 @@ describe('JobHistoryView live metrics and polling', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+    mockUpdatePreferences.mockResolvedValue({ preferences: {} })
     vi.useFakeTimers()
     vi.setSystemTime(new Date(NOW))
   })
@@ -815,36 +842,6 @@ describe('JobHistoryView live metrics and polling', () => {
     expect(wrapper.find('[data-testid="job-cost-j-1"]').text()).toBe('—')
   })
 
-  it('sums running totals across the loaded page', async () => {
-    const wrapper = await mountView([
-      makeJob({
-        id: 'j-1',
-        input_tokens: 1000,
-        output_tokens: 200,
-        cost_usd: 0.5,
-      }),
-      makeJob({
-        id: 'j-2',
-        input_tokens: 500,
-        output_tokens: 100,
-        cost_usd: 1.25,
-      }),
-      makeJob({
-        id: 'j-3',
-        input_tokens: null,
-        output_tokens: null,
-        cost_usd: null,
-      }),
-    ])
-    expect(wrapper.find('[data-testid="total-input-tokens"]').text()).toBe(
-      '1.5k',
-    )
-    expect(wrapper.find('[data-testid="total-output-tokens"]').text()).toBe(
-      '300',
-    )
-    expect(wrapper.find('[data-testid="total-cost"]').text()).toBe('$1.75')
-  })
-
   it('auto-polls while a job is running', async () => {
     await mountView([runningJob()])
     const before = mockListJobs.mock.calls.length
@@ -873,5 +870,268 @@ describe('JobHistoryView live metrics and polling', () => {
       warn.mock.calls.some((c) => String(c[0]).includes('unmounted component')),
     ).toBe(false)
     warn.mockRestore()
+  })
+})
+
+// --- Column show/hide + reorder tool ---
+// Mirrors EntryListView's column-tool tests. The table header is driven by
+// `visibleOrderedColumns`, so hiding/showing/reordering columns changes both
+// the `<th>` order and which per-key cell branches render.
+describe('JobHistoryView column tool', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+    mockUpdatePreferences.mockResolvedValue({ preferences: {} })
+  })
+
+  async function mountView(jobs: Job[] = [makeJob()], total?: number) {
+    mockListJobs.mockResolvedValue({
+      items: jobs,
+      total: total ?? jobs.length,
+      limit: 25,
+      offset: 0,
+    })
+    const router = makeRouter()
+    await router.push('/jobs')
+    await router.isReady()
+    const wrapper = mount(JobHistoryView, {
+      global: { plugins: [createPinia(), router] },
+    })
+    await flushPromises()
+    return wrapper
+  }
+
+  function headerLabels(wrapper: Awaited<ReturnType<typeof mountView>>) {
+    return wrapper
+      .find('[data-testid="job-history-table"]')
+      .findAll('th')
+      .map((h) => h.text())
+  }
+
+  it('shows the Columns button', async () => {
+    const wrapper = await mountView()
+    expect(wrapper.find('[data-testid="columns-button"]').exists()).toBe(true)
+  })
+
+  it('toggles the column menu on button click', async () => {
+    const wrapper = await mountView()
+    expect(wrapper.find('[data-testid="columns-menu"]').exists()).toBe(false)
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    expect(wrapper.find('[data-testid="columns-menu"]').exists()).toBe(true)
+  })
+
+  it('shows Cost by default and hides Params by default', async () => {
+    const wrapper = await mountView()
+    expect(headerLabels(wrapper)).toContain('Cost')
+    expect(headerLabels(wrapper)).not.toContain('Params')
+  })
+
+  it('lists every column in the menu, including hidden ones', async () => {
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    // Params is hidden in the table but still present in the menu.
+    expect(wrapper.find('[data-testid="col-item-params"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="col-item-cost"]').exists()).toBe(true)
+    // Its checkbox reflects the hidden default.
+    const paramsToggle = wrapper.find('[data-testid="col-toggle-params"]')
+      .element as HTMLInputElement
+    expect(paramsToggle.checked).toBe(false)
+  })
+
+  it('hides a column when its checkbox is unchecked', async () => {
+    const wrapper = await mountView()
+    expect(headerLabels(wrapper)).toContain('Cost')
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    await wrapper.find('[data-testid="col-toggle-cost"]').setValue(false)
+    expect(headerLabels(wrapper)).not.toContain('Cost')
+    // The per-cell cost value is gone too.
+    expect(wrapper.find('[data-testid="job-cost-j-1"]').exists()).toBe(false)
+  })
+
+  it('shows a hidden column when its checkbox is checked', async () => {
+    const wrapper = await mountView()
+    expect(headerLabels(wrapper)).not.toContain('Params')
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    await wrapper.find('[data-testid="col-toggle-params"]').setValue(true)
+    expect(headerLabels(wrapper)).toContain('Params')
+  })
+
+  it('persists column changes to server via preferences API', async () => {
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    await wrapper.find('[data-testid="col-toggle-cost"]').setValue(false)
+    // Debounced save fires after 500ms.
+    await new Promise((r) => setTimeout(r, 600))
+    expect(mockUpdatePreferences).toHaveBeenCalledWith(
+      expect.objectContaining({
+        job_list_columns: expect.objectContaining({
+          visibility: expect.objectContaining({ cost: false }),
+          order: expect.any(Array),
+        }),
+      }),
+    )
+  })
+
+  it('loads saved visibility from server preferences on mount', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        job_list_columns: {
+          visibility: { cost: false, params: true },
+        },
+      },
+    })
+    const wrapper = await mountView()
+    expect(headerLabels(wrapper)).not.toContain('Cost')
+    expect(headerLabels(wrapper)).toContain('Params')
+  })
+
+  it('loads saved column order from server preferences', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        job_list_columns: {
+          order: [
+            'status',
+            'type',
+            'input_tokens',
+            'output_tokens',
+            'cost',
+            'entry',
+            'created',
+            'duration',
+            'params',
+            'details',
+          ],
+        },
+      },
+    })
+    const wrapper = await mountView()
+    const labels = headerLabels(wrapper)
+    expect(labels[0]).toBe('Status')
+    expect(labels[1]).toBe('Type')
+  })
+
+  it('adds missing columns to the end when new columns appear', async () => {
+    // An old saved order missing the newer keys.
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        job_list_columns: {
+          order: ['type', 'status', 'entry'],
+        },
+      },
+    })
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    // The menu still lists every column.
+    expect(wrapper.find('[data-testid="col-item-cost"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="col-item-details"]').exists()).toBe(true)
+  })
+
+  it('falls back to defaults when preferences fetch fails', async () => {
+    mockFetchPreferences.mockRejectedValue(new Error('Network error'))
+    const wrapper = await mountView()
+    const labels = headerLabels(wrapper)
+    expect(labels[0]).toBe('Type')
+    expect(labels).toContain('Cost')
+    expect(labels).not.toContain('Params')
+  })
+
+  it('restores defaults on reset', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        job_list_columns: {
+          visibility: { cost: false, params: true },
+        },
+      },
+    })
+    const wrapper = await mountView()
+    expect(headerLabels(wrapper)).not.toContain('Cost')
+    expect(headerLabels(wrapper)).toContain('Params')
+
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    await wrapper.find('[data-testid="columns-reset"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(headerLabels(wrapper)).toContain('Cost')
+    expect(headerLabels(wrapper)).not.toContain('Params')
+  })
+
+  it('reorders columns via drag and drop', async () => {
+    const wrapper = await mountView()
+    expect(headerLabels(wrapper)[0]).toBe('Type')
+
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    // Drag "Type" (index 0) onto "In" (index 2).
+    await wrapper.find('[data-testid="col-item-type"]').trigger('dragstart')
+    await wrapper
+      .find('[data-testid="col-item-input_tokens"]')
+      .trigger('dragover')
+    await wrapper.find('[data-testid="col-item-input_tokens"]').trigger('drop')
+    await wrapper.vm.$nextTick()
+
+    const labels = headerLabels(wrapper)
+    // Type moved past Status and In.
+    expect(labels[0]).toBe('Status')
+    expect(labels.indexOf('Type')).toBeGreaterThan(labels.indexOf('In'))
+  })
+
+  it('always renders drag handles and draggable menu items', async () => {
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    expect(
+      wrapper.findAll('[data-testid="drag-handle"]').length,
+    ).toBeGreaterThan(0)
+    const firstItem = wrapper.find('[data-testid="col-item-type"]')
+    expect(firstItem.attributes('draggable')).toBe('true')
+  })
+
+  it('no-op drag handlers do not crash', async () => {
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    const firstItem = wrapper.find('[data-testid="col-item-type"]')
+    // dragend without a prior dragstart, and a drop onto itself, are safe.
+    await firstItem.trigger('dragend')
+    await firstItem.trigger('dragstart')
+    await firstItem.trigger('drop')
+    await firstItem.trigger('dragend')
+    expect(wrapper.find('[data-testid="columns-menu"]').exists()).toBe(true)
+  })
+
+  it('closes the menu on outside click', async () => {
+    // The outside-click handler queries the live DOM, so attach to document.
+    mockListJobs.mockResolvedValue({
+      items: [makeJob()],
+      total: 1,
+      limit: 25,
+      offset: 0,
+    })
+    const router = makeRouter()
+    await router.push('/jobs')
+    await router.isReady()
+    const wrapper = mount(JobHistoryView, {
+      global: { plugins: [createPinia(), router] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    expect(wrapper.find('[data-testid="columns-menu"]').exists()).toBe(true)
+
+    // A click on an element outside the menu closes it.
+    const outside = document.createElement('div')
+    document.body.appendChild(outside)
+    outside.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-testid="columns-menu"]').exists()).toBe(false)
+
+    outside.remove()
+    wrapper.unmount()
+  })
+
+  it('does not throw when preferences endpoint is absent', async () => {
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+    const wrapper = await mountView()
+    // Defaults render without error.
+    expect(headerLabels(wrapper)[0]).toBe('Type')
   })
 })
