@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import JobHistoryView from '../JobHistoryView.vue'
@@ -21,6 +21,13 @@ vi.mock('@/api/preferences', () => ({
   fetchPreferences: (...args: unknown[]) => mockFetchPreferences(...args),
   updatePreferences: (...args: unknown[]) => mockUpdatePreferences(...args),
 }))
+
+// Unmount every mounted wrapper after each test. JobHistoryView starts a
+// 1s clock + 3s poll setInterval on mount; without this, tests that mount
+// without fake timers and don't unmount leak real intervals that fire
+// during later tests, causing intermittent cross-test flakes (worse under
+// coverage's slower timing).
+enableAutoUnmount(afterEach)
 
 function makeJob(overrides: Partial<Job> = {}): Job {
   return {
