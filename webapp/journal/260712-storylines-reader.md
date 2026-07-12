@@ -41,3 +41,20 @@ webapp side replaces the two-panel chapter browser with a book-style reader.
 - `window.confirm` for both storyline delete and chapter unpublish — one
   confirmation pattern everywhere (the old styled modals were deleted with
   the editing surface).
+
+## Post-ship addendum (2026-07-13)
+
+- The end-of-work review caught two Critical store bugs before merge: chapters
+  were never re-fetched after a `storyline_update` job completed (the reader
+  degraded to permanent skeletons after Refresh/Unpublish/bootstrap), and
+  `_applyReadState` double-decremented unread counts because its guard
+  compared timestamp values instead of null↔non-null transitions. Fixed in
+  `b8cd1d4` with failing-tests-first, plus: job effects scoped to the
+  storyline actually on screen, `updating` derived from a job-id set
+  (survives `clearCurrent` and overlapping jobs), a viewport-fill visibility
+  predicate so tall chapters can be marked read, a `props.id` watch, and
+  parallelized chapter loads.
+- Merged to main and deployed 2026-07-12 alongside the server.
+- Known fast-follows (non-blocking, from re-review): a narrow TOCTOU race if
+  an update job completes during an in-flight detail navigation; the shared
+  `chapterLoading` flag races under parallel loads (currently unused by UI).
