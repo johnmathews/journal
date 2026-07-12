@@ -1,207 +1,56 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
-import { useStorage } from '@vueuse/core'
+import { computed, onMounted, ref, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useStorylinesStore } from '@/stores/storylines'
-import { useJobsStore } from '@/stores/jobs'
 import { useToast } from '@/composables/useToast'
-import { isTerminal } from '@/types/job'
-import StorylineNarrative from '@/components/StorylineNarrative.vue'
-import StorylineCurationList from '@/components/StorylineCurationList.vue'
 import StorylineAnchorEditor from '@/components/StorylineAnchorEditor.vue'
-import ChapterEditMenu from '@/components/storylines/ChapterEditMenu.vue'
-import ChapterDateModal from '@/components/storylines/ChapterDateModal.vue'
-import ChapterConfirmModal from '@/components/storylines/ChapterConfirmModal.vue'
-import { buildCitationRegistry } from '@/composables/useCitationRegistry'
+import ChapterToc from '@/components/storylines/ChapterToc.vue'
+import ChapterReader from '@/components/storylines/ChapterReader.vue'
+import DraftBlock from '@/components/storylines/DraftBlock.vue'
 import { useBackNavigation } from '@/composables/useBackNavigation'
-import type { StorylineChapterSummary } from '@/types/storyline'
 
+/**
+ * Book-style storyline reader. Published chapters render top-to-bottom
+ * as immutable episodes; the single draft renders last, subdued. A slim
+ * TOC (left at lg+) jumps between chapters and carries unread dots.
+ * Scrolling a published chapter into view marks it read.
+ */
 const props = defineProps<{
   id: string
 }>()
 
 const router = useRouter()
 const store = useStorylinesStore()
-const jobsStore = useJobsStore()
 const toast = useToast()
 
 const deleting = ref(false)
 const deleteError = ref<string | null>(null)
-// Anchor-edit panel toggle (W30). The editor mounts fresh on each
-// open (v-if) so its picked set re-seeds from the saved anchors.
+// Anchor-edit panel toggle. The editor mounts fresh on each open
+// (v-if) so its picked set re-seeds from the saved anchors.
 const editingAnchors = ref(false)
 // Inline title editing. `nameDraft` seeds from the saved name when the
 // editor opens; Save trims and PATCHes, Cancel discards.
 const editingName = ref(false)
 const nameDraft = ref('')
 
-// Panels are read from the currently-selected chapter (loaded lazily
-// via store.loadChapter), so the reader shows one chapter at a time and
-// citation numbering restarts per chapter.
-const curationPanel = computed(
-  () => store.currentChapter?.panels.curation ?? null,
-)
-const narrativePanel = computed(
-  () => store.currentChapter?.panels.narrative ?? null,
-)
-const citationCount = computed(() => narrativePanel.value?.citation_count ?? 0)
-
-// The chapter rail lists the storyline's chapters (seq asc). The latest
-// chapter (last element) is the live, open one and is selected by default.
 const chapters = computed(() => store.currentStoryline?.chapters ?? [])
-const selectedChapterId = ref<number | null>(null)
-
-// --- Chapter editing modal state ---
-type ChapterModal = 'add' | 'edit' | 'split' | 'delete' | null
-const activeModal = ref<ChapterModal>(null)
-const modalTargetChapter = ref<StorylineChapterSummary | null>(null)
-const chapterActionError = ref<string | null>(null)
-
-function openAddChapter(): void {
-  modalTargetChapter.value = null
-  activeModal.value = 'add'
-}
-
-function openEditChapter(ch: StorylineChapterSummary): void {
-  modalTargetChapter.value = ch
-  activeModal.value = 'edit'
-}
-
-function openSplitChapter(ch: StorylineChapterSummary): void {
-  modalTargetChapter.value = ch
-  activeModal.value = 'split'
-}
-
-function closeModal(): void {
-  activeModal.value = null
-  modalTargetChapter.value = null
-}
-
-async function onAddChapterSubmit(payload: {
-  start_date?: string
-  end_date?: string
-}): Promise<void> {
-  if (!store.currentStoryline || !payload.start_date) return
-  chapterActionError.value = null
-  try {
-    await store.addChapter(store.currentStoryline.id, {
-      start_date: payload.start_date,
-      ...(payload.end_date ? { end_date: payload.end_date } : {}),
-    })
-    closeModal()
-  } catch (e) {
-    chapterActionError.value =
-      e instanceof Error ? e.message : 'Failed to add chapter'
-  }
-}
-
-async function onEditChapterSubmit(payload: {
-  start_date?: string
-  end_date?: string
-}): Promise<void> {
-  if (!store.currentStoryline || !modalTargetChapter.value) return
-  chapterActionError.value = null
-  try {
-    await store.updateChapterDates(
-      store.currentStoryline.id,
-      modalTargetChapter.value.id,
-      payload,
-    )
-    closeModal()
-  } catch (e) {
-    chapterActionError.value =
-      e instanceof Error ? e.message : 'Failed to update chapter dates'
-  }
-}
-
-async function onSplitChapterSubmit(payload: {
-  start_date?: string
-  end_date?: string
-}): Promise<void> {
-  if (
-    !store.currentStoryline ||
-    !modalTargetChapter.value ||
-    !payload.start_date
-  )
-    return
-  chapterActionError.value = null
-  try {
-    await store.splitChapter(
-      store.currentStoryline.id,
-      modalTargetChapter.value.id,
-      payload.start_date,
-    )
-    closeModal()
-  } catch (e) {
-    chapterActionError.value =
-      e instanceof Error ? e.message : 'Failed to split chapter'
-  }
-}
-
-async function onMergeChapter(ch: StorylineChapterSummary): Promise<void> {
-  if (!store.currentStoryline) return
-  const idx = chapters.value.findIndex((c) => c.id === ch.id)
-  const next = chapters.value[idx + 1]
-  if (!next) return
-  chapterActionError.value = null
-  try {
-    await store.mergeChapters(store.currentStoryline.id, [ch.id, next.id])
-  } catch (e) {
-    chapterActionError.value =
-      e instanceof Error ? e.message : 'Failed to merge chapters'
-  }
-}
-
-function openDeleteChapter(ch: StorylineChapterSummary): void {
-  modalTargetChapter.value = ch
-  activeModal.value = 'delete'
-}
-
-async function onDeleteChapterConfirm(payload: {
-  allow_gap: boolean
-}): Promise<void> {
-  if (!store.currentStoryline || !modalTargetChapter.value) return
-  chapterActionError.value = null
-  try {
-    await store.deleteChapter(
-      store.currentStoryline.id,
-      modalTargetChapter.value.id,
-      payload.allow_gap,
-    )
-    closeModal()
-  } catch (e) {
-    chapterActionError.value =
-      e instanceof Error ? e.message : 'Failed to delete chapter'
-  }
-}
-
-// Shared numbering across both panels of the CURRENT chapter. Narrative
-// drives [1] [2] [3] in encounter order; curation-only entries pick up
-// the next numbers. Built per chapter, so numbering restarts on switch.
-const citationRegistry = computed(() =>
-  buildCitationRegistry(store.currentChapter?.panels ?? {}),
+const publishedChapters = computed(() =>
+  chapters.value.filter((c) => c.state === 'published'),
 )
-
-// Toggle for the curation panel's first column: 'relative' shows the
-// LLM-authored phrase ("Nearly a month later"), 'absolute' shows the
-// source entry's ISO date. Persisted so the user's choice survives
-// reloads and applies across storylines.
-const curationDateMode = useStorage<'relative' | 'absolute'>(
-  'storyline:curationDateMode',
-  'relative',
+const draftMeta = computed(
+  () => chapters.value.find((c) => c.state === 'draft') ?? null,
 )
-
-// Storylines generated before the server stamped citations with
-// entry_date have no absolute dates available — switching to
-// "Absolute" would silently fall back to the relative label and look
-// like a broken toggle. Hide the control entirely on those panels;
-// regenerating populates the field and the toggle reappears.
-const curationHasAbsoluteDates = computed(() => {
-  const segs = curationPanel.value?.segments ?? []
-  return segs.some(
-    (s) => s.kind === 'citation' && typeof s.entry_date === 'string',
-  )
+const newestPublishedId = computed(() => {
+  const published = publishedChapters.value
+  return published.length > 0 ? published[published.length - 1].id : null
 })
+
+/** The chapter highlighted in the TOC (scroll target / last visible). */
+const activeChapterId = ref<number | null>(null)
+
+function chapterDetail(chapterId: number) {
+  return store.chapterCache.get(chapterId) ?? null
+}
 
 function formatDateTime(dateStr: string | null): string {
   if (!dateStr) return 'never'
@@ -239,45 +88,21 @@ async function saveName(): Promise<void> {
   }
 }
 
-async function regenerate(): Promise<void> {
-  if (!store.currentStoryline) return
-  try {
-    const { job_id } = await store.regenerate(store.currentStoryline.id)
-    jobsStore.trackJob(job_id, 'storyline_generation', {
-      storyline_id: store.currentStoryline.id,
-    })
-    toast.success('Regeneration queued. Refresh once the job finishes.')
-
-    // Refresh the detail when the job lands in a terminal state — at
-    // that point the new panels are persisted and we can pull them.
-    const sid = store.currentStoryline.id
-    const unwatch = watch(
-      () => jobsStore.getJobById(job_id),
-      (job) => {
-        if (job && isTerminal(job.status)) {
-          unwatch()
-          if (job.status === 'succeeded') {
-            store.loadStoryline(sid)
-          }
-        }
-      },
-    )
-  } catch {
-    // store.regenerateError carries the message
-  }
-}
-
 /** Post-save hook from the anchor editor. The PUT /anchors endpoint
- * does not regenerate panels server-side, so when the user picked
- * "Save & regenerate" we chain the existing regenerate flow here —
- * exactly one job is kicked, with the usual tracking + refresh. */
-async function onAnchorsSaved(payload: { regenerate: boolean }): Promise<void> {
+ * does not touch the draft narrative, so when the user picked
+ * "Save & refresh" we chain the refresh flow (job tracked by the
+ * store's `updating` flag). */
+async function onAnchorsSaved(payload: { refresh: boolean }): Promise<void> {
   editingAnchors.value = false
-  if (payload.regenerate) {
-    toast.success('Anchors updated.')
-    await regenerate()
+  if (payload.refresh && store.currentStoryline) {
+    toast.success('Anchors updated. Refreshing the draft…')
+    try {
+      await store.refresh(store.currentStoryline.id)
+    } catch {
+      // store.actionError carries the message
+    }
   } else {
-    toast.success('Anchors updated. Panels are stale until you regenerate.')
+    toast.success('Anchors updated. Refresh the draft to reflect the change.')
   }
 }
 
@@ -285,7 +110,7 @@ async function confirmDelete(): Promise<void> {
   if (!store.currentStoryline || deleting.value) return
   const name = store.currentStoryline.name
   const ok = window.confirm(
-    `Delete the storyline "${name}"? This removes both panels but the source journal entries are untouched.`,
+    `Delete the storyline "${name}"? Chapters are removed but the source journal entries are untouched.`,
   )
   if (!ok) return
   deleting.value = true
@@ -300,12 +125,67 @@ async function confirmDelete(): Promise<void> {
   }
 }
 
-/** Select a chapter: lazy-load its panels into the reader and reflect
- *  the choice in the URL (?chapter=<id>) so reloads/links restore it.
- *  Other query params are preserved. */
-async function selectChapter(chapterId: number): Promise<void> {
-  selectedChapterId.value = chapterId
-  await store.loadChapter(Number(props.id), chapterId)
+async function refreshDraft(): Promise<void> {
+  if (!store.currentStoryline) return
+  try {
+    await store.refresh(store.currentStoryline.id)
+    toast.success('Draft refresh queued.')
+  } catch {
+    // store.actionError carries the message
+  }
+}
+
+async function onUnpublish(): Promise<void> {
+  if (!store.currentStoryline) return
+  const ok = window.confirm(
+    'Unpublish the newest chapter? Its entries fold back into the draft ' +
+      'and the chapter text is re-judged as the draft evolves.',
+  )
+  if (!ok) return
+  try {
+    await store.unpublishNewest(store.currentStoryline.id)
+    toast.success('Unpublish queued.')
+  } catch {
+    // store.actionError carries the message
+  }
+}
+
+function onChapterVisible(chapterId: number): void {
+  activeChapterId.value = chapterId
+  const sid = Number(props.id)
+  void store.markRead(sid, chapterId)
+}
+
+async function onRenameChapter(
+  chapterId: number,
+  title: string,
+): Promise<void> {
+  const sid = Number(props.id)
+  try {
+    await store.renameChapter(sid, chapterId, title)
+    toast.success('Chapter renamed.')
+  } catch (e) {
+    store.actionError = e instanceof Error ? e.message : 'Failed to rename'
+  }
+}
+
+async function onMarkUnread(chapterId: number): Promise<void> {
+  const sid = Number(props.id)
+  try {
+    await store.markUnread(sid, chapterId)
+  } catch {
+    // store.actionError carries the message
+  }
+}
+
+/** TOC selection: scroll the chapter into view. Read-marking happens
+ *  via the reader's own visibility event, not here. */
+function selectChapter(chapterId: number): void {
+  activeChapterId.value = chapterId
+  const el = document.querySelector(`[data-chapter-anchor="${chapterId}"]`)
+  if (el instanceof HTMLElement) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
   router.replace({
     query: { ...router.currentRoute.value.query, chapter: String(chapterId) },
   })
@@ -316,14 +196,16 @@ onMounted(async () => {
   // Clear stale detail so transitions between storylines re-fire watchers.
   store.clearCurrent()
   await store.loadStoryline(sid)
-  // Default-select: honour a valid ?chapter= query, else the latest
-  // (highest-seq) chapter — the last element since chapters are seq asc.
+  // Load every chapter's content in reading order (published chapters
+  // are immutable, so the per-chapter cache makes revisits free).
+  for (const c of chapters.value) {
+    await store.loadChapter(sid, c.id)
+  }
+  // Honour a valid ?chapter= query as the initial scroll target.
   const qp = Number(router.currentRoute.value.query.chapter)
-  const fromQuery =
-    Number.isInteger(qp) && chapters.value.some((c) => c.id === qp) ? qp : null
-  const initial = fromQuery ?? chapters.value[chapters.value.length - 1]?.id
-  if (initial != null) {
-    await selectChapter(initial)
+  if (Number.isInteger(qp) && chapters.value.some((c) => c.id === qp)) {
+    await nextTick()
+    selectChapter(qp)
   }
 })
 </script>
@@ -420,17 +302,16 @@ onMounted(async () => {
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
-            <button
-              class="btn bg-white dark:bg-gray-800 border-violet-200 dark:border-violet-800/60 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
-              :disabled="store.regenerating || deleting"
-              data-testid="regenerate-button"
-              @click="regenerate"
+            <span
+              v-if="store.updating"
+              class="text-sm text-violet-600 dark:text-violet-400 animate-pulse"
+              data-testid="storyline-updating"
             >
-              {{ store.regenerating ? 'Queuing…' : 'Regenerate' }}
-            </button>
+              Updating…
+            </span>
             <button
               class="btn bg-white dark:bg-gray-800 border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
-              :disabled="deleting || store.regenerating"
+              :disabled="deleting"
               data-testid="delete-button"
               @click="confirmDelete"
             >
@@ -452,12 +333,12 @@ onMounted(async () => {
             <span class="text-xs uppercase font-semibold mr-1">Anchors:</span>
             <RouterLink
               v-for="anchor in store.currentStoryline.anchors"
-              :key="anchor.id"
-              :to="`/entities/${anchor.id}`"
+              :key="anchor.entity_id"
+              :to="`/entities/${anchor.entity_id}`"
               class="inline-flex items-center gap-1 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700/40 rounded-full px-2.5 py-0.5 text-xs text-violet-700 dark:text-violet-300 hover:underline"
-              :data-testid="`storyline-anchor-${anchor.id}`"
+              :data-testid="`storyline-anchor-${anchor.entity_id}`"
             >
-              {{ anchor.canonical_name || `#${anchor.id}` }}
+              {{ anchor.canonical_name || `#${anchor.entity_id}` }}
             </RouterLink>
             <button
               type="button"
@@ -468,25 +349,26 @@ onMounted(async () => {
               {{ editingAnchors ? 'Close editor' : 'Edit anchors' }}
             </button>
           </div>
-          <span data-testid="storyline-last-generated">
-            Last generated:
-            {{ formatDateTime(store.currentStoryline.last_generated_at) }}
+          <span data-testid="storyline-updated-at">
+            Updated: {{ formatDateTime(store.currentStoryline.updated_at) }}
           </span>
-          <span v-if="citationCount > 0" data-testid="storyline-citation-count">
-            {{ citationCount }} citation{{ citationCount === 1 ? '' : 's' }}
+          <span
+            v-if="store.currentStoryline.unread_count > 0"
+            class="inline-flex items-center rounded-full bg-violet-500/10 border border-violet-200 dark:border-violet-700/40 px-2 py-0.5 text-xs text-violet-700 dark:text-violet-300"
+            data-testid="storyline-unread-count"
+          >
+            {{ store.currentStoryline.unread_count }} unread
           </span>
         </div>
 
-        <!-- Regenerate error -->
+        <!-- Action / rename / delete errors -->
         <div
-          v-if="store.regenerateError"
+          v-if="store.actionError"
           class="mt-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
-          data-testid="regenerate-error-banner"
+          data-testid="action-error-banner"
         >
-          {{ store.regenerateError }}
+          {{ store.actionError }}
         </div>
-
-        <!-- Rename error -->
         <div
           v-if="store.nameError"
           class="mt-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
@@ -494,8 +376,6 @@ onMounted(async () => {
         >
           {{ store.nameError }}
         </div>
-
-        <!-- Delete error -->
         <div
           v-if="deleteError"
           class="mt-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
@@ -504,9 +384,9 @@ onMounted(async () => {
           {{ deleteError }}
         </div>
 
-        <!-- Inline anchor editor (W30): kept inline rather than in a
-             modal so the current panels stay visible while the user
-             decides what a regeneration would replace. -->
+        <!-- Inline anchor editor: kept inline rather than in a modal so
+             the chapters stay visible while the user decides what a
+             refresh would change. -->
         <StorylineAnchorEditor
           v-if="editingAnchors"
           :storyline-id="store.currentStoryline.id"
@@ -517,239 +397,57 @@ onMounted(async () => {
         />
       </div>
 
-      <!-- Chapters strip: a horizontal, wrapping row of chapter chips placed
-           below the anchors/meta row (chapters are chronological, so they read
-           naturally left-to-right). This frees the full width for the two-panel
-           reader below. `flex-wrap` (not horizontal scroll) keeps it robust on
-           portrait phones AND avoids clipping ChapterEditMenu's absolute
-           dropdown inside a scroll container. -->
-      <div class="mb-6" data-testid="chapters-bar">
-        <div class="flex items-center justify-between mb-2">
-          <h2
-            class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300"
-          >
-            Chapters
-          </h2>
-          <button
-            type="button"
-            data-testid="add-chapter"
-            class="text-xs text-violet-600 dark:text-violet-400 hover:underline"
-            @click="openAddChapter"
-          >
-            + Add chapter
-          </button>
-        </div>
-
-        <!-- Chapter action error banner -->
-        <div
-          v-if="chapterActionError"
-          class="mb-2 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 px-2 py-1 text-xs text-red-700 dark:text-red-400"
-          data-testid="chapter-action-error"
-        >
-          {{ chapterActionError }}
-        </div>
-
-        <div
-          class="flex flex-wrap items-center gap-2"
-          data-testid="chapter-strip"
-        >
-          <div
-            v-for="(c, index) in chapters"
-            :key="c.id"
-            data-testid="chapter-chip"
-            class="flex items-center gap-0.5 shrink-0"
-          >
-            <button
-              type="button"
-              data-testid="chapter-rail-item"
-              class="text-left px-3 py-1.5 rounded-md border text-sm transition-colors"
-              :class="
-                c.id === selectedChapterId
-                  ? 'border-violet-300 dark:border-violet-700/60 bg-violet-500/10 text-violet-700 dark:text-violet-300'
-                  : 'border-gray-200 dark:border-gray-700/60 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/40'
-              "
-              :aria-current="c.id === selectedChapterId ? 'true' : undefined"
-              @click="selectChapter(c.id)"
-            >
-              <span class="font-medium whitespace-nowrap">{{
-                c.title || `Chapter ${c.seq}`
-              }}</span>
-              <span
-                class="block text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap"
-              >
-                {{ c.start_date ?? '…' }} – {{ c.end_date ?? 'now' }}
-                <span
-                  v-if="c.state === 'open'"
-                  class="ml-1 text-emerald-600 dark:text-emerald-400"
-                  >• open</span
-                >
-                <span v-else class="ml-1 text-gray-400 dark:text-gray-500"
-                  >• closed</span
-                >
-              </span>
-            </button>
-            <span
-              v-if="store.generatingChapterIds.has(c.id)"
-              data-testid="chapter-generating"
-              class="text-xs text-violet-500 dark:text-violet-400 animate-pulse self-center"
-              aria-label="Generating chapter content"
-              >generating…</span
-            >
-            <ChapterEditMenu
-              :chapter="c"
-              :has-next="index < chapters.length - 1"
-              @edit="openEditChapter(c)"
-              @split="openSplitChapter(c)"
-              @merge="onMergeChapter(c)"
-              @delete="openDeleteChapter(c)"
+      <!-- Reader layout: slim TOC left at lg+, chapters top-to-bottom. -->
+      <div class="flex flex-col lg:flex-row gap-6">
+        <aside class="lg:w-56 shrink-0 order-first">
+          <div class="lg:sticky lg:top-4">
+            <ChapterToc
+              :chapters="chapters"
+              :active-id="activeChapterId"
+              @select="selectChapter"
             />
           </div>
-        </div>
-      </div>
+        </aside>
 
-      <!-- Chapter date modal (add / edit / split) -->
-      <ChapterDateModal
-        v-if="activeModal === 'add'"
-        title="Add chapter"
-        :show-end="true"
-        hint="Leave End blank to start a new open chapter, or set it to add a chapter over a fixed date range."
-        @submit="onAddChapterSubmit"
-        @cancel="closeModal"
-      />
-      <ChapterDateModal
-        v-else-if="activeModal === 'edit' && modalTargetChapter"
-        title="Edit chapter dates"
-        :show-end="modalTargetChapter.state === 'closed'"
-        :initial-start="modalTargetChapter.start_date ?? undefined"
-        :initial-end="modalTargetChapter.end_date ?? undefined"
-        @submit="onEditChapterSubmit"
-        @cancel="closeModal"
-      />
-      <ChapterDateModal
-        v-else-if="activeModal === 'split' && modalTargetChapter"
-        title="Split chapter"
-        :show-end="false"
-        @submit="onSplitChapterSubmit"
-        @cancel="closeModal"
-      />
-      <ChapterConfirmModal
-        v-else-if="activeModal === 'delete' && modalTargetChapter"
-        title="Delete chapter"
-        :message="`Delete '${modalTargetChapter.title || `Chapter ${modalTargetChapter.seq}`}'? The source journal entries are kept.`"
-        :show-allow-gap="true"
-        @confirm="onDeleteChapterConfirm"
-        @cancel="closeModal"
-      />
-
-      <!-- Reader: chapter-loading skeleton, then the two-panel layout.
-             Mirrors the edit-mode layout in EntryDetailView.vue. -->
-      <div
-        v-if="store.chapterLoading && !store.currentChapter"
-        class="py-16 text-center text-gray-600 dark:text-gray-300"
-        data-testid="chapter-loading"
-      >
-        Loading chapter…
-      </div>
-      <!-- Two-panel reader, now full-width: stacks below lg (1024px),
-             side-by-side above. Each panel scrolls independently; there's no
-             synchronised scrolling primitive in v1. -->
-      <div
-        v-else
-        class="flex flex-col lg:flex-row gap-4"
-        data-testid="storyline-reader"
-      >
-        <section
-          class="lg:flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4 md:p-6"
-          data-testid="narrative-panel"
-        >
-          <h2
-            class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300 mb-3"
-          >
-            Narrative
-          </h2>
-          <div
-            v-if="narrativePanel && narrativePanel.segments.length > 0"
-            class="storyline-panel-body"
-          >
-            <StorylineNarrative
-              :segments="narrativePanel.segments"
-              :registry="citationRegistry"
-            />
-          </div>
-          <div
-            v-else
-            class="py-8 text-center text-sm text-gray-500 dark:text-gray-400"
-            data-testid="narrative-empty"
-          >
-            No narrative segments yet. Regenerate to populate.
-          </div>
-        </section>
-
-        <section
-          class="lg:flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4 md:p-6"
-          data-testid="curation-panel"
-        >
-          <div class="flex items-center justify-between gap-3 mb-3">
-            <h2
-              class="text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300"
-            >
-              Curation
-            </h2>
-            <div
-              v-if="curationHasAbsoluteDates"
-              class="curation-date-toggle inline-flex rounded-md border border-gray-200 dark:border-gray-700/60 overflow-hidden text-xs"
-              role="group"
-              aria-label="Date display mode"
-              data-testid="curation-date-toggle"
-            >
-              <button
-                type="button"
-                class="px-2 py-1 transition-colors"
-                :class="
-                  curationDateMode === 'relative'
-                    ? 'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
-                    : 'bg-white text-gray-500 dark:bg-gray-800 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                "
-                :aria-pressed="curationDateMode === 'relative'"
-                data-testid="curation-date-toggle-relative"
-                @click="curationDateMode = 'relative'"
+        <div class="flex-1 min-w-0 space-y-6" data-testid="storyline-reader">
+          <template v-for="c in publishedChapters" :key="c.id">
+            <div :data-chapter-anchor="c.id">
+              <ChapterReader
+                v-if="chapterDetail(c.id)"
+                :chapter="chapterDetail(c.id)!"
+                :is-newest="c.id === newestPublishedId"
+                @visible="onChapterVisible"
+                @rename="onRenameChapter"
+                @mark-unread="onMarkUnread"
+                @unpublish="onUnpublish"
+              />
+              <div
+                v-else
+                class="py-8 text-center text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl"
+                data-testid="chapter-skeleton"
               >
-                Relative
-              </button>
-              <button
-                type="button"
-                class="px-2 py-1 border-l border-gray-200 dark:border-gray-700/60 transition-colors"
-                :class="
-                  curationDateMode === 'absolute'
-                    ? 'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
-                    : 'bg-white text-gray-500 dark:bg-gray-800 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                "
-                :aria-pressed="curationDateMode === 'absolute'"
-                data-testid="curation-date-toggle-absolute"
-                @click="curationDateMode = 'absolute'"
-              >
-                Absolute
-              </button>
+                Loading chapter…
+              </div>
             </div>
-          </div>
-          <div
-            v-if="curationPanel && curationPanel.segments.length > 0"
-            class="storyline-panel-body"
-          >
-            <StorylineCurationList
-              :segments="curationPanel.segments"
-              :registry="citationRegistry"
-              :date-mode="curationDateMode"
+          </template>
+
+          <div v-if="draftMeta" :data-chapter-anchor="draftMeta.id">
+            <DraftBlock
+              :meta="draftMeta"
+              :chapter="chapterDetail(draftMeta.id)"
+              :updating="store.updating"
+              @refresh="refreshDraft"
             />
           </div>
+
           <div
-            v-else
-            class="py-8 text-center text-sm text-gray-500 dark:text-gray-400"
-            data-testid="curation-empty"
+            v-if="publishedChapters.length === 0 && !draftMeta"
+            class="py-16 text-center text-gray-500 dark:text-gray-400"
+            data-testid="reader-empty"
           >
-            No curation segments yet. Regenerate to populate.
+            No chapters yet.
           </div>
-        </section>
+        </div>
       </div>
     </template>
 

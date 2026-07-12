@@ -14,7 +14,7 @@ vi.mock('@/api/storylines', () => ({
   fetchStorylines: vi.fn(),
   fetchStoryline: vi.fn(),
   createStoryline: vi.fn(),
-  regenerateStoryline: vi.fn(),
+  refreshStoryline: vi.fn(),
   deleteStoryline: vi.fn(),
   setStorylineAnchors: vi.fn(),
 }))
@@ -38,8 +38,8 @@ function makeEntity(overrides: Partial<EntitySummary> = {}): EntitySummary {
 }
 
 const defaultAnchors: StorylineAnchor[] = [
-  { id: 513, canonical_name: 'Vienna' },
-  { id: 514, canonical_name: 'Atlas' },
+  { entity_id: 513, canonical_name: 'Vienna' },
+  { entity_id: 514, canonical_name: 'Atlas' },
 ]
 
 function mountEditor(anchors: StorylineAnchor[] = defaultAnchors) {
@@ -142,7 +142,7 @@ describe('StorylineAnchorEditor', () => {
   })
 
   it('Save cannot empty the anchor set (min 1 anchor)', async () => {
-    const wrapper = mountEditor([{ id: 513, canonical_name: 'Vienna' }])
+    const wrapper = mountEditor([{ entity_id: 513, canonical_name: 'Vienna' }])
     await wrapper
       .get('[data-testid="anchor-editor-remove-513"]')
       .trigger('click')
@@ -151,7 +151,7 @@ describe('StorylineAnchorEditor', () => {
     ).toBeDefined()
   })
 
-  it('clicking Save opens the stale-panels confirm step instead of saving', async () => {
+  it('clicking Save opens the confirm step instead of saving', async () => {
     const wrapper = mountEditor()
     await wrapper
       .get('[data-testid="anchor-editor-remove-514"]')
@@ -159,12 +159,12 @@ describe('StorylineAnchorEditor', () => {
     await wrapper.get('[data-testid="anchor-editor-save"]').trigger('click')
     expect(mockSetAnchors).not.toHaveBeenCalled()
     const confirm = wrapper.get('[data-testid="anchor-editor-confirm"]')
-    expect(confirm.text()).toContain('stale')
+    expect(confirm.text()).toContain('refresh the draft')
     expect(
       wrapper.find('[data-testid="anchor-confirm-save-only"]').exists(),
     ).toBe(true)
     expect(
-      wrapper.find('[data-testid="anchor-confirm-save-regenerate"]').exists(),
+      wrapper.find('[data-testid="anchor-confirm-save-refresh"]').exists(),
     ).toBe(true)
   })
 
@@ -184,10 +184,10 @@ describe('StorylineAnchorEditor', () => {
     expect(mockSetAnchors).not.toHaveBeenCalled()
   })
 
-  it('"Save only" PUTs the new anchor set and emits saved with regenerate=false', async () => {
+  it('"Save only" PUTs the new anchor set and emits saved with refresh=false', async () => {
     mockSetAnchors.mockResolvedValue({
       id: 3,
-      anchors: [{ id: 513, canonical_name: 'Vienna' }],
+      anchors: [{ entity_id: 513, canonical_name: 'Vienna' }],
     })
     const wrapper = mountEditor()
     await wrapper
@@ -199,10 +199,10 @@ describe('StorylineAnchorEditor', () => {
       .trigger('click')
     await flushPromises()
     expect(mockSetAnchors).toHaveBeenCalledWith(3, { entity_ids: [513] })
-    expect(wrapper.emitted('saved')).toEqual([[{ regenerate: false }]])
+    expect(wrapper.emitted('saved')).toEqual([[{ refresh: false }]])
   })
 
-  it('"Save & regenerate" emits saved with regenerate=true after the PUT', async () => {
+  it('"Save & refresh" emits saved with refresh=true after the PUT', async () => {
     mockFetchEntities.mockResolvedValue({
       items: [makeEntity()],
       total: 1,
@@ -212,9 +212,9 @@ describe('StorylineAnchorEditor', () => {
     mockSetAnchors.mockResolvedValue({
       id: 3,
       anchors: [
-        { id: 513, canonical_name: 'Vienna' },
-        { id: 514, canonical_name: 'Atlas' },
-        { id: 700, canonical_name: 'Sara' },
+        { entity_id: 513, canonical_name: 'Vienna' },
+        { entity_id: 514, canonical_name: 'Atlas' },
+        { entity_id: 700, canonical_name: 'Sara' },
       ],
     })
     const wrapper = mountEditor()
@@ -222,13 +222,13 @@ describe('StorylineAnchorEditor', () => {
     await wrapper.get('[data-testid="anchor-editor-result"]').trigger('click')
     await wrapper.get('[data-testid="anchor-editor-save"]').trigger('click')
     await wrapper
-      .get('[data-testid="anchor-confirm-save-regenerate"]')
+      .get('[data-testid="anchor-confirm-save-refresh"]')
       .trigger('click')
     await flushPromises()
     expect(mockSetAnchors).toHaveBeenCalledWith(3, {
       entity_ids: [513, 514, 700],
     })
-    expect(wrapper.emitted('saved')).toEqual([[{ regenerate: true }]])
+    expect(wrapper.emitted('saved')).toEqual([[{ refresh: true }]])
   })
 
   it('a failed save surfaces the store error and drops back to the edit step', async () => {
@@ -290,7 +290,7 @@ describe('StorylineAnchorEditor', () => {
 
   it('disables the search input at the anchor cap', async () => {
     const anchors = Array.from({ length: 15 }, (_, i) => ({
-      id: i + 1,
+      entity_id: i + 1,
       canonical_name: `E${i + 1}`,
     }))
     const wrapper = mountEditor(anchors)

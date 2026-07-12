@@ -26,18 +26,15 @@ import { MAX_ANCHORS, type StorylineAnchor } from '@/types/storyline'
  *    set is what gets saved, the delta is what the user needs to
  *    sanity-check.
  *
- * 3. **Confirm-before-stale-panels, no auto-kick.** The server's
+ * 3. **Confirm step, no auto-kick.** The server's
  *    `PUT /api/storylines/{id}/anchors` only replaces the anchor rows
- *    — it does NOT touch the stored panels or queue a regeneration
- *    (verified in server `api/ingestion.py::set_storyline_anchors`).
- *    So saved panels go stale the moment anchors change. Clicking
- *    Save therefore opens a confirm step that says so and offers
- *    "Save & regenerate" (PUT, then the parent chains the existing
- *    regenerate flow with job tracking) or "Save only" (panels stay
- *    stale until a manual Regenerate). We deliberately do not
- *    auto-kick regeneration on every save: it costs LLM tokens and a
- *    user reshaping a storyline may want to batch several edits
- *    before paying for one regeneration.
+ *    — it does NOT re-narrate the draft (see server
+ *    `api/storylines_write.py::set_storyline_anchors`). Clicking Save
+ *    therefore opens a confirm step offering "Save & refresh" (PUT,
+ *    then the parent chains the draft-refresh flow with job tracking)
+ *    or "Save only". We deliberately do not auto-kick a refresh on
+ *    every save: it costs LLM tokens and a user reshaping a storyline
+ *    may want to batch several edits before paying for one refresh.
  */
 
 interface PickedAnchor {
@@ -53,7 +50,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void
-  (e: 'saved', payload: { regenerate: boolean }): void
+  (e: 'saved', payload: { refresh: boolean }): void
 }>()
 
 const store = useStorylinesStore()
@@ -64,7 +61,12 @@ store.anchorsError = null
 // Proposed anchor set, seeded from the saved anchors. Pick order is
 // kept for display; the server normalises to ascending id order and
 // the store refreshes state from its response.
-const picked = ref<PickedAnchor[]>(props.anchors.map((a) => ({ ...a })))
+const picked = ref<PickedAnchor[]>(
+  props.anchors.map((a) => ({
+    id: a.entity_id,
+    canonical_name: a.canonical_name,
+  })),
+)
 
 // --- Entity search (same debounced pattern as StorylineCreateModal) ---
 const searchQuery = ref('')
@@ -124,13 +126,15 @@ function removePicked(entityId: number): void {
 }
 
 // --- Diff against the saved anchor set ---
-const originalIds = computed(() => new Set(props.anchors.map((a) => a.id)))
+const originalIds = computed(
+  () => new Set(props.anchors.map((a) => a.entity_id)),
+)
 const pickedIds = computed(() => new Set(picked.value.map((p) => p.id)))
 const added = computed(() =>
   picked.value.filter((p) => !originalIds.value.has(p.id)),
 )
 const removed = computed(() =>
-  props.anchors.filter((a) => !pickedIds.value.has(a.id)),
+  props.anchors.filter((a) => !pickedIds.value.has(a.entity_id)),
 )
 const hasChanges = computed(
   () => added.value.length > 0 || removed.value.length > 0,
@@ -164,7 +168,7 @@ async function doSave(regenerate: boolean): Promise<void> {
       props.storylineId,
       picked.value.map((p) => p.id),
     )
-    emit('saved', { regenerate })
+    emit('saved', { refresh: regenerate })
   } catch {
     // store.anchorsError renders inline; drop back to the edit step so
     // the user can adjust the selection and retry.
@@ -338,7 +342,7 @@ async function doSave(regenerate: boolean): Promise<void> {
           </span>
           <span
             v-for="entity in removed"
-            :key="entity.id"
+            :key="entity.entity_id"
             class="inline-flex items-center bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-700/40 rounded-full px-2.5 py-0.5 text-xs text-red-800 dark:text-red-300"
           >
             − {{ entity.canonical_name }}
@@ -370,9 +374,9 @@ async function doSave(regenerate: boolean): Promise<void> {
     <!-- Confirm step: warn that saved panels go stale -->
     <div v-else class="space-y-3" data-testid="anchor-editor-confirm">
       <p class="text-sm text-gray-700 dark:text-gray-300">
-        Changing anchors makes the previously generated panels stale — they were
-        built for the old anchor set and won't reflect this change until the
-        storyline is regenerated.
+        Changing anchors changes which entries feed this storyline. Published
+        chapters stay as they are; refresh the draft to reflect the new
+        anchor set going forward.
       </p>
 
       <div class="space-y-1.5 text-sm">
@@ -427,10 +431,10 @@ async function doSave(regenerate: boolean): Promise<void> {
           type="button"
           class="btn-sm bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
           :disabled="store.savingAnchors"
-          data-testid="anchor-confirm-save-regenerate"
+          data-testid="anchor-confirm-save-refresh"
           @click="doSave(true)"
         >
-          {{ store.savingAnchors ? 'Saving…' : 'Save & regenerate' }}
+          {{ store.savingAnchors ? 'Saving…' : 'Save & refresh' }}
         </button>
       </div>
     </div>

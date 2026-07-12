@@ -1,25 +1,23 @@
-import type { Segment, StorylineDetail } from '@/types/storyline'
+import type { Segment } from '@/types/storyline'
 
 /**
- * Build a shared citation registry across a storyline's panels.
+ * Build a citation registry for one chapter.
  *
- * Walks the narrative panel first, then the curation panel. Each unique
- * `entry_id` is assigned an incrementing `[N]` in encounter order. The
- * narrative-first walk means narrative footnotes read 1, 2, 3 … in
- * sequence; curation-only entries pick up the next numbers, so a
- * curation row's `[N]` may be non-sequential when read top-to-bottom.
+ * Walks the given segment lists in order (the chapter narrative first,
+ * then each addendum). Each unique `entry_id` is assigned an
+ * incrementing `[N]` in encounter order, so a chapter's footnotes read
+ * 1, 2, 3 … in sequence and addenda pick up the next numbers.
  *
  * This is a pure function — callers wrap it in `computed()` when they
  * want reactive consumption.
  */
 export function buildCitationRegistry(
-  panels: StorylineDetail['panels'],
+  segmentLists: Segment[][],
 ): Map<number, number> {
   const registry = new Map<number, number>()
   let next = 1
 
-  const consume = (segments: Segment[] | undefined): void => {
-    if (!segments) return
+  for (const segments of segmentLists) {
     for (const seg of segments) {
       if (seg.kind !== 'citation') continue
       if (registry.has(seg.entry_id)) continue
@@ -27,9 +25,6 @@ export function buildCitationRegistry(
       next += 1
     }
   }
-
-  consume(panels.narrative?.segments)
-  consume(panels.curation?.segments)
 
   return registry
 }

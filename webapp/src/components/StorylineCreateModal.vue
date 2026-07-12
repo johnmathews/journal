@@ -3,7 +3,6 @@ import { computed, ref, watch } from 'vue'
 import BaseModal from './BaseModal.vue'
 import { fetchEntities } from '@/api/entities'
 import { useStorylinesStore } from '@/stores/storylines'
-import { useJobsStore } from '@/stores/jobs'
 import { useToast } from '@/composables/useToast'
 import type { EntitySummary } from '@/types/entity'
 import { MAX_ANCHORS, type CreateStorylineResponse } from '@/types/storyline'
@@ -12,7 +11,7 @@ import { MAX_ANCHORS, type CreateStorylineResponse } from '@/types/storyline'
  * Modal for creating a new storyline. The user picks 1..MAX_ANCHORS
  * entities from a debounced search list, optionally overrides the
  * auto-filled name, and submits. The server responds with the created
- * storyline plus a `generation_job_id` so the webapp can hand the
+ * storyline plus a `bootstrap_job_id`; the store hands the
  * panel-generation job off to the global jobs store and surface
  * progress through the notification bell.
  *
@@ -32,7 +31,6 @@ const emit = defineEmits<{
 }>()
 
 const store = useStorylinesStore()
-const jobsStore = useJobsStore()
 const toast = useToast()
 
 // --- Entity search state ---
@@ -52,8 +50,6 @@ const name = ref('')
 // changing the anchor set does NOT clobber the user's override.
 const nameDirty = ref(false)
 const description = ref('')
-const startDate = ref('')
-const endDate = ref('')
 
 const submitting = ref(false)
 
@@ -75,8 +71,6 @@ function resetState(): void {
   name.value = ''
   nameDirty.value = false
   description.value = ''
-  startDate.value = ''
-  endDate.value = ''
   submitting.value = false
   store.createError = null
 }
@@ -170,16 +164,13 @@ async function onSubmit(): Promise<void> {
       ...(description.value.trim()
         ? { description: description.value.trim() }
         : {}),
-      ...(startDate.value ? { start_date: startDate.value } : {}),
-      ...(endDate.value ? { end_date: endDate.value } : {}),
     }
     const resp = await store.createStoryline(payload)
-    if (resp.generation_job_id) {
-      jobsStore.trackJob(resp.generation_job_id, 'storyline_generation', {
-        storyline_id: resp.id,
-      })
-    }
-    toast.success('Storyline created. Generating panels…')
+    toast.success(
+      resp.bootstrap_job_id
+        ? 'Storyline created. Writing its chapters…'
+        : 'Storyline created.',
+    )
     emit('created', resp)
     emit('update:modelValue', false)
   } catch {
@@ -368,43 +359,6 @@ function onCancel(): void {
         />
       </div>
 
-      <!-- Date range -->
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label
-            for="storyline-create-start"
-            class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
-          >
-            Start date
-          </label>
-          <input
-            id="storyline-create-start"
-            v-model="startDate"
-            type="date"
-            class="form-input w-full text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
-            data-testid="storyline-create-start-date"
-          />
-        </div>
-        <div>
-          <label
-            for="storyline-create-end"
-            class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
-          >
-            End date
-          </label>
-          <input
-            id="storyline-create-end"
-            v-model="endDate"
-            type="date"
-            class="form-input w-full text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
-            data-testid="storyline-create-end-date"
-          />
-        </div>
-      </div>
-      <p class="text-xs text-gray-600 dark:text-gray-300">
-        Both dates are optional — leave blank to cover every entry that mentions
-        the entity.
-      </p>
     </div>
 
     <template #footer>

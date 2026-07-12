@@ -22,7 +22,7 @@ export type JobType =
   | 'entity_reembed'
   | 'fitness_sync_strava'
   | 'fitness_sync_garmin'
-  | 'storyline_generation'
+  | 'storyline_update'
 
 /**
  * Response from the job-submission endpoints (POST /api/entities/extract,
