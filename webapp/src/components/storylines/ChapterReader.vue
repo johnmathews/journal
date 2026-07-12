@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { ChapterDetail } from '@/types/storyline'
 import StorylineNarrative from '@/components/StorylineNarrative.vue'
 import { buildCitationRegistry } from '@/composables/useCitationRegistry'
+import { isSufficientlyVisible } from '@/composables/visibility'
 
 /**
  * One published chapter in the storyline reader: title, derived
@@ -68,11 +69,21 @@ function onVisible(): void {
 onMounted(() => {
   if (typeof IntersectionObserver === 'undefined') return
   if (!rootRef.value) return
+  // Multiple thresholds so the callback fires while a chapter TALLER
+  // than the viewport scrolls through (its ratio never reaches 0.6 —
+  // the viewport-fill condition inside isSufficientlyVisible covers it).
   observer = new IntersectionObserver(
     (entries) => {
-      if (entries.some((e) => e.intersectionRatio >= 0.6)) onVisible()
+      const hit = entries.some((e) =>
+        isSufficientlyVisible(
+          e.intersectionRatio,
+          e.intersectionRect.height,
+          window.innerHeight,
+        ),
+      )
+      if (hit) onVisible()
     },
-    { threshold: 0.6 },
+    { threshold: [0, 0.15, 0.3, 0.45, 0.6] },
   )
   observer.observe(rootRef.value)
 })

@@ -41,10 +41,11 @@ export const useStorylinesStore = defineStore('storylines', () => {
   const loading = ref(false)
   const detailLoading = ref(false)
   const chapterLoading = ref(false)
-  /** True while a storyline_update job (bootstrap / refresh / unpublish)
-   *  is in flight for the current storyline. One flag — the server
-   *  serializes storyline work anyway. */
-  const updating = ref(false)
+  /** Job ids of in-flight storyline_update jobs (bootstrap / refresh /
+   *  unpublish). `updating` derives from this so overlapping jobs and
+   *  view transitions can't desync the flag. */
+  const updatingJobIds = ref<Set<string>>(new Set())
+  const updating = computed(() => updatingJobIds.value.size > 0)
   const error = ref<string | null>(null)
   const creating = ref(false)
   const createError = ref<string | null>(null)
@@ -133,14 +134,18 @@ export const useStorylinesStore = defineStore('storylines', () => {
     currentStoryline.value = null
     chapterCache.value = new Map()
     chapterLoading.value = false
-    updating.value = false
+    // Deliberately does NOT touch updatingJobIds — a tracked job keeps
+    // `updating` truthful across view transitions.
   }
 
-  /** Track one storyline_update job; while it runs `updating` is true,
-   *  and on terminal status the storyline (and its chapters) reload. */
+  /** Track one storyline_update job; while it runs `updating` is true.
+   *  On terminal status the list always reloads; the detail (and its
+   *  chapter contents) reload only when the job's storyline is still
+   *  the one on screen — a job for storyline A must never clobber a
+   *  user who has navigated to storyline B. */
   function _trackUpdateJob(storylineId: number, jobId: string): void {
     const jobsStore = useJobsStore()
-    updating.value = true
+    updatingJobIds.value = new Set(updatingJobIds.value).add(jobId)
     jobsStore.trackJob(jobId, 'storyline_update')
     // Use a wrapper ref to avoid TDZ: `immediate: true` can fire the
     // callback before `watch()` returns, so we must not reference the
@@ -150,11 +155,21 @@ export const useStorylinesStore = defineStore('storylines', () => {
       () => jobsStore.getJobById(jobId)?.status,
       (status) => {
         if (status != null && isTerminal(status)) {
-          updating.value = false
+          const next = new Set(updatingJobIds.value)
+          next.delete(jobId)
+          updatingJobIds.value = next
           stopRef.fn()
-          chapterCache.value = new Map()
-          void loadStoryline(storylineId)
           void loadStorylines(currentParams.value)
+          if (currentStoryline.value?.id === storylineId) {
+            chapterCache.value = new Map()
+            void loadStoryline(storylineId).then(() => {
+              // Repopulate chapter content so the reader doesn't sit on
+              // skeletons until a manual page reload.
+              for (const c of currentStoryline.value?.chapters ?? []) {
+                void loadChapter(storylineId, c.id)
+              }
+            })
+          }
         }
       },
       { immediate: true },
@@ -207,7 +222,10 @@ export const useStorylinesStore = defineStore('storylines', () => {
     }
   }
 
-  /** Flip a chapter's read state locally (detail + list + cache). */
+  /** Flip a chapter's read state locally (detail + list + cache).
+   *  Unread counts move only on a null↔non-null TRANSITION — the
+   *  server's confirmed timestamp differing from the optimistic one
+   *  must not decrement a second time. */
   function _applyReadState(
     storylineId: number,
     chapterId: number,
@@ -216,12 +234,16 @@ export const useStorylinesStore = defineStore('storylines', () => {
     const detail = currentStoryline.value
     if (detail?.id === storylineId) {
       const ch = detail.chapters.find((c) => c.id === chapterId)
-      if (ch && ch.read_at !== readAt) {
-        const delta = readAt === null ? 1 : -1
+      if (ch) {
+        const wasUnread = ch.read_at === null
+        const isUnread = readAt === null
         ch.read_at = readAt
-        detail.unread_count = Math.max(0, detail.unread_count + delta)
-        const row = storylines.value.find((s) => s.id === storylineId)
-        if (row) row.unread_count = Math.max(0, row.unread_count + delta)
+        if (wasUnread !== isUnread) {
+          const delta = isUnread ? 1 : -1
+          detail.unread_count = Math.max(0, detail.unread_count + delta)
+          const row = storylines.value.find((s) => s.id === storylineId)
+          if (row) row.unread_count = Math.max(0, row.unread_count + delta)
+        }
       }
     }
     const cached = chapterCache.value.get(chapterId)

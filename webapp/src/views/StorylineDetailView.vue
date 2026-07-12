@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, nextTick } from 'vue'
+import { computed, onMounted, ref, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useStorylinesStore } from '@/stores/storylines'
 import { useToast } from '@/composables/useToast'
@@ -191,23 +191,26 @@ function selectChapter(chapterId: number): void {
   })
 }
 
-onMounted(async () => {
+async function loadAll(): Promise<void> {
   const sid = Number(props.id)
-  // Clear stale detail so transitions between storylines re-fire watchers.
+  // Clear stale detail so transitions between storylines start clean.
   store.clearCurrent()
   await store.loadStoryline(sid)
-  // Load every chapter's content in reading order (published chapters
-  // are immutable, so the per-chapter cache makes revisits free).
-  for (const c of chapters.value) {
-    await store.loadChapter(sid, c.id)
-  }
+  // Load every chapter's content in parallel (published chapters are
+  // immutable, so the per-chapter cache makes revisits free).
+  await Promise.all(chapters.value.map((c) => store.loadChapter(sid, c.id)))
   // Honour a valid ?chapter= query as the initial scroll target.
   const qp = Number(router.currentRoute.value.query.chapter)
   if (Number.isInteger(qp) && chapters.value.some((c) => c.id === qp)) {
     await nextTick()
     selectChapter(qp)
   }
-})
+}
+
+onMounted(loadAll)
+// The route component is reused on detail→detail navigation; reload
+// when the id prop changes.
+watch(() => props.id, loadAll)
 </script>
 
 <template>

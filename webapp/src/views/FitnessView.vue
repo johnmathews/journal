@@ -410,7 +410,7 @@ onMounted(() => {
 // Sync Garmin / Sync Strava submit a sync job via the store and then
 // "spin until done": the button shows a spinner while the submit is in
 // flight AND while the tracked job runs, watched via the jobs store
-// (same pattern as StorylineDetailView.regenerate). On terminal
+// (same pattern as StorylineDetailView refresh). On terminal
 // success we reload all data so the charts/tables refresh immediately;
 // on submit or job failure we surface a brief inline error with a
 // deep-link to Settings · Fitness for the details.

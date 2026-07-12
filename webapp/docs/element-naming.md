@@ -3,7 +3,7 @@
 This webapp identifies significant DOM elements with the **`data-testid`**
 attribute. It is the single, canonical way to name an element — for tests,
 for browser/devtools targeting, and for referring to a part of the UI
-precisely in conversation ("the curation panel" → `[data-testid="curation-panel"]`).
+precisely in conversation ("the draft block" → `[data-testid="draft-block"]`).
 
 We deliberately do **not** add `id` attributes for this purpose. `id` must be
 unique per document, so repeated elements (chips, list rows, table rows) can't
@@ -42,6 +42,7 @@ anchors row, so the two-panel reader uses the full width):
 | `add-chapter`                  | "+ Add chapter" button                              |
 | `storyline-reader`             | Two-panel reader container                          |
 | `narrative-panel`              | Narrative panel                                     |
-| `curation-panel`               | Curation panel                                      |
-| `curation-date-toggle`         | Relative/Absolute date toggle                       |
-| `regenerate-button` / `delete-button` | Header actions                               |
+| `chapter-reader-<id>`          | One published chapter in the reader                 |
+| `chapter-toc` / `toc-item-<id>` | Chapter table of contents                          |
+| `draft-block` / `draft-refresh-button` | The in-progress draft chapter               |
+| `delete-button`                | Header delete action                                |

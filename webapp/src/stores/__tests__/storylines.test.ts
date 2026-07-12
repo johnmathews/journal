@@ -243,6 +243,8 @@ describe('useStorylinesStore', () => {
     })
     jobStatuses.value = new Map([['j1', 'running']])
     const store = useStorylinesStore()
+    await store.loadStoryline(1) // refresh is triggered from the detail view
+    mockFetchStoryline.mockClear()
     await store.refresh(1)
     expect(store.updating).toBe(true)
     expect(mockTrackJob).toHaveBeenCalledWith('j1', 'storyline_update')
@@ -498,5 +500,151 @@ describe('useStorylinesStore — fallback messages and cache branches', () => {
     await store.loadStoryline(1)
     await store.markRead(2, 99) // not the loaded storyline
     expect(mockMarkChapterRead).toHaveBeenCalledWith(2, 99)
+  })
+})
+
+describe('useStorylinesStore — final-review regression fixes', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    jobStatuses.value = new Map()
+  })
+
+  it('re-fetches chapter content after an update job completes', async () => {
+    mockFetchStoryline.mockResolvedValue(detail({ id: 1 }))
+    mockFetchStorylines.mockResolvedValue({
+      items: [summary({ id: 1 })],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    })
+    mockFetchChapter.mockResolvedValue({
+      ...chapterMeta({ id: 3 }),
+      segments: [],
+      addenda: [],
+      model_used: 'm',
+      generated_at: null,
+    })
+    mockRefreshStoryline.mockResolvedValue({ job_id: 'j1', status: 'queued' })
+    jobStatuses.value = new Map([['j1', 'running']])
+    const store = useStorylinesStore()
+    await store.loadStoryline(1)
+    await store.loadChapter(1, 3)
+    mockFetchChapter.mockClear()
+
+    await store.refresh(1)
+    jobStatuses.value = new Map([['j1', 'succeeded']])
+    await nextTick()
+    await new Promise((r) => setTimeout(r, 0)) // let reloads settle
+    // Chapter content must be re-fetched (cache was cleared) so the
+    // reader doesn't degrade to permanent skeletons.
+    expect(mockFetchChapter).toHaveBeenCalled()
+    expect(store.chapterCache.size).toBeGreaterThan(0)
+  })
+
+  it('markRead decrements unread_count exactly once across confirm', async () => {
+    mockFetchStoryline.mockResolvedValue(
+      detail({
+        id: 1,
+        unread_count: 2,
+        chapters: [
+          chapterMeta({ id: 3, read_at: null }),
+          chapterMeta({ id: 4, seq: 2, read_at: null }),
+          chapterMeta({
+            id: 5,
+            seq: 3,
+            state: 'draft',
+            published_at: null,
+          }),
+        ],
+      }),
+    )
+    mockFetchStorylines.mockResolvedValue({
+      items: [summary({ id: 1, unread_count: 2 })],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    })
+    // Server timestamp deliberately differs from the optimistic one.
+    mockMarkChapterRead.mockResolvedValue(
+      chapterMeta({ id: 3, read_at: '2001-01-01T00:00:00Z' }),
+    )
+    const store = useStorylinesStore()
+    await store.loadStorylines()
+    await store.loadStoryline(1)
+    await store.markRead(1, 3)
+    expect(store.currentStoryline?.unread_count).toBe(1)
+    expect(store.storylines[0].unread_count).toBe(1)
+  })
+
+  it('a terminal job for another storyline leaves the current one alone', async () => {
+    mockFetchStoryline.mockResolvedValue(detail({ id: 2 }))
+    mockFetchStorylines.mockResolvedValue({
+      items: [summary({ id: 1 }), summary({ id: 2 })],
+      total: 2,
+      limit: 20,
+      offset: 0,
+    })
+    mockFetchChapter.mockResolvedValue({
+      ...chapterMeta({ id: 3 }),
+      segments: [],
+      addenda: [],
+      model_used: 'm',
+      generated_at: null,
+    })
+    mockCreateStoryline.mockResolvedValue({
+      storyline: detail({ id: 1 }),
+      bootstrap_job_id: 'jA',
+    })
+    jobStatuses.value = new Map([['jA', 'running']])
+    const store = useStorylinesStore()
+    await store.createStoryline({ entity_ids: [1], name: 'A' }) // tracks jA for storyline 1
+    await store.loadStoryline(2) // user navigates to B
+    await store.loadChapter(2, 3)
+    mockFetchStoryline.mockClear()
+
+    jobStatuses.value = new Map([['jA', 'succeeded']])
+    await nextTick()
+    await new Promise((r) => setTimeout(r, 0))
+    // Detail must NOT be replaced with storyline 1, and B's cache survives.
+    expect(mockFetchStoryline).not.toHaveBeenCalledWith(1)
+    expect(store.currentStoryline?.id).toBe(2)
+    expect(store.chapterCache.size).toBe(1)
+  })
+
+  it('updating stays true across clearCurrent and overlapping jobs', async () => {
+    mockRefreshStoryline.mockResolvedValue({ job_id: 'j1', status: 'queued' })
+    mockUnpublishNewest.mockResolvedValue({ job_id: 'j2', status: 'queued' })
+    mockFetchStoryline.mockResolvedValue(detail({ id: 1 }))
+    mockFetchStorylines.mockResolvedValue({
+      items: [summary({ id: 1 })],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    })
+    jobStatuses.value = new Map([
+      ['j1', 'running'],
+      ['j2', 'running'],
+    ])
+    const store = useStorylinesStore()
+    await store.refresh(1)
+    await store.unpublishNewest(1)
+    expect(store.updating).toBe(true)
+    store.clearCurrent()
+    expect(store.updating).toBe(true) // jobs still running
+
+    jobStatuses.value = new Map([
+      ['j1', 'succeeded'],
+      ['j2', 'running'],
+    ])
+    await nextTick()
+    expect(store.updating).toBe(true) // one of two still running
+
+    jobStatuses.value = new Map([
+      ['j1', 'succeeded'],
+      ['j2', 'succeeded'],
+    ])
+    await nextTick()
+    expect(store.updating).toBe(false)
   })
 })
