@@ -335,6 +335,34 @@ describe('AppSidebar', () => {
     wrapper.unmount()
   })
 
+  it('shows the storylines unread badge only when totalUnread > 0', async () => {
+    const wrapper = await mountSidebar()
+    expect(
+      wrapper.find('[data-testid="sidebar-storylines-unread"]').exists(),
+    ).toBe(false)
+
+    const { useStorylinesStore } = await import('@/stores/storylines')
+    const storylinesStore = useStorylinesStore()
+    storylinesStore.storylines = [
+      {
+        id: 1,
+        name: 'Running',
+        description: '',
+        status: 'active',
+        anchors: [],
+        unread_count: 3,
+        chapter_count: 4,
+        created_at: '',
+        updated_at: '',
+      },
+    ]
+    await wrapper.vm.$nextTick()
+    const badge = wrapper.find('[data-testid="sidebar-storylines-unread"]')
+    expect(badge.exists()).toBe(true)
+    expect(badge.text()).toBe('3')
+    wrapper.unmount()
+  })
+
   it('hides the Admin link for non-admin users', async () => {
     const wrapper = await mountSidebar()
     expect(wrapper.text()).not.toContain('Admin')

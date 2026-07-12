@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import { useStorylinesStore } from '@/stores/storylines'
 import { useToast } from '@/composables/useToast'
 import StorylineCreateModal from '@/components/StorylineCreateModal.vue'
-import StorylineRegenerateModal from '@/components/StorylineRegenerateModal.vue'
 import type { StorylineSummary } from '@/types/storyline'
 
 const router = useRouter()
@@ -14,8 +13,8 @@ const toast = useToast()
 const rows = ref(20)
 const first = ref(0)
 
-type SortKey = 'name' | 'last_generated_at' | 'created_at' | 'anchors'
-const sortKey = ref<SortKey>('last_generated_at')
+type SortKey = 'name' | 'updated_at' | 'created_at' | 'anchors'
+const sortKey = ref<SortKey>('updated_at')
 const sortAsc = ref(false)
 
 function toggleSort(key: SortKey): void {
@@ -112,12 +111,8 @@ function openCreateModal(): void {
 }
 
 function onCreated(): void {
-  // Refresh so the new row is visible. The generation job is already
-  // tracked inside the modal — its terminal transition will surface
-  // via the global jobs store. Reload once more on a short delay so
-  // the freshly-generated panels are reflected the moment the user
-  // is likely to look; cheap, and good enough until we add proper
-  // job-completion plumbing here.
+  // Refresh so the new row is visible. The bootstrap job is tracked by
+  // the store, which reloads the list again when the job completes.
   store.loadStorylines(store.currentParams)
 }
 
@@ -212,19 +207,6 @@ async function onBulkDelete(): Promise<void> {
   }
 }
 
-// --- Regenerate (W11) ---
-const regenerateModalOpen = ref(false)
-const regenerateIds = ref<number[]>([])
-
-function openRegenerateRow(storyline: StorylineSummary): void {
-  regenerateIds.value = [storyline.id]
-  regenerateModalOpen.value = true
-}
-
-function openRegenerateBulk(): void {
-  regenerateIds.value = [...selectedIds.value]
-  regenerateModalOpen.value = true
-}
 </script>
 
 <template>
@@ -291,14 +273,6 @@ function openRegenerateBulk(): void {
         @click="onBulkDelete"
       >
         Delete {{ selectedCount }} selected
-      </button>
-      <button
-        type="button"
-        class="btn bg-violet-500 hover:bg-violet-600 text-white text-xs py-1"
-        data-testid="bulk-regenerate-button"
-        @click="openRegenerateBulk"
-      >
-        Regenerate {{ selectedCount }} selected
       </button>
       <button
         type="button"
@@ -388,10 +362,10 @@ function openRegenerateBulk(): void {
                 </th>
                 <th
                   class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none text-left"
-                  data-testid="sort-generated"
-                  @click="toggleSort('last_generated_at')"
+                  data-testid="sort-updated"
+                  @click="toggleSort('updated_at')"
                 >
-                  Last generated{{ sortIndicator('last_generated_at') }}
+                  Updated{{ sortIndicator('updated_at') }}
                 </th>
                 <th
                   class="px-4 py-3 whitespace-nowrap cursor-pointer hover:text-gray-700 dark:hover:text-gray-200 select-none text-left"
@@ -438,6 +412,14 @@ function openRegenerateBulk(): void {
                   data-testid="storyline-name-cell"
                 >
                   {{ storyline.name }}
+                  <span
+                    v-if="storyline.unread_count > 0"
+                    class="ml-2 inline-flex items-center justify-center rounded-full bg-violet-500 text-white text-[10px] font-semibold px-1.5 py-0.5 align-middle"
+                    data-testid="storyline-unread-badge"
+                    :aria-label="`${storyline.unread_count} unread chapters`"
+                  >
+                    {{ storyline.unread_count }}
+                  </span>
                 </td>
                 <td
                   class="px-4 py-3 text-gray-600 dark:text-gray-300"
@@ -446,13 +428,13 @@ function openRegenerateBulk(): void {
                   <div class="flex flex-wrap gap-1">
                     <RouterLink
                       v-for="anchor in storyline.anchors"
-                      :key="anchor.id"
-                      :to="`/entities/${anchor.id}`"
+                      :key="anchor.entity_id"
+                      :to="`/entities/${anchor.entity_id}`"
                       class="inline-block bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700/40 rounded-full px-2 py-0.5 text-xs text-violet-700 dark:text-violet-300 hover:underline"
-                      :data-testid="`storyline-anchor-chip-${anchor.id}`"
+                      :data-testid="`storyline-anchor-chip-${anchor.entity_id}`"
                       @click.stop
                     >
-                      {{ anchor.canonical_name || `#${anchor.id}` }}
+                      {{ anchor.canonical_name || `#${anchor.entity_id}` }}
                     </RouterLink>
                     <span
                       v-if="storyline.anchors.length === 0"
@@ -464,9 +446,9 @@ function openRegenerateBulk(): void {
                 </td>
                 <td
                   class="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300"
-                  data-testid="storyline-last-generated-cell"
+                  data-testid="storyline-updated-cell"
                 >
-                  {{ formatDateTime(storyline.last_generated_at) }}
+                  {{ formatDateTime(storyline.updated_at) }}
                 </td>
                 <td
                   class="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300"
@@ -474,15 +456,6 @@ function openRegenerateBulk(): void {
                   {{ formatDate(storyline.created_at) }}
                 </td>
                 <td class="px-4 py-3 whitespace-nowrap text-right space-x-2">
-                  <button
-                    type="button"
-                    class="text-xs text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
-                    data-testid="row-regenerate-button"
-                    :title="`Regenerate ${storyline.name}`"
-                    @click.stop="openRegenerateRow(storyline)"
-                  >
-                    Regenerate
-                  </button>
                   <button
                     type="button"
                     class="text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
@@ -525,19 +498,26 @@ function openRegenerateBulk(): void {
                   data-testid="storyline-card-name"
                 >
                   {{ storyline.name }}
+                  <span
+                    v-if="storyline.unread_count > 0"
+                    class="ml-2 inline-flex items-center justify-center rounded-full bg-violet-500 text-white text-[10px] font-semibold px-1.5 py-0.5 align-middle"
+                    data-testid="storyline-card-unread-badge"
+                  >
+                    {{ storyline.unread_count }}
+                  </span>
                 </div>
 
                 <!-- Anchors -->
                 <div class="mt-2 flex flex-wrap gap-1">
                   <RouterLink
                     v-for="anchor in storyline.anchors"
-                    :key="anchor.id"
-                    :to="`/entities/${anchor.id}`"
+                    :key="anchor.entity_id"
+                    :to="`/entities/${anchor.entity_id}`"
                     class="inline-block bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700/40 rounded-full px-2 py-0.5 text-xs text-violet-700 dark:text-violet-300 hover:underline"
-                    :data-testid="`storyline-card-anchor-chip-${anchor.id}`"
+                    :data-testid="`storyline-card-anchor-chip-${anchor.entity_id}`"
                     @click.stop
                   >
-                    {{ anchor.canonical_name || `#${anchor.id}` }}
+                    {{ anchor.canonical_name || `#${anchor.entity_id}` }}
                   </RouterLink>
                   <span
                     v-if="storyline.anchors.length === 0"
@@ -549,22 +529,13 @@ function openRegenerateBulk(): void {
 
                 <!-- Meta -->
                 <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  Last generated
-                  {{ formatDateTime(storyline.last_generated_at) }} · Created
+                  Updated
+                  {{ formatDateTime(storyline.updated_at) }} · Created
                   {{ formatDate(storyline.created_at) }}
                 </div>
 
                 <!-- Actions -->
                 <div class="mt-3 flex items-center gap-4">
-                  <button
-                    type="button"
-                    class="text-xs font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
-                    data-testid="card-regenerate-button"
-                    :title="`Regenerate ${storyline.name}`"
-                    @click.stop="openRegenerateRow(storyline)"
-                  >
-                    Regenerate
-                  </button>
                   <button
                     type="button"
                     class="text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
@@ -638,10 +609,5 @@ function openRegenerateBulk(): void {
     </div>
 
     <StorylineCreateModal v-model="createModalOpen" @created="onCreated" />
-
-    <StorylineRegenerateModal
-      v-model="regenerateModalOpen"
-      :storyline-ids="regenerateIds"
-    />
   </div>
 </template>

@@ -8,7 +8,6 @@ vi.mock('@/api/storylines', () => ({
   fetchStorylines: vi.fn(),
   fetchStoryline: vi.fn(),
   createStoryline: vi.fn(),
-  regenerateStoryline: vi.fn(),
   deleteStoryline: vi.fn(),
 }))
 
@@ -21,27 +20,20 @@ vi.mock('@/api/entities', () => ({
   }),
 }))
 
-import {
-  deleteStoryline,
-  fetchStorylines,
-  regenerateStoryline,
-} from '@/api/storylines'
+import { deleteStoryline, fetchStorylines } from '@/api/storylines'
 const mockFetchStorylines = vi.mocked(fetchStorylines)
 const mockDeleteStoryline = vi.mocked(deleteStoryline)
-const mockRegenerateStoryline = vi.mocked(regenerateStoryline)
 
 function mockSummary(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: 1,
     user_id: 1,
-    anchors: [{ id: 100, canonical_name: 'Running' }],
+    anchors: [{ entity_id: 100, canonical_name: 'Running' }],
     name: 'Running',
     description: '',
-    start_date: null,
-    end_date: null,
     status: 'active' as const,
-    last_generated_at: '2026-05-12T10:00:00Z',
-    last_extension_check_at: null,
+    unread_count: 0,
+    chapter_count: 1,
     created_at: '2026-05-10T00:00:00Z',
     updated_at: '2026-05-12T10:00:00Z',
     ...overrides,
@@ -79,13 +71,13 @@ describe('StorylineListView', () => {
         mockSummary({
           id: 1,
           name: 'Running',
-          anchors: [{ id: 513, canonical_name: 'Vienna' }],
+          anchors: [{ entity_id: 513, canonical_name: 'Vienna' }],
         }),
         mockSummary({
           id: 2,
           name: 'Atlas',
-          anchors: [{ id: 511, canonical_name: 'Atlas' }],
-          last_generated_at: '2026-05-11T10:00:00Z',
+          anchors: [{ entity_id: 511, canonical_name: 'Atlas' }],
+          updated_at: '2026-05-11T10:00:00Z',
         }),
       ],
       total: 2,
@@ -165,23 +157,32 @@ describe('StorylineListView', () => {
     expect(wrapper.find('[data-testid="sort-created"]').text()).toBe('Created')
   })
 
-  it('renders an em dash when last_generated_at is null', async () => {
+  it('shows an unread badge only for rows with unread chapters', async () => {
     mockFetchStorylines.mockResolvedValue({
       items: [
-        mockSummary({
-          id: 99,
-          name: 'Fresh',
-          last_generated_at: null,
-        }),
+        mockSummary({ id: 1, name: 'Running', unread_count: 2 }),
+        mockSummary({ id: 2, name: 'Atlas', unread_count: 0 }),
       ],
-      total: 1,
+      total: 2,
       limit: 20,
       offset: 0,
     })
     const wrapper = mountComponent()
     await flushPromises()
-    const cell = wrapper.find('[data-testid="storyline-last-generated-cell"]')
-    expect(cell.text()).toBe('—')
+    const badges = wrapper.findAll('[data-testid="storyline-unread-badge"]')
+    expect(badges).toHaveLength(1)
+    expect(badges[0].text()).toBe('2')
+  })
+
+  it('has no regenerate buttons anywhere', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="row-regenerate-button"]').exists(),
+    ).toBe(false)
+    expect(
+      wrapper.find('[data-testid="bulk-regenerate-button"]').exists(),
+    ).toBe(false)
   })
 
   it('pagination Next button advances the offset', async () => {
@@ -360,54 +361,6 @@ describe('StorylineListView', () => {
     )
   })
 
-  // --- W11: regenerate modal ---
-
-  it('per-row Regenerate button opens the regenerate modal with that id', async () => {
-    const wrapper = mountComponent()
-    await flushPromises()
-    const regenButtons = wrapper.findAll(
-      '[data-testid="row-regenerate-button"]',
-    )
-    await regenButtons[0].trigger('click')
-    await flushPromises()
-    expect(
-      document.body.querySelector('[data-testid="storyline-regenerate-modal"]'),
-    ).not.toBeNull()
-    expect(
-      document.body.querySelector('[data-testid="storyline-regenerate-count"]')
-        ?.textContent,
-    ).toContain('1 storyline')
-    document.body.innerHTML = ''
-  })
-
-  it('selection-toolbar Regenerate opens the modal with all selected ids', async () => {
-    const wrapper = mountComponent()
-    await flushPromises()
-    await wrapper.find('[data-testid="select-all-checkbox"]').trigger('change')
-    await flushPromises()
-    await wrapper
-      .find('[data-testid="bulk-regenerate-button"]')
-      .trigger('click')
-    await flushPromises()
-    expect(
-      document.body.querySelector('[data-testid="storyline-regenerate-count"]')
-        ?.textContent,
-    ).toContain('2 storyline')
-
-    // Confirm that submitting hits the API for each selected id.
-    mockRegenerateStoryline.mockResolvedValue({
-      job_id: 'job-x',
-      status: 'queued',
-    })
-    const submit = document.body.querySelector(
-      '[data-testid="storyline-regenerate-submit"]',
-    ) as HTMLElement
-    submit.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    await flushPromises()
-    expect(mockRegenerateStoryline).toHaveBeenCalledTimes(2)
-    document.body.innerHTML = ''
-  })
-
   // --- Mobile stacked-card layout ---
   // The table is hidden below `sm` and a card list is shown instead. Both
   // branches are in the DOM under happy-dom regardless of CSS, so card tests
@@ -472,16 +425,4 @@ describe('StorylineListView', () => {
     vi.unstubAllGlobals()
   })
 
-  it('card Regenerate button opens the regenerate modal with that id', async () => {
-    const wrapper = mountComponent()
-    await flushPromises()
-    await wrapper
-      .findAll('[data-testid="card-regenerate-button"]')[0]
-      .trigger('click')
-    await flushPromises()
-    expect(
-      document.body.querySelector('[data-testid="storyline-regenerate-modal"]'),
-    ).not.toBeNull()
-    document.body.innerHTML = ''
-  })
 })

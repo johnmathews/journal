@@ -2,8 +2,13 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useStorylinesStore } from '@/stores/storylines'
 
 const authStore = useAuthStore()
+// Total unread published chapters — the badge on the Storylines link.
+// Derived from whatever list data is loaded; the badge simply hides
+// until the storylines list has been fetched at least once.
+const storylinesStore = useStorylinesStore()
 
 const props = defineProps<{
   sidebarOpen: boolean
@@ -371,6 +376,14 @@ watch(
                       class="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
                       >Storylines</span
                     >
+                    <span
+                      v-if="storylinesStore.totalUnread > 0"
+                      class="ml-auto inline-flex items-center justify-center rounded-full bg-violet-500 text-white text-[10px] font-semibold px-1.5 py-0.5 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                      data-testid="sidebar-storylines-unread"
+                      :aria-label="`${storylinesStore.totalUnread} unread chapters`"
+                    >
+                      {{ storylinesStore.totalUnread }}
+                    </span>
                   </div>
                 </a>
               </li>
