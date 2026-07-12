@@ -1,35 +1,26 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import type {
-  AddChapterRequest,
-  ChapterMutationResponse,
-  ChapterMultiMutationResponse,
+  ChapterDetail,
   CreateStorylineRequest,
   CreateStorylineResponse,
-  RegenerateStorylineRequest,
-  RegenerateStorylineResponse,
   SetStorylineAnchorsResponse,
-  StorylineChapterDetail,
   StorylineDetail,
   StorylineListParams,
   StorylineSummary,
-  UpdateChapterWindowRequest,
 } from '@/types/storyline'
 import {
-  addChapter as addChapterApi,
   createStoryline as createStorylineApi,
-  deleteChapter as deleteChapterApi,
   deleteStoryline as deleteStorylineApi,
+  fetchChapter,
   fetchStoryline,
-  fetchStorylineChapter,
   fetchStorylines,
-  mergeChapters as mergeChaptersApi,
-  regenerateStoryline as regenerateStorylineApi,
-  regenerateStorylineChapter as regenerateStorylineChapterApi,
-  renameStorylineChapter as renameStorylineChapterApi,
+  markChapterRead as markChapterReadApi,
+  markChapterUnread as markChapterUnreadApi,
+  refreshStoryline as refreshStorylineApi,
+  renameChapter as renameChapterApi,
   setStorylineAnchors as setStorylineAnchorsApi,
-  splitChapter as splitChapterApi,
-  updateChapterWindow as updateChapterWindowApi,
+  unpublishNewest as unpublishNewestApi,
   updateStoryline as updateStorylineApi,
 } from '@/api/storylines'
 import { useJobsStore } from '@/stores/jobs'
@@ -38,19 +29,26 @@ import { isTerminal } from '@/types/job'
 export const useStorylinesStore = defineStore('storylines', () => {
   const storylines = ref<StorylineSummary[]>([])
   const currentStoryline = ref<StorylineDetail | null>(null)
-  const currentChapter = ref<StorylineChapterDetail | null>(null)
-  const chapterLoading = ref(false)
+  /** Chapter details for the current storyline, keyed by chapter id.
+   *  Published chapters are immutable so cache hits are always valid;
+   *  the cache is cleared when the storyline changes or an update job
+   *  completes (the draft — and possibly addenda — changed). */
+  const chapterCache = ref<Map<number, ChapterDetail>>(new Map())
   const total = ref(0)
   // List + detail loading split (mirrors entities.ts) so a slow detail
   // fetch doesn't blank the list spinner if we ever render both in the
   // same view.
   const loading = ref(false)
   const detailLoading = ref(false)
+  const chapterLoading = ref(false)
+  /** True while a storyline_update job (bootstrap / refresh / unpublish)
+   *  is in flight for the current storyline. One flag — the server
+   *  serializes storyline work anyway. */
+  const updating = ref(false)
   const error = ref<string | null>(null)
   const creating = ref(false)
   const createError = ref<string | null>(null)
-  const regenerating = ref(false)
-  const regenerateError = ref<string | null>(null)
+  const actionError = ref<string | null>(null)
   const savingAnchors = ref(false)
   const anchorsError = ref<string | null>(null)
   const savingName = ref(false)
@@ -59,10 +57,6 @@ export const useStorylinesStore = defineStore('storylines', () => {
     limit: 20,
     offset: 0,
   })
-
-  /** Chapter ids that have queued regeneration jobs currently in-flight.
-   *  Templates can call `.has(ch.id)` to show a "generating…" indicator. */
-  const generatingChapterIds = ref<Set<number>>(new Set())
 
   const totalPages = computed(() =>
     Math.ceil(total.value / (currentParams.value.limit || 20)),
@@ -74,6 +68,10 @@ export const useStorylinesStore = defineStore('storylines', () => {
       ) + 1,
   )
   const hasStorylines = computed(() => storylines.value.length > 0)
+  /** Sum of unread chapters across all loaded storylines — sidebar badge. */
+  const totalUnread = computed(() =>
+    storylines.value.reduce((sum, s) => sum + (s.unread_count || 0), 0),
+  )
 
   async function loadStorylines(
     params: StorylineListParams = {},
@@ -96,6 +94,9 @@ export const useStorylinesStore = defineStore('storylines', () => {
   async function loadStoryline(id: number): Promise<void> {
     detailLoading.value = true
     error.value = null
+    if (currentStoryline.value?.id !== id) {
+      chapterCache.value = new Map()
+    }
     try {
       currentStoryline.value = await fetchStoryline(id)
     } catch (e) {
@@ -105,10 +106,59 @@ export const useStorylinesStore = defineStore('storylines', () => {
     }
   }
 
+  /** Load one chapter's full content, memoized per storyline. */
+  async function loadChapter(
+    storylineId: number,
+    chapterId: number,
+  ): Promise<ChapterDetail | null> {
+    const cached = chapterCache.value.get(chapterId)
+    if (cached) return cached
+    chapterLoading.value = true
+    error.value = null
+    try {
+      const detail = await fetchChapter(storylineId, chapterId)
+      const next = new Map(chapterCache.value)
+      next.set(chapterId, detail)
+      chapterCache.value = next
+      return detail
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to load chapter'
+      return null
+    } finally {
+      chapterLoading.value = false
+    }
+  }
+
   function clearCurrent(): void {
     currentStoryline.value = null
-    currentChapter.value = null
+    chapterCache.value = new Map()
     chapterLoading.value = false
+    updating.value = false
+  }
+
+  /** Track one storyline_update job; while it runs `updating` is true,
+   *  and on terminal status the storyline (and its chapters) reload. */
+  function _trackUpdateJob(storylineId: number, jobId: string): void {
+    const jobsStore = useJobsStore()
+    updating.value = true
+    jobsStore.trackJob(jobId, 'storyline_update')
+    // Use a wrapper ref to avoid TDZ: `immediate: true` can fire the
+    // callback before `watch()` returns, so we must not reference the
+    // return value of `watch()` directly inside the callback.
+    const stopRef = { fn: (): void => {} }
+    stopRef.fn = watch(
+      () => jobsStore.getJobById(jobId)?.status,
+      (status) => {
+        if (status != null && isTerminal(status)) {
+          updating.value = false
+          stopRef.fn()
+          chapterCache.value = new Map()
+          void loadStoryline(storylineId)
+          void loadStorylines(currentParams.value)
+        }
+      },
+      { immediate: true },
+    )
   }
 
   async function createStoryline(
@@ -117,7 +167,11 @@ export const useStorylinesStore = defineStore('storylines', () => {
     creating.value = true
     createError.value = null
     try {
-      return await createStorylineApi(request)
+      const resp = await createStorylineApi(request)
+      if (resp.bootstrap_job_id) {
+        _trackUpdateJob(resp.storyline.id, resp.bootstrap_job_id)
+      }
+      return resp
     } catch (e) {
       createError.value =
         e instanceof Error ? e.message : 'Failed to create storyline'
@@ -127,21 +181,106 @@ export const useStorylinesStore = defineStore('storylines', () => {
     }
   }
 
-  async function regenerate(
-    id: number,
-    body?: RegenerateStorylineRequest,
-  ): Promise<RegenerateStorylineResponse> {
-    regenerating.value = true
-    regenerateError.value = null
+  /** Re-narrate the draft chapter (202 + job, tracked). */
+  async function refresh(id: number): Promise<void> {
+    actionError.value = null
     try {
-      return await regenerateStorylineApi(id, body)
+      const resp = await refreshStorylineApi(id)
+      _trackUpdateJob(id, resp.job_id)
     } catch (e) {
-      regenerateError.value =
-        e instanceof Error ? e.message : 'Failed to queue regeneration'
+      actionError.value =
+        e instanceof Error ? e.message : 'Failed to queue refresh'
       throw e
-    } finally {
-      regenerating.value = false
     }
+  }
+
+  /** Fold the newest published chapter back into the draft (202 + job). */
+  async function unpublishNewest(id: number): Promise<void> {
+    actionError.value = null
+    try {
+      const resp = await unpublishNewestApi(id)
+      _trackUpdateJob(id, resp.job_id)
+    } catch (e) {
+      actionError.value =
+        e instanceof Error ? e.message : 'Failed to queue unpublish'
+      throw e
+    }
+  }
+
+  /** Flip a chapter's read state locally (detail + list + cache). */
+  function _applyReadState(
+    storylineId: number,
+    chapterId: number,
+    readAt: string | null,
+  ): void {
+    const detail = currentStoryline.value
+    if (detail?.id === storylineId) {
+      const ch = detail.chapters.find((c) => c.id === chapterId)
+      if (ch && ch.read_at !== readAt) {
+        const delta = readAt === null ? 1 : -1
+        ch.read_at = readAt
+        detail.unread_count = Math.max(0, detail.unread_count + delta)
+        const row = storylines.value.find((s) => s.id === storylineId)
+        if (row) row.unread_count = Math.max(0, row.unread_count + delta)
+      }
+    }
+    const cached = chapterCache.value.get(chapterId)
+    if (cached) cached.read_at = readAt
+  }
+
+  /** Mark a published chapter read. Optimistic: the badge clears
+   *  immediately and rolls back if the API call fails. */
+  async function markRead(
+    storylineId: number,
+    chapterId: number,
+  ): Promise<void> {
+    const previous =
+      currentStoryline.value?.chapters.find((c) => c.id === chapterId)
+        ?.read_at ?? null
+    if (previous !== null) return // already read
+    _applyReadState(storylineId, chapterId, new Date().toISOString())
+    try {
+      const meta = await markChapterReadApi(storylineId, chapterId)
+      _applyReadState(storylineId, chapterId, meta.read_at)
+    } catch (e) {
+      _applyReadState(storylineId, chapterId, null)
+      actionError.value =
+        e instanceof Error ? e.message : 'Failed to mark chapter read'
+    }
+  }
+
+  /** Mark a published chapter unread (menu action; non-optimistic). */
+  async function markUnread(
+    storylineId: number,
+    chapterId: number,
+  ): Promise<void> {
+    actionError.value = null
+    try {
+      const meta = await markChapterUnreadApi(storylineId, chapterId)
+      _applyReadState(storylineId, chapterId, meta.read_at)
+    } catch (e) {
+      actionError.value =
+        e instanceof Error ? e.message : 'Failed to mark chapter unread'
+      throw e
+    }
+  }
+
+  /** Rename a chapter. The server trims the title and returns the
+   *  authoritative meta, refreshed onto the detail + cache. */
+  async function renameChapter(
+    storylineId: number,
+    chapterId: number,
+    title: string,
+  ): Promise<void> {
+    const resp = await renameChapterApi(storylineId, chapterId, { title })
+    if (currentStoryline.value?.id === storylineId) {
+      const ch = currentStoryline.value.chapters.find(
+        (c) => c.id === chapterId,
+      )
+      if (ch) ch.title = resp.title
+    }
+    const cached = chapterCache.value.get(chapterId)
+    if (cached) cached.title = resp.title
   }
 
   /** Replace the anchor set on a storyline (PUT /anchors).
@@ -149,8 +288,8 @@ export const useStorylinesStore = defineStore('storylines', () => {
    * The server response is authoritative — it dedupes and sorts the
    * ids ascending — so on success we refresh `currentStoryline` and
    * any matching list row from the response rather than echoing the
-   * caller's selection. The PUT does not regenerate panels server-side;
-   * callers that want fresh panels chain `regenerate()` afterwards. */
+   * caller's selection. The PUT does not regenerate the draft;
+   * callers that want a fresh narrative chain `refresh()` afterwards. */
   async function setAnchors(
     id: number,
     entityIds: number[],
@@ -179,12 +318,7 @@ export const useStorylinesStore = defineStore('storylines', () => {
     }
   }
 
-  /** Rename a storyline (PATCH /api/storylines/{id}).
-   *
-   * The server trims the name and returns the authoritative value, so
-   * on success we refresh `currentStoryline.name` and any matching list
-   * row from the response. A rename does not touch panels, so callers
-   * never need to chain a regeneration. */
+  /** Rename a storyline (PATCH /api/storylines/{id}). */
   async function renameStoryline(id: number, name: string): Promise<void> {
     savingName.value = true
     nameError.value = null
@@ -209,182 +343,6 @@ export const useStorylinesStore = defineStore('storylines', () => {
     }
   }
 
-  /** Load a single chapter's detail (panels + summary fields) into
-   *  `currentChapter`. Uses a dedicated `chapterLoading` flag so the
-   *  per-chapter reader can show its own spinner without disturbing the
-   *  storyline detail load. Errors land in the shared `error` ref. */
-  async function loadChapter(
-    storylineId: number,
-    chapterId: number,
-  ): Promise<void> {
-    chapterLoading.value = true
-    error.value = null
-    try {
-      currentChapter.value = await fetchStorylineChapter(storylineId, chapterId)
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : 'Failed to load chapter'
-    } finally {
-      chapterLoading.value = false
-    }
-  }
-
-  /** Queue a regeneration of a single chapter's panels. Mirrors
-   *  `regenerate()` — reuses the shared `regenerating`/`regenerateError`
-   *  flags and returns the job response so callers can poll. */
-  async function regenerateChapter(
-    storylineId: number,
-    chapterId: number,
-  ): Promise<RegenerateStorylineResponse> {
-    regenerating.value = true
-    regenerateError.value = null
-    try {
-      return await regenerateStorylineChapterApi(storylineId, chapterId)
-    } catch (e) {
-      regenerateError.value =
-        e instanceof Error ? e.message : 'Failed to queue regeneration'
-      throw e
-    } finally {
-      regenerating.value = false
-    }
-  }
-
-  /** Rename a chapter (PATCH /chapters/{cid}). The server trims the
-   *  title and returns the authoritative summary, so on success we
-   *  refresh the matching chapter summary on `currentStoryline.chapters`
-   *  and the loaded `currentChapter` title from the response. */
-  async function renameChapter(
-    storylineId: number,
-    chapterId: number,
-    title: string,
-  ): Promise<void> {
-    const resp = await renameStorylineChapterApi(storylineId, chapterId, {
-      title,
-    })
-    if (currentStoryline.value?.id === storylineId) {
-      const ch = currentStoryline.value.chapters.find((c) => c.id === chapterId)
-      if (ch) ch.title = resp.title
-    }
-    if (currentChapter.value?.id === chapterId) {
-      currentChapter.value = { ...currentChapter.value, title: resp.title }
-    }
-  }
-
-  /** Register per-chapter regeneration jobs and remove ids from the
-   *  generating set when all jobs reach a terminal status.
-   *
-   *  When `chapterIds` is non-empty, each id is added to
-   *  `generatingChapterIds` immediately so the UI can show a badge.
-   *  When all jobs are terminal (or there were none to begin with and
-   *  `chapterIds` was also empty), the ids are cleared and the storyline
-   *  is reloaded to pick up fresh panels.
-   *
-   *  If `jobIds` is empty but `chapterIds` is non-empty, the ids are
-   *  cleared right away (no async work to wait for). */
-  function _trackChapterRegens(
-    storylineId: number,
-    chapterIds: number[],
-    jobIds: string[],
-  ): void {
-    const jobsStore = useJobsStore()
-    chapterIds.forEach((id) => {
-      generatingChapterIds.value = new Set(generatingChapterIds.value)
-      generatingChapterIds.value.add(id)
-    })
-    jobIds.forEach((id) => jobsStore.trackJob(id, 'storyline_generation'))
-    if (jobIds.length === 0) {
-      if (chapterIds.length > 0) {
-        const next = new Set(generatingChapterIds.value)
-        chapterIds.forEach((id) => next.delete(id))
-        generatingChapterIds.value = next
-      }
-      return
-    }
-    // Use a wrapper ref to avoid TDZ: `immediate: true` can fire the
-    // callback before `watch()` returns, so we must not reference the
-    // return value of `watch()` directly inside the callback.
-    const stopRef = { fn: (): void => {} }
-    stopRef.fn = watch(
-      () => jobIds.map((id) => jobsStore.getJobById(id)?.status),
-      (statuses) => {
-        if (statuses.every((s) => s != null && isTerminal(s))) {
-          const next = new Set(generatingChapterIds.value)
-          chapterIds.forEach((id) => next.delete(id))
-          generatingChapterIds.value = next
-          stopRef.fn()
-          void loadStoryline(storylineId)
-        }
-      },
-      { immediate: true },
-    )
-  }
-
-  async function addChapter(
-    storylineId: number,
-    request: AddChapterRequest,
-  ): Promise<ChapterMutationResponse> {
-    const resp = await addChapterApi(storylineId, request)
-    await loadStoryline(storylineId)
-    _trackChapterRegens(storylineId, [resp.chapter.id], resp.job_ids)
-    return resp
-  }
-
-  async function splitChapter(
-    storylineId: number,
-    chapterId: number,
-    date: string,
-  ): Promise<ChapterMultiMutationResponse> {
-    const resp = await splitChapterApi(storylineId, chapterId, { date })
-    await loadStoryline(storylineId)
-    _trackChapterRegens(
-      storylineId,
-      resp.chapters.map((c) => c.id),
-      resp.job_ids,
-    )
-    return resp
-  }
-
-  async function mergeChapters(
-    storylineId: number,
-    chapterIds: number[],
-  ): Promise<ChapterMutationResponse> {
-    const resp = await mergeChaptersApi(storylineId, {
-      chapter_ids: chapterIds,
-    })
-    await loadStoryline(storylineId)
-    _trackChapterRegens(storylineId, [resp.chapter.id], resp.job_ids)
-    return resp
-  }
-
-  async function updateChapterDates(
-    storylineId: number,
-    chapterId: number,
-    request: UpdateChapterWindowRequest,
-  ): Promise<ChapterMultiMutationResponse> {
-    const resp = await updateChapterWindowApi(storylineId, chapterId, request)
-    await loadStoryline(storylineId)
-    _trackChapterRegens(
-      storylineId,
-      resp.chapters.map((c) => c.id),
-      resp.job_ids,
-    )
-    return resp
-  }
-
-  async function deleteChapter(
-    storylineId: number,
-    chapterId: number,
-    allowGap = false,
-  ): Promise<void> {
-    const resp = await deleteChapterApi(storylineId, chapterId, {
-      allow_gap: allowGap,
-    })
-    await loadStoryline(storylineId)
-    // No chapter objects returned — skip per-chapter marking, but still
-    // set up the watcher to reload when jobs complete (empty chapterIds
-    // skips the marking but the watcher fires as usual).
-    _trackChapterRegens(storylineId, [], resp.job_ids)
-  }
-
   async function removeStoryline(id: number): Promise<void> {
     error.value = null
     try {
@@ -392,7 +350,7 @@ export const useStorylinesStore = defineStore('storylines', () => {
       storylines.value = storylines.value.filter((s) => s.id !== id)
       total.value = Math.max(0, total.value - 1)
       if (currentStoryline.value?.id === id) {
-        currentStoryline.value = null
+        clearCurrent()
       }
     } catch (e) {
       error.value =
@@ -404,40 +362,37 @@ export const useStorylinesStore = defineStore('storylines', () => {
   return {
     storylines,
     currentStoryline,
-    currentChapter,
-    chapterLoading,
+    chapterCache,
     total,
     loading,
     detailLoading,
+    chapterLoading,
+    updating,
     error,
     creating,
     createError,
-    regenerating,
-    regenerateError,
+    actionError,
     savingAnchors,
     anchorsError,
     savingName,
     nameError,
     currentParams,
-    generatingChapterIds,
     totalPages,
     currentPage,
     hasStorylines,
+    totalUnread,
     loadStorylines,
     loadStoryline,
     loadChapter,
-    regenerateChapter,
-    renameChapter,
     clearCurrent,
     createStoryline,
-    regenerate,
+    refresh,
+    unpublishNewest,
+    markRead,
+    markUnread,
+    renameChapter,
     setAnchors,
     renameStoryline,
     removeStoryline,
-    addChapter,
-    splitChapter,
-    mergeChapters,
-    updateChapterDates,
-    deleteChapter,
   }
 })
