@@ -2,10 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   createStoryline,
   deleteStoryline,
+  fetchChapter,
   fetchStoryline,
   fetchStorylines,
-  regenerateStoryline,
+  markChapterRead,
+  markChapterUnread,
+  refreshStoryline,
+  renameChapter,
   setStorylineAnchors,
+  unpublishNewest,
   updateStoryline,
 } from '../storylines'
 
@@ -61,15 +66,25 @@ describe('storylines API', () => {
   })
 
   it('fetchStoryline calls /api/storylines/{id}', async () => {
-    mockApiFetch.mockResolvedValue({ id: 7, name: 'Running', panels: {} })
+    mockApiFetch.mockResolvedValue({ id: 7, name: 'Running', chapters: [] })
     const result = await fetchStoryline(7)
     expect(mockApiFetch).toHaveBeenCalledWith('/api/storylines/7')
-    expect(result).toEqual({ id: 7, name: 'Running', panels: {} })
+    expect(result).toEqual({ id: 7, name: 'Running', chapters: [] })
+  })
+
+  it('fetchChapter calls /api/storylines/{id}/chapters/{cid}', async () => {
+    mockApiFetch.mockResolvedValue({ id: 9, segments: [], addenda: [] })
+    const result = await fetchChapter(3, 9)
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/storylines/3/chapters/9')
+    expect(result.id).toBe(9)
   })
 
   it('createStoryline POSTs the request body', async () => {
-    mockApiFetch.mockResolvedValue({ id: 12, name: 'Atlas' })
-    await createStoryline({
+    mockApiFetch.mockResolvedValue({
+      storyline: { id: 12, name: 'Atlas', chapters: [] },
+      bootstrap_job_id: 'job-1',
+    })
+    const result = await createStoryline({
       entity_ids: [511],
       name: 'Atlas',
       description: '',
@@ -82,62 +97,56 @@ describe('storylines API', () => {
         description: '',
       }),
     })
+    expect(result.bootstrap_job_id).toBe('job-1')
   })
 
-  it('regenerateStoryline POSTs to /regenerate and returns a job id', async () => {
+  it('refreshStoryline POSTs to /refresh and returns a job id', async () => {
     mockApiFetch.mockResolvedValue({ job_id: 'job-42', status: 'queued' })
-    const result = await regenerateStoryline(3)
-    expect(mockApiFetch).toHaveBeenCalledWith('/api/storylines/3/regenerate', {
+    const result = await refreshStoryline(3)
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/storylines/3/refresh', {
       method: 'POST',
     })
     expect(result).toEqual({ job_id: 'job-42', status: 'queued' })
   })
 
-  it('regenerateStoryline forwards an optional body when fields are set', async () => {
-    mockApiFetch.mockResolvedValue({ job_id: 'job-43', status: 'queued' })
-    await regenerateStoryline(5, {
-      start_date: '2026-04-01',
-      end_date: '2026-05-01',
-      mode: 'append',
-    })
-    expect(mockApiFetch).toHaveBeenCalledWith('/api/storylines/5/regenerate', {
-      method: 'POST',
-      body: JSON.stringify({
-        start_date: '2026-04-01',
-        end_date: '2026-05-01',
-        mode: 'append',
-      }),
-    })
+  it('unpublishNewest POSTs to /chapters/unpublish', async () => {
+    mockApiFetch.mockResolvedValue({ job_id: 'job-77', status: 'queued' })
+    const result = await unpublishNewest(4)
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      '/api/storylines/4/chapters/unpublish',
+      { method: 'POST' },
+    )
+    expect(result.job_id).toBe('job-77')
   })
 
-  it('regenerateStoryline forwards resegment and override_locked booleans', async () => {
-    mockApiFetch.mockResolvedValue({ job_id: 'job-45', status: 'queued' })
-    await regenerateStoryline(8, { resegment: true, override_locked: true })
-    expect(mockApiFetch).toHaveBeenCalledWith('/api/storylines/8/regenerate', {
-      method: 'POST',
-      body: JSON.stringify({ resegment: true, override_locked: true }),
-    })
+  it('markChapterRead POSTs to /chapters/{cid}/read', async () => {
+    mockApiFetch.mockResolvedValue({ id: 9, read_at: '2026-07-12T10:00:00Z' })
+    const result = await markChapterRead(3, 9)
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      '/api/storylines/3/chapters/9/read',
+      { method: 'POST' },
+    )
+    expect(result.read_at).toBe('2026-07-12T10:00:00Z')
   })
 
-  it('regenerateStoryline forwards resegment alone', async () => {
-    mockApiFetch.mockResolvedValue({ job_id: 'job-46', status: 'queued' })
-    await regenerateStoryline(9, { resegment: true })
-    expect(mockApiFetch).toHaveBeenCalledWith('/api/storylines/9/regenerate', {
-      method: 'POST',
-      body: JSON.stringify({ resegment: true }),
-    })
+  it('markChapterUnread POSTs to /chapters/{cid}/unread', async () => {
+    mockApiFetch.mockResolvedValue({ id: 9, read_at: null })
+    const result = await markChapterUnread(3, 9)
+    expect(mockApiFetch).toHaveBeenCalledWith(
+      '/api/storylines/3/chapters/9/unread',
+      { method: 'POST' },
+    )
+    expect(result.read_at).toBeNull()
   })
 
-  it('regenerateStoryline omits the body when all fields are undefined', async () => {
-    mockApiFetch.mockResolvedValue({ job_id: 'job-44', status: 'queued' })
-    await regenerateStoryline(6, {
-      start_date: undefined,
-      end_date: undefined,
-      mode: undefined,
+  it('renameChapter PATCHes the title', async () => {
+    mockApiFetch.mockResolvedValue({ id: 9, title: 'The Comeback' })
+    const result = await renameChapter(3, 9, { title: 'The Comeback' })
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/storylines/3/chapters/9', {
+      method: 'PATCH',
+      body: JSON.stringify({ title: 'The Comeback' }),
     })
-    expect(mockApiFetch).toHaveBeenCalledWith('/api/storylines/6/regenerate', {
-      method: 'POST',
-    })
+    expect(result.title).toBe('The Comeback')
   })
 
   it('deleteStoryline DELETEs /api/storylines/{id}', async () => {
@@ -152,24 +161,27 @@ describe('storylines API', () => {
   it('setStorylineAnchors PUTs entity_ids to /api/storylines/{id}/anchors', async () => {
     mockApiFetch.mockResolvedValue({
       id: 4,
-      anchors: [{ id: 100, canonical_name: 'Running' }],
+      anchors: [{ entity_id: 100, canonical_name: 'Running' }],
     })
     const result = await setStorylineAnchors(4, { entity_ids: [100] })
     expect(mockApiFetch).toHaveBeenCalledWith('/api/storylines/4/anchors', {
       method: 'PUT',
       body: JSON.stringify({ entity_ids: [100] }),
     })
-    expect(result.anchors).toEqual([{ id: 100, canonical_name: 'Running' }])
+    expect(result.anchors).toEqual([
+      { entity_id: 100, canonical_name: 'Running' },
+    ])
   })
 
   it('updateStoryline PATCHes the name to /api/storylines/{id}', async () => {
     mockApiFetch.mockResolvedValue({
       id: 7,
-      user_id: 1,
-      anchors: [{ id: 100, canonical_name: 'Running' }],
+      anchors: [{ entity_id: 100, canonical_name: 'Running' }],
       name: 'New title',
       description: '',
       status: 'active',
+      unread_count: 0,
+      chapter_count: 1,
       created_at: '2026-06-01T00:00:00Z',
       updated_at: '2026-06-11T00:00:00Z',
     })

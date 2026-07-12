@@ -1,25 +1,17 @@
 import type {
-  AddChapterRequest,
-  ChapterMultiMutationResponse,
-  ChapterMutationResponse,
+  ChapterDetail,
+  ChapterMeta,
   CreateStorylineRequest,
   CreateStorylineResponse,
-  DeleteChapterRequest,
-  MergeChaptersRequest,
-  RegenerateStorylineRequest,
-  RegenerateStorylineResponse,
   RenameChapterRequest,
   SetStorylineAnchorsRequest,
   SetStorylineAnchorsResponse,
-  SplitChapterRequest,
-  StorylineChapterDetail,
-  StorylineChapterSummary,
   StorylineDetail,
+  StorylineJobResponse,
   StorylineListParams,
   StorylineListResponse,
-  UpdateChapterWindowRequest,
+  StorylineSummary,
   UpdateStorylineRequest,
-  UpdateStorylineResponse,
 } from '@/types/storyline'
 import { apiFetch } from './client'
 
@@ -47,6 +39,15 @@ export function fetchStoryline(id: number): Promise<StorylineDetail> {
   return apiFetch<StorylineDetail>(`/api/storylines/${id}`)
 }
 
+export function fetchChapter(
+  storylineId: number,
+  chapterId: number,
+): Promise<ChapterDetail> {
+  return apiFetch<ChapterDetail>(
+    `/api/storylines/${storylineId}/chapters/${chapterId}`,
+  )
+}
+
 export function createStoryline(
   request: CreateStorylineRequest,
 ): Promise<CreateStorylineResponse> {
@@ -56,28 +57,11 @@ export function createStoryline(
   })
 }
 
-export function regenerateStoryline(
-  id: number,
-  body?: RegenerateStorylineRequest,
-): Promise<RegenerateStorylineResponse> {
-  // Empty / undefined body keeps the legacy "replace using the
-  // storyline's saved range" behaviour. Any field set on `body` —
-  // start_date, end_date, or mode — is forwarded; the server treats
-  // missing fields as "use default".
-  const hasBody = body && Object.values(body).some((v) => v !== undefined)
-  return apiFetch<RegenerateStorylineResponse>(
-    `/api/storylines/${id}/regenerate`,
-    hasBody
-      ? { method: 'POST', body: JSON.stringify(body) }
-      : { method: 'POST' },
-  )
-}
-
 export function updateStoryline(
   id: number,
   request: UpdateStorylineRequest,
-): Promise<UpdateStorylineResponse> {
-  return apiFetch<UpdateStorylineResponse>(`/api/storylines/${id}`, {
+): Promise<StorylineSummary> {
+  return apiFetch<StorylineSummary>(`/api/storylines/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(request),
   })
@@ -87,36 +71,6 @@ export function deleteStoryline(id: number): Promise<{ deleted: boolean }> {
   return apiFetch<{ deleted: boolean }>(`/api/storylines/${id}`, {
     method: 'DELETE',
   })
-}
-
-export function fetchStorylineChapter(
-  storylineId: number,
-  chapterId: number,
-): Promise<StorylineChapterDetail> {
-  return apiFetch<StorylineChapterDetail>(
-    `/api/storylines/${storylineId}/chapters/${chapterId}`,
-  )
-}
-
-export function regenerateStorylineChapter(
-  storylineId: number,
-  chapterId: number,
-): Promise<RegenerateStorylineResponse> {
-  return apiFetch<RegenerateStorylineResponse>(
-    `/api/storylines/${storylineId}/chapters/${chapterId}/regenerate`,
-    { method: 'POST' },
-  )
-}
-
-export function renameStorylineChapter(
-  storylineId: number,
-  chapterId: number,
-  request: RenameChapterRequest,
-): Promise<StorylineChapterSummary> {
-  return apiFetch<StorylineChapterSummary>(
-    `/api/storylines/${storylineId}/chapters/${chapterId}`,
-    { method: 'PATCH', body: JSON.stringify(request) },
-  )
 }
 
 export function setStorylineAnchors(
@@ -132,55 +86,48 @@ export function setStorylineAnchors(
   )
 }
 
-export function addChapter(
-  storylineId: number,
-  request: AddChapterRequest,
-): Promise<ChapterMutationResponse> {
-  return apiFetch<ChapterMutationResponse>(
-    `/api/storylines/${storylineId}/chapters`,
-    { method: 'POST', body: JSON.stringify(request) },
+/** Re-narrate the draft chapter from its current entries (202 + job). */
+export function refreshStoryline(id: number): Promise<StorylineJobResponse> {
+  return apiFetch<StorylineJobResponse>(`/api/storylines/${id}/refresh`, {
+    method: 'POST',
+  })
+}
+
+/** Fold the newest published chapter back into the draft (202 + job). */
+export function unpublishNewest(id: number): Promise<StorylineJobResponse> {
+  return apiFetch<StorylineJobResponse>(
+    `/api/storylines/${id}/chapters/unpublish`,
+    { method: 'POST' },
   )
 }
 
-export function splitChapter(
+export function markChapterRead(
   storylineId: number,
   chapterId: number,
-  request: SplitChapterRequest,
-): Promise<ChapterMultiMutationResponse> {
-  return apiFetch<ChapterMultiMutationResponse>(
-    `/api/storylines/${storylineId}/chapters/${chapterId}/split`,
-    { method: 'POST', body: JSON.stringify(request) },
+): Promise<ChapterMeta> {
+  return apiFetch<ChapterMeta>(
+    `/api/storylines/${storylineId}/chapters/${chapterId}/read`,
+    { method: 'POST' },
   )
 }
 
-export function mergeChapters(
-  storylineId: number,
-  request: MergeChaptersRequest,
-): Promise<ChapterMutationResponse> {
-  return apiFetch<ChapterMutationResponse>(
-    `/api/storylines/${storylineId}/chapters/merge`,
-    { method: 'POST', body: JSON.stringify(request) },
-  )
-}
-
-export function updateChapterWindow(
+export function markChapterUnread(
   storylineId: number,
   chapterId: number,
-  request: UpdateChapterWindowRequest,
-): Promise<ChapterMultiMutationResponse> {
-  return apiFetch<ChapterMultiMutationResponse>(
+): Promise<ChapterMeta> {
+  return apiFetch<ChapterMeta>(
+    `/api/storylines/${storylineId}/chapters/${chapterId}/unread`,
+    { method: 'POST' },
+  )
+}
+
+export function renameChapter(
+  storylineId: number,
+  chapterId: number,
+  request: RenameChapterRequest,
+): Promise<ChapterMeta> {
+  return apiFetch<ChapterMeta>(
     `/api/storylines/${storylineId}/chapters/${chapterId}`,
     { method: 'PATCH', body: JSON.stringify(request) },
-  )
-}
-
-export function deleteChapter(
-  storylineId: number,
-  chapterId: number,
-  request: DeleteChapterRequest = {},
-): Promise<{ deleted: boolean; job_ids: string[] }> {
-  return apiFetch<{ deleted: boolean; job_ids: string[] }>(
-    `/api/storylines/${storylineId}/chapters/${chapterId}`,
-    { method: 'DELETE', body: JSON.stringify(request) },
   )
 }
