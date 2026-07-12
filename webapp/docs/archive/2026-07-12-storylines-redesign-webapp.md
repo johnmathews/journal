@@ -1,5 +1,7 @@
 # Storylines Redesign (Webapp) Implementation Plan
 
+**Status:** closed 2026-07-12 — executed (lean mode), merged to main (b8cd1d4), deployed. Current reference: [`../../storylines.md`](../../storylines.md). The server plan referenced below is archived at `journal-server` `docs/archive/2026-07-12-storylines-redesign-server.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Rebuild the storylines UI for the draft/published chapter model: a vertical book-style reader with unread badges, replacing the two-panel layout and all chapter-window editing. Spec: `../../../server/docs/superpowers/specs/2026-07-12-storylines-redesign-design.md` §5; server API from the sibling plan `journal-server` `docs/superpowers/plans/2026-07-12-storylines-redesign-server.md` Task 9.
