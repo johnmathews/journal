@@ -206,7 +206,6 @@ async function onBulkDelete(): Promise<void> {
     )
   }
 }
-
 </script>
 
 <template>

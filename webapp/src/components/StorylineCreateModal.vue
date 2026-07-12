@@ -358,7 +358,6 @@ function onCancel(): void {
           data-testid="storyline-create-description"
         />
       </div>
-
     </div>
 
     <template #footer>

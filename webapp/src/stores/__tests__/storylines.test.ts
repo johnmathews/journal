@@ -222,7 +222,9 @@ describe('useStorylinesStore', () => {
         chapters: [chapterMeta({ id: 3, read_at: '2026-07-01T00:00:00Z' })],
       }),
     )
-    mockMarkChapterUnread.mockResolvedValue(chapterMeta({ id: 3, read_at: null }))
+    mockMarkChapterUnread.mockResolvedValue(
+      chapterMeta({ id: 3, read_at: null }),
+    )
     const store = useStorylinesStore()
     await store.loadStoryline(1)
     await store.markUnread(1, 3)
@@ -301,5 +303,200 @@ describe('useStorylinesStore', () => {
     await store.renameChapter(1, 3, 'Renamed')
     expect(store.currentStoryline?.chapters[0].title).toBe('Renamed')
     expect(store.chapterCache.get(3)?.title).toBe('Renamed')
+  })
+})
+
+describe('useStorylinesStore — error and secondary paths', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    jobStatuses.value = new Map()
+  })
+
+  it('loadStorylines records an error message on failure', async () => {
+    mockFetchStorylines.mockRejectedValue(new Error('list down'))
+    const store = useStorylinesStore()
+    await store.loadStorylines()
+    expect(store.error).toBe('list down')
+    expect(store.loading).toBe(false)
+  })
+
+  it('loadStoryline records an error message on failure', async () => {
+    mockFetchStoryline.mockRejectedValue(new Error('detail down'))
+    const store = useStorylinesStore()
+    await store.loadStoryline(1)
+    expect(store.error).toBe('detail down')
+  })
+
+  it('loadChapter records an error and returns null on failure', async () => {
+    mockFetchChapter.mockRejectedValue(new Error('chapter down'))
+    const store = useStorylinesStore()
+    const result = await store.loadChapter(1, 3)
+    expect(result).toBeNull()
+    expect(store.error).toBe('chapter down')
+  })
+
+  it('refresh records actionError and rethrows on API failure', async () => {
+    mockRefreshStoryline.mockRejectedValue(new Error('no engine'))
+    const store = useStorylinesStore()
+    await expect(store.refresh(1)).rejects.toThrow('no engine')
+    expect(store.actionError).toBe('no engine')
+    expect(store.updating).toBe(false)
+  })
+
+  it('unpublishNewest records actionError and rethrows on API failure', async () => {
+    mockUnpublishNewest.mockRejectedValue(new Error('nothing published'))
+    const store = useStorylinesStore()
+    await expect(store.unpublishNewest(1)).rejects.toThrow('nothing published')
+    expect(store.actionError).toBe('nothing published')
+  })
+
+  it('markUnread records actionError and rethrows on failure', async () => {
+    mockFetchStoryline.mockResolvedValue(
+      detail({
+        id: 1,
+        chapters: [chapterMeta({ id: 3, read_at: '2026-07-01T00:00:00Z' })],
+      }),
+    )
+    mockMarkChapterUnread.mockRejectedValue(new Error('nope'))
+    const store = useStorylinesStore()
+    await store.loadStoryline(1)
+    await expect(store.markUnread(1, 3)).rejects.toThrow('nope')
+    expect(store.actionError).toBe('nope')
+  })
+
+  it('createStoryline records createError and rethrows on failure', async () => {
+    mockCreateStoryline.mockRejectedValue(new Error('409'))
+    const store = useStorylinesStore()
+    await expect(
+      store.createStoryline({ entity_ids: [1], name: 'X' }),
+    ).rejects.toThrow('409')
+    expect(store.createError).toBe('409')
+    expect(store.creating).toBe(false)
+  })
+
+  it('setAnchors updates detail + list rows from the response', async () => {
+    const { setStorylineAnchors } = await import('@/api/storylines')
+    const mockSetAnchors = vi.mocked(setStorylineAnchors)
+    mockFetchStoryline.mockResolvedValue(detail({ id: 1 }))
+    mockFetchStorylines.mockResolvedValue({
+      items: [summary({ id: 1 })],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    })
+    mockSetAnchors.mockResolvedValue({
+      id: 1,
+      anchors: [{ entity_id: 9, canonical_name: 'Atlas' }],
+    })
+    const store = useStorylinesStore()
+    await store.loadStorylines()
+    await store.loadStoryline(1)
+    await store.setAnchors(1, [9])
+    expect(store.currentStoryline?.anchors[0].entity_id).toBe(9)
+    expect(store.storylines[0].anchors[0].entity_id).toBe(9)
+  })
+
+  it('setAnchors records anchorsError and rethrows on failure', async () => {
+    const { setStorylineAnchors } = await import('@/api/storylines')
+    vi.mocked(setStorylineAnchors).mockRejectedValue(new Error('422'))
+    const store = useStorylinesStore()
+    await expect(store.setAnchors(1, [9])).rejects.toThrow('422')
+    expect(store.anchorsError).toBe('422')
+  })
+
+  it('renameStoryline updates detail + list and records errors', async () => {
+    const { updateStoryline } = await import('@/api/storylines')
+    const mockUpdate = vi.mocked(updateStoryline)
+    mockFetchStoryline.mockResolvedValue(detail({ id: 1 }))
+    mockFetchStorylines.mockResolvedValue({
+      items: [summary({ id: 1 })],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    })
+    mockUpdate.mockResolvedValue(summary({ id: 1, name: 'Renamed' }) as never)
+    const store = useStorylinesStore()
+    await store.loadStorylines()
+    await store.loadStoryline(1)
+    await store.renameStoryline(1, 'Renamed')
+    expect(store.currentStoryline?.name).toBe('Renamed')
+    expect(store.storylines[0].name).toBe('Renamed')
+
+    mockUpdate.mockRejectedValue(new Error('400'))
+    await expect(store.renameStoryline(1, '')).rejects.toThrow('400')
+    expect(store.nameError).toBe('400')
+  })
+
+  it('removeStoryline drops the row and clears current when it matches', async () => {
+    const { deleteStoryline } = await import('@/api/storylines')
+    vi.mocked(deleteStoryline).mockResolvedValue({ deleted: true })
+    mockFetchStoryline.mockResolvedValue(detail({ id: 1 }))
+    mockFetchStorylines.mockResolvedValue({
+      items: [summary({ id: 1 })],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    })
+    const store = useStorylinesStore()
+    await store.loadStorylines()
+    await store.loadStoryline(1)
+    await store.removeStoryline(1)
+    expect(store.storylines).toHaveLength(0)
+    expect(store.currentStoryline).toBeNull()
+  })
+
+  it('removeStoryline records an error and rethrows on failure', async () => {
+    const { deleteStoryline } = await import('@/api/storylines')
+    vi.mocked(deleteStoryline).mockRejectedValue(new Error('500'))
+    const store = useStorylinesStore()
+    await expect(store.removeStoryline(1)).rejects.toThrow('500')
+    expect(store.error).toBe('500')
+  })
+})
+
+describe('useStorylinesStore — fallback messages and cache branches', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    jobStatuses.value = new Map()
+  })
+
+  it('non-Error rejections fall back to generic messages', async () => {
+    mockFetchStorylines.mockRejectedValue('string failure')
+    mockRefreshStoryline.mockRejectedValue('string failure')
+    const store = useStorylinesStore()
+    await store.loadStorylines()
+    expect(store.error).toBe('Failed to load storylines')
+    await expect(store.refresh(1)).rejects.toBe('string failure')
+    expect(store.actionError).toBe('Failed to queue refresh')
+  })
+
+  it('reloading the same storyline keeps the chapter cache warm', async () => {
+    mockFetchStoryline.mockResolvedValue(detail({ id: 1 }))
+    mockFetchChapter.mockResolvedValue({
+      ...chapterMeta({ id: 3 }),
+      segments: [],
+      addenda: [],
+      model_used: 'm',
+      generated_at: null,
+    })
+    const store = useStorylinesStore()
+    await store.loadStoryline(1)
+    await store.loadChapter(1, 3)
+    await store.loadStoryline(1) // same id — cache survives
+    await store.loadChapter(1, 3)
+    expect(mockFetchChapter).toHaveBeenCalledTimes(1)
+  })
+
+  it('markRead for a storyline other than the loaded one still calls the API', async () => {
+    mockFetchStoryline.mockResolvedValue(detail({ id: 1 }))
+    mockMarkChapterRead.mockResolvedValue(
+      chapterMeta({ id: 99, read_at: '2026-07-12T00:00:00Z' }),
+    )
+    const store = useStorylinesStore()
+    await store.loadStoryline(1)
+    await store.markRead(2, 99) // not the loaded storyline
+    expect(mockMarkChapterRead).toHaveBeenCalledWith(2, 99)
   })
 })

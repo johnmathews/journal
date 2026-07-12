@@ -36,8 +36,9 @@ const registry = computed(() =>
         class="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400"
         data-testid="draft-heading"
       >
-        In progress — {{ meta.entry_count }}
-        entr{{ meta.entry_count === 1 ? 'y' : 'ies' }}
+        In progress — {{ meta.entry_count }} entr{{
+          meta.entry_count === 1 ? 'y' : 'ies'
+        }}
       </h2>
       <button
         type="button"
@@ -64,8 +65,8 @@ const registry = computed(() =>
       class="py-6 text-center text-sm text-gray-500 dark:text-gray-400"
       data-testid="draft-empty"
     >
-      Nothing here yet — the draft grows as new entries mention this
-      storyline's anchors.
+      Nothing here yet — the draft grows as new entries mention this storyline's
+      anchors.
     </div>
   </section>
 </template>

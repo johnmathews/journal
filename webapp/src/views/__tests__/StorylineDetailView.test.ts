@@ -239,9 +239,7 @@ describe('StorylineDetailView (reader)', () => {
   it('draft refresh queues a job via the store', async () => {
     mockRefresh.mockResolvedValue({ job_id: 'j9', status: 'queued' })
     const wrapper = await mountView()
-    await wrapper
-      .find('[data-testid="draft-refresh-button"]')
-      .trigger('click')
+    await wrapper.find('[data-testid="draft-refresh-button"]').trigger('click')
     await flushPromises()
     expect(mockRefresh).toHaveBeenCalledWith(3)
     expect(trackJob).toHaveBeenCalledWith('j9', 'storyline_update')
@@ -312,5 +310,113 @@ describe('StorylineDetailView (reader)', () => {
     expect(wrapper.find('[data-testid="error-banner"]').text()).toContain(
       'boom',
     )
+  })
+})
+
+describe('StorylineDetailView — header flows', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    mockFetchStoryline.mockResolvedValue(mockDetail() as never)
+    mockFetchChapter.mockImplementation(
+      async (_sid: number, cid: number) => chapterDetail({ id: cid }) as never,
+    )
+  })
+
+  it('inline title edit saves through the store', async () => {
+    const { updateStoryline } = await import('@/api/storylines')
+    vi.mocked(updateStoryline).mockResolvedValue({
+      ...mockDetail(),
+      name: 'Trips to Vienna',
+    } as never)
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="edit-name-button"]').trigger('click')
+    await wrapper
+      .find('[data-testid="storyline-name-input"]')
+      .setValue('Trips to Vienna')
+    await wrapper.find('[data-testid="storyline-name-form"]').trigger('submit')
+    await flushPromises()
+    expect(vi.mocked(updateStoryline)).toHaveBeenCalledWith(3, {
+      name: 'Trips to Vienna',
+    })
+    expect(wrapper.find('[data-testid="storyline-name-heading"]').text()).toBe(
+      'Trips to Vienna',
+    )
+  })
+
+  it('title edit cancel restores the heading without saving', async () => {
+    const { updateStoryline } = await import('@/api/storylines')
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="edit-name-button"]').trigger('click')
+    await wrapper.find('[data-testid="cancel-name-button"]').trigger('click')
+    expect(vi.mocked(updateStoryline)).not.toHaveBeenCalled()
+    expect(
+      wrapper.find('[data-testid="storyline-name-heading"]').exists(),
+    ).toBe(true)
+  })
+
+  it('toggles the inline anchor editor open and closed', async () => {
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="edit-anchors-button"]').trigger('click')
+    expect(wrapper.find('[data-testid="anchor-editor"]').exists()).toBe(true)
+    await wrapper.find('[data-testid="edit-anchors-button"]').trigger('click')
+    expect(wrapper.find('[data-testid="anchor-editor"]').exists()).toBe(false)
+  })
+
+  it('shows the action error banner when a refresh fails', async () => {
+    mockRefresh.mockRejectedValue(new Error('engine unavailable'))
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="draft-refresh-button"]').trigger('click')
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="action-error-banner"]').text(),
+    ).toContain('engine unavailable')
+  })
+
+  it('delete declined leaves the storyline in place', async () => {
+    const confirmSpy = vi.fn(() => false)
+    vi.stubGlobal('confirm', confirmSpy)
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="delete-button"]').trigger('click')
+    expect(mockDelete).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
+
+  it('markUnread flows from the chapter menu event to the API', async () => {
+    const { markChapterUnread } = await import('@/api/storylines')
+    vi.mocked(markChapterUnread).mockResolvedValue(
+      chapterMeta({ read_at: null }) as never,
+    )
+    const wrapper = await mountView()
+    wrapper.findComponent(ChapterReader).vm.$emit('markUnread', 70)
+    await flushPromises()
+    expect(vi.mocked(markChapterUnread)).toHaveBeenCalledWith(3, 70)
+  })
+
+  it('honours a valid ?chapter= query as the initial scroll target', async () => {
+    const scrollSpy = vi.fn()
+    Element.prototype.scrollIntoView = scrollSpy
+    const router = makeRouter()
+    await router.push('/storylines/3?chapter=70')
+    await router.isReady()
+    mount(StorylineDetailView, {
+      props: { id: '3' },
+      attachTo: document.body,
+      global: { plugins: [createPinia(), router] },
+    })
+    await flushPromises()
+    expect(scrollSpy).toHaveBeenCalled()
+  })
+
+  it('shows the updating indicator while a job is in flight', async () => {
+    mockRefresh.mockResolvedValue({ job_id: 'j1', status: 'queued' })
+    getJobById.mockReturnValue({ id: 'j1', status: 'running' } as never)
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="draft-refresh-button"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="storyline-updating"]').exists()).toBe(
+      true,
+    )
+    getJobById.mockReturnValue(undefined)
   })
 })

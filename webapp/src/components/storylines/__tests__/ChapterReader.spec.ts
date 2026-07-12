@@ -44,9 +44,9 @@ describe('ChapterReader', () => {
     expect(wrapper.find('[data-testid="chapter-date-eyebrow"]').text()).toBe(
       '2026-01-01 – 2026-02-01',
     )
-    expect(
-      wrapper.find('[data-testid="storyline-narrative"]').exists(),
-    ).toBe(true)
+    expect(wrapper.find('[data-testid="storyline-narrative"]').exists()).toBe(
+      true,
+    )
     expect(wrapper.find('[data-testid="chapter-footer"]').text()).toContain(
       '3 entries',
     )
@@ -86,15 +86,15 @@ describe('ChapterReader', () => {
   it('menu offers Unpublish only on the newest chapter', async () => {
     const newest = mountReader({}, true)
     await newest.find('[data-testid="chapter-menu-button"]').trigger('click')
-    expect(
-      newest.find('[data-testid="chapter-menu-unpublish"]').exists(),
-    ).toBe(true)
+    expect(newest.find('[data-testid="chapter-menu-unpublish"]').exists()).toBe(
+      true,
+    )
 
     const older = mountReader({}, false)
     await older.find('[data-testid="chapter-menu-button"]').trigger('click')
-    expect(
-      older.find('[data-testid="chapter-menu-unpublish"]').exists(),
-    ).toBe(false)
+    expect(older.find('[data-testid="chapter-menu-unpublish"]').exists()).toBe(
+      false,
+    )
   })
 
   it('menu offers Mark unread only when read', async () => {
@@ -124,5 +124,79 @@ describe('ChapterReader', () => {
     await input.setValue('  New Title  ')
     await wrapper.find('[data-testid="chapter-rename-form"]').trigger('submit')
     expect(wrapper.emitted('rename')).toEqual([[70, 'New Title']])
+  })
+})
+
+describe('ChapterReader — edge branches', () => {
+  it('renders a single-day date range once and hides the eyebrow without dates', () => {
+    const single = mountReader({
+      first_entry_date: '2026-01-05',
+      last_entry_date: '2026-01-05',
+    })
+    expect(single.find('[data-testid="chapter-date-eyebrow"]').text()).toBe(
+      '2026-01-05',
+    )
+    const none = mountReader({
+      first_entry_date: null,
+      last_entry_date: null,
+    })
+    expect(none.find('[data-testid="chapter-date-eyebrow"]').exists()).toBe(
+      false,
+    )
+  })
+
+  it('shows the empty state for a chapter with no segments', () => {
+    const wrapper = mountReader({ segments: [] })
+    expect(wrapper.find('[data-testid="chapter-empty"]').exists()).toBe(true)
+  })
+
+  it('menu toggles closed on a second click and rename cancel restores the title', async () => {
+    const wrapper = mountReader()
+    const button = wrapper.find('[data-testid="chapter-menu-button"]')
+    await button.trigger('click')
+    expect(wrapper.find('[data-testid="chapter-menu"]').exists()).toBe(true)
+    await button.trigger('click')
+    expect(wrapper.find('[data-testid="chapter-menu"]').exists()).toBe(false)
+
+    await button.trigger('click')
+    await wrapper.find('[data-testid="chapter-menu-rename"]').trigger('click')
+    await wrapper.find('[data-testid="chapter-rename-cancel"]').trigger('click')
+    expect(wrapper.find('[data-testid="chapter-title"]').text()).toBe(
+      'The Build-Up',
+    )
+    expect(wrapper.emitted('rename')).toBeUndefined()
+  })
+
+  it('rename submit with only whitespace is a no-op', async () => {
+    const wrapper = mountReader()
+    await wrapper.find('[data-testid="chapter-menu-button"]').trigger('click')
+    await wrapper.find('[data-testid="chapter-menu-rename"]').trigger('click')
+    await wrapper.find('[data-testid="chapter-rename-input"]').setValue('   ')
+    await wrapper.find('[data-testid="chapter-rename-form"]').trigger('submit')
+    expect(wrapper.emitted('rename')).toBeUndefined()
+  })
+
+  it('document click outside closes the menu', async () => {
+    const wrapper = mount(ChapterReader, {
+      props: { chapter: chapter(), isNewest: true },
+      attachTo: document.body,
+      global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } },
+    })
+    await wrapper.find('[data-testid="chapter-menu-button"]').trigger('click')
+    expect(wrapper.find('[data-testid="chapter-menu"]').exists()).toBe(true)
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-testid="chapter-menu"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('footer omits the entry count when zero and formatDate tolerates bad input', () => {
+    const wrapper = mountReader({
+      entry_count: 0,
+      published_at: 'not-a-date',
+    })
+    const footer = wrapper.find('[data-testid="chapter-footer"]')
+    expect(footer.text()).toContain('not-a-date')
+    expect(footer.text()).not.toContain('entr')
   })
 })

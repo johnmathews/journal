@@ -264,8 +264,9 @@ function saveRename(): void {
     >
       Published {{ formatDate(chapter.published_at) }}
       <span v-if="chapter.entry_count">
-        · {{ chapter.entry_count }}
-        entr{{ chapter.entry_count === 1 ? 'y' : 'ies' }}</span
+        · {{ chapter.entry_count }} entr{{
+          chapter.entry_count === 1 ? 'y' : 'ies'
+        }}</span
       >
     </footer>
   </article>

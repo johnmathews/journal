@@ -375,8 +375,8 @@ async function doSave(regenerate: boolean): Promise<void> {
     <div v-else class="space-y-3" data-testid="anchor-editor-confirm">
       <p class="text-sm text-gray-700 dark:text-gray-300">
         Changing anchors changes which entries feed this storyline. Published
-        chapters stay as they are; refresh the draft to reflect the new
-        anchor set going forward.
+        chapters stay as they are; refresh the draft to reflect the new anchor
+        set going forward.
       </p>
 
       <div class="space-y-1.5 text-sm">

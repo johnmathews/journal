@@ -177,9 +177,9 @@ describe('StorylineListView', () => {
   it('has no regenerate buttons anywhere', async () => {
     const wrapper = mountComponent()
     await flushPromises()
-    expect(
-      wrapper.find('[data-testid="row-regenerate-button"]').exists(),
-    ).toBe(false)
+    expect(wrapper.find('[data-testid="row-regenerate-button"]').exists()).toBe(
+      false,
+    )
     expect(
       wrapper.find('[data-testid="bulk-regenerate-button"]').exists(),
     ).toBe(false)
@@ -424,5 +424,4 @@ describe('StorylineListView', () => {
     expect(mockDeleteStoryline).toHaveBeenCalledWith(1)
     vi.unstubAllGlobals()
   })
-
 })

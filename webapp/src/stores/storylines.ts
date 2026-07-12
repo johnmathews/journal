@@ -274,9 +274,7 @@ export const useStorylinesStore = defineStore('storylines', () => {
   ): Promise<void> {
     const resp = await renameChapterApi(storylineId, chapterId, { title })
     if (currentStoryline.value?.id === storylineId) {
-      const ch = currentStoryline.value.chapters.find(
-        (c) => c.id === chapterId,
-      )
+      const ch = currentStoryline.value.chapters.find((c) => c.id === chapterId)
       if (ch) ch.title = resp.title
     }
     const cached = chapterCache.value.get(chapterId)
