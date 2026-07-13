@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { ChapterMeta } from '@/types/storyline'
 
 /**
@@ -7,11 +8,16 @@ import type { ChapterMeta } from '@/types/storyline'
  * chapters not yet read. The draft renders as a subdued "In progress"
  * row. Selecting a row asks the parent to scroll that chapter into
  * view — the TOC owns no state.
+ *
+ * Rows list newest-first (draft on top), the opposite of the reader's
+ * oldest-first book flow — the panel is a "what's recent" index.
  */
-defineProps<{
+const props = defineProps<{
   chapters: ChapterMeta[]
   activeId: number | null
 }>()
+
+const displayChapters = computed(() => [...props.chapters].reverse())
 
 const emit = defineEmits<{
   (e: 'select', chapterId: number): void
@@ -34,7 +40,7 @@ function dateRange(c: ChapterMeta): string {
       Chapters
     </h2>
     <ul class="space-y-0.5">
-      <li v-for="c in chapters" :key="c.id">
+      <li v-for="c in displayChapters" :key="c.id">
         <button
           type="button"
           class="w-full text-left px-2.5 py-1.5 rounded-md text-sm transition-colors flex items-center gap-2"

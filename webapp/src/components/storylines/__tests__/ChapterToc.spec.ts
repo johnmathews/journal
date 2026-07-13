@@ -35,6 +35,16 @@ const chapters: ChapterMeta[] = [
 ]
 
 describe('ChapterToc', () => {
+  it('renders newest chapter first (reverse chronological)', () => {
+    const wrapper = mount(ChapterToc, {
+      props: { chapters, activeId: null },
+    })
+    const ids = wrapper
+      .findAll('[data-testid^="toc-item-"]')
+      .map((b) => b.attributes('data-testid'))
+    expect(ids).toEqual(['toc-item-3', 'toc-item-2', 'toc-item-1'])
+  })
+
   it('renders a row per chapter with unread dots on unread published only', () => {
     const wrapper = mount(ChapterToc, {
       props: { chapters, activeId: null },
