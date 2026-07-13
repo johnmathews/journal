@@ -9,6 +9,12 @@ vi.mock('@/api/fitness', () => ({
   triggerBackfill: vi.fn(),
 }))
 
+// On success the form registers the job via jobsStore.trackJob, which
+// would start a real polling loop with real fetches. Stub the store.
+vi.mock('@/stores/jobs', () => ({
+  useJobsStore: () => ({ trackJob: vi.fn() }),
+}))
+
 import { triggerBackfill } from '@/api/fitness'
 const mockTriggerBackfill = vi.mocked(triggerBackfill)
 

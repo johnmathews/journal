@@ -17,6 +17,14 @@ vi.mock('@/api/fitness', () => ({
   fetchIntegrity: vi.fn(),
 }))
 
+// The fitness store's loadLayout()/persistLayout() hit the preferences
+// endpoint with real fetches. Mock the api layer; tests that care about
+// the persisted layout override fetchPreferences per-test.
+vi.mock('@/api/preferences', () => ({
+  fetchPreferences: vi.fn().mockResolvedValue({ preferences: {} }),
+  updatePreferences: vi.fn().mockResolvedValue({ preferences: {} }),
+}))
+
 // Item 3 watches a tracked sync job via the jobs store. Stub it so the
 // view's job-watching wiring is driven by a controllable fake rather
 // than the real polling machinery. The job is held in a reactive ref so

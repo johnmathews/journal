@@ -12,6 +12,12 @@ vi.mock('@/api/fitness', () => ({
   fetchDaily: vi.fn(),
 }))
 
+// startSync registers the queued job via jobsStore.trackJob, which
+// would start a real polling loop with real fetches. Stub the store.
+vi.mock('@/stores/jobs', () => ({
+  useJobsStore: () => ({ trackJob: vi.fn() }),
+}))
+
 import { triggerSync } from '@/api/fitness'
 const mockTriggerSync = vi.mocked(triggerSync)
 

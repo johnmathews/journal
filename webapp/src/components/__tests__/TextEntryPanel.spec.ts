@@ -165,7 +165,11 @@ describe('TextEntryPanel', () => {
       mood_job_id: 'mood-123',
       entity_extraction_job_id: 'entity-456',
     })
-    const trackSpy = vi.spyOn(jobsStore, 'trackJob')
+    // mockImplementation: the real trackJob starts a polling loop with
+    // real fetches — this test only asserts the call arguments.
+    const trackSpy = vi
+      .spyOn(jobsStore, 'trackJob')
+      .mockImplementation(() => {})
     const groupSpy = vi.spyOn(jobsStore, 'createGroup')
 
     await wrapper.find('textarea').setValue('Hello')

@@ -8,6 +8,7 @@ export default mergeConfig(
     test: {
       environment: 'happy-dom',
       root: fileURLToPath(new URL('./', import.meta.url)),
+      setupFiles: ['./vitest.setup.ts'],
       include: ['src/**/*.{test,spec}.{js,ts}'],
       coverage: {
         provider: 'v8',

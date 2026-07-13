@@ -1197,7 +1197,9 @@ describe('entities store', () => {
 
       const { useJobsStore } = await import('@/stores/jobs')
       const jobs = useJobsStore()
-      const trackSpy = vi.spyOn(jobs, 'trackJob')
+      // mockImplementation: the real trackJob starts a polling loop with
+      // real fetches — this test only asserts the call arguments.
+      const trackSpy = vi.spyOn(jobs, 'trackJob').mockImplementation(() => {})
 
       const store = useEntitiesStore()
       await store.loadEntity(7)
@@ -1238,7 +1240,9 @@ describe('entities store', () => {
 
       const { useJobsStore } = await import('@/stores/jobs')
       const jobs = useJobsStore()
-      const trackSpy = vi.spyOn(jobs, 'trackJob')
+      // mockImplementation: the real trackJob starts a polling loop with
+      // real fetches — this test only asserts the call arguments.
+      const trackSpy = vi.spyOn(jobs, 'trackJob').mockImplementation(() => {})
 
       const store = useEntitiesStore()
       await store.loadEntity(7)

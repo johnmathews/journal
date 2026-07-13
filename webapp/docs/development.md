@@ -210,6 +210,15 @@ docker compose up
 
 Tests use Vitest with happy-dom. API calls are mocked — no backend needed.
 
+**Network is blocked in unit tests.** `vitest.setup.ts` replaces `globalThis.fetch`
+with a stub that rejects and fails the offending test with the leaked URL(s).
+happy-dom's real fetch would otherwise perform actual HTTP requests against
+`http://localhost:3000`, making results depend on whatever is listening there
+and producing flaky unhandled `AbortError` failures at teardown. If a test
+fails with "leaked real network calls", mock the `@/api/*` module it exercises
+(or give store spies a `mockImplementation` so the real action — e.g. the jobs
+store's polling loop — never runs).
+
 ```bash
 npm run test:unit        # Run once
 npm run test:watch       # Watch mode

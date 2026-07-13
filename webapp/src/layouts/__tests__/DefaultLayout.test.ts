@@ -1,8 +1,26 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import DefaultLayout from '../DefaultLayout.vue'
+
+// AppHeader's AppNotifications child calls jobsStore.hydrateActiveJobs()
+// on mount, which would issue real listJobs fetches. Mock the api layer.
+vi.mock('@/api/jobs', () => ({
+  listJobs: vi.fn().mockResolvedValue({ items: [] }),
+  getJob: vi.fn(),
+  triggerMoodBackfill: vi.fn(),
+}))
+
+// FitnessAuthBanner hydrates the fitness sync status on mount.
+vi.mock('@/api/fitness', () => ({
+  fetchSyncStatus: vi.fn().mockResolvedValue({ strava: null, garmin: null }),
+  fetchActivities: vi.fn(),
+  fetchDaily: vi.fn(),
+  triggerSync: vi.fn(),
+  fetchIntegrity: vi.fn(),
+  triggerBackfill: vi.fn(),
+}))
 
 function makeRouter() {
   return createRouter({
