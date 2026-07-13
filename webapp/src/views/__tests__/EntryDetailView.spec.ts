@@ -42,6 +42,20 @@ vi.mock('@/api/entries', () => ({
   ingestAudio: vi.fn(),
 }))
 
+// useToast() returns a fresh object per call around shared singleton
+// functions, so a per-object spy never sees the component's calls —
+// mock the module instead.
+const toastSuccessSpy = vi.hoisted(() => vi.fn())
+vi.mock('@/composables/useToast', () => ({
+  useToast: () => ({
+    toasts: { value: [] },
+    show: vi.fn(),
+    success: toastSuccessSpy,
+    error: vi.fn(),
+    dismiss: vi.fn(),
+  }),
+}))
+
 // --- Router ---------------------------------------------------------------
 
 const router = createRouter({
@@ -377,5 +391,69 @@ describe('EntryDetailView — boundary controls', () => {
     await flushPromises()
 
     expect(updateEntryBoundary).not.toHaveBeenCalled()
+  })
+})
+
+// --- Unconfirmed-date pill + confirm flow (spec 2026-07-13) ---------------
+
+describe('unconfirmed-date pill', () => {
+  it('shows the pill and opens the date editor from it', async () => {
+    const wrapper = await mountWithEntry({ date_confirmed: false })
+    const pill = wrapper.find('[data-testid="unconfirmed-date-pill"]')
+    expect(pill.exists()).toBe(true)
+    await pill.trigger('click')
+    expect(wrapper.find('[data-testid="date-input"]').exists()).toBe(true)
+  })
+
+  it('does not show the pill for confirmed entries', async () => {
+    const wrapper = await mountWithEntry({ date_confirmed: true })
+    expect(
+      wrapper.find('[data-testid="unconfirmed-date-pill"]').exists(),
+    ).toBe(false)
+  })
+
+  it('does not show the pill when the field is absent (old payload)', async () => {
+    const wrapper = await mountWithEntry()
+    expect(
+      wrapper.find('[data-testid="unconfirmed-date-pill"]').exists(),
+    ).toBe(false)
+  })
+
+  it('toasts when saving a date confirms a quarantined entry', async () => {
+    const { updateEntryDate } = await import('@/api/entries')
+    vi.mocked(updateEntryDate).mockResolvedValue(
+      makeEntry({ entry_date: '2026-07-09', date_confirmed: true }) as never,
+    )
+    toastSuccessSpy.mockClear()
+
+    const wrapper = await mountWithEntry({ date_confirmed: false })
+    await wrapper.find('[data-testid="unconfirmed-date-pill"]').trigger('click')
+    const input = wrapper.find('[data-testid="date-input"]')
+    await input.setValue('2026-07-09')
+    await wrapper.find('[data-testid="date-save-button"]').trigger('click')
+    await flushPromises()
+
+    expect(toastSuccessSpy).toHaveBeenCalledWith(
+      'Date confirmed — reprocessing queued.',
+    )
+  })
+
+  it('does not toast for an ordinary date edit', async () => {
+    const { updateEntryDate } = await import('@/api/entries')
+    vi.mocked(updateEntryDate).mockResolvedValue(
+      makeEntry({ entry_date: '2026-07-09', date_confirmed: true }) as never,
+    )
+    toastSuccessSpy.mockClear()
+
+    const wrapper = await mountWithEntry({ date_confirmed: true })
+    await wrapper.find('[data-testid="entry-date-heading"]').trigger('click')
+    const input = wrapper.find('[data-testid="date-input"]')
+    await input.setValue('2026-07-09')
+    await wrapper.find('[data-testid="date-save-button"]').trigger('click')
+    await flushPromises()
+
+    expect(toastSuccessSpy).not.toHaveBeenCalledWith(
+      'Date confirmed — reprocessing queued.',
+    )
   })
 })

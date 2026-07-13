@@ -890,3 +890,50 @@ describe('EntryListView mobile cards', () => {
     })
   })
 })
+
+describe('EntryListView unconfirmed-date badge', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+  })
+
+  async function mountWithEntries(items: Record<string, unknown>[]) {
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValue({
+      items: items as never[],
+      total: items.length,
+      limit: 20,
+      offset: 0,
+    })
+    const wrapper = mountComponent()
+    await vi.waitFor(() => {
+      expect(wrapper.findAll('[data-testid="entry-row"]').length).toBeGreaterThan(0)
+    })
+    return wrapper
+  }
+
+  it('shows a badge when date_confirmed is false', async () => {
+    const wrapper = await mountWithEntries([
+      mockEntry({ id: 1, date_confirmed: false }),
+    ])
+    expect(
+      wrapper.findAll('[data-testid="unconfirmed-date-badge"]').length,
+    ).toBeGreaterThan(0)
+  })
+
+  it('shows no badge for confirmed entries', async () => {
+    const wrapper = await mountWithEntries([
+      mockEntry({ id: 1, date_confirmed: true }),
+    ])
+    expect(
+      wrapper.findAll('[data-testid="unconfirmed-date-badge"]').length,
+    ).toBe(0)
+  })
+
+  it('shows no badge when the field is absent (old server payload)', async () => {
+    const wrapper = await mountWithEntries([mockEntry({ id: 1 })])
+    expect(
+      wrapper.findAll('[data-testid="unconfirmed-date-badge"]').length,
+    ).toBe(0)
+  })
+})
