@@ -25,11 +25,12 @@ chapter count (`storylinesStore.totalUnread`).
 
 `StorylineDetailView` renders the storyline as a book:
 
-- **`ChapterToc`** (left at `lg+`, sticky) — one row per chapter: title,
-  derived date range (min/max of the chapter's member entries), a violet
-  unread dot on published-unread chapters, and a subdued "In progress" row
-  for the draft. Selecting a row scrolls the chapter into view and writes
-  `?chapter=<id>` to the URL.
+- **`ChapterToc`** (left at `lg+`, sticky) — one row per chapter, listed
+  newest-first (draft's "In progress" row on top), the opposite of the
+  reader's oldest-first flow: title, derived date range (min/max of the
+  chapter's member entries), a violet unread dot on published-unread
+  chapters, and a subdued "In progress" row for the draft. Selecting a row
+  scrolls the chapter into view and writes `?chapter=<id>` to the URL.
 - **`ChapterReader`** — one per published chapter, top-to-bottom: date-range
   eyebrow, title, the cited narrative (rendered by `StorylineNarrative`,
   prose + footnote Sources with entry links), addenda as bordered "Later —
