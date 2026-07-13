@@ -609,7 +609,9 @@ function cellTestId(col: ColumnDef): string | undefined {
                 >
                   {{ cellValue(col, entry) }}
                   <span
-                    v-if="col.key === 'entry_date' && entry.date_confirmed === false"
+                    v-if="
+                      col.key === 'entry_date' && entry.date_confirmed === false
+                    "
                     class="ml-2 inline-flex text-xs font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400 rounded-full px-2 py-0.5"
                     data-testid="unconfirmed-date-badge"
                   >

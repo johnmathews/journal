@@ -407,16 +407,16 @@ describe('unconfirmed-date pill', () => {
 
   it('does not show the pill for confirmed entries', async () => {
     const wrapper = await mountWithEntry({ date_confirmed: true })
-    expect(
-      wrapper.find('[data-testid="unconfirmed-date-pill"]').exists(),
-    ).toBe(false)
+    expect(wrapper.find('[data-testid="unconfirmed-date-pill"]').exists()).toBe(
+      false,
+    )
   })
 
   it('does not show the pill when the field is absent (old payload)', async () => {
     const wrapper = await mountWithEntry()
-    expect(
-      wrapper.find('[data-testid="unconfirmed-date-pill"]').exists(),
-    ).toBe(false)
+    expect(wrapper.find('[data-testid="unconfirmed-date-pill"]').exists()).toBe(
+      false,
+    )
   })
 
   it('toasts when saving a date confirms a quarantined entry', async () => {

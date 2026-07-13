@@ -907,7 +907,9 @@ describe('EntryListView unconfirmed-date badge', () => {
     })
     const wrapper = mountComponent()
     await vi.waitFor(() => {
-      expect(wrapper.findAll('[data-testid="entry-row"]').length).toBeGreaterThan(0)
+      expect(
+        wrapper.findAll('[data-testid="entry-row"]').length,
+      ).toBeGreaterThan(0)
     })
     return wrapper
   }
