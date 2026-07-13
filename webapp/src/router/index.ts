@@ -1,4 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
+
+import { clearReloadFlag, handleRouterError } from './chunkReload'
 import { useAuthStore } from '@/stores/auth'
 
 // Option B routing — `/` is the Dashboard view. The entries list
@@ -201,6 +203,14 @@ router.beforeEach(async (to) => {
   if (requiresAdmin && !authStore.isAdmin) {
     return { name: 'dashboard' }
   }
+})
+
+// ---------- Stale-chunk recovery (see chunkReload.ts) ----------
+router.onError((error, to) => {
+  handleRouterError(error, to.fullPath)
+})
+router.afterEach((to) => {
+  clearReloadFlag(to.fullPath)
 })
 
 export default router
