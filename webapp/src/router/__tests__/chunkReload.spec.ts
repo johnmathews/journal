@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
 
 import {
   clearReloadFlag,
@@ -39,11 +39,11 @@ describe('handleRouterError', () => {
     'Failed to fetch dynamically imported module: https://x/assets/View-abc.js',
   )
   let storage: ReturnType<typeof makeStorage>
-  let reload: ReturnType<typeof vi.fn>
+  let reload: Mock<(path: string) => void>
 
   beforeEach(() => {
     storage = makeStorage()
-    reload = vi.fn()
+    reload = vi.fn<(path: string) => void>()
   })
 
   it('hard-reloads to the target path on a chunk-load error', () => {
