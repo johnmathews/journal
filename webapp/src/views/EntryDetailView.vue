@@ -79,12 +79,18 @@ async function saveDate() {
     editingDate.value = false
     return
   }
+  const wasUnconfirmed = store.currentEntry.date_confirmed === false
   savingDate.value = true
   try {
     await store.updateDate(store.currentEntry.id, editedDate.value)
     editingDate.value = false
+    if (wasUnconfirmed && store.currentEntry?.date_confirmed) {
+      // Confirming a quarantined entry releases the deferred server
+      // pipeline (chunk/embed → extraction → storyline checks).
+      toast.success('Date confirmed — reprocessing queued.')
+    }
   } catch {
-    // error shown via store.error
+    // error shown via store.error (a 400 carries the allowed-range message)
   } finally {
     savingDate.value = false
   }
@@ -851,6 +857,16 @@ onBeforeUnmount(() => {
             >
               Modified
             </span>
+            <button
+              v-if="!editingDate && store.currentEntry.date_confirmed === false"
+              type="button"
+              class="inline-flex text-xs font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400 rounded-full px-2.5 py-0.5 hover:bg-yellow-200 dark:hover:bg-yellow-500/30 transition-colors"
+              title="This entry's date failed validation and is excluded from search and storylines. Click to set the correct date."
+              data-testid="unconfirmed-date-pill"
+              @click="startEditDate"
+            >
+              Unconfirmed date — click to fix
+            </button>
           </div>
 
           <!--
