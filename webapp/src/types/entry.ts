@@ -12,6 +12,10 @@ export interface EntrySummary {
   chunk_count: number
   uncertain_span_count: number
   doubts_verified: boolean
+  /** False when the entry is quarantined: its detected date failed the
+   * server's bounds check and could not be auto-repaired. Optional so
+   * payloads from servers predating the field render badge-free. */
+  date_confirmed?: boolean
   created_at: string
   language: string
   updated_at: string
@@ -52,6 +56,11 @@ export interface EntryDetail {
   /** Whether the user has verified all OCR doubts on this entry.
    * When true, `uncertain_spans` is empty (the API suppresses them). */
   doubts_verified: boolean
+  /** False when the entry is quarantined: its detected date failed the
+   * server's bounds check and could not be auto-repaired — held from
+   * search/storylines until the date is edited (which confirms it).
+   * Optional so payloads from older servers render badge-free. */
+  date_confirmed?: boolean
   /** Character ranges in `raw_text` flagged as uncertain by the OCR
    * model. Always present in API responses; empty for entries
    * ingested before migration 0005, for entries where the model
