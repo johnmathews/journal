@@ -7,6 +7,7 @@ import {
   fetchIntegrity,
   connectGarmin,
   submitGarminMfa,
+  reconnectGarmin,
   disconnectGarmin,
   getStravaAuthorizeUrl,
   exchangeStravaCode,
@@ -189,6 +190,83 @@ describe('fitness API client', () => {
       code: '654321',
     })
     expect(resp).toEqual({ connected: true, upstream_user_id: 'alice.garmin' })
+  })
+
+  it('reconnectGarmin POSTs to /api/fitness/garmin/reconnect with no body and returns the connected-account shape', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({ connected: true, upstream_user_id: 'alice.garmin' }),
+    } as Response)
+
+    const resp = await reconnectGarmin()
+
+    expect(fetchSpy.mock.calls[0][0]).toBe('/api/fitness/garmin/reconnect')
+    const init = fetchSpy.mock.calls[0][1] as RequestInit
+    expect(init.method).toBe('POST')
+    // No request body — the server reads the saved credentials itself.
+    expect(init.body).toBeUndefined()
+    expect('mfa_required' in resp).toBe(false)
+    if (!('mfa_required' in resp)) {
+      expect(resp.connected).toBe(true)
+      expect(resp.upstream_user_id).toBe('alice.garmin')
+    }
+  })
+
+  it('reconnectGarmin returns the MFA-required branch with pending_session', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          mfa_required: true,
+          pending_session: 'tok-reconnect',
+          expires_at: '2026-07-14T12:34:56Z',
+        }),
+    } as Response)
+
+    const resp = await reconnectGarmin()
+
+    expect('mfa_required' in resp).toBe(true)
+    if ('mfa_required' in resp) {
+      expect(resp.pending_session).toBe('tok-reconnect')
+      expect(resp.expires_at).toBe('2026-07-14T12:34:56Z')
+    }
+  })
+
+  it('reconnectGarmin surfaces the 404 no_saved_credentials error via ApiRequestError with the reason in the body', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: () =>
+        Promise.resolve({
+          error: 'no saved credentials',
+          reason: 'no_saved_credentials',
+        }),
+    } as Response)
+
+    await expect(reconnectGarmin()).rejects.toMatchObject({
+      name: 'ApiRequestError',
+      status: 404,
+      body: { reason: 'no_saved_credentials' },
+    })
+  })
+
+  it('reconnectGarmin surfaces the 409 credentials_unavailable error via ApiRequestError', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: () =>
+        Promise.resolve({
+          error: 'credentials unavailable',
+          reason: 'credentials_unavailable',
+        }),
+    } as Response)
+
+    await expect(reconnectGarmin()).rejects.toMatchObject({
+      name: 'ApiRequestError',
+      status: 409,
+      body: { reason: 'credentials_unavailable' },
+    })
   })
 
   it('disconnectGarmin POSTs to /api/fitness/garmin/disconnect (idempotent)', async () => {

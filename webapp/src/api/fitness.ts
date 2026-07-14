@@ -9,6 +9,7 @@ import type {
   FitnessActivityType,
   GarminConnectResponse,
   GarminMfaResponse,
+  GarminReconnectResponse,
   StravaAuthorizeUrlResponse,
   StravaExchangeResponse,
   DisconnectResponse,
@@ -114,7 +115,8 @@ export interface ConnectGarminParams {
  * Begin the Garmin per-user login. Returns either an immediate success
  * shape or an MFA-pending shape — model the union by narrowing on
  * `'mfa_required' in response`. The plaintext password is consumed once
- * by the server and never persisted.
+ * by the server; servers with credential storage enabled also keep an
+ * encrypted copy so `reconnectGarmin` can re-login without re-entry.
  */
 export function connectGarmin(
   params: ConnectGarminParams,
@@ -142,6 +144,21 @@ export function submitGarminMfa(
   return apiFetch<GarminMfaResponse>('/api/fitness/garmin/connect/mfa', {
     method: 'POST',
     body: JSON.stringify(params),
+  })
+}
+
+/**
+ * Re-login to Garmin using the credentials saved (encrypted) server-side
+ * by a previous connect — no request body, the user never re-types their
+ * password. Same response union as `connectGarmin`: outright success or
+ * an MFA challenge to complete via `submitGarminMfa`. Failures surface
+ * as ApiRequestError: 404 `no_saved_credentials`, 409
+ * `credentials_unavailable` (rotated/unset key), and the same 429
+ * rate-limit shapes as connect.
+ */
+export function reconnectGarmin(): Promise<GarminReconnectResponse> {
+  return apiFetch<GarminReconnectResponse>('/api/fitness/garmin/reconnect', {
+    method: 'POST',
   })
 }
 

@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { connectGarmin, submitGarminMfa, disconnectGarmin } from '@/api/fitness'
+import {
+  connectGarmin,
+  submitGarminMfa,
+  disconnectGarmin,
+  reconnectGarmin,
+} from '@/api/fitness'
 import { ApiRequestError } from '@/api/client'
 import { useFitnessStore } from '@/stores/fitness'
 import FitnessBackfillForm from './FitnessBackfillForm.vue'
@@ -12,11 +17,21 @@ const props = defineProps<{
 
 const store = useFitnessStore()
 
-// UI mode: idle | credentials | mfa | submitting | disconnecting
-// `idle` covers both the never-connected and currently-connected
-// resting states — the card's visible affordance switches on
-// `connectionState` (derived from `props.status`).
-type Mode = 'idle' | 'credentials' | 'mfa' | 'submitting' | 'disconnecting'
+// UI mode: idle | credentials | mfa | submitting | reconnecting |
+// disconnecting. `idle` covers both the never-connected and
+// currently-connected resting states — the card's visible affordance
+// switches on `connectionState` (derived from `props.status`).
+// `reconnecting` is the in-flight state of the one-click
+// reconnect-with-saved-credentials call; it is distinct from
+// `submitting` so neither the credentials form nor the MFA form renders
+// while the server logs in with the stored password.
+type Mode =
+  | 'idle'
+  | 'credentials'
+  | 'mfa'
+  | 'submitting'
+  | 'reconnecting'
+  | 'disconnecting'
 const mode = ref<Mode>('idle')
 
 const username = ref('')
@@ -32,6 +47,13 @@ const connectionState = computed<ConnectionState>(() => {
   if (props.status.auth_status === 'broken') return 'broken'
   return 'connected'
 })
+
+// True when the server holds a decryptable encrypted copy of the user's
+// Garmin password (W5). Drives the saved-credentials line, the accurate
+// password-storage copy, and the one-click reconnect affordance.
+const credentialsSaved = computed<boolean>(
+  () => props.status?.credentials_saved === true,
+)
 
 function openCredentialsForm(): void {
   mode.value = 'credentials'
@@ -102,6 +124,52 @@ async function submitMfa(): Promise<void> {
   }
 }
 
+/**
+ * One-click re-login using the credentials saved server-side — the user
+ * never re-types their password. On an MFA challenge we drop straight
+ * into the existing MFA form (same pending-session mechanics as
+ * connect). When the server reports the saved credentials are gone or
+ * undecryptable, fall back to the credentials form with the explanatory
+ * error kept visible so a changed password isn't a dead end.
+ */
+async function reconnectWithSaved(): Promise<void> {
+  mode.value = 'reconnecting'
+  error.value = null
+  try {
+    const resp = await reconnectGarmin()
+    if ('mfa_required' in resp) {
+      pendingSession.value = resp.pending_session
+      mfaCode.value = ''
+      mode.value = 'mfa'
+    } else {
+      await store.loadSyncStatus()
+      cancelForm()
+    }
+  } catch (e) {
+    const message = errorMessage(e, 'Reconnect failed.')
+    const reason =
+      e instanceof ApiRequestError &&
+      e.body &&
+      typeof e.body.reason === 'string'
+        ? e.body.reason
+        : null
+    if (
+      reason === 'no_saved_credentials' ||
+      reason === 'credentials_unavailable'
+    ) {
+      // Saved credentials can't be used — degrade to manual entry,
+      // preserving the explanation (openCredentialsForm clears error).
+      openCredentialsForm()
+      error.value = message
+    } else {
+      // Rate limits and transient failures: stay on the resting card so
+      // the user can retry the one-click path later.
+      mode.value = 'idle'
+      error.value = message
+    }
+  }
+}
+
 async function onDisconnect(): Promise<void> {
   mode.value = 'disconnecting'
   error.value = null
@@ -146,6 +214,15 @@ function errorMessage(e: unknown, fallback: string): string {
         return 'Garmin accepted the code but the follow-up profile fetch failed. Try Connect again.'
       case 'upstream_account_mismatch':
         return 'This Garmin account differs from the one currently connected. Disconnect first.'
+      case 'no_saved_credentials':
+        return 'No saved Garmin credentials on this server. Enter your credentials to reconnect.'
+      case 'credentials_unavailable':
+        return (
+          'The saved Garmin credentials can no longer be decrypted (the ' +
+          'server credential key changed). Enter your credentials to ' +
+          'reconnect.'
+        )
+      case 'rate_limited':
       case 'upstream_rate_limited':
         // Garmin/Cloudflare blocked the server's IP. Each retry re-arms the
         // block, so the actionable guidance is to stop and wait — not to
@@ -207,6 +284,13 @@ function formatDate(iso: string | null): string {
             {{ formatDate(status?.last_success_at ?? null) }}.
           </template>
         </p>
+        <p
+          v-if="credentialsSaved"
+          class="text-xs text-gray-500 dark:text-gray-400 mt-1"
+          data-testid="garmin-creds-saved-line"
+        >
+          Credentials saved — re-authentication is usually automatic.
+        </p>
       </div>
       <div class="flex flex-wrap items-center gap-2 shrink-0">
         <button
@@ -218,8 +302,44 @@ function formatDate(iso: string | null): string {
         >
           Connect
         </button>
+        <!--
+          Broken auth, saved credentials: primary action is one-click
+          reconnect — no password re-entry. The small link below keeps
+          fresh-credential entry reachable (changed Garmin password).
+        -->
         <button
-          v-if="connectionState === 'broken' && mode === 'idle'"
+          v-if="
+            connectionState === 'broken' &&
+            credentialsSaved &&
+            (mode === 'idle' || mode === 'reconnecting')
+          "
+          type="button"
+          class="btn-sm bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50"
+          :disabled="mode === 'reconnecting'"
+          data-testid="garmin-reconnect-saved-btn"
+          @click="reconnectWithSaved"
+        >
+          {{
+            mode === 'reconnecting'
+              ? 'Reconnecting…'
+              : 'Reconnect with saved credentials'
+          }}
+        </button>
+        <button
+          v-if="
+            connectionState === 'broken' && credentialsSaved && mode === 'idle'
+          "
+          type="button"
+          class="text-xs text-violet-600 dark:text-violet-400 underline hover:no-underline"
+          data-testid="garmin-use-different-creds"
+          @click="openCredentialsForm"
+        >
+          Use different credentials
+        </button>
+        <button
+          v-if="
+            connectionState === 'broken' && !credentialsSaved && mode === 'idle'
+          "
           type="button"
           class="btn-sm bg-violet-500 hover:bg-violet-600 text-white"
           data-testid="garmin-reconnect-btn"
@@ -271,9 +391,13 @@ function formatDate(iso: string | null): string {
           @keyup.enter="submitCredentials"
         />
       </label>
-      <p class="text-xs text-gray-500 dark:text-gray-400">
-        The password is sent once to authenticate with Garmin and is never
-        stored on this server.
+      <p
+        class="text-xs text-gray-500 dark:text-gray-400"
+        data-testid="garmin-password-storage-note"
+      >
+        Your password is sent to Garmin to mint a session token. If this server
+        has credential storage enabled, it is also saved encrypted so future
+        re-authentication can happen automatically.
       </p>
       <div class="flex gap-2">
         <button

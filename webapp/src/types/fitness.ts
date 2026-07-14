@@ -99,6 +99,13 @@ export interface FitnessSourceStatus {
   auth_broken_since: string | null
   last_success_at: string | null
   last_runs: FitnessSyncRun[]
+  /**
+   * Garmin only: true iff an encrypted password is saved server-side AND
+   * is currently decryptable (i.e. `FITNESS_CREDENTIAL_KEY` is set and
+   * matches). Absent/false for Strava and for servers without credential
+   * storage enabled.
+   */
+  credentials_saved?: boolean
 }
 
 /** Top-level shape of GET /api/fitness/sync/status. */
@@ -171,6 +178,17 @@ export type GarminConnectResponse =
 
 /** Success shape of `POST /api/fitness/garmin/connect/mfa`. */
 export type GarminMfaResponse = ConnectedAccountResponse
+
+/**
+ * Response of `POST /api/fitness/garmin/reconnect` (login with saved
+ * server-side credentials). Wire shapes are identical to the connect
+ * endpoint: outright success, or an MFA challenge whose
+ * `pending_session` is completed via the same
+ * `/api/fitness/garmin/connect/mfa` endpoint. Failure cases (404
+ * `no_saved_credentials`, 409 `credentials_unavailable`, 429 rate
+ * limits) surface as ApiRequestError with a `reason` in the body.
+ */
+export type GarminReconnectResponse = GarminConnectResponse
 
 /** Success shape of `POST /api/fitness/strava/exchange`. */
 export type StravaExchangeResponse = ConnectedAccountResponse
