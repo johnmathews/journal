@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { exchangeStravaCode } from '@/api/fitness'
 import { ApiRequestError } from '@/api/client'
+import { useSettingsStore } from '@/stores/settings'
 
 // Landing page for Strava's OAuth redirect (per plan §5 W10).
 // The flow:
@@ -21,6 +22,7 @@ import { ApiRequestError } from '@/api/client'
 
 const route = useRoute()
 const router = useRouter()
+const settingsStore = useSettingsStore()
 
 const status = ref<'pending' | 'error'>('pending')
 const errorReason = ref<string | null>(null)
@@ -47,6 +49,17 @@ function pickQueryParam(value: unknown): string | null {
 }
 
 async function complete(): Promise<void> {
+  // Strava is mothballed behind the server-driven `features.strava_enabled`
+  // flag. Wait for settings (fail closed: unknown or failed load ⇒
+  // disabled) and bounce straight back to Settings · Fitness without ever
+  // touching the exchange API when disabled — the server 404s those
+  // routes anyway.
+  await settingsStore.ensureLoaded()
+  if (!(settingsStore.settings?.features.strava_enabled ?? false)) {
+    await router.replace(settingsRedirect())
+    return
+  }
+
   const errorParam = pickQueryParam(route.query.error)
   if (errorParam) {
     // The user denied authorization (or Strava itself failed). The

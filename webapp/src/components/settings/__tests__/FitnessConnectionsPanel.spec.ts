@@ -3,6 +3,8 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import FitnessConnectionsPanel from '../FitnessConnectionsPanel.vue'
+import { useSettingsStore } from '@/stores/settings'
+import { makeServerSettingsWithStrava } from '@/__tests__/fixtures/server-settings'
 import type { FitnessSyncStatus } from '@/types/fitness'
 
 vi.mock('@/api/fitness', () => ({
@@ -16,6 +18,17 @@ vi.mock('@/api/fitness', () => ({
   disconnectGarmin: vi.fn(),
   getStravaAuthorizeUrl: vi.fn(),
   disconnectStrava: vi.fn(),
+}))
+
+// The panel calls settingsStore.ensureLoaded() on mount (Strava feature
+// flag). Keep the fetch pending by default so tests control the flag by
+// seeding the store directly; the "flag unknown" test relies on the
+// pending state to prove the fail-closed default.
+vi.mock('@/api/settings', () => ({
+  fetchSettings: vi.fn(() => new Promise(() => {})),
+  fetchHealth: vi.fn(() => new Promise(() => {})),
+  updateRuntimeSettings: vi.fn(),
+  updatePricing: vi.fn(),
 }))
 
 import { fetchSyncStatus } from '@/api/fitness'
@@ -32,13 +45,27 @@ function makeRouter() {
   })
 }
 
-function mountPanel() {
+/**
+ * Seed the settings store with the Strava flag. `null` leaves the store
+ * unhydrated to exercise the fail-closed (flag unknown) default.
+ */
+function seedStravaFlag(enabled: boolean | null) {
+  if (enabled === null) return
+  useSettingsStore().settings = makeServerSettingsWithStrava(enabled)
+}
+
+function mountPanel(stravaEnabled: boolean | null = true) {
+  seedStravaFlag(stravaEnabled)
   return mount(FitnessConnectionsPanel, {
     global: { plugins: [makeRouter()] },
   })
 }
 
-async function mountPanelAt(fullPath: string) {
+async function mountPanelAt(
+  fullPath: string,
+  stravaEnabled: boolean | null = true,
+) {
+  seedStravaFlag(stravaEnabled)
   const router = makeRouter()
   await router.push(fullPath)
   await router.isReady()
@@ -73,9 +100,9 @@ describe('FitnessConnectionsPanel', () => {
     expect(section.attributes('id')).toBe('fitness')
   })
 
-  it('renders both connection cards', async () => {
+  it('renders both connection cards when strava_enabled is true', async () => {
     mockFetchStatus.mockResolvedValue(freshStatus())
-    const wrapper = mountPanel()
+    const wrapper = mountPanel(true)
     await flushPromises()
     expect(
       wrapper.find('[data-testid="garmin-connection-card"]').exists(),
@@ -83,6 +110,42 @@ describe('FitnessConnectionsPanel', () => {
     expect(
       wrapper.find('[data-testid="strava-connection-card"]').exists(),
     ).toBe(true)
+  })
+
+  it('hides the Strava card when strava_enabled is false (Garmin still renders)', async () => {
+    mockFetchStatus.mockResolvedValue(freshStatus())
+    const wrapper = mountPanel(false)
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="garmin-connection-card"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="strava-connection-card"]').exists(),
+    ).toBe(false)
+  })
+
+  it('hides the Strava card while the flag is unknown (fail-closed before settings load)', async () => {
+    mockFetchStatus.mockResolvedValue(freshStatus())
+    const wrapper = mountPanel(null)
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="garmin-connection-card"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="strava-connection-card"]').exists(),
+    ).toBe(false)
+  })
+
+  it('ignores the ?strava_error query param when strava_enabled is false', async () => {
+    mockFetchStatus.mockResolvedValue(freshStatus())
+    const wrapper = await mountPanelAt(
+      '/settings?strava_error=access_denied#fitness',
+      false,
+    )
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="fitness-strava-callback-error"]').exists(),
+    ).toBe(false)
   })
 
   it('surfaces a status-error message when sync-status loading fails', async () => {

@@ -45,6 +45,10 @@ export interface ServerSettings {
     mood_scoring: boolean
     mood_scorer_model: string
     journal_author_name: string
+    // Strava is mothballed (2026-07): the server derives this from
+    // STRAVA_ENABLED (default false). When false, all Strava UI is
+    // hidden; historical Strava rows keep rendering with their badge.
+    strava_enabled: boolean
   }
   runtime: RuntimeSetting[]
   pricing?: PricingEntry[]

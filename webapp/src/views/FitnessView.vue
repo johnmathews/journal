@@ -5,6 +5,7 @@ import { useStorage } from '@vueuse/core'
 import { Chart, type ChartType } from 'chart.js'
 import { useFitnessStore } from '@/stores/fitness'
 import { useJobsStore } from '@/stores/jobs'
+import { useSettingsStore } from '@/stores/settings'
 import { isTerminal } from '@/types/job'
 import {
   getChartColors,
@@ -26,6 +27,16 @@ import {
 
 const store = useFitnessStore()
 const jobsStore = useJobsStore()
+
+// Strava is mothballed behind the server-driven `features.strava_enabled`
+// flag (GET /api/settings). Fail closed: until settings load (or if the
+// load fails), hide the Strava controls — matching the server default of
+// disabled. Historical Strava rows in the activities table are untouched.
+const settingsStore = useSettingsStore()
+const stravaEnabled = computed(
+  () => settingsStore.settings?.features.strava_enabled ?? false,
+)
+
 const {
   activities,
   daily,
@@ -403,6 +414,8 @@ watch(maWindow, () => {
 onMounted(() => {
   void store.loadLayout()
   void reloadAll()
+  // Feature flags (Strava mothball) — no-op if already loaded elsewhere.
+  void settingsStore.ensureLoaded()
 })
 
 // ── On-page sync buttons (Item 3) ──────────────────────────────────
@@ -484,6 +497,12 @@ function sourceLabel(source: FitnessSource): string {
   return source === 'strava' ? 'Strava' : 'Garmin'
 }
 
+// Sources with on-page sync buttons (and matching inline error slots).
+// Garmin-only while Strava is mothballed; order preserved when enabled.
+const syncSources = computed<FitnessSource[]>(() =>
+  stravaEnabled.value ? ['garmin', 'strava'] : ['garmin'],
+)
+
 const recentActivities = computed(() => distinctActivities.value.slice(0, 20))
 
 function formatDuration(seconds: number): string {
@@ -524,8 +543,11 @@ function widthTitleForFitnessTile(id: FitnessTileId): string {
           Fitness
         </h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Strava and Garmin sync status, weekly training, and Garmin daily
-          recovery.
+          {{
+            stravaEnabled
+              ? 'Strava and Garmin sync status, weekly training, and Garmin daily recovery.'
+              : 'Garmin sync status, weekly training, and daily recovery.'
+          }}
         </p>
       </div>
       <div class="flex items-end gap-3">
@@ -543,7 +565,7 @@ function widthTitleForFitnessTile(id: FitnessTileId): string {
           {{ store.editingLayout ? 'Done editing' : 'Edit layout' }}
         </button>
         <button
-          v-for="source in ['garmin', 'strava'] as FitnessSource[]"
+          v-for="source in syncSources"
           :key="source"
           type="button"
           class="btn bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600 text-sm h-9 disabled:opacity-60"
@@ -588,9 +610,9 @@ function widthTitleForFitnessTile(id: FitnessTileId): string {
 
     <!-- Per-source sync error: submit failed, or the job ended failed.
          Deep-links to Settings · Fitness for the run history. -->
-    <div v-if="syncJobError.garmin || syncJobError.strava" class="space-y-1">
+    <div v-if="syncSources.some((s) => syncJobError[s])" class="space-y-1">
       <p
-        v-for="source in ['garmin', 'strava'] as FitnessSource[]"
+        v-for="source in syncSources"
         v-show="syncJobError[source]"
         :key="source"
         class="text-sm text-rose-500"
@@ -662,13 +684,14 @@ function widthTitleForFitnessTile(id: FitnessTileId): string {
         No fitness data yet
       </h2>
       <p class="text-sm text-amber-800 dark:text-amber-200 mt-1">
-        Connect a source by running
-        <code class="font-mono">journal fitness-reauth-strava</code>
-        or
-        <code class="font-mono">journal fitness-reauth-garmin</code> on the
-        server, then run
-        <code class="font-mono">journal fitness-backfill</code> to load
-        historical activity. See
+        Connect your Garmin account under
+        <RouterLink
+          to="/settings#fitness"
+          class="underline font-semibold"
+          data-testid="fitness-fresh-setup-connect-link"
+          >Settings · Fitness</RouterLink
+        >, then run <code class="font-mono">journal fitness-backfill</code> on
+        the server to load historical activity. See
         <span class="font-semibold">docs/fitness-operations.md</span> for the
         full operator runbook.
       </p>
@@ -816,8 +839,11 @@ function widthTitleForFitnessTile(id: FitnessTileId): string {
             Recent workouts
           </h2>
           <p class="text-xs text-gray-500">
-            Cross-source dedup applied — rows from both Strava and Garmin whose
-            time windows overlap by ≥75% collapse to one entry.
+            {{
+              stravaEnabled
+                ? 'Cross-source dedup applied — rows from both Strava and Garmin whose time windows overlap by ≥75% collapse to one entry.'
+                : 'Cross-source dedup applied — rows from multiple sources whose time windows overlap by ≥75% collapse to one entry.'
+            }}
           </p>
         </header>
         <div class="overflow-x-auto">

@@ -21,7 +21,20 @@ export const useSettingsStore = defineStore('settings', () => {
   const error = ref<string | null>(null)
   const updating = ref(false)
 
-  async function load(): Promise<void> {
+  // In-flight load promise so ensureLoaded() can join a load another
+  // caller (e.g. SettingsView's eager load()) already started instead of
+  // firing a duplicate fetch.
+  let inflight: Promise<void> | null = null
+
+  function load(): Promise<void> {
+    const p = doLoad().finally(() => {
+      if (inflight === p) inflight = null
+    })
+    inflight = p
+    return p
+  }
+
+  async function doLoad(): Promise<void> {
     loading.value = true
     error.value = null
     try {
@@ -39,6 +52,20 @@ export const useSettingsStore = defineStore('settings', () => {
     } finally {
       loading.value = false
     }
+  }
+
+  /**
+   * Load settings at most once. Callers that only need the settings to be
+   * present (feature-flag readers like the Strava-mothball gating) use this
+   * instead of load() so several components mounting together produce a
+   * single fetch. A failed load leaves `settings` null — flag readers must
+   * fail closed (treat unknown as disabled) — and the next ensureLoaded()
+   * call retries.
+   */
+  function ensureLoaded(): Promise<void> {
+    if (inflight) return inflight
+    if (settings.value) return Promise.resolve()
+    return load()
   }
 
   /** Build a PricingConfig from server pricing data, falling back to defaults. */
@@ -101,6 +128,7 @@ export const useSettingsStore = defineStore('settings', () => {
     updating,
     pricingConfig,
     load,
+    ensureLoaded,
     updateRuntime,
     updatePricing,
   }

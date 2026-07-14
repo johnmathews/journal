@@ -4,13 +4,34 @@ import { setActivePinia, createPinia } from 'pinia'
 import { createRouter, createMemoryHistory, type Router } from 'vue-router'
 import StravaCallbackView from '../StravaCallbackView.vue'
 import { ApiRequestError } from '@/api/client'
+import { useSettingsStore } from '@/stores/settings'
+import { makeServerSettingsWithStrava } from '@/__tests__/fixtures/server-settings'
 
 vi.mock('@/api/fitness', () => ({
   exchangeStravaCode: vi.fn(),
 }))
 
+// The view awaits settingsStore.ensureLoaded() before touching the
+// exchange API (Strava feature flag, fail closed). Keep the fetch
+// pending; tests seed the store directly.
+vi.mock('@/api/settings', () => ({
+  fetchSettings: vi.fn(() => new Promise(() => {})),
+  fetchHealth: vi.fn(() => new Promise(() => {})),
+  updateRuntimeSettings: vi.fn(),
+  updatePricing: vi.fn(),
+}))
+
 import { exchangeStravaCode } from '@/api/fitness'
 const mockExchange = vi.mocked(exchangeStravaCode)
+
+/**
+ * Seed the settings store with the Strava flag. `null` leaves it
+ * unhydrated (flag unknown — the view must not call the exchange API).
+ */
+function seedStravaFlag(enabled: boolean | null) {
+  if (enabled === null) return
+  useSettingsStore().settings = makeServerSettingsWithStrava(enabled)
+}
 
 function makeRouter(): Router {
   return createRouter({
@@ -30,8 +51,12 @@ function makeRouter(): Router {
   })
 }
 
-async function mountWithQuery(query: Record<string, string>) {
+async function mountWithQuery(
+  query: Record<string, string>,
+  stravaEnabled: boolean | null = true,
+) {
   setActivePinia(createPinia())
+  seedStravaFlag(stravaEnabled)
   const router = makeRouter()
   const search = new URLSearchParams(query).toString()
   await router.push(`/settings/fitness/strava/callback?${search}`)
@@ -53,6 +78,7 @@ describe('StravaCallbackView', () => {
     mockExchange.mockReturnValue(new Promise(() => {}))
 
     setActivePinia(createPinia())
+    seedStravaFlag(true)
     const router = makeRouter()
     await router.push('/settings/fitness/strava/callback?code=c&state=s')
     await router.isReady()
@@ -136,10 +162,43 @@ describe('StravaCallbackView', () => {
     expect(router.currentRoute.value.query.strava_error).toBe('exchange_failed')
   })
 
+  // --- W2 (Strava mothball): flag-off behaviour ---
+
+  it('redirects straight to /settings#fitness without calling the exchange API when strava_enabled is false', async () => {
+    const { router } = await mountWithQuery(
+      { code: 'c-1', state: 's-1' },
+      false,
+    )
+
+    expect(mockExchange).not.toHaveBeenCalled()
+    expect(router.currentRoute.value.path).toBe('/settings')
+    expect(router.currentRoute.value.hash).toBe('#fitness')
+    // No strava_error param — this is a silent bounce, not a failure.
+    expect(router.currentRoute.value.query.strava_error).toBeUndefined()
+  })
+
+  it('never calls the exchange API while the flag is unknown (fail-closed)', async () => {
+    // Settings store left unhydrated and fetchSettings pending forever:
+    // the view must sit in the pending state without touching the API.
+    const { wrapper, router } = await mountWithQuery(
+      { code: 'c-1', state: 's-1' },
+      null,
+    )
+
+    expect(mockExchange).not.toHaveBeenCalled()
+    expect(router.currentRoute.value.path).toBe(
+      '/settings/fitness/strava/callback',
+    )
+    expect(
+      wrapper.find('[data-testid="strava-callback-pending"]').exists(),
+    ).toBe(true)
+  })
+
   it('does nothing on duplicate ?code=&code= (non-string query value)', async () => {
     // URLSearchParams handles duplicate keys as an array on the Vue
     // Router side. Build the URL by hand to exercise that path.
     setActivePinia(createPinia())
+    seedStravaFlag(true)
     const router = makeRouter()
     await router.push('/settings/fitness/strava/callback?code=a&code=b&state=s')
     await router.isReady()

@@ -49,6 +49,7 @@ function makeSettings(): ServerSettings {
       mood_scoring: false,
       mood_scorer_model: 'claude-sonnet-4-5',
       journal_author_name: 'John',
+      strava_enabled: false,
     },
     runtime: [
       {
@@ -175,6 +176,67 @@ describe('useSettingsStore', () => {
     resolve!(makeSettings())
     await p
     expect(store.loading).toBe(false)
+  })
+
+  // --- ensureLoaded (feature-flag readers, e.g. Strava mothball gating) ---
+
+  it('ensureLoaded fetches once and dedupes concurrent callers', async () => {
+    mockFetchSettings.mockResolvedValue(makeSettings())
+    mockFetchHealth.mockResolvedValue(makeHealth())
+
+    const store = useSettingsStore()
+    await Promise.all([store.ensureLoaded(), store.ensureLoaded()])
+
+    expect(mockFetchSettings).toHaveBeenCalledTimes(1)
+    expect(store.settings).not.toBeNull()
+  })
+
+  it('ensureLoaded is a no-op once settings are loaded', async () => {
+    mockFetchSettings.mockResolvedValue(makeSettings())
+    mockFetchHealth.mockResolvedValue(makeHealth())
+
+    const store = useSettingsStore()
+    await store.load()
+    mockFetchSettings.mockClear()
+
+    await store.ensureLoaded()
+
+    expect(mockFetchSettings).not.toHaveBeenCalled()
+  })
+
+  it('ensureLoaded joins an in-flight load() instead of double-fetching', async () => {
+    let resolve: (v: unknown) => void
+    mockFetchSettings.mockReturnValue(
+      new Promise((r) => {
+        resolve = r
+      }),
+    )
+    mockFetchHealth.mockResolvedValue(makeHealth())
+
+    const store = useSettingsStore()
+    const loadPromise = store.load()
+    const ensuredPromise = store.ensureLoaded()
+
+    expect(mockFetchSettings).toHaveBeenCalledTimes(1)
+
+    resolve!(makeSettings())
+    await Promise.all([loadPromise, ensuredPromise])
+    expect(store.settings).not.toBeNull()
+  })
+
+  it('ensureLoaded retries after a failed load leaves settings null', async () => {
+    mockFetchSettings.mockRejectedValueOnce(new Error('down'))
+    mockFetchHealth.mockResolvedValue(makeHealth())
+
+    const store = useSettingsStore()
+    await store.ensureLoaded()
+    expect(store.settings).toBeNull()
+
+    mockFetchSettings.mockResolvedValue(makeSettings())
+    await store.ensureLoaded()
+
+    expect(mockFetchSettings).toHaveBeenCalledTimes(2)
+    expect(store.settings).not.toBeNull()
   })
 
   it('pricingConfig returns defaults when no pricing data', () => {

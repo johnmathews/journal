@@ -119,6 +119,9 @@ function makeSettings(overrides: Partial<ServerSettings> = {}): ServerSettings {
       mood_scoring: true,
       mood_scorer_model: 'claude-sonnet-4-5',
       journal_author_name: 'John',
+      // Mirrors the prod default: Strava is mothballed unless the server
+      // says otherwise.
+      strava_enabled: false,
     },
     runtime: [],
     ...overrides,
@@ -374,6 +377,7 @@ describe('SettingsView', () => {
           mood_scoring: true,
           mood_scorer_model: 'claude-sonnet-4-5',
           journal_author_name: 'John',
+          strava_enabled: false,
         },
       }),
     )
@@ -388,6 +392,7 @@ describe('SettingsView', () => {
           mood_scoring: false,
           mood_scorer_model: 'claude-sonnet-4-5',
           journal_author_name: 'John',
+          strava_enabled: false,
         },
       }),
     )
@@ -417,6 +422,46 @@ describe('SettingsView', () => {
       document.body.querySelector('[data-testid="batch-modal-configure"]'),
     ).not.toBeNull()
     document.body.innerHTML = ''
+  })
+
+  // --- Strava mothball (W2): flag-driven fitness cards ---
+
+  it('hides the Strava connection and sync cards when strava_enabled is false', async () => {
+    const wrapper = await mountView() // default fixture: strava_enabled false
+    expect(
+      wrapper.find('[data-testid="garmin-connection-card"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="strava-connection-card"]').exists(),
+    ).toBe(false)
+    expect(
+      wrapper.find('[data-testid="fitness-source-card-garmin"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="fitness-source-card-strava"]').exists(),
+    ).toBe(false)
+  })
+
+  it('shows the Strava connection and sync cards when strava_enabled is true', async () => {
+    const wrapper = await mountView(
+      makeSettings({
+        features: {
+          mood_scoring: true,
+          mood_scorer_model: 'claude-sonnet-4-5',
+          journal_author_name: 'John',
+          strava_enabled: true,
+        },
+      }),
+    )
+    expect(
+      wrapper.find('[data-testid="strava-connection-card"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="fitness-source-card-strava"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="garmin-connection-card"]').exists(),
+    ).toBe(true)
   })
 
   // --- Removed sections (now in /admin/*) ---

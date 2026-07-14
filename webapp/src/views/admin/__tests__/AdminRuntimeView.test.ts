@@ -63,6 +63,7 @@ function makeSettings(overrides: Partial<ServerSettings> = {}): ServerSettings {
       mood_scoring: true,
       mood_scorer_model: 'claude-sonnet-4-5',
       journal_author_name: 'John',
+      strava_enabled: false,
     },
     runtime: [],
     ...overrides,
@@ -418,6 +419,7 @@ describe('AdminRuntimeView', () => {
           mood_scoring: true,
           mood_scorer_model: 'claude-sonnet-4-5',
           journal_author_name: 'John',
+          strava_enabled: false,
         },
       }),
     )
@@ -433,6 +435,7 @@ describe('AdminRuntimeView', () => {
           mood_scoring: false,
           mood_scorer_model: 'claude-sonnet-4-5',
           journal_author_name: 'John',
+          strava_enabled: false,
         },
       }),
     )

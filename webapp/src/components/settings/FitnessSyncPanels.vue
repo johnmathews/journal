@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useFitnessStore } from '@/stores/fitness'
+import { useSettingsStore } from '@/stores/settings'
 import type {
   FitnessSource,
   FitnessSourceStatus,
@@ -24,7 +26,16 @@ import type {
 const store = useFitnessStore()
 const { syncStatus, triggeringSync, syncError } = storeToRefs(store)
 
-const sources: FitnessSource[] = ['strava', 'garmin']
+// Strava is mothballed behind the server-driven `features.strava_enabled`
+// flag. Fail closed: until settings load (or on load failure), show only
+// the Garmin panel — matching the server default of disabled.
+const settingsStore = useSettingsStore()
+void settingsStore.ensureLoaded()
+const sources = computed<FitnessSource[]>(() =>
+  (settingsStore.settings?.features.strava_enabled ?? false)
+    ? ['strava', 'garmin']
+    : ['garmin'],
+)
 
 function sourceLabel(source: FitnessSource): string {
   return source === 'strava' ? 'Strava' : 'Garmin'

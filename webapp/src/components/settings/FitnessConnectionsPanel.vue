@@ -3,6 +3,7 @@ import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useFitnessStore } from '@/stores/fitness'
+import { useSettingsStore } from '@/stores/settings'
 import GarminConnectionCard from './GarminConnectionCard.vue'
 import StravaConnectionCard from './StravaConnectionCard.vue'
 
@@ -17,12 +18,24 @@ const { syncStatus, loadingStatus, statusError } = storeToRefs(store)
 
 const route = useRoute()
 
+// Strava is mothballed behind the server-driven `features.strava_enabled`
+// flag (GET /api/settings). Fail closed: until settings load (or if the
+// load fails), treat Strava as disabled — matching the server default —
+// so the card and the ?strava_error handling stay hidden.
+const settingsStore = useSettingsStore()
+const stravaEnabled = computed(
+  () => settingsStore.settings?.features.strava_enabled ?? false,
+)
+
 // W10's StravaCallbackView redirects to /settings#fitness with
 // ?strava_error=<reason> on any failure (denied, expired state,
 // upstream error, etc.). Surface it inline so the user knows the
 // OAuth round trip failed; the reason codes mirror the server's
-// `reason` field (see api.md § Strava OAuth endpoints).
+// `reason` field (see api.md § Strava OAuth endpoints). Skipped entirely
+// while Strava is disabled — a stale ?strava_error param must not surface
+// UI for a mothballed integration.
 const stravaError = computed<string | null>(() => {
+  if (!stravaEnabled.value) return null
   const v = route.query.strava_error
   return typeof v === 'string' && v.length > 0 ? v : null
 })
@@ -50,6 +63,8 @@ const stravaErrorMessage = computed<string | null>(() => {
 
 onMounted(() => {
   void store.loadSyncStatus()
+  // No-op when SettingsView (or anything else) already loaded settings.
+  void settingsStore.ensureLoaded()
 })
 </script>
 
@@ -87,7 +102,7 @@ onMounted(() => {
     </p>
     <div class="space-y-4">
       <GarminConnectionCard :status="syncStatus.garmin" />
-      <StravaConnectionCard :status="syncStatus.strava" />
+      <StravaConnectionCard v-if="stravaEnabled" :status="syncStatus.strava" />
     </div>
   </section>
 </template>

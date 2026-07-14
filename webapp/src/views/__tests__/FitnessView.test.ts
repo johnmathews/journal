@@ -3,6 +3,8 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
 import FitnessView from '../FitnessView.vue'
+import { useSettingsStore } from '@/stores/settings'
+import { makeServerSettingsWithStrava } from '@/__tests__/fixtures/server-settings'
 import type {
   FitnessActivity,
   FitnessDaily,
@@ -23,6 +25,17 @@ vi.mock('@/api/fitness', () => ({
 vi.mock('@/api/preferences', () => ({
   fetchPreferences: vi.fn().mockResolvedValue({ preferences: {} }),
   updatePreferences: vi.fn().mockResolvedValue({ preferences: {} }),
+}))
+
+// The view calls settingsStore.ensureLoaded() on mount (Strava feature
+// flag). Keep the fetch pending — mountView seeds the store directly, and
+// the flag-unknown test relies on the pending state to prove the
+// fail-closed default.
+vi.mock('@/api/settings', () => ({
+  fetchSettings: vi.fn(() => new Promise(() => {})),
+  fetchHealth: vi.fn(() => new Promise(() => {})),
+  updateRuntimeSettings: vi.fn(),
+  updatePricing: vi.fn(),
 }))
 
 // Item 3 watches a tracked sync job via the jobs store. Stub it so the
@@ -239,9 +252,20 @@ const router = createRouter({
   ],
 })
 
-function mountView() {
+/**
+ * Mount the view with the Strava feature flag seeded in the settings
+ * store. Defaults to `true` so the pre-mothball assertions (Sync Strava
+ * button, etc.) keep exercising the full UI; `null` leaves the store
+ * unhydrated to exercise the fail-closed (flag unknown) default.
+ */
+function mountView(stravaEnabled: boolean | null = true) {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  if (stravaEnabled !== null) {
+    useSettingsStore().settings = makeServerSettingsWithStrava(stravaEnabled)
+  }
   return mount(FitnessView, {
-    global: { plugins: [router, createPinia()] },
+    global: { plugins: [router, pinia] },
   })
 }
 
@@ -292,7 +316,7 @@ describe('FitnessView', () => {
     wrapper.unmount()
   })
 
-  it('renders a fresh-setup hint when both sources are null', async () => {
+  it('renders a fresh-setup hint pointing at the Garmin connect flow in Settings', async () => {
     mockFetchSyncStatus.mockResolvedValue({ strava: null, garmin: null })
 
     const wrapper = mountView()
@@ -301,7 +325,14 @@ describe('FitnessView', () => {
     expect(wrapper.find('[data-testid="fitness-fresh-setup"]').exists()).toBe(
       true,
     )
-    expect(wrapper.text()).toContain('journal fitness-reauth-strava')
+    // The hint must direct users to the web connect flow, not the
+    // (wrong even pre-mothball) `journal fitness-reauth-strava` CLI.
+    expect(wrapper.text()).not.toContain('journal fitness-reauth-strava')
+    const connectLink = wrapper.find(
+      '[data-testid="fitness-fresh-setup-connect-link"]',
+    )
+    expect(connectLink.exists()).toBe(true)
+    expect(connectLink.attributes('href')).toContain('/settings#fitness')
     expect(wrapper.text()).toContain('journal fitness-backfill')
     wrapper.unmount()
   })
@@ -703,6 +734,83 @@ describe('FitnessView', () => {
     expect(
       wrapper.find('[data-testid="fitness-sync-strava-spinner"]').exists(),
     ).toBe(false)
+    wrapper.unmount()
+  })
+
+  // ── W2 (Strava mothball): flag-driven Strava UI ────────────────────
+
+  it('shows both sync buttons and Strava-inclusive copy when strava_enabled is true', async () => {
+    const wrapper = mountView(true)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="fitness-sync-garmin"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('[data-testid="fitness-sync-strava"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.text()).toContain(
+      'Strava and Garmin sync status, weekly training, and Garmin daily recovery.',
+    )
+    expect(wrapper.text()).toContain('rows from both Strava and Garmin')
+    wrapper.unmount()
+  })
+
+  it('hides the Sync Strava button and neutralises copy when strava_enabled is false', async () => {
+    const wrapper = mountView(false)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="fitness-sync-garmin"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('[data-testid="fitness-sync-strava"]').exists()).toBe(
+      false,
+    )
+    expect(wrapper.text()).toContain(
+      'Garmin sync status, weekly training, and daily recovery.',
+    )
+    expect(wrapper.text()).not.toContain('rows from both Strava and Garmin')
+    expect(wrapper.text()).toContain('rows from multiple sources')
+    wrapper.unmount()
+  })
+
+  it('still renders historical Strava rows with their source badge when the flag is off', async () => {
+    mockFetchActivities.mockResolvedValue({
+      items: [
+        makeActivity({ id: 1, source: 'strava', source_id: 's1' }),
+        makeActivity({
+          id: 2,
+          source: 'garmin',
+          source_id: 'g1',
+          start_time: '2026-05-09T07:00:30Z',
+        }),
+      ],
+    })
+
+    const wrapper = mountView(false)
+    await flushPromises()
+
+    // Dedup untouched: the Strava row wins the tie-break and renders
+    // with its badge plus the Garmin mirror marker.
+    const rows = wrapper
+      .find('[data-testid="fitness-recent-activities"]')
+      .findAll('tbody tr')
+    expect(rows).toHaveLength(1)
+    expect(rows[0].text()).toContain('Strava')
+    expect(rows[0].text()).toContain('+ 1 mirror')
+    wrapper.unmount()
+  })
+
+  it('hides the Sync Strava button while the flag is unknown (fail-closed)', async () => {
+    const wrapper = mountView(null)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="fitness-sync-garmin"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('[data-testid="fitness-sync-strava"]').exists()).toBe(
+      false,
+    )
     wrapper.unmount()
   })
 

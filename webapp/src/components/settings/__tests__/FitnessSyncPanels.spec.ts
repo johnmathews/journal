@@ -3,6 +3,8 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import FitnessSyncPanels from '../FitnessSyncPanels.vue'
 import { useFitnessStore } from '@/stores/fitness'
+import { useSettingsStore } from '@/stores/settings'
+import { makeServerSettingsWithStrava } from '@/__tests__/fixtures/server-settings'
 import type { FitnessSyncStatus } from '@/types/fitness'
 
 vi.mock('@/api/fitness', () => ({
@@ -10,6 +12,16 @@ vi.mock('@/api/fitness', () => ({
   triggerSync: vi.fn(),
   fetchActivities: vi.fn(),
   fetchDaily: vi.fn(),
+}))
+
+// The panel calls settingsStore.ensureLoaded() (Strava feature flag).
+// Keep the fetch pending; tests seed the store directly so the flag-
+// unknown case proves the fail-closed default.
+vi.mock('@/api/settings', () => ({
+  fetchSettings: vi.fn(() => new Promise(() => {})),
+  fetchHealth: vi.fn(() => new Promise(() => {})),
+  updateRuntimeSettings: vi.fn(),
+  updatePricing: vi.fn(),
 }))
 
 // startSync registers the queued job via jobsStore.trackJob, which
@@ -48,11 +60,19 @@ function statusOk(): FitnessSyncStatus {
   }
 }
 
-function mountPanels(status: FitnessSyncStatus) {
+function mountPanels(
+  status: FitnessSyncStatus,
+  stravaEnabled: boolean | null = true,
+) {
   const pinia = createPinia()
   setActivePinia(pinia)
   const store = useFitnessStore()
   store.syncStatus = status
+  // `null` leaves the settings store unhydrated (flag unknown → fail
+  // closed); otherwise seed the Strava feature flag explicitly.
+  if (stravaEnabled !== null) {
+    useSettingsStore().settings = makeServerSettingsWithStrava(stravaEnabled)
+  }
   return mount(FitnessSyncPanels, {
     global: { plugins: [pinia] },
   })
@@ -63,7 +83,7 @@ describe('FitnessSyncPanels', () => {
     vi.clearAllMocks()
   })
 
-  it('renders both source cards with auth status labels', async () => {
+  it('renders both source cards with auth status labels when strava_enabled is true', async () => {
     const wrapper = mountPanels(statusOk())
     await flushPromises()
 
@@ -79,6 +99,36 @@ describe('FitnessSyncPanels', () => {
     expect(
       wrapper.find('[data-testid="fitness-garmin-auth-status"]').text(),
     ).toBe('Not connected')
+    // Strava listed before Garmin — the pre-mothball order is preserved.
+    const cards = wrapper.findAll('[data-testid^="fitness-source-card-"]')
+    expect(cards.map((c) => c.attributes('data-testid'))).toEqual([
+      'fitness-source-card-strava',
+      'fitness-source-card-garmin',
+    ])
+  })
+
+  it('renders only the Garmin card when strava_enabled is false', async () => {
+    const wrapper = mountPanels(statusOk(), false)
+    await flushPromises()
+
+    expect(
+      wrapper.find('[data-testid="fitness-source-card-garmin"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="fitness-source-card-strava"]').exists(),
+    ).toBe(false)
+  })
+
+  it('renders only the Garmin card while the flag is unknown (fail-closed)', async () => {
+    const wrapper = mountPanels(statusOk(), null)
+    await flushPromises()
+
+    expect(
+      wrapper.find('[data-testid="fitness-source-card-garmin"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="fitness-source-card-strava"]').exists(),
+    ).toBe(false)
   })
 
   it('explains the F/N abbreviation under the Recent runs table', async () => {
