@@ -15,6 +15,7 @@ import {
 import { adjustColorOpacity } from '@/utils/mosaic'
 import RangeBinControls from '@/components/RangeBinControls.vue'
 import TileGrid from '@/components/TileGrid.vue'
+import MoodFitnessChart from '@/components/fitness/MoodFitnessChart.vue'
 import { movingAverage } from '@/utils/moving-average'
 import {
   FITNESS_TILES,
@@ -65,6 +66,8 @@ async function reloadAll() {
     store.loadSyncStatus(),
     store.loadActivities(start, end),
     store.loadDaily(start, end),
+    store.loadMoodRecovery(start, end),
+    store.loadDivergence(start, end),
   ])
 }
 
@@ -748,6 +751,10 @@ function widthTitleForFitnessTile(id: FitnessTileId): string {
       @cycle-width="(id) => store.cycleTileWidth(id)"
       @reset="store.resetLayout()"
     >
+      <template #tile-mood-fitness>
+        <MoodFitnessChart />
+      </template>
+
       <template #tile-weekly-distinct>
         <header
           class="flex flex-wrap items-baseline justify-between gap-2 mb-3"

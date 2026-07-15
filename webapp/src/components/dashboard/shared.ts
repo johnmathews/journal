@@ -17,6 +17,12 @@ import type { InsightsEntityType } from '@/types/insights'
 import { fillBins } from '@/utils/bins'
 import { rangeToDates } from '@/stores/dashboard'
 
+// One distinct hue per mood dimension. The mood config now emits ten
+// dimensions (joy_sadness, energy_vigor, physical_fatigue, mental_fatigue,
+// agency, fulfillment, connection, frustration, tension_calm,
+// proactive_reactive), so this palette must hold at least ten colors that
+// stay distinguishable in both light and dark themes. The trailing four are
+// reused from DOUGHNUT_COLORS (already vetted for both themes).
 export const MOOD_LINE_COLORS: readonly string[] = [
   '#8b5cf6', // violet
   '#0ea5e9', // sky
@@ -26,6 +32,10 @@ export const MOOD_LINE_COLORS: readonly string[] = [
   '#ec4899', // pink
   '#14b8a6', // teal
   '#a855f7', // purple
+  '#6366f1', // indigo
+  '#84cc16', // lime
+  '#f97316', // orange
+  '#06b6d4', // cyan
 ]
 
 export const DOUGHNUT_COLORS: readonly string[] = [

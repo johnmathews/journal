@@ -14,6 +14,8 @@ import type {
   StravaExchangeResponse,
   DisconnectResponse,
   FitnessBackfillRequest,
+  MoodRecoveryResponse,
+  DivergenceResponse,
 } from '@/types/fitness'
 
 function buildQuery(
@@ -66,6 +68,35 @@ export function fetchDaily(
 ): Promise<FitnessDailyResponse> {
   const query = buildQuery({ start: params.start, end: params.end })
   return apiFetch<FitnessDailyResponse>(`/api/fitness/daily${query}`)
+}
+
+/**
+ * Mood × recovery overlay for the [from, to] inclusive window. Returns one
+ * row per day with Garmin training load/readiness/HRV alongside the raw
+ * physical/mental fatigue mood-facet scores. Note the `from`/`to` param
+ * names (the divergence endpoint uses `start`/`end` — kept faithful to the
+ * server contract rather than normalised here).
+ */
+export function fetchMoodRecovery(
+  from: string,
+  to: string,
+): Promise<MoodRecoveryResponse> {
+  const query = buildQuery({ from, to })
+  return apiFetch<MoodRecoveryResponse>(`/api/fitness/mood-recovery${query}`)
+}
+
+/**
+ * Fatigue-divergence analysis for the [start, end] inclusive window.
+ * `window` is the rolling-window length (days) used for the z-scores that
+ * classify each day into a quadrant; defaults to 28 to match the server.
+ */
+export function fetchDivergence(
+  start: string,
+  end: string,
+  window: number = 28,
+): Promise<DivergenceResponse> {
+  const query = buildQuery({ start, end, window })
+  return apiFetch<DivergenceResponse>(`/api/fitness/divergence${query}`)
 }
 
 /** Per-source snapshot — auth status, last_success_at, last 10 sync runs. */

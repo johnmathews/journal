@@ -5,6 +5,8 @@ import {
   fetchDaily,
   fetchSyncStatus,
   triggerSync,
+  fetchMoodRecovery,
+  fetchDivergence,
 } from '@/api/fitness'
 import { useJobsStore } from '@/stores/jobs'
 import { rangeToDates } from '@/stores/dashboard'
@@ -20,6 +22,9 @@ import {
   type FitnessSyncStatus,
   type FitnessTileId,
   type DedupedActivity,
+  type MoodRecoveryRow,
+  type DivergenceRow,
+  type DivergenceSummary,
 } from '@/types/fitness'
 import type { NamedWidth } from '@/types/tiles'
 import type { DashboardRange, DashboardBin } from '@/types/dashboard'
@@ -148,9 +153,16 @@ export const useFitnessStore = defineStore('fitness', () => {
   const daily = ref<FitnessDaily[]>([])
   const syncStatus = ref<FitnessSyncStatus>({ strava: null, garmin: null })
 
+  // W6: mood × recovery overlay + fatigue-divergence analysis.
+  const moodRecovery = ref<MoodRecoveryRow[]>([])
+  const divergence = ref<DivergenceRow[]>([])
+  const divergenceSummary = ref<DivergenceSummary | null>(null)
+
   const loadingActivities = ref(false)
   const loadingDaily = ref(false)
   const loadingStatus = ref(false)
+  const loadingMoodRecovery = ref(false)
+  const loadingDivergence = ref(false)
   const triggeringSync = ref<Record<FitnessSource, boolean>>({
     strava: false,
     garmin: false,
@@ -159,6 +171,8 @@ export const useFitnessStore = defineStore('fitness', () => {
   const activitiesError = ref<string | null>(null)
   const dailyError = ref<string | null>(null)
   const statusError = ref<string | null>(null)
+  const moodRecoveryError = ref<string | null>(null)
+  const divergenceError = ref<string | null>(null)
   const syncError = ref<Record<FitnessSource, string | null>>({
     strava: null,
     garmin: null,
@@ -244,6 +258,35 @@ export const useFitnessStore = defineStore('fitness', () => {
     }
   }
 
+  async function loadMoodRecovery(from: string, to: string) {
+    loadingMoodRecovery.value = true
+    moodRecoveryError.value = null
+    try {
+      const resp = await fetchMoodRecovery(from, to)
+      moodRecovery.value = resp.rows
+    } catch (e) {
+      moodRecoveryError.value =
+        e instanceof Error ? e.message : 'Failed to load mood × recovery'
+    } finally {
+      loadingMoodRecovery.value = false
+    }
+  }
+
+  async function loadDivergence(start: string, end: string, window?: number) {
+    loadingDivergence.value = true
+    divergenceError.value = null
+    try {
+      const resp = await fetchDivergence(start, end, window)
+      divergence.value = resp.rows
+      divergenceSummary.value = resp.summary
+    } catch (e) {
+      divergenceError.value =
+        e instanceof Error ? e.message : 'Failed to load fatigue divergence'
+    } finally {
+      loadingDivergence.value = false
+    }
+  }
+
   async function loadSyncStatus() {
     loadingStatus.value = true
     statusError.value = null
@@ -317,7 +360,12 @@ export const useFitnessStore = defineStore('fitness', () => {
     if (r === range.value) return
     range.value = r
     const { start, end } = dateWindow.value
-    await Promise.all([loadActivities(start, end), loadDaily(start, end)])
+    await Promise.all([
+      loadActivities(start, end),
+      loadDaily(start, end),
+      loadMoodRecovery(start, end),
+      loadDivergence(start, end),
+    ])
   }
 
   /** Set the active bin width. No refetch — fitness charts compute
@@ -490,13 +538,20 @@ export const useFitnessStore = defineStore('fitness', () => {
     activities,
     daily,
     syncStatus,
+    moodRecovery,
+    divergence,
+    divergenceSummary,
     loadingActivities,
     loadingDaily,
     loadingStatus,
+    loadingMoodRecovery,
+    loadingDivergence,
     triggeringSync,
     activitiesError,
     dailyError,
     statusError,
+    moodRecoveryError,
+    divergenceError,
     syncError,
     range,
     bin,
@@ -507,6 +562,8 @@ export const useFitnessStore = defineStore('fitness', () => {
     isFreshSetup,
     loadActivities,
     loadDaily,
+    loadMoodRecovery,
+    loadDivergence,
     loadSyncStatus,
     startSync,
     setRange,

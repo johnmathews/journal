@@ -5,6 +5,8 @@ import {
   fetchSyncStatus,
   triggerSync,
   fetchIntegrity,
+  fetchMoodRecovery,
+  fetchDivergence,
   connectGarmin,
   submitGarminMfa,
   reconnectGarmin,
@@ -61,6 +63,46 @@ describe('fitness API client', () => {
 
     const url = fetchSpy.mock.calls[0][0] as string
     expect(url).toBe('/api/fitness/daily?start=2026-04-01&end=2026-05-01')
+  })
+
+  it('fetchMoodRecovery GETs /api/fitness/mood-recovery with from+to', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ rows: [] }),
+    } as Response)
+
+    await fetchMoodRecovery('2026-04-01', '2026-05-01')
+
+    const url = fetchSpy.mock.calls[0][0] as string
+    expect(url).toBe('/api/fitness/mood-recovery?from=2026-04-01&to=2026-05-01')
+  })
+
+  it('fetchDivergence GETs /api/fitness/divergence with start+end+default window', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ rows: [], summary: {} }),
+    } as Response)
+
+    await fetchDivergence('2026-04-01', '2026-05-01')
+
+    const url = fetchSpy.mock.calls[0][0] as string
+    expect(url).toContain('/api/fitness/divergence?')
+    expect(url).toContain('start=2026-04-01')
+    expect(url).toContain('end=2026-05-01')
+    // Window defaults to 28 to match the server.
+    expect(url).toContain('window=28')
+  })
+
+  it('fetchDivergence passes a custom window when supplied', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ rows: [], summary: {} }),
+    } as Response)
+
+    await fetchDivergence('2026-04-01', '2026-05-01', 14)
+
+    const url = fetchSpy.mock.calls[0][0] as string
+    expect(url).toContain('window=14')
   })
 
   it('fetchSyncStatus GETs /api/fitness/sync/status with no query', async () => {

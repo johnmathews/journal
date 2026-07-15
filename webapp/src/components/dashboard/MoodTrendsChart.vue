@@ -13,6 +13,7 @@ import { getChartColors, getThemedGridColor } from '@/utils/chartjs-config'
 import { adjustColorOpacity } from '@/utils/mosaic'
 import {
   displayLabel,
+  displayPolarLabel,
   displayScore,
   isDisplayInverted,
 } from '@/utils/mood-display'
@@ -119,15 +120,45 @@ function drillEntryDisplayScore(score: number): number {
   return displayScore(d, score) ?? score
 }
 
+/**
+ * Neutral midpoint of the currently-drilled dimension's *display* range.
+ * Bipolar dimensions are centred on 0; unipolar dimensions run 0..score_max
+ * with no true negative pole, so their neutral point is score_max / 2 (0.5).
+ * Colouring a unipolar entry green/red against 0 is a bug — every value is
+ * ≥ 0, so it always reads green. Falls back to 0 when the dimension is
+ * unknown.
+ */
+function drillDimensionMidpoint(): number {
+  const name = props.drillDimension
+  if (!name) return 0
+  const d = props.dimensions.find((m) => m.name === name)
+  if (!d) return 0
+  return d.scale_type === 'unipolar' ? d.score_max / 2 : 0
+}
+
+/**
+ * Whether a (already inversion-applied) displayed score reads as "good" for
+ * the drilled dimension — i.e. at or above the neutral midpoint. Inversion
+ * is handled upstream by `drillEntryDisplayScore`, so a high displayed value
+ * for physical_fatigue correctly means "less depleted".
+ */
+function drillEntryIsGood(displayed: number): boolean {
+  return displayed >= drillDimensionMidpoint()
+}
+
 function pivotMoodBins(): {
   periods: string[]
   series: Record<string, (number | null)[]>
   minSeries: Record<string, (number | null)[]>
   maxSeries: Record<string, (number | null)[]>
+  countSeries: Record<string, number[]>
 } {
   const byPeriod: Map<
     string,
-    Map<string, { avg: number; min: number | null; max: number | null }>
+    Map<
+      string,
+      { avg: number; min: number | null; max: number | null; count: number }
+    >
   > = new Map()
   for (const b of props.bins) {
     let periodRow = byPeriod.get(b.period)
@@ -139,6 +170,7 @@ function pivotMoodBins(): {
       avg: b.avg_score,
       min: b.score_min,
       max: b.score_max,
+      count: b.entry_count,
     })
   }
   // Contiguous period axis (server omits empty periods). Periods with
@@ -149,9 +181,16 @@ function pivotMoodBins(): {
   const series: Record<string, (number | null)[]> = {}
   const minSeries: Record<string, (number | null)[]> = {}
   const maxSeries: Record<string, (number | null)[]> = {}
+  // Parallel to `series`: how many entries fed each plotted average. Drives
+  // the per-point radius and the tooltip's "N entries" line so a 1-entry
+  // bucket reads as the small, low-confidence sample it is.
+  const countSeries: Record<string, number[]> = {}
   for (const d of props.dimensions) {
     series[d.name] = periods.map((p) =>
       displayScore(d, byPeriod.get(p)?.get(d.name)?.avg ?? null),
+    )
+    countSeries[d.name] = periods.map(
+      (p) => byPeriod.get(p)?.get(d.name)?.count ?? 0,
     )
     // For display-inverted dimensions, the stored min becomes the upper
     // bound of the band after inversion (because `1 - small` is large), so
@@ -164,7 +203,7 @@ function pivotMoodBins(): {
     minSeries[d.name] = periods.map((p) => (inverted ? hi(p) : lo(p)))
     maxSeries[d.name] = periods.map((p) => (inverted ? lo(p) : hi(p)))
   }
-  return { periods, series, minSeries, maxSeries }
+  return { periods, series, minSeries, maxSeries, countSeries }
 }
 
 // The mood chart keeps inline Chart.js options rather than
@@ -182,7 +221,7 @@ function render(): void {
   }
 
   const colors = getChartColors()
-  const { periods, series, minSeries, maxSeries } = pivotMoodBins()
+  const { periods, series, minSeries, maxSeries, countSeries } = pivotMoodBins()
 
   const allDimensions = props.dimensions
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -218,7 +257,12 @@ function render(): void {
       spanGaps: false,
     })
 
-    // Average line (the main visible line)
+    // Average line (the main visible line). Point radius scales with the
+    // number of entries behind each average so sparse, low-confidence
+    // buckets (e.g. a 1-entry week) render as small dots and dense buckets
+    // as fuller ones. `Math.min(2 + count, 7)` caps growth so busy weeks
+    // don't blot out the line.
+    const counts = countSeries[d.name] ?? []
     datasets.push({
       label: d.name,
       data: series[d.name] ?? [],
@@ -226,7 +270,8 @@ function render(): void {
       backgroundColor: adjustColorOpacity(color, 0.12),
       fill: false,
       tension: 0.3,
-      pointRadius: 3,
+      pointRadius: (ctx: { dataIndex: number }) =>
+        Math.min(2 + (counts[ctx.dataIndex] ?? 0), 7),
       pointHoverRadius: 5,
       pointBackgroundColor: color,
       spanGaps: false,
@@ -264,6 +309,20 @@ function render(): void {
           filter: (item) => {
             const label = item.dataset.label || ''
             return !label.endsWith('_min') && !label.endsWith('_max')
+          },
+          callbacks: {
+            // Append the sample size to each point's tooltip line so a
+            // hovered average always says how many entries it averages
+            // (e.g. "joy_sadness: +0.40 · 1 entry").
+            label: (item) => {
+              const label = item.dataset.label || ''
+              const counts = countSeries[label] ?? []
+              const count = counts[item.dataIndex] ?? 0
+              const y = item.parsed.y
+              const scoreStr = typeof y === 'number' ? formatScore(y) : '—'
+              const noun = count === 1 ? 'entry' : 'entries'
+              return `${label}: ${scoreStr} · ${count} ${noun}`
+            },
           },
         },
       },
@@ -312,7 +371,10 @@ onUnmounted(() => {
       </h2>
       <p class="text-xs text-gray-600 dark:text-gray-300">
         Average score per {{ bin }} {{ rangePhrase }}, with min/max variance
-        bands. Click a data point to see contributing entries.
+        bands — the band's lower reach is the single worst entry in each bucket,
+        so an acute dip (e.g. a hard post-run evening) stays visible even when
+        the {{ bin }}'s average dilutes it. Click a data point to see
+        contributing entries.
       </p>
     </div>
     <div class="flex items-center gap-2"></div>
@@ -382,7 +444,7 @@ onUnmounted(() => {
           }"
           aria-hidden="true"
         ></span>
-        {{ displayLabel(d) }}
+        {{ displayPolarLabel(d) }}
         <span
           class="text-gray-600 dark:text-gray-300 font-mono text-[0.65rem]"
           >{{ d.scale_type === 'bipolar' ? '±1' : '0..1' }}</span
@@ -498,7 +560,7 @@ onUnmounted(() => {
             <td
               class="py-2 pr-4 whitespace-nowrap font-mono text-xs"
               :class="
-                drillEntryDisplayScore(entry.score) >= 0
+                drillEntryIsGood(drillEntryDisplayScore(entry.score))
                   ? 'text-green-600 dark:text-green-400'
                   : 'text-red-600 dark:text-red-400'
               "

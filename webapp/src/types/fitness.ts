@@ -216,9 +216,87 @@ export interface FitnessBackfillRequest {
   end?: string
 }
 
+// ── W6: mood × recovery overlay + fatigue-divergence types ─────────────
+//
+// Mirrors the wire shapes of the two W6 server endpoints:
+//   GET /api/fitness/mood-recovery?from=&to=
+//   GET /api/fitness/divergence?start=&end=&window=
+// snake_case preserved on purpose (same convention as the rest of this
+// file — faithful to the API contract).
+
+/**
+ * One day of the mood × recovery overlay. `training_load_acute` and
+ * `training_readiness` come from Garmin daily wellness; `physical_fatigue`
+ * and `mental_fatigue` are the raw (0..1, higher = more depleted) mood
+ * facet scores for that day. Every value is nullable — a day may have
+ * journal entries but no wellness data, or vice versa.
+ */
+export interface MoodRecoveryRow {
+  local_date: string
+  training_load_acute: number | null
+  training_readiness: number | null
+  hrv_overnight_ms: number | null
+  physical_fatigue: number | null
+  mental_fatigue: number | null
+}
+
+export interface MoodRecoveryResponse {
+  rows: MoodRecoveryRow[]
+}
+
+/**
+ * The four fatigue-divergence quadrants the server assigns to a day by
+ * comparing how tired the user *feels* (subjective) against how recovered
+ * their body *looks* (objective recovery signals). `null` when there
+ * aren't enough signals to classify the day.
+ */
+export type DivergenceQuadrant =
+  | 'likely_mental_fatigue'
+  | 'hidden_physical_under_recovery'
+  | 'congruent_fatigue'
+  | 'congruent_ok'
+
+/**
+ * One day of the divergence analysis. The `*_z` fields are rolling-window
+ * z-scores (window is the request's `window` param, default 28 days).
+ * `n_signals` is how many objective recovery signals were available;
+ * `sufficient` is the server's gate on whether the day had enough data to
+ * trust the `quadrant` classification.
+ */
+export interface DivergenceRow {
+  local_date: string
+  subjective_tired_z: number | null
+  physical_fatigue: number | null
+  mental_fatigue: number | null
+  recovery_z: number | null
+  hrv_z: number | null
+  resting_hr_z: number | null
+  sleep_z: number | null
+  readiness_z: number | null
+  acwr: number | null
+  acwr_z: number | null
+  quadrant: DivergenceQuadrant | null
+  n_signals: number
+  sufficient: boolean
+}
+
+/** Count of days in each quadrant over the requested window. */
+export interface DivergenceSummary {
+  likely_mental_fatigue: number
+  hidden_physical_under_recovery: number
+  congruent_fatigue: number
+  congruent_ok: number
+}
+
+export interface DivergenceResponse {
+  rows: DivergenceRow[]
+  summary: DivergenceSummary
+}
+
 // ── /fitness tile layout (T2/T3 — adopt dashboard's TileGrid) ──────────
 
 export type FitnessTileId =
+  | 'mood-fitness'
   | 'weekly-distinct'
   | 'sleep'
   | 'hrv'
@@ -240,6 +318,12 @@ export interface FitnessTileDef {
 }
 
 export const FITNESS_TILES: readonly FitnessTileDef[] = [
+  {
+    id: 'mood-fitness',
+    title: 'Training load vs. how I feel',
+    defaultWidth: 'full',
+    testId: 'fitness-tile-mood-fitness',
+  },
   {
     id: 'weekly-distinct',
     title: 'Distinct workouts per week',

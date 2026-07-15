@@ -17,6 +17,8 @@ vi.mock('@/api/fitness', () => ({
   fetchSyncStatus: vi.fn(),
   triggerSync: vi.fn(),
   fetchIntegrity: vi.fn(),
+  fetchMoodRecovery: vi.fn(),
+  fetchDivergence: vi.fn(),
 }))
 
 // The fitness store's loadLayout()/persistLayout() hit the preferences
@@ -159,11 +161,15 @@ import {
   fetchDaily,
   fetchSyncStatus,
   triggerSync,
+  fetchMoodRecovery,
+  fetchDivergence,
 } from '@/api/fitness'
 const mockFetchActivities = vi.mocked(fetchActivities)
 const mockFetchDaily = vi.mocked(fetchDaily)
 const mockFetchSyncStatus = vi.mocked(fetchSyncStatus)
 const mockTriggerSync = vi.mocked(triggerSync)
+const mockFetchMoodRecovery = vi.mocked(fetchMoodRecovery)
+const mockFetchDivergence = vi.mocked(fetchDivergence)
 
 function makeActivity(over: Partial<FitnessActivity> = {}): FitnessActivity {
   return {
@@ -279,6 +285,16 @@ describe('FitnessView', () => {
     mockFetchActivities.mockResolvedValue({ items: [] })
     mockFetchDaily.mockResolvedValue({ items: [] })
     mockFetchSyncStatus.mockResolvedValue(statusOk())
+    mockFetchMoodRecovery.mockResolvedValue({ rows: [] })
+    mockFetchDivergence.mockResolvedValue({
+      rows: [],
+      summary: {
+        likely_mental_fatigue: 0,
+        hidden_physical_under_recovery: 0,
+        congruent_fatigue: 0,
+        congruent_ok: 0,
+      },
+    })
     trackJobSpy.mockClear()
     jobRef.value = undefined
     localStorage.clear()
@@ -815,10 +831,18 @@ describe('FitnessView', () => {
   })
 
   // T3: tile layout shell adoption.
-  it('renders the fitness tile grid with the five default tiles', async () => {
+  it('renders the fitness tile grid with the default tiles', async () => {
     const wrapper = mountView()
     await flushPromises()
     expect(wrapper.find('[data-testid="fitness-tiles-grid"]').exists()).toBe(
+      true,
+    )
+    // W6: the mood × recovery timeline tile is the first default tile.
+    expect(
+      wrapper.find('[data-testid="fitness-tile-mood-fitness"]').exists(),
+    ).toBe(true)
+    // Its component renders inside the tile (empty state with no data).
+    expect(wrapper.find('[data-testid="mood-fitness-chart"]').exists()).toBe(
       true,
     )
     expect(

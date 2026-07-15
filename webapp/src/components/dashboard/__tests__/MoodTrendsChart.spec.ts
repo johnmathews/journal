@@ -403,6 +403,165 @@ describe('MoodTrendsChart', () => {
     expect(destroySpy).toHaveBeenCalled()
   })
 
+  it('scales average-point radius with the entry count', async () => {
+    await setupWithMoodData()
+    const calls = chartConstructorSpy.mock.calls
+    const lastConfig = calls[calls.length - 1][1] as {
+      data: {
+        labels: string[]
+        datasets: Array<{ label: string; pointRadius: unknown }>
+      }
+    }
+    const idx = lastConfig.data.labels.indexOf('2026-03-02')
+    expect(idx).toBeGreaterThanOrEqual(0)
+    const avg = lastConfig.data.datasets.find((d) => d.label === 'joy_sadness')
+    expect(avg).toBeDefined()
+    const radiusFn = avg!.pointRadius as (ctx: { dataIndex: number }) => number
+    expect(typeof radiusFn).toBe('function')
+    // 3 entries → min(2 + 3, 7) = 5; an empty bucket → min(2 + 0, 7) = 2.
+    expect(radiusFn({ dataIndex: idx })).toBe(5)
+    expect(radiusFn({ dataIndex: 99999 })).toBe(2)
+  })
+
+  it('tooltip label callback appends the entry count', async () => {
+    await setupWithMoodData()
+    const calls = chartConstructorSpy.mock.calls
+    const lastConfig = calls[calls.length - 1][1] as {
+      data: { labels: string[] }
+      options: {
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: (item: {
+                dataset: { label: string }
+                dataIndex: number
+                parsed: { y: number }
+              }) => string
+            }
+          }
+        }
+      }
+    }
+    const idx = lastConfig.data.labels.indexOf('2026-03-02')
+    const label = lastConfig.options.plugins.tooltip.callbacks.label
+    const text = label({
+      dataset: { label: 'joy_sadness' },
+      dataIndex: idx,
+      parsed: { y: 0.4 },
+    })
+    expect(text).toContain('3 entries')
+  })
+
+  it('tooltip label uses singular "entry" for a 1-entry bucket', async () => {
+    vi.mocked(fetchMoodDimensions).mockResolvedValue({
+      dimensions: fakeDimensions,
+    })
+    vi.mocked(fetchMoodTrends).mockResolvedValue({
+      from: null,
+      to: null,
+      bin: 'week',
+      bins: [
+        {
+          period: '2026-03-02',
+          dimension: 'joy_sadness',
+          avg_score: 0.4,
+          entry_count: 1,
+          score_min: 0.4,
+          score_max: 0.4,
+        },
+      ],
+    })
+    const store = useDashboardStore()
+    await store.loadMoodDimensions()
+    await store.loadMoodTrends()
+    mount(Harness)
+    await flushPromises()
+
+    const calls = chartConstructorSpy.mock.calls
+    const lastConfig = calls[calls.length - 1][1] as {
+      data: { labels: string[] }
+      options: {
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: (item: {
+                dataset: { label: string }
+                dataIndex: number
+                parsed: { y: number }
+              }) => string
+            }
+          }
+        }
+      }
+    }
+    const idx = lastConfig.data.labels.indexOf('2026-03-02')
+    const text = lastConfig.options.plugins.tooltip.callbacks.label({
+      dataset: { label: 'joy_sadness' },
+      dataIndex: idx,
+      parsed: { y: 0.4 },
+    })
+    expect(text).toContain('1 entry')
+    expect(text).not.toContain('1 entries')
+  })
+
+  it('drill-down: below-midpoint unipolar score renders the red class (regression)', async () => {
+    // Bug: colouring the displayed score against 0 always reads green for a
+    // unipolar dimension (display range 0..1). agency is unipolar with
+    // neutral midpoint 0.5, so a 0.2 entry must render red.
+    const wrapper = await setupWithMoodData()
+    const store = useDashboardStore()
+    vi.mocked(fetchMoodDrilldown).mockResolvedValue({
+      dimension: 'agency',
+      from: '2026-03-02',
+      to: '2026-03-08',
+      entries: [
+        {
+          entry_id: 1,
+          entry_date: '2026-03-02',
+          score: 0.2,
+          confidence: 0.9,
+          rationale: 'Low agency',
+        },
+      ],
+    })
+    await store.loadDrillDown('2026-03-02', 'agency')
+    await flushPromises()
+
+    const cells = wrapper.findAll(
+      '[data-testid="dashboard-drilldown-table"] tbody td',
+    )
+    // Columns: date, score, rationale — the score cell is index 1.
+    expect(cells[1].classes()).toContain('text-red-600')
+    expect(cells[1].classes()).not.toContain('text-green-600')
+  })
+
+  it('drill-down: above-midpoint unipolar score renders the green class', async () => {
+    const wrapper = await setupWithMoodData()
+    const store = useDashboardStore()
+    vi.mocked(fetchMoodDrilldown).mockResolvedValue({
+      dimension: 'agency',
+      from: '2026-03-02',
+      to: '2026-03-08',
+      entries: [
+        {
+          entry_id: 2,
+          entry_date: '2026-03-03',
+          score: 0.8,
+          confidence: 0.9,
+          rationale: 'High agency',
+        },
+      ],
+    })
+    await store.loadDrillDown('2026-03-02', 'agency')
+    await flushPromises()
+
+    const cells = wrapper.findAll(
+      '[data-testid="dashboard-drilldown-table"] tbody td',
+    )
+    expect(cells[1].classes()).toContain('text-green-600')
+    expect(cells[1].classes()).not.toContain('text-red-600')
+  })
+
   it('renders the drill-down panel when store has drill-down state', async () => {
     const wrapper = await setupWithMoodData()
 

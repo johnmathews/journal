@@ -24,6 +24,14 @@ export interface MoodGroup {
   /** Dimension names in this group, in toml order. */
   members: readonly string[]
   /**
+   * Optional subset of `members` to preselect by default when the group
+   * drives the dashboard's initial selection. Omit to fall back to the
+   * full `members` list. Used to avoid preselecting every facet of a
+   * large group (e.g. the four affect facets) which would clutter the
+   * chart on first load.
+   */
+  defaultSelected?: readonly string[]
+  /**
    * Plain-English explanation of the group. Shown as a hover tooltip on
    * the dashboard chip and as body copy on the admin "Moods" page. Keep
    * to 1–2 sentences so the tooltip stays readable; longer prose belongs
@@ -36,9 +44,15 @@ export const MOOD_GROUPS: readonly MoodGroup[] = [
   {
     id: 'affect',
     label: 'Affect axes',
-    members: ['joy_sadness', 'energy_fatigue'],
+    members: [
+      'joy_sadness',
+      'energy_vigor',
+      'physical_fatigue',
+      'mental_fatigue',
+    ],
+    defaultSelected: ['joy_sadness', 'physical_fatigue'],
     description:
-      'How the entry feels overall — both how good or bad (joy ↔ sadness) and how energetic or drained (energetic ↔ tired). The two classic dimensions of mood.',
+      'How the entry feels overall — how good or bad (joy ↔ sadness), how much drive is present (flat ↔ vigorous), and how depleted the body and mind feel (physical and mental fatigue, split into two facets).',
   },
   {
     id: 'needs',
@@ -50,9 +64,9 @@ export const MOOD_GROUPS: readonly MoodGroup[] = [
   {
     id: 'negative',
     label: 'Active negative affect',
-    members: ['frustration'],
+    members: ['frustration', 'tension_calm'],
     description:
-      'Anger, irritation, and the family of feelings around blocked goals or things going wrong. Distinct from sadness, which sits on the joy axis.',
+      'Anger, irritation, and the family of feelings around blocked goals or things going wrong, plus how tense or calm the day felt (tense ↔ calm). Distinct from sadness, which sits on the joy axis.',
   },
   {
     id: 'stance',

@@ -23,13 +23,13 @@ const fakeDimensions: MoodDimension[] = [
     notes: 'Joyful vs sad — the valence axis.',
   },
   {
-    name: 'energy_fatigue',
-    positive_pole: 'energetic',
-    negative_pole: 'tired',
+    name: 'energy_vigor',
+    positive_pole: 'vigorous',
+    negative_pole: 'flat',
     scale_type: 'bipolar',
     score_min: -1,
     score_max: 1,
-    notes: 'Arousal axis — energy vs fatigue.',
+    notes: 'Drive axis — flat vs vigorous.',
   },
   {
     name: 'agency',

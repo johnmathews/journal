@@ -208,11 +208,11 @@ describe('useDashboardStore — mood surface', () => {
       notes: '...',
     },
     {
-      name: 'energy_fatigue',
-      positive_pole: 'energetic',
-      negative_pole: 'fatigued',
-      scale_type: 'bipolar' as const,
-      score_min: -1.0,
+      name: 'physical_fatigue',
+      positive_pole: 'physically fresh',
+      negative_pole: 'physically drained',
+      scale_type: 'unipolar' as const,
+      score_min: 0.0,
       score_max: 1.0,
       notes: '...',
     },
@@ -251,10 +251,12 @@ describe('useDashboardStore — mood surface', () => {
     expect(store.moodScoringEnabled).toBe(true)
   })
 
-  it('loadMoodDimensions selects the affect-axes group by default on first load', async () => {
+  it('loadMoodDimensions preselects the affect group defaultSelected subset on first load', async () => {
     const dims = [
       { ...fakeDimensions[0], name: 'joy_sadness' },
-      { ...fakeDimensions[1], name: 'energy_fatigue' },
+      { ...fakeDimensions[1], name: 'energy_vigor' },
+      { ...fakeDimensions[1], name: 'physical_fatigue' },
+      { ...fakeDimensions[1], name: 'mental_fatigue' },
       { ...fakeDimensions[2], name: 'agency' },
       { ...fakeDimensions[0], name: 'proactive_reactive' },
       { ...fakeDimensions[0], name: 'fulfillment' },
@@ -262,12 +264,15 @@ describe('useDashboardStore — mood surface', () => {
     mockMoodDims.mockResolvedValue({ dimensions: dims })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
-    // Only the affect-axes group members should be selected.
+    // Only the affect group's defaultSelected subset should be preselected —
+    // not every affect member (energy_vigor / mental_fatigue stay off).
     expect(store.selectedMoodDimensions).toEqual(
-      new Set(['joy_sadness', 'energy_fatigue']),
+      new Set(['joy_sadness', 'physical_fatigue']),
     )
     expect(store.isMoodDimensionVisible('joy_sadness')).toBe(true)
-    expect(store.isMoodDimensionVisible('energy_fatigue')).toBe(true)
+    expect(store.isMoodDimensionVisible('physical_fatigue')).toBe(true)
+    expect(store.isMoodDimensionVisible('energy_vigor')).toBe(false)
+    expect(store.isMoodDimensionVisible('mental_fatigue')).toBe(false)
     expect(store.isMoodDimensionVisible('agency')).toBe(false)
     expect(store.isMoodDimensionVisible('proactive_reactive')).toBe(false)
   })
@@ -378,9 +383,10 @@ describe('useDashboardStore — mood surface', () => {
     mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
-    // Default selection is the affect-axes group (joy_sadness + energy_fatigue).
+    // Default selection is the affect group's defaultSelected subset
+    // (joy_sadness + physical_fatigue).
     expect(store.selectedMoodDimensions.has('joy_sadness')).toBe(true)
-    expect(store.selectedMoodDimensions.has('energy_fatigue')).toBe(true)
+    expect(store.selectedMoodDimensions.has('physical_fatigue')).toBe(true)
     expect(store.selectedMoodDimensions.has('agency')).toBe(false)
     expect(store.isMoodDimensionVisible('agency')).toBe(false)
 
@@ -388,13 +394,13 @@ describe('useDashboardStore — mood surface', () => {
     store.toggleMoodDimension('agency')
     expect(store.selectedMoodDimensions.has('agency')).toBe(true)
     expect(store.selectedMoodDimensions.has('joy_sadness')).toBe(true)
-    expect(store.selectedMoodDimensions.has('energy_fatigue')).toBe(true)
+    expect(store.selectedMoodDimensions.has('physical_fatigue')).toBe(true)
 
-    // Toggling agency again removes it; affect group still selected.
+    // Toggling agency again removes it; affect defaults still selected.
     store.toggleMoodDimension('agency')
     expect(store.selectedMoodDimensions.has('agency')).toBe(false)
     expect(store.selectedMoodDimensions.has('joy_sadness')).toBe(true)
-    expect(store.selectedMoodDimensions.has('energy_fatigue')).toBe(true)
+    expect(store.selectedMoodDimensions.has('physical_fatigue')).toBe(true)
   })
 
   it('toggleMoodDimension supports any subset', async () => {
@@ -428,16 +434,16 @@ describe('useDashboardStore — mood surface', () => {
     mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
-    // Default selection is the affect-axes group (two members).
+    // Default selection is the affect defaultSelected subset (two members).
     expect(store.selectedMoodDimensions.size).toBe(2)
     // Click both members to deselect.
     store.toggleMoodDimension('joy_sadness')
-    store.toggleMoodDimension('energy_fatigue')
+    store.toggleMoodDimension('physical_fatigue')
     expect(store.selectedMoodDimensions.size).toBe(0)
     // Empty selection means "show all" — every dimension visible.
     expect(store.isMoodDimensionVisible('agency')).toBe(true)
     expect(store.isMoodDimensionVisible('joy_sadness')).toBe(true)
-    expect(store.isMoodDimensionVisible('energy_fatigue')).toBe(true)
+    expect(store.isMoodDimensionVisible('physical_fatigue')).toBe(true)
   })
 
   it('showAllMoodDimensions clears the selection', async () => {
@@ -455,9 +461,9 @@ describe('useDashboardStore — mood surface', () => {
     mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
-    // Default selection: affect-axes group (joy_sadness + energy_fatigue).
+    // Default selection: affect defaultSelected (joy_sadness + physical_fatigue).
     expect(
-      store.moodGroupSelectionState(['joy_sadness', 'energy_fatigue']),
+      store.moodGroupSelectionState(['joy_sadness', 'physical_fatigue']),
     ).toBe('all')
     expect(store.moodGroupSelectionState(['agency'])).toBe('none')
     expect(store.moodGroupSelectionState(['joy_sadness', 'agency'])).toBe(

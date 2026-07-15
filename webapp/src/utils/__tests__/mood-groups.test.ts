@@ -21,11 +21,14 @@ describe('groupDimensions', () => {
   it('preserves the four canonical groups in toml order', () => {
     const dimensions = [
       dim('joy_sadness'),
-      dim('energy_fatigue'),
+      dim('energy_vigor'),
+      dim('physical_fatigue', 'unipolar'),
+      dim('mental_fatigue', 'unipolar'),
       dim('agency', 'unipolar'),
       dim('fulfillment', 'unipolar'),
       dim('connection', 'unipolar'),
       dim('frustration', 'unipolar'),
+      dim('tension_calm'),
       dim('proactive_reactive'),
     ]
     const result = groupDimensions(dimensions)
@@ -37,14 +40,19 @@ describe('groupDimensions', () => {
     ])
     expect(result[0].members.map((d) => d.name)).toEqual([
       'joy_sadness',
-      'energy_fatigue',
+      'energy_vigor',
+      'physical_fatigue',
+      'mental_fatigue',
     ])
     expect(result[1].members.map((d) => d.name)).toEqual([
       'agency',
       'fulfillment',
       'connection',
     ])
-    expect(result[2].members.map((d) => d.name)).toEqual(['frustration'])
+    expect(result[2].members.map((d) => d.name)).toEqual([
+      'frustration',
+      'tension_calm',
+    ])
     expect(result[3].members.map((d) => d.name)).toEqual(['proactive_reactive'])
   })
 
@@ -112,6 +120,24 @@ describe('MOOD_GROUPS constant', () => {
   it('every group has a non-empty plain-English description', () => {
     for (const g of MOOD_GROUPS) {
       expect(g.description.length).toBeGreaterThan(20)
+    }
+  })
+
+  it('the affect group exposes a defaultSelected subset of its members', () => {
+    const affect = MOOD_GROUPS.find((g) => g.id === 'affect')
+    expect(affect).toBeDefined()
+    expect(affect!.defaultSelected).toEqual(['joy_sadness', 'physical_fatigue'])
+    // defaultSelected must be a subset of members.
+    for (const name of affect!.defaultSelected ?? []) {
+      expect(affect!.members).toContain(name)
+    }
+  })
+
+  it('any defaultSelected values are a subset of the group members', () => {
+    for (const g of MOOD_GROUPS) {
+      for (const name of g.defaultSelected ?? []) {
+        expect(g.members).toContain(name)
+      }
     }
   })
 })

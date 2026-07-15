@@ -121,10 +121,11 @@ export const useDashboardStore = defineStore('dashboard', () => {
   //                     mental model)
   //   non-empty set   → show only the named subset
   // Stored as a Set<string> so per-pill toggles are O(1). Not persisted
-  // across sessions — first load preselects the "affect axes" group
-  // (joy_sadness + energy_fatigue: the two classic dimensions of mood);
-  // subsequent reloads (e.g. after a config edit) leave the user's
-  // selection alone.
+  // across sessions — first load preselects the "affect axes" group's
+  // `defaultSelected` subset (joy_sadness + physical_fatigue: valence plus
+  // one fatigue facet, so the chart isn't crowded by all four affect
+  // facets); subsequent reloads (e.g. after a config edit) leave the
+  // user's selection alone.
   const selectedMoodDimensions = ref<Set<string>>(new Set())
   let moodDefaultsApplied = false
   const moodLoading = ref(false)
@@ -241,7 +242,9 @@ export const useDashboardStore = defineStore('dashboard', () => {
       if (!moodDefaultsApplied && response.dimensions.length > 0) {
         const affectGroup = MOOD_GROUPS.find((g) => g.id === 'affect')
         const availableNames = new Set(response.dimensions.map((d) => d.name))
-        const defaultMembers = (affectGroup?.members ?? []).filter((name) =>
+        const preferred =
+          affectGroup?.defaultSelected ?? affectGroup?.members ?? []
+        const defaultMembers = preferred.filter((name) =>
           availableNames.has(name),
         )
         selectedMoodDimensions.value = new Set(defaultMembers)

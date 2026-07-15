@@ -12,6 +12,8 @@ vi.mock('@/api/fitness', () => ({
   fetchDaily: vi.fn(),
   fetchSyncStatus: vi.fn(),
   triggerSync: vi.fn(),
+  fetchMoodRecovery: vi.fn(),
+  fetchDivergence: vi.fn(),
 }))
 
 vi.mock('@/api/preferences', () => ({
@@ -24,6 +26,8 @@ import {
   fetchDaily,
   fetchSyncStatus,
   triggerSync,
+  fetchMoodRecovery,
+  fetchDivergence,
 } from '@/api/fitness'
 import { fetchPreferences, updatePreferences } from '@/api/preferences'
 import { useJobsStore } from '@/stores/jobs'
@@ -32,6 +36,8 @@ const mockFetchActivities = vi.mocked(fetchActivities)
 const mockFetchDaily = vi.mocked(fetchDaily)
 const mockFetchSyncStatus = vi.mocked(fetchSyncStatus)
 const mockTriggerSync = vi.mocked(triggerSync)
+const mockFetchMoodRecovery = vi.mocked(fetchMoodRecovery)
+const mockFetchDivergence = vi.mocked(fetchDivergence)
 const mockFetchPreferences = vi.mocked(fetchPreferences)
 const mockUpdatePreferences = vi.mocked(updatePreferences)
 
@@ -381,6 +387,92 @@ describe('useFitnessStore', () => {
     expect(store.dailyError).toBe('boom')
   })
 
+  it('loadMoodRecovery populates state and clears prior errors', async () => {
+    mockFetchMoodRecovery.mockResolvedValue({
+      rows: [
+        {
+          local_date: '2026-05-09',
+          training_load_acute: 412,
+          training_readiness: 73,
+          hrv_overnight_ms: 78,
+          physical_fatigue: 0.4,
+          mental_fatigue: 0.2,
+        },
+      ],
+    })
+
+    const store = useFitnessStore()
+    store.moodRecoveryError = 'stale'
+    await store.loadMoodRecovery('2026-05-01', '2026-05-09')
+
+    expect(mockFetchMoodRecovery).toHaveBeenCalledWith(
+      '2026-05-01',
+      '2026-05-09',
+    )
+    expect(store.moodRecovery).toHaveLength(1)
+    expect(store.moodRecovery[0].physical_fatigue).toBe(0.4)
+    expect(store.moodRecoveryError).toBeNull()
+  })
+
+  it('loadMoodRecovery surfaces a network error message', async () => {
+    mockFetchMoodRecovery.mockRejectedValue(new Error('mr-boom'))
+
+    const store = useFitnessStore()
+    await store.loadMoodRecovery('2026-05-01', '2026-05-09')
+
+    expect(store.moodRecoveryError).toBe('mr-boom')
+  })
+
+  it('loadDivergence populates rows + summary and passes the window', async () => {
+    mockFetchDivergence.mockResolvedValue({
+      rows: [
+        {
+          local_date: '2026-05-09',
+          subjective_tired_z: 1.2,
+          physical_fatigue: 0.4,
+          mental_fatigue: 0.6,
+          recovery_z: 0.8,
+          hrv_z: 0.5,
+          resting_hr_z: -0.3,
+          sleep_z: 0.2,
+          readiness_z: 0.7,
+          acwr: 1.1,
+          acwr_z: 0.4,
+          quadrant: 'likely_mental_fatigue',
+          n_signals: 4,
+          sufficient: true,
+        },
+      ],
+      summary: {
+        likely_mental_fatigue: 1,
+        hidden_physical_under_recovery: 0,
+        congruent_fatigue: 2,
+        congruent_ok: 3,
+      },
+    })
+
+    const store = useFitnessStore()
+    await store.loadDivergence('2026-05-01', '2026-05-09', 14)
+
+    expect(mockFetchDivergence).toHaveBeenCalledWith(
+      '2026-05-01',
+      '2026-05-09',
+      14,
+    )
+    expect(store.divergence).toHaveLength(1)
+    expect(store.divergence[0].quadrant).toBe('likely_mental_fatigue')
+    expect(store.divergenceSummary?.congruent_ok).toBe(3)
+  })
+
+  it('loadDivergence surfaces a network error message', async () => {
+    mockFetchDivergence.mockRejectedValue(new Error('div-boom'))
+
+    const store = useFitnessStore()
+    await store.loadDivergence('2026-05-01', '2026-05-09')
+
+    expect(store.divergenceError).toBe('div-boom')
+  })
+
   it('loadSyncStatus populates state', async () => {
     const status: FitnessSyncStatus = {
       strava: {
@@ -626,6 +718,7 @@ describe('useFitnessStore — tile layout (T3)', () => {
   it('defaults tileOrder to FITNESS_TILES order, no hidden tiles, no width overrides', () => {
     const store = useFitnessStore()
     expect(store.tileOrder).toEqual([
+      'mood-fitness',
       'weekly-distinct',
       'sleep',
       'hrv',
@@ -668,18 +761,19 @@ describe('useFitnessStore — tile layout (T3)', () => {
     const store = useFitnessStore()
     store.moveTile('sleep', 'up')
     expect(store.tileOrder).toEqual([
+      'mood-fitness',
       'sleep',
       'weekly-distinct',
       'hrv',
       'rhr',
       'recent-workouts',
     ])
-    // Moving the now-first tile up is a no-op.
+    // Moving the now-first tile up swaps it past mood-fitness (index 0).
     store.moveTile('sleep', 'up')
     expect(store.tileOrder[0]).toBe('sleep')
     // Moving the last tile down is a no-op.
     store.moveTile('recent-workouts', 'down')
-    expect(store.tileOrder[4]).toBe('recent-workouts')
+    expect(store.tileOrder[5]).toBe('recent-workouts')
   })
 
   it('moveTile is a no-op for an unknown id', () => {
@@ -706,6 +800,7 @@ describe('useFitnessStore — tile layout (T3)', () => {
     store.setTileWidth('rhr', 'full')
     store.resetLayout()
     expect(store.tileOrder).toEqual([
+      'mood-fitness',
       'weekly-distinct',
       'sleep',
       'hrv',
@@ -729,6 +824,7 @@ describe('useFitnessStore — tile layout (T3)', () => {
       'rhr',
       'weekly-distinct',
       'recent-workouts',
+      'mood-fitness',
     ])
     expect(store.hiddenTiles).toEqual(['rhr'])
     expect(store.tileWidths).toEqual({ sleep: 'full', hrv: 'half' })
@@ -748,6 +844,7 @@ describe('useFitnessStore — tile layout (T3)', () => {
     // bogus-tile dropped, missing tiles appended in FITNESS_TILES order.
     expect(store.tileOrder).toEqual([
       'sleep',
+      'mood-fitness',
       'weekly-distinct',
       'hrv',
       'rhr',
@@ -764,6 +861,7 @@ describe('useFitnessStore — tile layout (T3)', () => {
     store.applyLayout({ tileOrder: [], hiddenTiles: [], tileWidths: {} })
     // Missing tiles all appended → default order restored.
     expect(store.tileOrder).toEqual([
+      'mood-fitness',
       'weekly-distinct',
       'sleep',
       'hrv',
@@ -812,6 +910,7 @@ describe('useFitnessStore — tile layout persistence (T4)', () => {
       'rhr',
       'weekly-distinct',
       'recent-workouts',
+      'mood-fitness',
     ])
     expect(store.hiddenTiles).toEqual(['rhr'])
     expect(store.tileWidths).toEqual({ sleep: 'full' })
@@ -823,6 +922,7 @@ describe('useFitnessStore — tile layout persistence (T4)', () => {
     const store = useFitnessStore()
     await store.loadLayout()
     expect(store.tileOrder).toEqual([
+      'mood-fitness',
       'weekly-distinct',
       'sleep',
       'hrv',
@@ -838,6 +938,7 @@ describe('useFitnessStore — tile layout persistence (T4)', () => {
     await store.loadLayout()
     expect(store.layoutLoaded).toBe(true)
     expect(store.tileOrder).toEqual([
+      'mood-fitness',
       'weekly-distinct',
       'sleep',
       'hrv',
@@ -862,6 +963,7 @@ describe('useFitnessStore — tile layout persistence (T4)', () => {
     expect(mockUpdatePreferences).toHaveBeenCalledWith({
       fitness_layout: {
         tileOrder: [
+          'mood-fitness',
           'sleep',
           'weekly-distinct',
           'hrv',
@@ -921,6 +1023,7 @@ describe('useFitnessStore — tile layout persistence (T4)', () => {
     expect(mockUpdatePreferences).toHaveBeenCalledWith({
       fitness_layout: {
         tileOrder: [
+          'mood-fitness',
           'weekly-distinct',
           'sleep',
           'hrv',

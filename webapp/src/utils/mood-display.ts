@@ -22,6 +22,12 @@ import type { MoodDimension } from '@/types/dashboard'
  */
 export const DISPLAY_INVERTED_DIMENSIONS: Readonly<Record<string, string>> = {
   frustration: 'calm',
+  // Unipolar fatigue facets read "higher = more depleted" (worse). Invert so
+  // the chart's "up = good" convention holds: high displayed value = fresh.
+  // energy_vigor and tension_calm already read high = good, so they are NOT
+  // inverted.
+  physical_fatigue: 'physically fresh',
+  mental_fatigue: 'mentally fresh',
 }
 
 export function isDisplayInverted(name: string): boolean {
@@ -36,6 +42,32 @@ export function displayLabel(
   d: Pick<MoodDimension, 'name' | 'positive_pole'>,
 ): string {
   return DISPLAY_INVERTED_DIMENSIONS[d.name] ?? d.positive_pole
+}
+
+/**
+ * Dual-pole label for a dimension, used where a single pole would be
+ * misleading. Bipolar dimensions span two opposed feelings, so a lone
+ * positive-pole label (e.g. "energy") hides that the same line also
+ * measures its opposite (fatigue). Returns `"<good> ↔ <bad>"` with the
+ * displayed-good pole first: for a display-inverted bipolar dimension the
+ * poles are swapped so the pole that reads high in the chart still leads.
+ *
+ * Unipolar dimensions genuinely have one pole (0 = absence, not the
+ * opposite feeling), so a single `displayLabel` is honest — no arrow.
+ */
+export function displayPolarLabel(
+  d: Pick<
+    MoodDimension,
+    'name' | 'positive_pole' | 'negative_pole' | 'scale_type'
+  >,
+): string {
+  if (d.scale_type !== 'bipolar') {
+    return displayLabel(d)
+  }
+  const inverted = isDisplayInverted(d.name)
+  const good = inverted ? d.negative_pole : d.positive_pole
+  const bad = inverted ? d.positive_pole : d.negative_pole
+  return `${good} ↔ ${bad}`
 }
 
 /**
