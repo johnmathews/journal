@@ -112,6 +112,7 @@ Reusable Composition API functions encapsulating reactive logic.
 - **useDiffHighlight** — Computes the diff between the original OCR text and the edited text via `diff-match-patch` (with `diff_cleanupSemantic`), then returns two reactive HTML strings — one for each panel — containing `<mark>` spans for removed (red) and inserted (green) segments. Every character is escaped before being wrapped in markup so it is safe to render with `v-html`. Accepts an optional `{ uncertainSpans, showReview }` options bag on the Original OCR side: when the Review toggle is on, uncertain character ranges are re-segmented and rendered with a yellow `uncertain` (or composite `diff-delete-uncertain`) class so the overlap-with-a-delete case keeps both signals visible. The re-segmentation preserves `join(segments.text) === original`, so any offset-sensitive consumer downstream stays aligned.
 - **useOverlayHighlight** — Builds chunk- and token-boundary overlays on top of the corrected text. Takes refs for the text, the current overlay mode, and the cached chunk/token data, and returns a computed HTML string ready for `v-html`. Chunks support overlap (the fixed chunker's `overlap_tokens` and the semantic chunker's weak-cut lead-ins) via a breakpoint-sweep algorithm that classifies each interval by the set of chunks covering it, rendering single coverage as alternating sky/green spans and multiple coverage as a distinct violet "overlap" span. Tokens alternate sky/green without overlap (tiktoken tokens partition the text). Hover titles carry chunk index + token count, or token id, for debugging the chunker and tokeniser from the browser.
 - **useWakeLock** — Wraps the Screen Wake Lock API to keep the screen awake during active voice recording.
+- **useInfiniteList** — Shared infinite-scroll driver for the paginated list views (Entries, Entities, Storylines, Jobs). Takes `{ loadMore, canLoadMore, scrollTarget? }` and returns `{ sentinelRef, loadMore, canLoadMore }`. It wraps `@vueuse/core`'s `useInfiniteScroll` on the sentinel/scroll target (guarded by `typeof IntersectionObserver !== 'undefined'` for SSR/other runners) and gates every append on `canLoadMore()`. The returned `loadMore` is also invoked directly by each view's visible **"Load more"** button — the accessible fallback and the deterministic hook the Vitest suite drives (happy-dom's `IntersectionObserver` stub never reports intersection). See "Infinite scroll & whole-dataset search" below.
 
 ### Stores (`src/stores/`)
 Pinia stores for server state management.
@@ -259,6 +260,42 @@ don't collide in tests — happy-dom renders both regardless of CSS. Implemented
 headline and the remaining *visible* columns render as a meta grid in the user's
 chosen order (via the `cardMetaColumns` computed). Still tables on mobile:
 `FitnessView`, `ApiKeysView`, `admin/AdminDashboard`.
+
+## Infinite scroll & whole-dataset search
+
+The paginated list views (Entries, Entities, Storylines, Jobs) use **infinite
+scroll**, not page controls. Each view wires the shared **useInfiniteList**
+composable (above) to a store append action and renders three stable elements:
+`<table>-scroll-sentinel` (bound to `sentinelRef`), `<table>-load-more` (a button
+shown while more rows exist), and `<table>-count-caption` ("showing N of M").
+
+The store/view split follows one pattern:
+
+- **Reset path** (`loadEntries` / `loadEntities` / `loadStorylines`, or
+  `JobHistoryView`'s local `load()`): replaces the array from `offset: 0`. Used on
+  mount and whenever a filter or the search box changes.
+- **Append path** (`loadMoreEntries` / `loadMoreEntities` / `loadMoreStorylines`, or
+  `JobHistoryView`'s `loadMoreJobs()`): advances the offset and **pushes** the next
+  page onto the array, reusing the current filter params. Guarded by
+  `hasMore = items.length < total` and the `loading` flag so a scroll append and a
+  poll/manual load can't double-fetch.
+
+**Whole-dataset search is a server-side query param, always.** When a table has a
+search box (Entities, Storylines, Jobs), typing (debounced 250 ms) calls the reset
+path with `search` + `offset: 0`. The backend evaluates the match in SQL *before*
+`LIMIT/OFFSET`, so results come from the entire table — never just the loaded rows —
+and `total` reflects the filtered count. Infinite scroll then appends within that
+filtered set. `/entries` has no table search box on purpose: full journal-content
+search lives on the separate `/search` (hybrid) page.
+
+The one exception is the **Entities → Quarantined** tab, whose endpoint returns the
+whole (small) quarantined set unpaginated; its search filters that in-memory array
+client-side (`filteredQuarantined`), which is whole-dataset by construction.
+
+**Column sort stays client-side over loaded rows** (a deliberate scope decision): a
+sort re-orders the rows currently loaded and becomes globally correct once the user
+scrolls to the bottom. The "showing N of M" caption makes a partial view legible.
+Server-side sort was intentionally deferred.
 
 ## Data Flow
 

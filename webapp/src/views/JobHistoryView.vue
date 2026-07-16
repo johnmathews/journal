@@ -16,16 +16,17 @@ import {
 } from '@/utils/format-metrics'
 import JobParamsCell from '@/components/JobParamsCell.vue'
 import JsonPopover from '@/components/JsonPopover.vue'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 
 const jobs = ref<Job[]>([])
 const total = ref(0)
 const loading = ref(false)
 const error = ref<string | null>(null)
 
-const page = ref(0)
 const pageSize = 25
 const filterStatus = ref<string>('')
 const filterType = ref<string>('')
+const searchQuery = ref<string>('')
 const expandedRows = ref<Set<string>>(new Set())
 
 /** Cached follow-up job statuses keyed by parent job ID */
@@ -307,21 +308,31 @@ function resultSummary(
   return parts.join(', ') || JSON.stringify(result)
 }
 
-const totalPages = computed(() =>
-  Math.max(1, Math.ceil(total.value / pageSize)),
-)
+// True while more rows exist server-side than are currently loaded.
+const hasMore = computed(() => jobs.value.length < total.value)
 
+/** Build the current status/type/search filter params (composed together). */
+function currentFilterParams(): JobListParams {
+  const params: JobListParams = {}
+  if (filterStatus.value) params.status = filterStatus.value
+  if (filterType.value) params.type = filterType.value
+  const s = searchQuery.value.trim()
+  if (s) params.search = s
+  return params
+}
+
+// Initial load / filter (status, type, search) change — replaces the list
+// from offset 0. This is the offset-reset path: any filter change starts a
+// fresh window from the top.
 async function load() {
   loading.value = true
   error.value = null
   try {
-    const params: JobListParams = {
+    const resp: JobListResponse = await listJobs({
+      ...currentFilterParams(),
       limit: pageSize,
-      offset: page.value * pageSize,
-    }
-    if (filterStatus.value) params.status = filterStatus.value
-    if (filterType.value) params.type = filterType.value
-    const resp: JobListResponse = await listJobs(params)
+      offset: 0,
+    })
     jobs.value = resp.items
     total.value = resp.total
   } catch (e) {
@@ -331,9 +342,79 @@ async function load() {
   }
 }
 
+// Infinite-scroll append — fetches the next page from `jobs.length` and
+// PUSHES onto the array rather than replacing it.
+async function loadMoreJobs() {
+  loading.value = true
+  error.value = null
+  try {
+    const resp: JobListResponse = await listJobs({
+      ...currentFilterParams(),
+      limit: pageSize,
+      offset: jobs.value.length,
+    })
+    jobs.value = [...jobs.value, ...resp.items]
+    total.value = resp.total
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Failed to load jobs'
+  } finally {
+    loading.value = false
+  }
+}
+
+// ── Auto-poll refresh strategy ─────────────────────────────────────
+// The 3s poll must update the status/progress of already-loaded jobs
+// WITHOUT duplicating or dropping rows or collapsing the scroll position.
+// Approach: re-fetch the currently-loaded window (offset 0, limit = number
+// of loaded rows) with the same filters and REPLACE the array in place, so
+// row count and order are preserved and only cell contents change.
+//
+// Race guard: this and `loadMoreJobs` both fetch, and appending while a
+// poll replace is mid-flight (or vice versa) could double-append or drop
+// rows. Both paths are gated on the shared `loading` flag — the poll bails
+// if `loading` is set, and the "Load more" button / sentinel are disabled
+// via `canLoadMore` (which includes `!loading`) — so the two never race.
+async function refreshLoadedWindow() {
+  if (loading.value) return
+  loading.value = true
+  try {
+    const count = Math.max(jobs.value.length, pageSize)
+    const resp: JobListResponse = await listJobs({
+      ...currentFilterParams(),
+      limit: count,
+      offset: 0,
+    })
+    jobs.value = resp.items
+    total.value = resp.total
+  } catch {
+    // A transient poll failure keeps the last-known list rather than
+    // surfacing an error banner over a working view.
+  } finally {
+    loading.value = false
+  }
+}
+
+// Infinite scroll: the bottom sentinel auto-appends when scrolled into
+// view; the visible "Load more" button drives the same append as a
+// fallback. Gated on hasMore + !loading so appends can't race the poll.
+const { sentinelRef, loadMore, canLoadMore } = useInfiniteList({
+  loadMore: () => loadMoreJobs(),
+  canLoadMore: () => hasMore.value && !loading.value,
+})
+
+// Any filter change (status/type dropdowns) resets to a fresh window.
 watch([filterStatus, filterType], () => {
-  page.value = 0
   load()
+})
+
+// Debounce the free-text search so we fire one request per pause, not per
+// keystroke. Resets the offset (load() always fetches from 0).
+let searchDebounce: ReturnType<typeof setTimeout> | null = null
+watch(searchQuery, () => {
+  if (searchDebounce) clearTimeout(searchDebounce)
+  searchDebounce = setTimeout(() => {
+    load()
+  }, 250)
 })
 
 // ── Live clock + auto-poll ─────────────────────────────────────────
@@ -384,7 +465,7 @@ onMounted(() => {
     now.value = Date.now()
   }, 1000)
   pollTimer = setInterval(() => {
-    if (hasRunningJob.value && !loading.value) load()
+    if (hasRunningJob.value && !loading.value) refreshLoadedWindow()
   }, 3000)
 })
 
@@ -551,20 +632,6 @@ function isExpandable(job: Job): boolean {
   }
   return visibleScalars.length >= 2
 }
-
-function prevPage() {
-  if (page.value > 0) {
-    page.value--
-    load()
-  }
-}
-
-function nextPage() {
-  if (page.value < totalPages.value - 1) {
-    page.value++
-    load()
-  }
-}
 </script>
 
 <template>
@@ -608,6 +675,14 @@ function nextPage() {
         <option value="mood_score_entry">Mood scoring</option>
         <option value="reprocess_embeddings">Reprocess embeddings</option>
       </select>
+
+      <input
+        v-model="searchQuery"
+        type="search"
+        placeholder="Search jobs…"
+        data-testid="jobs-search-input"
+        class="text-sm w-56 rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 px-3 py-1.5"
+      />
 
       <button
         type="button"
@@ -1127,33 +1202,26 @@ function nextPage() {
       </ul>
     </template>
 
-    <!-- Pagination -->
+    <!-- Infinite scroll: count caption + manual "Load more" + sentinel -->
     <div
-      v-if="total > pageSize"
-      class="flex items-center justify-between mt-4 text-sm text-gray-600 dark:text-gray-300"
+      v-if="jobs.length > 0"
+      class="mt-4 flex flex-col items-center gap-3 text-sm text-gray-600 dark:text-gray-300"
     >
-      <span>{{ total }} total jobs</span>
-      <div class="flex items-center gap-2">
-        <button
-          type="button"
-          class="px-3 py-1 rounded border border-gray-200 dark:border-gray-700 disabled:opacity-40"
-          :disabled="page === 0"
-          data-testid="prev-page"
-          @click="prevPage"
-        >
-          Previous
-        </button>
-        <span>Page {{ page + 1 }} of {{ totalPages }}</span>
-        <button
-          type="button"
-          class="px-3 py-1 rounded border border-gray-200 dark:border-gray-700 disabled:opacity-40"
-          :disabled="page >= totalPages - 1"
-          data-testid="next-page"
-          @click="nextPage"
-        >
-          Next
-        </button>
+      <div data-testid="jobs-count-caption">
+        showing {{ jobs.length }} of {{ total }}
       </div>
+      <button
+        v-if="hasMore"
+        type="button"
+        class="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        :disabled="!canLoadMore"
+        data-testid="jobs-load-more"
+        @click="loadMore"
+      >
+        {{ loading ? 'Loading…' : 'Load more' }}
+      </button>
+      <!-- Bottom sentinel: intersects → auto-append when scrolled into view. -->
+      <div ref="sentinelRef" data-testid="jobs-scroll-sentinel"></div>
     </div>
   </div>
 </template>

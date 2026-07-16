@@ -52,6 +52,18 @@ describe('storylines API', () => {
     expect(url).toContain('status=active')
   })
 
+  it('fetchStorylines forwards the search term into the query string', async () => {
+    mockApiFetch.mockResolvedValue({
+      items: [],
+      total: 0,
+      limit: 20,
+      offset: 0,
+    })
+    await fetchStorylines({ limit: 20, offset: 0, search: 'running' })
+    const url = mockApiFetch.mock.calls[0][0] as string
+    expect(url).toContain('search=running')
+  })
+
   it('fetchStorylines skips undefined params', async () => {
     mockApiFetch.mockResolvedValue({
       items: [],

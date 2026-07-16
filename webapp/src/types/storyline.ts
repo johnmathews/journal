@@ -98,6 +98,9 @@ export interface StorylineListResponse {
 
 export interface StorylineListParams extends PaginationParams {
   status?: string
+  /** Whole-dataset search over name + description, filtered in SQL on
+   *  the server. Absent = unfiltered. */
+  search?: string
 }
 
 export interface CreateStorylineRequest {

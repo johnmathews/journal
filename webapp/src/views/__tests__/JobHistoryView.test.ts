@@ -232,21 +232,89 @@ describe('JobHistoryView', () => {
     expect(mockListJobs.mock.calls.length).toBeGreaterThan(callCount)
   })
 
-  it('shows pagination when total exceeds page size', async () => {
+  it('shows the count caption and a Load more button when more rows exist', async () => {
     const wrapper = await mountView([makeJob()], 30)
-    expect(wrapper.find('[data-testid="prev-page"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="next-page"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Page 1 of 2')
-    expect(wrapper.text()).toContain('30 total jobs')
+    expect(wrapper.find('[data-testid="jobs-count-caption"]').text()).toContain(
+      'showing 1 of 30',
+    )
+    expect(wrapper.find('[data-testid="jobs-load-more"]').exists()).toBe(true)
+    // The old prev/next pager is gone.
+    expect(wrapper.find('[data-testid="prev-page"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="next-page"]').exists()).toBe(false)
   })
 
-  it('navigates pages', async () => {
-    const wrapper = await mountView([makeJob()], 30)
-    await wrapper.find('[data-testid="next-page"]').trigger('click')
+  it('Load more appends the next page instead of replacing rows', async () => {
+    const wrapper = await mountView([makeJob({ id: 'j-1' })], 30)
+    expect(wrapper.findAll('[data-testid^="job-row-"]')).toHaveLength(1)
+
+    // The appended page arrives with a fresh row and the same total.
+    mockListJobs.mockResolvedValue({
+      items: [makeJob({ id: 'j-2' })],
+      total: 30,
+      limit: 25,
+      offset: 25,
+    })
+
+    await wrapper.find('[data-testid="jobs-load-more"]').trigger('click')
     await flushPromises()
+
+    // The append fetch advanced the offset past the first page…
     expect(mockListJobs).toHaveBeenLastCalledWith(
-      expect.objectContaining({ offset: 25 }),
+      expect.objectContaining({ offset: 1, limit: 25 }),
     )
+    // …and both rows are present (appended, not replaced).
+    expect(wrapper.find('[data-testid="job-row-j-1"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="job-row-j-2"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="jobs-count-caption"]').text()).toContain(
+      'showing 2 of 30',
+    )
+  })
+
+  it('debounced search resets the offset and reloads with the search param', async () => {
+    vi.useFakeTimers()
+    try {
+      const wrapper = await mountView([makeJob()], 30)
+      mockListJobs.mockClear()
+
+      const input = wrapper.find('[data-testid="jobs-search-input"]')
+      // Type once — debounce pending, no call yet.
+      await input.setValue('  time')
+      expect(mockListJobs).not.toHaveBeenCalled()
+      // Type again before the debounce fires — clears the pending timer.
+      await input.setValue('  timeout  ')
+      expect(mockListJobs).not.toHaveBeenCalled()
+
+      vi.advanceTimersByTime(250)
+      await flushPromises()
+
+      // Reloads from offset 0 with the trimmed search term, composed with
+      // any active dropdown filters.
+      expect(mockListJobs).toHaveBeenCalledWith(
+        expect.objectContaining({ search: 'timeout', offset: 0, limit: 25 }),
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('search composes with the status dropdown filter', async () => {
+    vi.useFakeTimers()
+    try {
+      const wrapper = await mountView([makeJob()], 30)
+      await wrapper.find('[data-testid="filter-status"]').setValue('failed')
+      await flushPromises()
+      mockListJobs.mockClear()
+
+      await wrapper.find('[data-testid="jobs-search-input"]').setValue('boom')
+      vi.advanceTimersByTime(250)
+      await flushPromises()
+
+      expect(mockListJobs).toHaveBeenLastCalledWith(
+        expect.objectContaining({ search: 'boom', status: 'failed' }),
+      )
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('shows running job with progress', async () => {
@@ -407,9 +475,16 @@ describe('JobHistoryView', () => {
     expect(relTime.text()).toMatch(/ago|just now/)
   })
 
-  it('does not show pagination when total fits one page', async () => {
-    const wrapper = await mountView([makeJob()], 5)
+  it('hides Load more on the last page but keeps the count caption', async () => {
+    const wrapper = await mountView([makeJob()], 1)
+    // Everything is loaded → no button, but the caption stays.
+    expect(wrapper.find('[data-testid="jobs-load-more"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="jobs-count-caption"]').text()).toContain(
+      'showing 1 of 1',
+    )
+    // No legacy pager controls remain anywhere.
     expect(wrapper.find('[data-testid="prev-page"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="next-page"]').exists()).toBe(false)
   })
 
   it('expands details and hides internal keys', async () => {
@@ -855,6 +930,35 @@ describe('JobHistoryView live metrics and polling', () => {
     vi.advanceTimersByTime(3000)
     await flushPromises()
     expect(mockListJobs.mock.calls.length).toBeGreaterThan(before)
+  })
+
+  it('auto-poll refresh replaces the loaded window without duplicating rows', async () => {
+    // Mount with a running job already loaded.
+    const wrapper = await mountView([runningJob({ id: 'j-run' })])
+    expect(wrapper.findAll('[data-testid^="job-row-"]')).toHaveLength(1)
+
+    // The poll re-fetches the loaded window (offset 0) and gets the same
+    // job back with advanced progress — it must REPLACE in place.
+    mockListJobs.mockResolvedValue({
+      items: [
+        runningJob({ id: 'j-run', progress_current: 3, progress_total: 10 }),
+      ],
+      total: 1,
+      limit: 25,
+      offset: 0,
+    })
+
+    vi.advanceTimersByTime(3000)
+    await flushPromises()
+
+    // Poll refetched from the top of the window, not an append offset.
+    expect(mockListJobs).toHaveBeenLastCalledWith(
+      expect.objectContaining({ offset: 0 }),
+    )
+    // Still exactly one row — no duplicate, no drop.
+    expect(wrapper.findAll('[data-testid^="job-row-"]')).toHaveLength(1)
+    // Progress reflects the refreshed data.
+    expect(wrapper.text()).toContain('3/10')
   })
 
   it('does not auto-poll when no job is running', async () => {

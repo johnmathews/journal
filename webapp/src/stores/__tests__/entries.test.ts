@@ -438,6 +438,102 @@ describe('useEntriesStore', () => {
     expect(store.error).toBe('Failed to verify doubts')
   })
 
+  // --- Infinite scroll: hasMore + loadMoreEntries ---
+
+  it('hasMore is false before any load and true when rows < total', async () => {
+    const store = useEntriesStore()
+    expect(store.hasMore).toBe(false)
+
+    mockFetchEntries.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          entry_date: '2026-01-01',
+          source_type: 'photo',
+          page_count: 1,
+          word_count: 10,
+          chunk_count: 1,
+          created_at: '',
+          uncertain_span_count: 0,
+          doubts_verified: false,
+          language: 'en',
+          updated_at: '',
+          entity_mention_count: 0,
+        },
+      ],
+      total: 3,
+      limit: 20,
+      offset: 0,
+    })
+    await store.loadEntries()
+
+    expect(store.hasMore).toBe(true)
+  })
+
+  it('loadMoreEntries appends the next page and advances the offset', async () => {
+    mockFetchEntries.mockResolvedValueOnce({
+      items: [{ id: 1 }, { id: 2 }] as never,
+      total: 4,
+      limit: 2,
+      offset: 0,
+    })
+    const store = useEntriesStore()
+    await store.loadEntries({ limit: 2, offset: 0 })
+    expect(store.entries.map((e) => e.id)).toEqual([1, 2])
+    expect(store.hasMore).toBe(true)
+
+    mockFetchEntries.mockResolvedValueOnce({
+      items: [{ id: 3 }, { id: 4 }] as never,
+      total: 4,
+      limit: 2,
+      offset: 2,
+    })
+    await store.loadMoreEntries()
+
+    expect(mockFetchEntries).toHaveBeenLastCalledWith(
+      expect.objectContaining({ limit: 2, offset: 2 }),
+    )
+    // Appended, not replaced.
+    expect(store.entries.map((e) => e.id)).toEqual([1, 2, 3, 4])
+    expect(store.currentParams.offset).toBe(2)
+    expect(store.hasMore).toBe(false)
+  })
+
+  it('loadMoreEntries bails when there is nothing more to fetch', async () => {
+    mockFetchEntries.mockResolvedValueOnce({
+      items: [{ id: 1 }] as never,
+      total: 1,
+      limit: 20,
+      offset: 0,
+    })
+    const store = useEntriesStore()
+    await store.loadEntries()
+    expect(store.hasMore).toBe(false)
+
+    mockFetchEntries.mockClear()
+    await store.loadMoreEntries()
+    expect(mockFetchEntries).not.toHaveBeenCalled()
+  })
+
+  it('loadMoreEntries sets error on failure without dropping loaded rows', async () => {
+    mockFetchEntries.mockResolvedValueOnce({
+      items: [{ id: 1 }] as never,
+      total: 5,
+      limit: 20,
+      offset: 0,
+    })
+    const store = useEntriesStore()
+    await store.loadEntries()
+
+    mockFetchEntries.mockRejectedValueOnce(new Error('boom'))
+    await store.loadMoreEntries()
+
+    expect(store.error).toBe('boom')
+    expect(store.loading).toBe(false)
+    // Existing rows are preserved.
+    expect(store.entries.map((e) => e.id)).toEqual([1])
+  })
+
   it('loadEntries merges new params over currentParams', async () => {
     mockFetchEntries.mockResolvedValue({
       items: [],

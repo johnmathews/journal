@@ -128,6 +128,96 @@ describe('useStorylinesStore', () => {
     expect(store.totalUnread).toBe(3)
   })
 
+  it('hasMore is true while fewer rows are held than the total', async () => {
+    mockFetchStorylines.mockResolvedValue({
+      items: [summary({ id: 1 })],
+      total: 45,
+      limit: 20,
+      offset: 0,
+    })
+    const store = useStorylinesStore()
+    await store.loadStorylines()
+    expect(store.hasMore).toBe(true)
+  })
+
+  it('loadMoreStorylines appends the next page with the advanced offset', async () => {
+    mockFetchStorylines.mockResolvedValueOnce({
+      items: [summary({ id: 1, name: 'Running' })],
+      total: 45,
+      limit: 20,
+      offset: 0,
+    })
+    const store = useStorylinesStore()
+    await store.loadStorylines({ limit: 20, offset: 0 })
+    expect(store.storylines).toHaveLength(1)
+
+    mockFetchStorylines.mockResolvedValueOnce({
+      items: [summary({ id: 2, name: 'Atlas' })],
+      total: 45,
+      limit: 20,
+      offset: 20,
+    })
+    await store.loadMoreStorylines()
+    // Offset advanced by one page…
+    expect(mockFetchStorylines).toHaveBeenLastCalledWith(
+      expect.objectContaining({ offset: 20, limit: 20 }),
+    )
+    // …and rows were appended, not replaced.
+    expect(store.storylines.map((s) => s.id)).toEqual([1, 2])
+  })
+
+  it('loadMoreStorylines reuses the active search filter', async () => {
+    mockFetchStorylines.mockResolvedValueOnce({
+      items: [summary({ id: 1 })],
+      total: 45,
+      limit: 20,
+      offset: 0,
+    })
+    const store = useStorylinesStore()
+    await store.loadStorylines({ search: 'run', offset: 0 })
+
+    mockFetchStorylines.mockResolvedValueOnce({
+      items: [summary({ id: 2 })],
+      total: 45,
+      limit: 20,
+      offset: 20,
+    })
+    await store.loadMoreStorylines()
+    expect(mockFetchStorylines).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: 'run', offset: 20 }),
+    )
+  })
+
+  it('loadMoreStorylines is a no-op when nothing more to load', async () => {
+    mockFetchStorylines.mockResolvedValue({
+      items: [summary({ id: 1 })],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    })
+    const store = useStorylinesStore()
+    await store.loadStorylines()
+    expect(store.hasMore).toBe(false)
+    mockFetchStorylines.mockClear()
+    await store.loadMoreStorylines()
+    expect(mockFetchStorylines).not.toHaveBeenCalled()
+  })
+
+  it('loadMoreStorylines records an error message on failure', async () => {
+    mockFetchStorylines.mockResolvedValueOnce({
+      items: [summary({ id: 1 })],
+      total: 45,
+      limit: 20,
+      offset: 0,
+    })
+    const store = useStorylinesStore()
+    await store.loadStorylines()
+    mockFetchStorylines.mockRejectedValueOnce(new Error('append down'))
+    await store.loadMoreStorylines()
+    expect(store.error).toBe('append down')
+    expect(store.loading).toBe(false)
+  })
+
   it('loadChapter caches by id and skips the second fetch', async () => {
     mockFetchChapter.mockResolvedValue({
       ...chapterMeta({ id: 3 }),

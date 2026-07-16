@@ -113,6 +113,22 @@ describe('jobs API client', () => {
     expect(resp).toEqual(response)
   })
 
+  it('listJobs forwards the search param in the query string', async () => {
+    const response = { items: [], total: 0, limit: 25, offset: 0 }
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(response),
+    } as Response)
+
+    await listJobs({ search: 'timeout error', status: 'failed' })
+
+    const url = fetchSpy.mock.calls[0][0] as string
+    expect(url).toContain('/api/jobs?')
+    // URLSearchParams encodes the space in the free-text term.
+    expect(url).toContain('search=timeout+error')
+    expect(url).toContain('status=failed')
+  })
+
   it('listJobs with no params GETs /api/jobs without query string', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
