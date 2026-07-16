@@ -179,33 +179,43 @@ describe('EntryListView', () => {
     expect(wrapper.find('[data-testid="empty-state"]').exists()).toBe(true)
   })
 
-  it('renders the page indicator text', async () => {
+  it('renders the "showing N of M" count caption', async () => {
     const wrapper = mountComponent()
     await new Promise((r) => setTimeout(r, 50))
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.find('[data-testid="page-indicator"]').text()).toMatch(
-      /Page 1 of 1/,
+    const caption = wrapper.find('[data-testid="entries-count-caption"]')
+    expect(caption.exists()).toBe(true)
+    expect(caption.text()).toContain('showing 2 of 2')
+  })
+
+  it('does not render the old prev/next pager or page-size selector', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="prev-page"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="next-page"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="page-indicator"]').exists()).toBe(false)
+    expect(wrapper.find('#rows-per-page').exists()).toBe(false)
+  })
+
+  it('hides the "Load more" button when all rows are loaded', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    // Default mock: 2 of 2 loaded → hasMore is false.
+    expect(wrapper.find('[data-testid="entries-load-more"]').exists()).toBe(
+      false,
     )
   })
 
-  it('disables Prev and Next when there is only one page of data', async () => {
-    const wrapper = mountComponent()
-    await new Promise((r) => setTimeout(r, 50))
-    await wrapper.vm.$nextTick()
-
-    const prev = wrapper.find('[data-testid="prev-page"]')
-      .element as HTMLButtonElement
-    const next = wrapper.find('[data-testid="next-page"]')
-      .element as HTMLButtonElement
-    expect(prev.disabled).toBe(true)
-    expect(next.disabled).toBe(true)
-  })
-
-  it('Next click refetches with the next offset when multiple pages exist', async () => {
+  it('shows "Load more" and appends the next page on click', async () => {
     const { fetchEntries } = await import('@/api/entries')
     const mock = vi.mocked(fetchEntries)
-    mock.mockResolvedValue({
+    // First page: 20 rows out of 45 total → hasMore is true.
+    mock.mockResolvedValueOnce({
       items: Array.from({ length: 20 }, (_, i) => mockEntry({ id: i + 1 })),
       total: 45,
       limit: 20,
@@ -216,13 +226,35 @@ describe('EntryListView', () => {
     await new Promise((r) => setTimeout(r, 50))
     await wrapper.vm.$nextTick()
 
-    mock.mockClear()
-    const next = wrapper.find('[data-testid="next-page"]')
-    await next.trigger('click')
+    expect(wrapper.findAll('[data-testid="entry-row"]')).toHaveLength(20)
+    const loadMore = wrapper.find('[data-testid="entries-load-more"]')
+    expect(loadMore.exists()).toBe(true)
 
-    expect(mock).toHaveBeenCalledWith(
+    // Second page appends onto the existing rows.
+    mock.mockResolvedValueOnce({
+      items: Array.from({ length: 20 }, (_, i) => mockEntry({ id: i + 21 })),
+      total: 45,
+      limit: 20,
+      offset: 20,
+    })
+    await loadMore.trigger('click')
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(mock).toHaveBeenLastCalledWith(
       expect.objectContaining({ limit: 20, offset: 20 }),
     )
+    expect(wrapper.findAll('[data-testid="entry-row"]')).toHaveLength(40)
+  })
+
+  it('renders a scroll sentinel for infinite scroll', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(
+      wrapper.find('[data-testid="entries-scroll-sentinel"]').exists(),
+    ).toBe(true)
   })
 
   it('sorts by date descending by default', async () => {
@@ -260,12 +292,15 @@ describe('EntryListView', () => {
     expect(rows[1].text()).toContain('347')
   })
 
-  it('changes rows-per-page and refetches from offset 0', async () => {
+  it('sorting a column still reorders the loaded rows after an append', async () => {
     const { fetchEntries } = await import('@/api/entries')
     const mock = vi.mocked(fetchEntries)
-    mock.mockResolvedValue({
-      items: Array.from({ length: 20 }, (_, i) => mockEntry({ id: i + 1 })),
-      total: 100,
+    mock.mockResolvedValueOnce({
+      items: [
+        mockEntry({ id: 1, entry_date: '2026-03-22', word_count: 347 }),
+        mockEntry({ id: 2, entry_date: '2026-03-21', word_count: 120 }),
+      ],
+      total: 4,
       limit: 20,
       offset: 0,
     })
@@ -274,13 +309,27 @@ describe('EntryListView', () => {
     await new Promise((r) => setTimeout(r, 50))
     await wrapper.vm.$nextTick()
 
-    mock.mockClear()
-    const select = wrapper.find('#rows-per-page')
-    await select.setValue('50')
+    // Append two more rows with a lower word count.
+    mock.mockResolvedValueOnce({
+      items: [
+        mockEntry({ id: 3, entry_date: '2026-03-20', word_count: 90 }),
+        mockEntry({ id: 4, entry_date: '2026-03-19', word_count: 500 }),
+      ],
+      total: 4,
+      limit: 20,
+      offset: 20,
+    })
+    await wrapper.find('[data-testid="entries-load-more"]').trigger('click')
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
 
-    expect(mock).toHaveBeenCalledWith(
-      expect.objectContaining({ limit: 50, offset: 0 }),
-    )
+    expect(wrapper.findAll('[data-testid="entry-row"]')).toHaveLength(4)
+
+    // Sort ascending by words across the full loaded set: 90, 120, 347, 500.
+    await wrapper.find('[data-testid="sort-words"]').trigger('click')
+    const rows = wrapper.findAll('[data-testid="entry-row"]')
+    expect(rows[0].text()).toContain('90')
+    expect(rows[3].text()).toContain('500')
   })
 })
 

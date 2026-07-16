@@ -85,6 +85,213 @@ describe('entities store', () => {
     expect(secondCall?.offset).toBe(50)
   })
 
+  describe('loadMoreEntities (infinite scroll append)', () => {
+    it('appends the next page, advances the offset, and preserves filters', async () => {
+      const { fetchEntities } = await import('@/api/entities')
+      const fetchSpy = vi.mocked(fetchEntities)
+
+      const store = useEntitiesStore()
+      // First (reset) page — 1 row, total says more exist.
+      fetchSpy.mockResolvedValueOnce({
+        items: [
+          {
+            id: 1,
+            entity_type: 'person',
+            canonical_name: 'Alpha',
+            aliases: [],
+            mention_count: 3,
+            first_seen: '2026-01-01',
+            last_seen: '2026-01-02',
+          },
+        ],
+        total: 3,
+        limit: 50,
+        offset: 0,
+      })
+      await store.loadEntities({ type: 'person', search: 'a' })
+      expect(store.entities).toHaveLength(1)
+
+      // Append page — pushes onto the existing array.
+      fetchSpy.mockResolvedValueOnce({
+        items: [
+          {
+            id: 2,
+            entity_type: 'person',
+            canonical_name: 'Beta',
+            aliases: [],
+            mention_count: 1,
+            first_seen: '2026-02-01',
+            last_seen: '2026-02-02',
+          },
+        ],
+        total: 3,
+        limit: 50,
+        offset: 50,
+      })
+      await store.loadMoreEntities()
+
+      // Array grew (append, not replace).
+      expect(store.entities).toHaveLength(2)
+      expect(store.entities.map((e) => e.id)).toEqual([1, 2])
+      // Offset advanced by one page.
+      expect(store.currentParams.offset).toBe(50)
+      // Active filters were carried through on the append call.
+      const appendCall = fetchSpy.mock.calls[fetchSpy.mock.calls.length - 1][0]
+      expect(appendCall?.type).toBe('person')
+      expect(appendCall?.search).toBe('a')
+      expect(appendCall?.offset).toBe(50)
+    })
+
+    it('bails when there is nothing more to load (hasMore false)', async () => {
+      const { fetchEntities } = await import('@/api/entities')
+      const fetchSpy = vi.mocked(fetchEntities)
+      fetchSpy.mockResolvedValueOnce({
+        items: [
+          {
+            id: 1,
+            entity_type: 'person',
+            canonical_name: 'Only',
+            aliases: [],
+            mention_count: 1,
+            first_seen: '',
+            last_seen: '',
+          },
+        ],
+        total: 1,
+        limit: 50,
+        offset: 0,
+      })
+
+      const store = useEntitiesStore()
+      await store.loadEntities()
+      expect(store.hasMore).toBe(false)
+
+      fetchSpy.mockClear()
+      await store.loadMoreEntities()
+      // No further fetch — already at the end.
+      expect(fetchSpy).not.toHaveBeenCalled()
+      expect(store.entities).toHaveLength(1)
+    })
+
+    it('bails when a load is already in flight (loading true)', async () => {
+      const { fetchEntities } = await import('@/api/entities')
+      const fetchSpy = vi.mocked(fetchEntities)
+
+      const store = useEntitiesStore()
+      // Seed a state where more pages exist.
+      store.entities = [
+        {
+          id: 1,
+          entity_type: 'person',
+          canonical_name: 'A',
+          aliases: [],
+          mention_count: 1,
+          first_seen: '',
+          last_seen: '',
+        },
+      ]
+      store.total = 10
+      store.loading = true
+
+      await store.loadMoreEntities()
+      expect(fetchSpy).not.toHaveBeenCalled()
+    })
+
+    it('surfaces the error message when the append fetch rejects', async () => {
+      const { fetchEntities } = await import('@/api/entities')
+      const fetchSpy = vi.mocked(fetchEntities)
+
+      const store = useEntitiesStore()
+      store.entities = [
+        {
+          id: 1,
+          entity_type: 'person',
+          canonical_name: 'A',
+          aliases: [],
+          mention_count: 1,
+          first_seen: '',
+          last_seen: '',
+        },
+      ]
+      store.total = 10
+
+      fetchSpy.mockRejectedValueOnce(new Error('append boom'))
+      await store.loadMoreEntities()
+
+      expect(store.error).toBe('append boom')
+      expect(store.loading).toBe(false)
+    })
+
+    it('falls back to a generic message for a non-Error rejection', async () => {
+      const { fetchEntities } = await import('@/api/entities')
+      const fetchSpy = vi.mocked(fetchEntities)
+
+      const store = useEntitiesStore()
+      store.entities = [
+        {
+          id: 1,
+          entity_type: 'person',
+          canonical_name: 'A',
+          aliases: [],
+          mention_count: 1,
+          first_seen: '',
+          last_seen: '',
+        },
+      ]
+      store.total = 10
+
+      fetchSpy.mockRejectedValueOnce('plain')
+      await store.loadMoreEntities()
+
+      expect(store.error).toBe('Failed to load more entities')
+    })
+  })
+
+  describe('hasMore getter', () => {
+    it('is true while fewer rows are held than the total', () => {
+      const store = useEntitiesStore()
+      store.entities = [
+        {
+          id: 1,
+          entity_type: 'person',
+          canonical_name: 'A',
+          aliases: [],
+          mention_count: 1,
+          first_seen: '',
+          last_seen: '',
+        },
+      ]
+      store.total = 5
+      expect(store.hasMore).toBe(true)
+    })
+
+    it('flips false once the loaded rows reach the total', () => {
+      const store = useEntitiesStore()
+      store.entities = [
+        {
+          id: 1,
+          entity_type: 'person',
+          canonical_name: 'A',
+          aliases: [],
+          mention_count: 1,
+          first_seen: '',
+          last_seen: '',
+        },
+        {
+          id: 2,
+          entity_type: 'person',
+          canonical_name: 'B',
+          aliases: [],
+          mention_count: 1,
+          first_seen: '',
+          last_seen: '',
+        },
+      ]
+      store.total = 2
+      expect(store.hasMore).toBe(false)
+    })
+  })
+
   it('loadEntity fetches entity, mentions, and relationships in parallel', async () => {
     const { fetchEntity, fetchEntityMentions, fetchEntityRelationships } =
       await import('@/api/entities')

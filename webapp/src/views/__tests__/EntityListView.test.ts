@@ -275,9 +275,9 @@ describe('EntityListView', () => {
     expect(rows[5].html()).toContain('gray') // other (X, default case)
   })
 
-  it('pagination buttons call loadEntities with the right offset', async () => {
-    // Provide enough "total" that Next is enabled on page 1 and Prev
-    // becomes enabled after one Next click.
+  it('Load more button appends the next page with the advanced offset', async () => {
+    // First page reports a much larger total, so hasMore is true and the
+    // Load more button renders.
     const { fetchEntities } = await import('@/api/entities')
     vi.mocked(fetchEntities).mockResolvedValueOnce({
       items: [
@@ -299,9 +299,15 @@ describe('EntityListView', () => {
     const wrapper = mountView()
     await flushPromises()
 
+    // One row so far, and the caption reflects the loaded/total counts.
+    expect(wrapper.findAll('[data-testid="entity-row"]')).toHaveLength(1)
+    expect(
+      wrapper.find('[data-testid="entities-count-caption"]').text(),
+    ).toContain('showing 1 of 120')
+
     const spy = vi.mocked(fetchEntities)
     spy.mockClear()
-    // Return the next page shape so canPrev flips on.
+    // The appended page arrives with a fresh row.
     spy.mockResolvedValue({
       items: [
         {
@@ -319,16 +325,23 @@ describe('EntityListView', () => {
       offset: 50,
     })
 
-    await wrapper.find('[data-testid="next-page"]').trigger('click')
+    await wrapper.find('[data-testid="entities-load-more"]').trigger('click')
     await flushPromises()
-    expect(spy.mock.calls[0][0]?.offset).toBe(50)
 
-    await wrapper.find('[data-testid="prev-page"]').trigger('click')
-    await flushPromises()
-    expect(spy.mock.calls[1][0]?.offset).toBe(0)
+    // The append fetch advanced the offset by one page…
+    expect(spy.mock.calls[0][0]?.offset).toBe(50)
+    // …and the rows were appended, not replaced.
+    const rows = wrapper.findAll('[data-testid="entity-row"]')
+    expect(rows).toHaveLength(2)
+    const text = rows.map((r) => r.text()).join(' ')
+    expect(text).toContain('Ritsya')
+    expect(text).toContain('John')
+    expect(
+      wrapper.find('[data-testid="entities-count-caption"]').text(),
+    ).toContain('showing 2 of 120')
   })
 
-  it('next button is disabled on the last page and does not refetch', async () => {
+  it('hides the Load more button on the last page but keeps the caption', async () => {
     const { fetchEntities } = await import('@/api/entities')
     vi.mocked(fetchEntities).mockResolvedValueOnce({
       items: [
@@ -342,7 +355,7 @@ describe('EntityListView', () => {
           last_seen: '2026-01-01',
         },
       ],
-      total: 1, // one entity, one page
+      total: 1, // one entity, one page — nothing more to load
       limit: 50,
       offset: 0,
     })
@@ -350,11 +363,13 @@ describe('EntityListView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const nextBtn = wrapper.find('[data-testid="next-page"]')
-    const prevBtn = wrapper.find('[data-testid="prev-page"]')
-    // Both buttons should be disabled: one page of results, no prev, no next.
-    expect(nextBtn.attributes('disabled')).toBeDefined()
-    expect(prevBtn.attributes('disabled')).toBeDefined()
+    // Everything is loaded, so the button is gone but the count caption stays.
+    expect(wrapper.find('[data-testid="entities-load-more"]').exists()).toBe(
+      false,
+    )
+    expect(
+      wrapper.find('[data-testid="entities-count-caption"]').text(),
+    ).toContain('showing 1 of 1')
   })
 
   it('renders the Run extraction button', async () => {
@@ -1709,27 +1724,77 @@ describe('EntityListView', () => {
       expect(allText).toContain('not-a-date')
     })
 
-    it('hides pagination on the quarantined tab', async () => {
+    it('hides the infinite-scroll caption on the quarantined tab', async () => {
       const { fetchQuarantinedEntities } = await import('@/api/entities')
       vi.mocked(fetchQuarantinedEntities).mockResolvedValue(quarantinedFixture)
 
       const wrapper = mountView()
       await flushPromises()
 
-      // Active tab: page info is visible (default fixture has rows).
-      expect(wrapper.find('[data-testid="entity-page-info"]').exists()).toBe(
-        true,
-      )
+      // Active tab: the count caption is visible (default fixture has rows).
+      expect(
+        wrapper.find('[data-testid="entities-count-caption"]').exists(),
+      ).toBe(true)
 
       await wrapper
         .find('[data-testid="mode-tab-quarantined"]')
         .trigger('click')
       await flushPromises()
 
-      // Quarantined tab does not paginate.
-      expect(wrapper.find('[data-testid="entity-page-info"]').exists()).toBe(
+      // Quarantined tab is loaded whole — no infinite-scroll affordances.
+      expect(
+        wrapper.find('[data-testid="entities-count-caption"]').exists(),
+      ).toBe(false)
+      expect(wrapper.find('[data-testid="entities-load-more"]').exists()).toBe(
         false,
       )
+    })
+
+    it('filters the quarantined rows client-side as the user types', async () => {
+      const { fetchQuarantinedEntities } = await import('@/api/entities')
+      vi.mocked(fetchQuarantinedEntities).mockResolvedValue(quarantinedFixture)
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      await wrapper
+        .find('[data-testid="mode-tab-quarantined"]')
+        .trigger('click')
+      await flushPromises()
+
+      // Both rows visible before searching.
+      expect(wrapper.findAll('[data-testid="entity-row"]')).toHaveLength(2)
+
+      // Type a fragment matching only "Garbage".
+      await wrapper.find('[data-testid="entity-search"]').setValue('garb')
+      await flushPromises()
+
+      const rows = wrapper.findAll('[data-testid="entity-row"]')
+      expect(rows).toHaveLength(1)
+      expect(rows[0].text()).toContain('Garbage')
+      expect(rows.map((r) => r.text()).join(' ')).not.toContain('Stale Alias')
+    })
+
+    it('clearing the search box restores the full quarantined list', async () => {
+      const { fetchQuarantinedEntities } = await import('@/api/entities')
+      vi.mocked(fetchQuarantinedEntities).mockResolvedValue(quarantinedFixture)
+
+      const wrapper = mountView()
+      await flushPromises()
+
+      await wrapper
+        .find('[data-testid="mode-tab-quarantined"]')
+        .trigger('click')
+      await flushPromises()
+
+      const input = wrapper.find('[data-testid="entity-search"]')
+      await input.setValue('garb')
+      await flushPromises()
+      expect(wrapper.findAll('[data-testid="entity-row"]')).toHaveLength(1)
+
+      await input.setValue('')
+      await flushPromises()
+      expect(wrapper.findAll('[data-testid="entity-row"]')).toHaveLength(2)
     })
   })
 

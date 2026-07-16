@@ -185,33 +185,104 @@ describe('StorylineListView', () => {
     ).toBe(false)
   })
 
-  it('pagination Next button advances the offset', async () => {
-    mockFetchStorylines.mockResolvedValue({
-      items: Array.from({ length: 20 }, (_, i) =>
-        mockSummary({ id: i + 1, name: `S${i}` }),
-      ),
-      total: 45,
+  // --- W4: whole-dataset search + infinite scroll (replaces prev/next pager) ---
+
+  it('renders the search input and the count caption', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="storylines-search-input"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="storylines-count-caption"]').text(),
+    ).toContain('showing 2 of 2')
+  })
+
+  it('has no prev/next pager or rows-per-page controls', async () => {
+    const wrapper = mountComponent()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="prev-page"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="next-page"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="page-indicator"]').exists()).toBe(false)
+    expect(wrapper.find('select').exists()).toBe(false)
+  })
+
+  it('typing in the search box debounces and resets the list to offset 0 with the trimmed term', async () => {
+    vi.useFakeTimers()
+    try {
+      const wrapper = mountComponent()
+      await flushPromises()
+      mockFetchStorylines.mockClear()
+
+      const input = wrapper.find('[data-testid="storylines-search-input"]')
+      // Type once — debounce pending, no call yet.
+      await input.setValue('  runn')
+      expect(mockFetchStorylines).not.toHaveBeenCalled()
+      // Type again before the debounce fires — exercises the clearTimeout branch.
+      await input.setValue('  running  ')
+      expect(mockFetchStorylines).not.toHaveBeenCalled()
+
+      vi.advanceTimersByTime(250)
+      await flushPromises()
+
+      expect(mockFetchStorylines).toHaveBeenCalled()
+      const lastCall =
+        mockFetchStorylines.mock.calls[
+          mockFetchStorylines.mock.calls.length - 1
+        ][0]
+      expect(lastCall?.search).toBe('running')
+      expect(lastCall?.offset).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('Load more appends the next page with the advanced offset', async () => {
+    mockFetchStorylines.mockResolvedValueOnce({
+      items: [mockSummary({ id: 1, name: 'Running' })],
+      total: 45, // far beyond one page → hasMore true
       limit: 20,
       offset: 0,
     })
     const wrapper = mountComponent()
     await flushPromises()
+
+    expect(wrapper.findAll('[data-testid="storyline-row"]')).toHaveLength(1)
+    expect(
+      wrapper.find('[data-testid="storylines-count-caption"]').text(),
+    ).toContain('showing 1 of 45')
+
     mockFetchStorylines.mockClear()
-    await wrapper.find('[data-testid="next-page"]').trigger('click')
-    expect(mockFetchStorylines).toHaveBeenCalledWith(
-      expect.objectContaining({ offset: 20 }),
-    )
+    mockFetchStorylines.mockResolvedValue({
+      items: [mockSummary({ id: 2, name: 'Atlas' })],
+      total: 45,
+      limit: 20,
+      offset: 20,
+    })
+    await wrapper.find('[data-testid="storylines-load-more"]').trigger('click')
+    await flushPromises()
+
+    expect(mockFetchStorylines.mock.calls[0][0]?.offset).toBe(20)
+    const rows = wrapper.findAll('[data-testid="storyline-row"]')
+    expect(rows).toHaveLength(2)
+    expect(
+      wrapper.find('[data-testid="storylines-count-caption"]').text(),
+    ).toContain('showing 2 of 45')
   })
 
-  it('rows-per-page select reloads with the new limit', async () => {
+  it('hides Load more on the last page but keeps the caption and sentinel', async () => {
+    // Default mock returns total 2 with 2 rows → nothing more to load.
     const wrapper = mountComponent()
     await flushPromises()
-    mockFetchStorylines.mockClear()
-    const select = wrapper.find('select')
-    await select.setValue('50')
-    expect(mockFetchStorylines).toHaveBeenCalledWith(
-      expect.objectContaining({ limit: 50, offset: 0 }),
+    expect(wrapper.find('[data-testid="storylines-load-more"]').exists()).toBe(
+      false,
     )
+    expect(
+      wrapper.find('[data-testid="storylines-count-caption"]').text(),
+    ).toContain('showing 2 of 2')
+    expect(
+      wrapper.find('[data-testid="storylines-scroll-sentinel"]').exists(),
+    ).toBe(true)
   })
 
   // --- W9: New storyline button + create modal ---

@@ -69,6 +69,9 @@ export const useStorylinesStore = defineStore('storylines', () => {
       ) + 1,
   )
   const hasStorylines = computed(() => storylines.value.length > 0)
+  // Infinite-scroll gate: another page exists while we hold fewer rows
+  // than the server-reported total for the current filter set.
+  const hasMore = computed(() => storylines.value.length < total.value)
   /** Sum of unread chapters across all loaded storylines — sidebar badge. */
   const totalUnread = computed(() =>
     storylines.value.reduce((sum, s) => sum + (s.unread_count || 0), 0),
@@ -87,6 +90,32 @@ export const useStorylinesStore = defineStore('storylines', () => {
       total.value = resp.total
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to load storylines'
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Append-the-next-page path for infinite scroll. Unlike loadStorylines
+  // (which replaces the array on search/reset), this pushes the fetched
+  // rows onto the existing list, advancing the offset by one page. It
+  // reuses currentParams so the active search filter is honoured, and
+  // bails when a load is already in flight or there is nothing left to
+  // fetch — preventing duplicate or racing appends.
+  async function loadMoreStorylines(): Promise<void> {
+    if (loading.value || !hasMore.value) return
+    loading.value = true
+    error.value = null
+    try {
+      const limit = currentParams.value.limit || 20
+      const nextOffset = (currentParams.value.offset || 0) + limit
+      const merged = { ...currentParams.value, offset: nextOffset }
+      currentParams.value = merged
+      const resp = await fetchStorylines(merged)
+      storylines.value = [...storylines.value, ...resp.items]
+      total.value = resp.total
+    } catch (e) {
+      error.value =
+        e instanceof Error ? e.message : 'Failed to load more storylines'
     } finally {
       loading.value = false
     }
@@ -400,8 +429,10 @@ export const useStorylinesStore = defineStore('storylines', () => {
     totalPages,
     currentPage,
     hasStorylines,
+    hasMore,
     totalUnread,
     loadStorylines,
+    loadMoreStorylines,
     loadStoryline,
     loadChapter,
     clearCurrent,

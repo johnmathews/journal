@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useStorylinesStore } from '@/stores/storylines'
 import { useToast } from '@/composables/useToast'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import StorylineCreateModal from '@/components/StorylineCreateModal.vue'
 import type { StorylineSummary } from '@/types/storyline'
 
@@ -10,8 +11,7 @@ const router = useRouter()
 const store = useStorylinesStore()
 const toast = useToast()
 
-const rows = ref(20)
-const first = ref(0)
+const PAGE_SIZE = 20
 
 type SortKey = 'name' | 'updated_at' | 'created_at' | 'anchors'
 const sortKey = ref<SortKey>('updated_at')
@@ -55,29 +55,39 @@ const sortedStorylines = computed(() => {
   })
 })
 
-onMounted(() => {
-  store.loadStorylines({ limit: rows.value, offset: 0 })
+// Whole-dataset search. The term is filtered in SQL on the server over
+// name + description; typing resets the list to offset 0 so appends
+// continue from the filtered result set.
+const searchQuery = ref('')
+
+// Debounce the search input so we don't fire a request per keystroke.
+let searchDebounce: ReturnType<typeof setTimeout> | null = null
+watch(searchQuery, () => {
+  if (searchDebounce) clearTimeout(searchDebounce)
+  searchDebounce = setTimeout(() => {
+    store.loadStorylines({
+      search: searchQuery.value.trim() || undefined,
+      offset: 0,
+    })
+  }, 250)
 })
 
-const currentPage = computed(() => Math.floor(first.value / rows.value) + 1)
-const totalPages = computed(() =>
-  Math.max(1, Math.ceil(store.total / rows.value)),
-)
+onMounted(() => {
+  // Explicit undefined for search resets any filter that leaked in via
+  // the store's currentParams from a prior visit — without this the
+  // search box renders empty but the API call still carries the previous
+  // term, so the list looks mysteriously filtered.
+  store.loadStorylines({ limit: PAGE_SIZE, search: undefined, offset: 0 })
+})
 
-function goToPage(page: number): void {
-  const target = Math.min(Math.max(1, page), totalPages.value)
-  const newFirst = (target - 1) * rows.value
-  first.value = newFirst
-  store.loadStorylines({ limit: rows.value, offset: newFirst })
-}
-
-function changeRowsPerPage(event: Event): void {
-  const target = event.target as HTMLSelectElement
-  const value = Number(target.value)
-  rows.value = value
-  first.value = 0
-  store.loadStorylines({ limit: value, offset: 0 })
-}
+// Infinite scroll: the sentinel (rendered below the table) auto-appends
+// the next page when scrolled into view; the visible "Load more" button
+// drives the same append manually as a fallback for environments without
+// IntersectionObserver.
+const { sentinelRef, loadMore, canLoadMore } = useInfiniteList({
+  loadMore: () => store.loadMoreStorylines(),
+  canLoadMore: () => store.hasMore && !store.loading,
+})
 
 function onRowClick(id: number): void {
   router.push({ name: 'storyline-detail', params: { id } })
@@ -227,6 +237,13 @@ async function onBulkDelete(): Promise<void> {
         >
           {{ store.total }} storylines
         </div>
+        <input
+          v-model="searchQuery"
+          type="search"
+          placeholder="Search storylines…"
+          data-testid="storylines-search-input"
+          class="form-input w-64 text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+        />
         <button
           type="button"
           class="btn bg-violet-500 hover:bg-violet-600 text-white"
@@ -287,9 +304,10 @@ async function onBulkDelete(): Promise<void> {
     <div
       class="bg-white dark:bg-gray-800 shadow-xs rounded-xl border border-gray-200 dark:border-gray-700/60"
     >
-      <!-- Loading state -->
+      <!-- Loading state — only the first (list-replacing) load blanks the
+           table; appends via infinite scroll keep the loaded rows in place. -->
       <div
-        v-if="store.loading"
+        v-if="store.loading && store.storylines.length === 0"
         class="flex items-center justify-center py-16 text-gray-600 dark:text-gray-300"
         data-testid="loading-state"
       >
@@ -551,59 +569,25 @@ async function onBulkDelete(): Promise<void> {
         </ul>
       </template>
 
-      <!-- Pagination footer -->
+      <!-- Infinite scroll: count caption + sentinel + manual "Load more" -->
       <div
-        v-if="!store.loading && store.storylines.length > 0"
-        class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-t border-gray-200 dark:border-gray-700/60"
+        v-if="store.storylines.length > 0"
+        class="flex flex-col items-center gap-3 px-4 py-4 border-t border-gray-200 dark:border-gray-700/60 text-sm text-gray-600 dark:text-gray-300"
       >
-        <div
-          class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300"
+        <div data-testid="storylines-count-caption">
+          showing {{ store.storylines.length }} of {{ store.total }}
+        </div>
+        <button
+          v-if="store.hasMore"
+          class="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+          :disabled="!canLoadMore"
+          data-testid="storylines-load-more"
+          @click="loadMore"
         >
-          <label for="rows-per-page">Rows per page:</label>
-          <select
-            id="rows-per-page"
-            class="form-select text-sm py-1"
-            :value="rows"
-            @change="changeRowsPerPage"
-          >
-            <option :value="10">10</option>
-            <option :value="20">20</option>
-            <option :value="50">50</option>
-          </select>
-        </div>
-
-        <div class="flex items-center gap-3">
-          <span
-            class="text-sm text-gray-600 dark:text-gray-300"
-            data-testid="page-indicator"
-          >
-            Page {{ currentPage }} of {{ totalPages }}
-          </span>
-          <div class="flex gap-1">
-            <button
-              class="btn btn-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              :disabled="currentPage <= 1"
-              data-testid="prev-page"
-              @click="goToPage(currentPage - 1)"
-            >
-              <svg class="w-4 h-4 fill-current" viewBox="0 0 16 16">
-                <path d="M9.4 13.4L4 8l5.4-5.4 1.4 1.4L6.8 8l4 4z" />
-              </svg>
-              <span class="ml-1">Prev</span>
-            </button>
-            <button
-              class="btn btn-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              :disabled="currentPage >= totalPages"
-              data-testid="next-page"
-              @click="goToPage(currentPage + 1)"
-            >
-              <span class="mr-1">Next</span>
-              <svg class="w-4 h-4 fill-current" viewBox="0 0 16 16">
-                <path d="M6.6 13.4L5.2 12l4-4-4-4 1.4-1.4L12 8z" />
-              </svg>
-            </button>
-          </div>
-        </div>
+          {{ store.loading ? 'Loading…' : 'Load more' }}
+        </button>
+        <!-- Bottom sentinel: intersects → auto-append when scrolled into view. -->
+        <div ref="sentinelRef" data-testid="storylines-scroll-sentinel"></div>
       </div>
     </div>
 

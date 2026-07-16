@@ -56,6 +56,9 @@ export const useEntitiesStore = defineStore('entities', () => {
       ) + 1,
   )
   const hasEntities = computed(() => entities.value.length > 0)
+  // Infinite-scroll gate: another page exists while we hold fewer rows
+  // than the server-reported total for the current filter set.
+  const hasMore = computed(() => entities.value.length < total.value)
 
   // Actions
   async function loadEntities(params: EntityListParams = {}) {
@@ -69,6 +72,32 @@ export const useEntitiesStore = defineStore('entities', () => {
       total.value = resp.total
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to load entities'
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Append-the-next-page path for infinite scroll. Unlike loadEntities
+  // (which replaces the array on search/type/reset), this pushes the
+  // fetched rows onto the existing list, advancing the offset by one
+  // page. It reuses currentParams so the active type/search filters are
+  // honoured, and bails when a load is already in flight or there is
+  // nothing left to fetch — preventing duplicate or racing appends.
+  async function loadMoreEntities() {
+    if (loading.value || !hasMore.value) return
+    loading.value = true
+    error.value = null
+    try {
+      const limit = currentParams.value.limit || 50
+      const nextOffset = (currentParams.value.offset || 0) + limit
+      const merged = { ...currentParams.value, offset: nextOffset }
+      currentParams.value = merged
+      const resp = await fetchEntities(merged)
+      entities.value = [...entities.value, ...resp.items]
+      total.value = resp.total
+    } catch (e) {
+      error.value =
+        e instanceof Error ? e.message : 'Failed to load more entities'
     } finally {
       loading.value = false
     }
@@ -357,7 +386,9 @@ export const useEntitiesStore = defineStore('entities', () => {
     totalPages,
     currentPage,
     hasEntities,
+    hasMore,
     loadEntities,
+    loadMoreEntities,
     loadEntity,
     clearCurrent,
     updateCurrentEntity,

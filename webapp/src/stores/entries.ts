@@ -45,6 +45,9 @@ export const useEntriesStore = defineStore('entries', () => {
       ) + 1,
   )
   const hasEntries = computed(() => entries.value.length > 0)
+  // Infinite-scroll gate: another page exists while we hold fewer rows
+  // than the server-reported total for the current filter set.
+  const hasMore = computed(() => entries.value.length < total.value)
 
   // Actions
   async function loadEntries(params: EntryListParams = {}) {
@@ -58,6 +61,32 @@ export const useEntriesStore = defineStore('entries', () => {
       total.value = response.total
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to load entries'
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Append-the-next-page path for infinite scroll. Unlike loadEntries
+  // (which replaces the array on reset), this pushes the fetched rows
+  // onto the existing list, advancing the offset by one page. It reuses
+  // currentParams so any active filters are honoured, and bails when a
+  // load is already in flight or there is nothing left to fetch —
+  // preventing duplicate or racing appends.
+  async function loadMoreEntries() {
+    if (loading.value || !hasMore.value) return
+    loading.value = true
+    error.value = null
+    try {
+      const limit = currentParams.value.limit || 20
+      const nextOffset = (currentParams.value.offset || 0) + limit
+      const merged = { ...currentParams.value, offset: nextOffset }
+      currentParams.value = merged
+      const response = await fetchEntries(merged)
+      entries.value = [...entries.value, ...response.items]
+      total.value = response.total
+    } catch (e) {
+      error.value =
+        e instanceof Error ? e.message : 'Failed to load more entries'
     } finally {
       loading.value = false
     }
@@ -256,7 +285,9 @@ export const useEntriesStore = defineStore('entries', () => {
     totalPages,
     currentPage,
     hasEntries,
+    hasMore,
     loadEntries,
+    loadMoreEntries,
     loadEntry,
     saveEntryText,
     saveEntryBoundary,

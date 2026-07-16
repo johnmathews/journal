@@ -9,6 +9,7 @@ import {
   type MergeCandidate,
 } from '@/types/entity'
 import { fetchEntityMentions } from '@/api/entities'
+import { useInfiniteList } from '@/composables/useInfiniteList'
 import BatchJobModal from '@/components/BatchJobModal.vue'
 import BaseModal from '@/components/BaseModal.vue'
 
@@ -48,8 +49,24 @@ function sortIndicator(key: SortKey): string {
   return sortAsc.value ? ' \u25B2' : ' \u25BC'
 }
 
+// The quarantined list is loaded in full (unpaginated) so we filter it
+// client-side over the whole in-memory array — that makes quarantined
+// search whole-dataset by construction. Empty query → the full list.
+// `searchQuery` is declared below; the getter runs lazily at render time
+// so the forward reference is safe.
+const filteredQuarantined = computed<EntitySummary[]>(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  const all = store.quarantinedEntities
+  if (!q) return all
+  return all.filter(
+    (e) =>
+      e.canonical_name.toLowerCase().includes(q) ||
+      e.aliases.some((a) => a.toLowerCase().includes(q)),
+  )
+})
+
 const visibleEntities = computed<EntitySummary[]>(() =>
-  listMode.value === 'quarantined' ? store.quarantinedEntities : store.entities,
+  listMode.value === 'quarantined' ? filteredQuarantined.value : store.entities,
 )
 
 const sortedEntities = computed(() => {
@@ -121,11 +138,11 @@ watch(selectedType, () => {
 })
 
 function applyFilters() {
-  // Type/search filters only apply to the active list — the
-  // quarantined endpoint does not accept them. Filtering the
-  // quarantined list happens client-side via `sortedEntities`
-  // when the user types in the search box (the array is
-  // already small in practice).
+  // Active tab: type/search are server-side filters — re-fetch page 0
+  // with the current filter params. Quarantined tab: nothing to do here.
+  // The quarantined endpoint accepts no filters and the whole list is
+  // already in memory, so search is applied client-side via the
+  // `filteredQuarantined` computed (which reads `searchQuery` directly).
   if (listMode.value !== 'active') return
   store.loadEntities({
     type: selectedType.value === 'all' ? undefined : selectedType.value,
@@ -184,27 +201,16 @@ function typeBadgeClass(type: EntityType): string {
   }
 }
 
-function prevPage() {
-  const limit = store.currentParams.limit || 50
-  const offset = Math.max(0, (store.currentParams.offset || 0) - limit)
-  store.loadEntities({ offset })
-}
-
-function nextPage() {
-  const limit = store.currentParams.limit || 50
-  const offset = (store.currentParams.offset || 0) + limit
-  if (offset >= store.total) return
-  store.loadEntities({ offset })
-}
-
-const canPrev = computed(
-  () => listMode.value === 'active' && (store.currentParams.offset || 0) > 0,
-)
-const canNext = computed(() => {
-  if (listMode.value !== 'active') return false
-  const limit = store.currentParams.limit || 50
-  const offset = store.currentParams.offset || 0
-  return offset + limit < store.total
+// Infinite scroll for the active list. The sentinel (rendered below the
+// table) auto-appends the next page when scrolled into view; the visible
+// "Load more" button drives the same append manually as a fallback for
+// environments without IntersectionObserver. Only the active list
+// paginates server-side — the quarantined list is small and loaded whole,
+// so we gate appends on listMode as well as hasMore/loading.
+const { sentinelRef, loadMore, canLoadMore } = useInfiniteList({
+  loadMore: () => store.loadMoreEntities(),
+  canLoadMore: () =>
+    listMode.value === 'active' && store.hasMore && !store.loading,
 })
 
 // --- Multi-select for merge ---
@@ -1165,33 +1171,25 @@ async function deleteRow(entity: EntitySummary) {
       </ul>
     </template>
 
-    <!-- Pagination -->
+    <!-- Infinite scroll: count caption + sentinel + manual "Load more" -->
     <div
       v-if="listMode === 'active' && store.hasEntities"
-      class="mt-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300"
+      class="mt-4 flex flex-col items-center gap-3 text-sm text-gray-600 dark:text-gray-300"
     >
-      <div data-testid="entity-page-info">
-        Page {{ store.currentPage }} of {{ Math.max(1, store.totalPages) }} —
-        {{ store.total }} entities
+      <div data-testid="entities-count-caption">
+        showing {{ store.entities.length }} of {{ store.total }}
       </div>
-      <div class="flex gap-2">
-        <button
-          class="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-          :disabled="!canPrev"
-          data-testid="prev-page"
-          @click="prevPage"
-        >
-          Previous
-        </button>
-        <button
-          class="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-          :disabled="!canNext"
-          data-testid="next-page"
-          @click="nextPage"
-        >
-          Next
-        </button>
-      </div>
+      <button
+        v-if="store.hasMore"
+        class="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+        :disabled="!canLoadMore"
+        data-testid="entities-load-more"
+        @click="loadMore"
+      >
+        {{ store.loading ? 'Loading…' : 'Load more' }}
+      </button>
+      <!-- Bottom sentinel: intersects → auto-append when scrolled into view. -->
+      <div ref="sentinelRef" data-testid="entities-scroll-sentinel"></div>
     </div>
 
     <!-- Merge modal -->

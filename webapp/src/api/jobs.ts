@@ -34,6 +34,11 @@ export function getJob(jobId: string): Promise<Job> {
 export interface JobListParams {
   status?: string
   type?: string
+  /**
+   * Free-text filter applied server-side in SQL over the job id, type, and
+   * error_message columns. The returned `total` reflects the filtered count.
+   */
+  search?: string
   limit?: number
   offset?: number
 }
