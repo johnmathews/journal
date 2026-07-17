@@ -23,24 +23,26 @@ chapter count (`storylinesStore.totalUnread`).
 
 ## Reading experience
 
-`StorylineDetailView` renders the storyline as a book:
+`StorylineDetailView` renders the storyline most-recent-first — both the TOC
+and the reader put the newest chapter on top:
 
 - **`ChapterToc`** (left at `lg+`, sticky) — one row per chapter, listed
-  newest-first (draft's "In progress" row on top), the opposite of the
-  reader's oldest-first flow: title, derived date range (min/max of the
-  chapter's member entries), a violet unread dot on published-unread
-  chapters, and a subdued "In progress" row for the draft. Selecting a row
-  scrolls the chapter into view and writes `?chapter=<id>` to the URL.
-- **`ChapterReader`** — one per published chapter, top-to-bottom: date-range
-  eyebrow, title, the cited narrative (rendered by `StorylineNarrative`,
-  prose + footnote Sources with entry links), addenda as bordered "Later —
-  <date>" blocks, and a footer with the published date and a ⋯ menu
-  (Rename / Mark unread / Unpublish — Unpublish only on the newest published
-  chapter). When ≥60% of a chapter scrolls into view (IntersectionObserver)
-  it emits `visible` once; the view marks it read via the store.
-- **`DraftBlock`** — the draft chapter, rendered last and visually subdued
-  (dashed border, muted prose): "In progress — N entries", the provisional
-  narrative if one exists, and a **Refresh** button that queues a
+  newest-first (draft's "In progress" row on top): title, derived date range
+  (min/max of the chapter's member entries), a violet unread dot on
+  published-unread chapters, and a subdued "In progress" row for the draft.
+  Selecting a row scrolls the chapter into view and writes `?chapter=<id>` to
+  the URL.
+- **`ChapterReader`** — one per published chapter, ordered newest → oldest
+  below the draft: date-range eyebrow, title, the cited narrative (rendered by
+  `StorylineNarrative`, prose + footnote Sources with entry links), addenda as
+  bordered "Later — <date>" blocks, and a footer with the published date and a
+  ⋯ menu (Rename / Mark unread / Unpublish — Unpublish only on the newest
+  published chapter). When ≥60% of a chapter scrolls into view
+  (IntersectionObserver) it emits `visible` once; the view marks it read via
+  the store.
+- **`DraftBlock`** — the draft chapter, rendered **first (on top)** and
+  visually subdued (dashed border, muted prose): "In progress — N entries", the
+  provisional narrative if one exists, and a **Refresh** button that queues a
   re-narration job.
 
 Citation numbering restarts per chapter: `buildCitationRegistry` walks the

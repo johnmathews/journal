@@ -38,3 +38,13 @@ TDD: added a failing test asserting the reader's `[data-chapter-anchor]` DOM
 order is `[draft, published-newest, …, published-oldest]` (`['72','71','70']`
 for a 3-chapter fixture), then implemented until green. Full webapp suite +
 coverage (above the 85% thresholds), format, lint, and build all pass.
+
+## 1.5 Docs
+
+The wrap-up doc-freshness audit caught two active docs still describing the old
+oldest-first "book flow": `docs/storylines.md` (the reader/TOC section, which
+called the reader "oldest-first" and rendered `DraftBlock` "last") and
+`docs/architecture.md` (the StorylineDetailView entry). Both updated to
+most-recent-first (draft on top, published newest → oldest). The archived
+`docs/archive/2026-07-12-storylines-redesign-webapp.md` was left untouched — it
+records the state as of that redesign.
