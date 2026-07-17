@@ -10,9 +10,9 @@ import DraftBlock from '@/components/storylines/DraftBlock.vue'
 import { useBackNavigation } from '@/composables/useBackNavigation'
 
 /**
- * Book-style storyline reader. Published chapters render top-to-bottom
- * as immutable episodes; the single draft renders last, subdued. A slim
- * TOC (left at lg+) jumps between chapters and carries unread dots.
+ * Storyline reader, most-recent-first. The single draft renders on top,
+ * subdued; published chapters follow newest → oldest as immutable episodes.
+ * A slim TOC (left at lg+) mirrors that order and carries unread dots.
  * Scrolling a published chapter into view marks it read.
  */
 const props = defineProps<{
@@ -36,6 +36,11 @@ const nameDraft = ref('')
 const chapters = computed(() => store.currentStoryline?.chapters ?? [])
 const publishedChapters = computed(() =>
   chapters.value.filter((c) => c.state === 'published'),
+)
+// Reader order: newest published chapter first (the API returns them
+// oldest-first). The draft, being the most recent, renders above these.
+const publishedChaptersNewestFirst = computed(() =>
+  [...publishedChapters.value].reverse(),
 )
 const draftMeta = computed(
   () => chapters.value.find((c) => c.state === 'draft') ?? null,
@@ -400,7 +405,8 @@ watch(() => props.id, loadAll)
         />
       </div>
 
-      <!-- Reader layout: slim TOC left at lg+, chapters top-to-bottom. -->
+      <!-- Reader layout: slim TOC left at lg+, chapters most-recent-first
+           (draft on top, then published newest → oldest). -->
       <div class="flex flex-col lg:flex-row gap-6">
         <aside class="lg:w-56 shrink-0 order-first">
           <div class="lg:sticky lg:top-4">
@@ -413,7 +419,16 @@ watch(() => props.id, loadAll)
         </aside>
 
         <div class="flex-1 min-w-0 space-y-6" data-testid="storyline-reader">
-          <template v-for="c in publishedChapters" :key="c.id">
+          <div v-if="draftMeta" :data-chapter-anchor="draftMeta.id">
+            <DraftBlock
+              :meta="draftMeta"
+              :chapter="chapterDetail(draftMeta.id)"
+              :updating="store.updating"
+              @refresh="refreshDraft"
+            />
+          </div>
+
+          <template v-for="c in publishedChaptersNewestFirst" :key="c.id">
             <div :data-chapter-anchor="c.id">
               <ChapterReader
                 v-if="chapterDetail(c.id)"
@@ -433,15 +448,6 @@ watch(() => props.id, loadAll)
               </div>
             </div>
           </template>
-
-          <div v-if="draftMeta" :data-chapter-anchor="draftMeta.id">
-            <DraftBlock
-              :meta="draftMeta"
-              :chapter="chapterDetail(draftMeta.id)"
-              :updating="store.updating"
-              @refresh="refreshDraft"
-            />
-          </div>
 
           <div
             v-if="publishedChapters.length === 0 && !draftMeta"

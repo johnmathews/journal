@@ -181,6 +181,39 @@ describe('StorylineDetailView (reader)', () => {
     expect(wrapper.find('[data-testid="draft-block"]').exists()).toBe(true)
   })
 
+  it('renders the reader most-recent-first: draft on top, then published newest-first', async () => {
+    mockFetchStoryline.mockResolvedValue(
+      mockDetail({
+        chapter_count: 3,
+        chapters: [
+          chapterMeta({ id: 70, seq: 1 }),
+          chapterMeta({ id: 71, seq: 2 }),
+          chapterMeta({
+            id: 72,
+            seq: 3,
+            state: 'draft',
+            title: '',
+            published_at: null,
+          }),
+        ],
+      }) as never,
+    )
+    mockFetchChapter.mockImplementation(
+      async (_sid: number, cid: number) =>
+        chapterDetail(
+          cid === 72
+            ? { id: 72, seq: 3, state: 'draft', published_at: null }
+            : { id: cid },
+        ) as never,
+    )
+    const wrapper = await mountView()
+    const order = wrapper
+      .findAll('[data-chapter-anchor]')
+      .map((el) => el.attributes('data-chapter-anchor'))
+    // Draft (newest) on top, then published chapters newest → oldest.
+    expect(order).toEqual(['72', '71', '70'])
+  })
+
   it('loads every chapter on mount (published + draft)', async () => {
     await mountView()
     expect(mockFetchChapter).toHaveBeenCalledWith(3, 70)
