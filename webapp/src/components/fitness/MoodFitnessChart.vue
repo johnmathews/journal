@@ -6,6 +6,7 @@ import { Chart, type ChartType } from 'chart.js'
 import { useFitnessStore } from '@/stores/fitness'
 import { getChartColors, getThemedGridColor } from '@/utils/chartjs-config'
 import { adjustColorOpacity } from '@/utils/mosaic'
+import { formatBinLabel } from '@/utils/binLabel'
 import { displayScore, displayPolarLabel } from '@/utils/mood-display'
 import { MOOD_LINE_COLORS } from '@/components/dashboard/shared'
 import type { MoodDimension } from '@/types/dashboard'
@@ -62,11 +63,10 @@ const sortedRows = computed(() =>
 
 const hasData = computed(() => sortedRows.value.length > 0)
 
+// Daily data → 'week'-granularity labels (day + short month). Shared with
+// the dashboard charts via formatBinLabel so both render dates identically.
 const labels = computed(() =>
-  sortedRows.value.map((r) => {
-    const d = new Date(r.local_date + 'T00:00:00Z')
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-  }),
+  sortedRows.value.map((r) => formatBinLabel(r.local_date, 'week')),
 )
 
 const loadTitle = computed(() =>
@@ -225,7 +225,15 @@ function renderChart(): void {
       scales: {
         x: {
           grid: { display: false },
-          ticks: { color: colors.textColor.light, maxRotation: 0 },
+          // autoSkip + maxTicksLimit match buildLineChartOptions so this
+          // dual-axis chart thins its x-labels the same way the dashboard
+          // and daily-wellness charts do. See docs/chart-style-guide.md.
+          ticks: {
+            color: colors.textColor.light,
+            maxRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 8,
+          },
         },
         y: {
           type: 'linear',
@@ -237,7 +245,10 @@ function renderChart(): void {
             color: colors.textColor.light,
           },
           grid: { color: getThemedGridColor() },
-          ticks: { color: colors.textColor.light },
+          // precision:0 matches the builder's integer-tick default; load
+          // is a whole-number metric. y1 (freshness 0–1) intentionally
+          // omits it so it keeps decimal ticks.
+          ticks: { color: colors.textColor.light, precision: 0 },
         },
         y1: {
           type: 'linear',

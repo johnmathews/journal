@@ -175,6 +175,7 @@ import {
   fetchMoodEntityCorrelation,
 } from '@/api/dashboard'
 import { fetchEntityDistribution } from '@/api/insights'
+import { formatBinLabel } from '@/utils/binLabel'
 import { useDashboardStore } from '@/stores/dashboard'
 const mockFetch = vi.mocked(fetchWritingStats)
 const mockEntityDist = vi.mocked(fetchEntityDistribution)
@@ -1178,9 +1179,15 @@ describe('DashboardView — empty-bin filling (W22)', () => {
     mountView()
     await flushPromises()
 
+    // Writing/word charts format their x-labels via formatBinLabel
+    // (e.g. "15 Dec"); the entity-trends chart below still uses raw ISO
+    // period labels, so expectedMondays stays ISO and is mapped here.
+    const expectedWeekLabels = expectedMondays.map((m) =>
+      formatBinLabel(m, 'week'),
+    )
     const writing = findChartConfig('Entries')
     expect(writing).toBeDefined()
-    expect(writing!.data.labels).toEqual(expectedMondays)
+    expect(writing!.data.labels).toEqual(expectedWeekLabels)
     const expectedCounts = expectedMondays.map((m) =>
       m === '2026-01-05' || m === '2026-02-16' ? 3 : 0,
     )
@@ -1188,7 +1195,7 @@ describe('DashboardView — empty-bin filling (W22)', () => {
 
     const words = findChartConfig('Words')
     expect(words).toBeDefined()
-    expect(words!.data.labels).toEqual(expectedMondays)
+    expect(words!.data.labels).toEqual(expectedWeekLabels)
     const expectedWords = expectedMondays.map((m) =>
       m === '2026-01-05' ? 300 : m === '2026-02-16' ? 150 : 0,
     )

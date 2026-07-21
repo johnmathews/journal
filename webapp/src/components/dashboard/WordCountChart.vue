@@ -8,6 +8,7 @@ import type {
 } from '@/types/dashboard'
 import { getChartColors, buildLineChartOptions } from '@/utils/chartjs-config'
 import { adjustColorOpacity } from '@/utils/mosaic'
+import { formatBinLabel } from '@/utils/binLabel'
 import { filledWritingBins } from './shared'
 
 interface Props {
@@ -37,7 +38,7 @@ function render(): void {
   chart = new Chart(canvasRef.value, {
     type: 'line',
     data: {
-      labels: filled.value.map((b) => b.bin_start),
+      labels: filled.value.map((b) => formatBinLabel(b.bin_start, props.bin)),
       datasets: [
         {
           label: 'Words',

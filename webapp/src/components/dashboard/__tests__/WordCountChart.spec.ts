@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, enableAutoUnmount } from '@vue/test-utils'
 import WordCountChart from '../WordCountChart.vue'
+import { formatBinLabel } from '@/utils/binLabel'
 
 vi.mock(
   'chart.js',
@@ -68,9 +69,12 @@ describe('WordCountChart', () => {
     const byLabel = new Map(
       config.data.labels.map((l, i) => [l, config.data.datasets[0].data[i]]),
     )
-    expect(byLabel.get('2026-01-05')).toBe(300)
-    expect(byLabel.get('2026-02-16')).toBe(150)
-    expect(byLabel.get('2026-01-12')).toBe(0) // an empty week
+    // Labels are formatted via the shared formatBinLabel helper (e.g.
+    // "5 Jan"), so key through it rather than raw ISO — keeps the
+    // assertion locale-agnostic across en-GB/en-US test runners.
+    expect(byLabel.get(formatBinLabel('2026-01-05', 'week'))).toBe(300)
+    expect(byLabel.get(formatBinLabel('2026-02-16', 'week'))).toBe(150)
+    expect(byLabel.get(formatBinLabel('2026-01-12', 'week'))).toBe(0) // an empty week
   })
 
   it('re-renders when the bins prop changes', async () => {

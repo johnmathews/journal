@@ -1,6 +1,6 @@
 # Chart style guide
 
-**Status:** active. **Last updated:** 2026-05-11.
+**Status:** active. **Last updated:** 2026-07-21.
 
 All charts in the webapp share a small set of conventions so the dashboard, the
 fitness page, and any new chart added later all hover, click, and read the same
@@ -58,6 +58,17 @@ Returns the appropriate grid-line color for the active theme. Call at render
 time, not at module load — a theme toggle between mounts should pick up the
 right value.
 
+### `formatBinLabel(isoDate, bin)`
+
+Lives in [`src/utils/binLabel.ts`](../src/utils/binLabel.ts). Formats an ISO
+`YYYY-MM-DD` into a readable x-axis label — `21 Apr` for week/daily bins,
+`Apr 2026` / `Q2 2026` / `2026` for coarser bins. Both the dashboard
+writing/word-count charts and the fitness daily charts route their labels
+through it, so every chart renders dates the same way instead of one showing
+`2026-04-20` and another `21 Apr`. Parsed and rendered in **UTC** so a
+date-only value never drifts a day for viewers west of UTC. `bin` defaults to
+`'week'` (the daily-fitness granularity).
+
 ### `chartAreaGradient(ctx, chartArea, stops)`
 
 Builds a vertical canvas gradient between the chart's top and bottom. Used
@@ -100,7 +111,11 @@ inside the window so single missing days don't blow a hole in the smoothing.
   `options.onClick` needs to live close to the dataset definitions. Don't
   shoehorn it through the builder.
 - **Dual-axis charts** — `scales.y1` / `scales.y2` aren't part of the builder
-  signature.
+  signature. The one dual-axis chart (`MoodFitnessChart.vue`, training load vs.
+  freshness) inlines its options but must **mirror** the builder's x-axis
+  `autoSkip: true` / `maxTicksLimit: 8` and the left y-axis `precision: 0`, so
+  it thins ticks the same way the single-axis charts do. Its `y1` (freshness
+  0–1) intentionally omits `precision` to keep decimal ticks.
 
 ## Adding a new line chart
 

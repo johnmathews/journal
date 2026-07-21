@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, enableAutoUnmount } from '@vue/test-utils'
 import WritingFrequencyChart from '../WritingFrequencyChart.vue'
+import { formatBinLabel } from '@/utils/binLabel'
 
 vi.mock(
   'chart.js',
@@ -65,13 +66,17 @@ describe('WritingFrequencyChart', () => {
     expect(config.type).toBe('line')
     expect(config.data.datasets[0].label).toBe('Entries')
     // Sparse server bins are zero-filled to a contiguous weekly axis.
-    expect(config.data.labels).toContain('2026-01-12') // an empty week
-    expect(config.data.labels[config.data.labels.length - 1]).toBe('2026-03-16')
+    // Labels are formatted via formatBinLabel (e.g. "12 Jan"), so assert
+    // through it rather than raw ISO to stay locale-agnostic.
+    expect(config.data.labels).toContain(formatBinLabel('2026-01-12', 'week')) // an empty week
+    expect(config.data.labels[config.data.labels.length - 1]).toBe(
+      formatBinLabel('2026-03-16', 'week'),
+    )
     const byLabel = new Map(
       config.data.labels.map((l, i) => [l, config.data.datasets[0].data[i]]),
     )
-    expect(byLabel.get('2026-01-05')).toBe(3)
-    expect(byLabel.get('2026-01-12')).toBe(0)
+    expect(byLabel.get(formatBinLabel('2026-01-05', 'week'))).toBe(3)
+    expect(byLabel.get(formatBinLabel('2026-01-12', 'week'))).toBe(0)
   })
 
   it('re-renders when the bins prop changes', async () => {
