@@ -102,9 +102,10 @@ const ACTIVITY_TYPE_COLOR: Record<FitnessActivityType, string> = {
 
 // Toggle between counting workouts and summing their duration in the
 // "Workouts per week" tile. Local to this tile (the daily-wellness
-// charts have their own smoothing control); defaults to counts.
+// charts have their own smoothing control); defaults to duration so the
+// tile opens on training volume (hours) rather than a raw session count.
 type WeeklyMetric = 'count' | 'duration'
-const weeklyMetric = ref<WeeklyMetric>('count')
+const weeklyMetric = ref<WeeklyMetric>('duration')
 
 function emptyTypeTotals(): Record<FitnessActivityType, number> {
   return {
@@ -632,50 +633,48 @@ function widthTitleForFitnessTile(id: FitnessTileId): string {
       </p>
     </div>
 
-    <div class="flex flex-wrap items-end gap-4">
-      <RangeBinControls
-        test-id-prefix="fitness"
-        :range="range"
-        :bin="bin"
-        @update:range="store.setRange($event)"
-        @update:bin="store.setBin($event)"
-      />
-      <!-- Global smoothing selector for the Sleep / HRV / RHR trend
-           lines. Styled to match the RangeBinControls chip strip. -->
-      <div
-        class="flex items-end gap-2 rounded-xl border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-800 shadow-xs px-5 py-3"
-      >
-        <div>
-          <label
-            class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
-            >Smoothing</label
+    <!-- Range, Bin width, and Smoothing share one sticky strip (the
+         Smoothing group is projected into RangeBinControls' default slot)
+         so they scroll and stick as a single tile. -->
+    <RangeBinControls
+      test-id-prefix="fitness"
+      :range="range"
+      :bin="bin"
+      @update:range="store.setRange($event)"
+      @update:bin="store.setBin($event)"
+    >
+      <!-- Global smoothing selector for all four line charts: Sleep / HRV
+           / RHR and the training-load chart. -->
+      <div>
+        <label
+          class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
+          >Smoothing</label
+        >
+        <div
+          class="flex flex-wrap gap-2"
+          role="radiogroup"
+          aria-label="Moving-average window"
+          data-testid="fitness-ma-window"
+        >
+          <button
+            v-for="w in MA_WINDOWS"
+            :key="w"
+            type="button"
+            class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
+            :class="
+              maWindow === w
+                ? 'bg-violet-500 text-white border-violet-500'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
+            "
+            :data-testid="`fitness-ma-window-${w}`"
+            :aria-pressed="maWindow === w"
+            @click="maWindow = w"
           >
-          <div
-            class="flex flex-wrap gap-2"
-            role="radiogroup"
-            aria-label="Moving-average window"
-            data-testid="fitness-ma-window"
-          >
-            <button
-              v-for="w in MA_WINDOWS"
-              :key="w"
-              type="button"
-              class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
-              :class="
-                maWindow === w
-                  ? 'bg-violet-500 text-white border-violet-500'
-                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
-              "
-              :data-testid="`fitness-ma-window-${w}`"
-              :aria-pressed="maWindow === w"
-              @click="maWindow = w"
-            >
-              {{ w }}-day
-            </button>
-          </div>
+            {{ w }}-day
+          </button>
         </div>
       </div>
-    </div>
+    </RangeBinControls>
 
     <!-- First-run hint when no sources have ever connected -->
     <div
@@ -752,7 +751,7 @@ function widthTitleForFitnessTile(id: FitnessTileId): string {
       @reset="store.resetLayout()"
     >
       <template #tile-mood-fitness>
-        <MoodFitnessChart />
+        <MoodFitnessChart :ma-window="maWindow" />
       </template>
 
       <template #tile-weekly-distinct>

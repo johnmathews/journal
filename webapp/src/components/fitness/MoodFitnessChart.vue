@@ -6,6 +6,7 @@ import { Chart, type ChartType } from 'chart.js'
 import { useFitnessStore } from '@/stores/fitness'
 import { getChartColors, getThemedGridColor } from '@/utils/chartjs-config'
 import { adjustColorOpacity } from '@/utils/mosaic'
+import { movingAverage } from '@/utils/moving-average'
 import { formatBinLabel } from '@/utils/binLabel'
 import { displayScore, displayPolarLabel } from '@/utils/mood-display'
 import { MOOD_LINE_COLORS } from '@/components/dashboard/shared'
@@ -45,6 +46,14 @@ const MENTAL_DIM: MoodDimension = {
 const PHYSICAL_COLOR = MOOD_LINE_COLORS[2]
 const MENTAL_COLOR = MOOD_LINE_COLORS[3]
 const LOAD_COLOR = '#0ea5e9'
+
+// Centred moving-average window (3 / 5 / 7 days) driven by the shared
+// Smoothing control in the /fitness controls strip, so this chart's three
+// lines smooth in lockstep with the Sleep / HRV / RHR panels. Defaults to
+// 3 to match those panels if a parent ever omits it.
+const props = withDefaults(defineProps<{ maWindow?: number }>(), {
+  maWindow: 3,
+})
 
 // Left-axis metric: raw acute training load, or Garmin's training
 // readiness. Persisted so the choice survives reloads.
@@ -147,14 +156,23 @@ function renderChart(): void {
   const colors = getChartColors()
   chart?.destroy()
 
-  const loadValues = sortedRows.value.map((r) =>
-    metric.value === 'load' ? r.training_load_acute : r.training_readiness,
+  // Smooth each line with the shared centred moving average before
+  // plotting. Monotone interpolation (below) then joins the already-
+  // smoothed points; the window is user-selectable via the Smoothing
+  // control and defaults to 3 days.
+  const loadValues = movingAverage(
+    sortedRows.value.map((r) =>
+      metric.value === 'load' ? r.training_load_acute : r.training_readiness,
+    ),
+    props.maWindow,
   )
-  const physFresh = sortedRows.value.map((r) =>
-    displayScore(PHYSICAL_DIM, r.physical_fatigue),
+  const physFresh = movingAverage(
+    sortedRows.value.map((r) => displayScore(PHYSICAL_DIM, r.physical_fatigue)),
+    props.maWindow,
   )
-  const mentFresh = sortedRows.value.map((r) =>
-    displayScore(MENTAL_DIM, r.mental_fatigue),
+  const mentFresh = movingAverage(
+    sortedRows.value.map((r) => displayScore(MENTAL_DIM, r.mental_fatigue)),
+    props.maWindow,
   )
 
   chart = new Chart(canvas.value, {
@@ -280,7 +298,13 @@ function renderChart(): void {
 // `renderChart` silently no-ops, leaving the chart blank until an unrelated
 // re-render. Post-flush runs after the canvas is patched in. (Same guard as
 // MoodTrendsChart.vue.)
-watch([sortedRows, metric, hasData], () => renderChart(), { flush: 'post' })
+watch(
+  [sortedRows, metric, hasData, () => props.maWindow],
+  () => renderChart(),
+  {
+    flush: 'post',
+  },
+)
 
 onMounted(() => renderChart())
 onBeforeUnmount(() => chart?.destroy())

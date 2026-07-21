@@ -119,8 +119,11 @@ describe('MoodFitnessChart', () => {
     expect(datasets[2].yAxisID).toBe('y1')
     expect(datasets[1].label).toContain('fresh')
     expect(datasets[2].label).toContain('fresh')
-    // physical_fatigue 0.4 → displayed freshness 0.6 (score_max 1 − 0.4).
-    expect(datasets[1].data[0]).toBeCloseTo(0.6)
+    // Freshness is smoothed with the default 3-day centred MA before
+    // plotting. Row freshness = [0.6, 0.9] (physical_fatigue 0.4 → 0.6,
+    // 0.1 → 0.9); the centred window at index 0 truncates to [0.6, 0.9],
+    // so the plotted value is their mean, 0.75.
+    expect(datasets[1].data[0]).toBeCloseTo(0.75)
 
     // All three series are lines only (no resting point dots) and use
     // monotone cubic interpolation so they join smoothly without the
@@ -133,6 +136,43 @@ describe('MoodFitnessChart', () => {
     // Dual axes: left + right.
     expect(config.options.scales.y.position).toBe('left')
     expect(config.options.scales.y1.position).toBe('right')
+
+    wrapper.unmount()
+  })
+
+  it('smooths its lines with the maWindow prop from the shared control', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const store = useFitnessStore()
+    store.moodRecovery = [
+      makeMoodRow({ local_date: '2026-05-08', physical_fatigue: 0.4 }),
+      makeMoodRow({ local_date: '2026-05-09', physical_fatigue: 0.1 }),
+    ]
+
+    // maWindow=1 → identity smoothing, so the first plotted freshness is
+    // the raw inverted score 0.6 (not the 0.75 the 3-day default yields).
+    const wrapper = mount(MoodFitnessChart, {
+      props: { maWindow: 1 },
+      global: { plugins: [pinia] },
+    })
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    const config = chartConstructorSpy.mock.calls.at(-1)![1] as {
+      data: { datasets: Array<{ data: Array<number | null> }> }
+    }
+    expect(config.data.datasets[1].data[0]).toBeCloseTo(0.6)
+
+    // Bumping the window to 3 re-renders with the smoothed value.
+    chartConstructorSpy.mockClear()
+    await wrapper.setProps({ maWindow: 3 })
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    const smoothed = chartConstructorSpy.mock.calls.at(-1)![1] as {
+      data: { datasets: Array<{ data: Array<number | null> }> }
+    }
+    expect(smoothed.data.datasets[1].data[0]).toBeCloseTo(0.75)
 
     wrapper.unmount()
   })

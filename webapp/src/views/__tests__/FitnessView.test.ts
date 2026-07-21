@@ -579,24 +579,25 @@ describe('FitnessView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    // Default = count: the run series should contain a bucket with 2.
+    // Default = duration: same series sums to 1.5 hours in one bucket, and
+    // the y-axis is labelled in hours.
+    const durCfg = weeklyChartConfig()
+    const runDur = durCfg!.data.datasets.find((d) => d.label === 'Run')!
+    expect(Math.max(...runDur.data)).toBeCloseTo(1.5, 5)
+    expect(durCfg!.options.scales.y.title?.text).toBe('Hours')
+
+    // Flip to count: the run series should contain a bucket with 2, and the
+    // y-axis title drops away.
+    chartConstructorSpy.mockClear()
+    await wrapper
+      .find('[data-testid="fitness-weekly-metric-count"]')
+      .trigger('click')
+    await flushPromises()
+
     const countCfg = weeklyChartConfig()
     const runCount = countCfg!.data.datasets.find((d) => d.label === 'Run')!
     expect(Math.max(...runCount.data)).toBe(2)
     expect(countCfg!.options.scales.y.title).toBeUndefined()
-
-    // Flip to duration: same series now sums to 1.5 hours in one bucket.
-    chartConstructorSpy.mockClear()
-    await wrapper
-      .find('[data-testid="fitness-weekly-metric-duration"]')
-      .trigger('click')
-    await flushPromises()
-
-    const durCfg = weeklyChartConfig()
-    const runDur = durCfg!.data.datasets.find((d) => d.label === 'Run')!
-    expect(Math.max(...runDur.data)).toBeCloseTo(1.5, 5)
-    // Duration mode labels the y-axis in hours.
-    expect(durCfg!.options.scales.y.title?.text).toBe('Hours')
     wrapper.unmount()
   })
 
@@ -659,6 +660,19 @@ describe('FitnessView', () => {
         .find('[data-testid="fitness-ma-window-7"]')
         .attributes('aria-pressed'),
     ).toBe('true')
+    wrapper.unmount()
+  })
+
+  it('nests the Smoothing control inside the sticky Range/Bin filter tile', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    // The smoothing radiogroup is projected into RangeBinControls' slot, so
+    // it lives inside the single sticky filter strip rather than a separate
+    // box — Range, Bin width, and Smoothing scroll and stick as one tile.
+    const strip = wrapper.find('[data-testid="fitness-filters"]')
+    expect(strip.exists()).toBe(true)
+    expect(strip.find('[data-testid="fitness-ma-window"]').exists()).toBe(true)
     wrapper.unmount()
   })
 

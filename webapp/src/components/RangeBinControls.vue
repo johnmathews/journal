@@ -16,6 +16,12 @@ import {
 // Adopters that don't need both controls can pass an empty array via
 // `availableRanges` / `availableBins` — the strip is hidden if empty
 // rather than rendering an empty group.
+//
+// The default `<slot />` renders extra control groups *inside* the same
+// sticky strip. `/fitness` uses it to fold its Smoothing selector into
+// this tile so Range, Bin width, and Smoothing scroll and stick as one
+// unit instead of as two separately-sticky boxes. The dashboard passes
+// no slot content, so nothing extra renders there.
 
 interface Props {
   range: DashboardRange
@@ -135,5 +141,9 @@ function selectBin(b: DashboardBin) {
         </button>
       </div>
     </div>
+    <!-- Extra control groups (e.g. /fitness Smoothing) share this sticky
+         strip. Rendered as further flex children so they align with the
+         Range / Bin width groups. -->
+    <slot />
   </div>
 </template>

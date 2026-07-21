@@ -55,6 +55,15 @@ describe('RangeBinControls', () => {
     expect(wrapper.emitted('update:bin')).toEqual([['quarter']])
   })
 
+  it('projects default-slot content inside the sticky filter strip', () => {
+    const wrapper = mount(RangeBinControls, {
+      props: { range: 'last_3_months', bin: 'week' },
+      slots: { default: '<div data-testid="extra-control">Smoothing</div>' },
+    })
+    const strip = wrapper.find('[data-testid="rangebin-filters"]')
+    expect(strip.find('[data-testid="extra-control"]').exists()).toBe(true)
+  })
+
   it('respects the test-id-prefix prop', () => {
     const wrapper = mount(RangeBinControls, {
       props: { range: 'last_3_months', bin: 'week', testIdPrefix: 'dashboard' },
