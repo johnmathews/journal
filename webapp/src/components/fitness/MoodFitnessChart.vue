@@ -169,7 +169,12 @@ function renderChart(): void {
           borderColor: LOAD_COLOR,
           backgroundColor: adjustColorOpacity(LOAD_COLOR, 0.15),
           fill: true,
-          tension: 0.35,
+          // Monotone cubic joins the points smoothly *without* overshooting
+          // past the data range — the default bezier `tension` produces
+          // unnatural bulges/wobbles on this spiky daily data. `tension` is
+          // ignored in monotone mode, so it's dropped. pointRadius:0 keeps
+          // the series to lines only (dots read as clutter at daily density).
+          cubicInterpolationMode: 'monotone',
           pointRadius: 0,
           pointHoverRadius: 5,
           borderWidth: 2.5,
@@ -183,8 +188,8 @@ function renderChart(): void {
           borderColor: PHYSICAL_COLOR,
           backgroundColor: 'transparent',
           fill: false,
-          tension: 0.35,
-          pointRadius: 2,
+          cubicInterpolationMode: 'monotone',
+          pointRadius: 0,
           pointHoverRadius: 4,
           borderWidth: 2,
           spanGaps: true,
@@ -197,8 +202,8 @@ function renderChart(): void {
           borderColor: MENTAL_COLOR,
           backgroundColor: 'transparent',
           fill: false,
-          tension: 0.35,
-          pointRadius: 2,
+          cubicInterpolationMode: 'monotone',
+          pointRadius: 0,
           pointHoverRadius: 4,
           borderWidth: 2,
           spanGaps: true,

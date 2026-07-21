@@ -115,7 +115,14 @@ inside the window so single missing days don't blow a hole in the smoothing.
   freshness) inlines its options but must **mirror** the builder's x-axis
   `autoSkip: true` / `maxTicksLimit: 8` and the left y-axis `precision: 0`, so
   it thins ticks the same way the single-axis charts do. Its `y1` (freshness
-  0–1) intentionally omits `precision` to keep decimal ticks.
+  0–1) intentionally omits `precision` to keep decimal ticks. All three of its
+  series render **lines only** (`pointRadius: 0` — dots read as clutter at
+  ~90-point daily density) and use `cubicInterpolationMode: 'monotone'` instead
+  of `tension`: monotone cubic joins the points smoothly without overshooting
+  past the data range, which the default bezier `tension` does on spiky daily
+  data. Reach for monotone on any dense/noisy line chart for the same reason;
+  the sparse weekly dashboard charts keep plain `tension` since they don't
+  overshoot.
 
 ## Adding a new line chart
 

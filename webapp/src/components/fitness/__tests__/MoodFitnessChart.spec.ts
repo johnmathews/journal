@@ -100,6 +100,8 @@ describe('MoodFitnessChart', () => {
           label: string
           yAxisID: string
           data: Array<number | null>
+          pointRadius: number
+          cubicInterpolationMode?: string
         }>
       }
       options: { scales: Record<string, { position?: string }> }
@@ -119,6 +121,14 @@ describe('MoodFitnessChart', () => {
     expect(datasets[2].label).toContain('fresh')
     // physical_fatigue 0.4 → displayed freshness 0.6 (score_max 1 − 0.4).
     expect(datasets[1].data[0]).toBeCloseTo(0.6)
+
+    // All three series are lines only (no resting point dots) and use
+    // monotone cubic interpolation so they join smoothly without the
+    // default-bezier overshoot on spiky daily data.
+    for (const ds of datasets) {
+      expect(ds.pointRadius).toBe(0)
+      expect(ds.cubicInterpolationMode).toBe('monotone')
+    }
 
     // Dual axes: left + right.
     expect(config.options.scales.y.position).toBe('left')
