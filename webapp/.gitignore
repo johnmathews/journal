@@ -42,9 +42,23 @@ Thumbs.db
 # Playwright MCP artifacts
 .playwright-mcp/
 
-# UI verification screenshots (kept on disk for manual inspection)
+# UI verification screenshots, at any depth — this also covers
+# journal/screenshots/ and docs/screenshots/.
 screenshots/
 
-# Images, Screenshots
-*.png
+# Ad-hoc screenshots dropped at the repo root by verification sessions.
+# Anchored with a leading slash so it stays root-only: real image assets
+# (public/favicon.png, docs diagrams, src/assets/*) remain trackable. An
+# unanchored *.png here used to swallow those silently.
+/*.png
+
+# Python tool caches. Neither tool is a dependency of this repo — these
+# appear when server tooling is run with the webapp as the shell's cwd.
+# They also self-ignore, so without these lines they persist unseen.
+.pytest_cache/
+.ruff_cache/
+
+# superpowers session artifacts (review diffs; the commits are in git).
+.superpowers/
+
 .engineering-team/

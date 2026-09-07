@@ -276,7 +276,19 @@ function mountView(stravaEnabled: boolean | null = true) {
 }
 
 describe('FitnessView', () => {
+  // Every fixture below is dated to the week of 2026-05-04, but the store's
+  // default range is `last_3_months` measured from *today*
+  // (src/stores/fitness.ts). That made these tests time bombs: they passed
+  // while written and went red once real time drifted more than three
+  // months past the fixtures, with no code change involved. Pin "now" to
+  // just after the fixture week so the window is deterministic.
+  //
+  // Only `Date` is faked — timers stay real, so `flushPromises()` and the
+  // component's async loads behave exactly as they do in production.
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-05-10T12:00:00Z'))
+
     setActivePinia(createPinia())
     vi.clearAllMocks()
     chartConstructorSpy.mockClear()
