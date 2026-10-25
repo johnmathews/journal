@@ -62,3 +62,6 @@ screenshots/
 .superpowers/
 
 .engineering-team/
+
+# Claude Code session worktrees: checkouts, never content.
+.claude/worktrees/
