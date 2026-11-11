@@ -87,11 +87,11 @@ def _strava_enabled(services: dict) -> bool:
     return bool(getattr(services.get("config"), "strava_enabled", False))
 
 
-def _pricing_to_dict(entry: PricingEntry) -> dict[str, object]:
+def _pricing_to_dict(entry: PricingEntry) -> contract.PricingEntry:
     """Convert a PricingEntry to a JSON-serializable dict."""
     return {
         "model": entry.model,
-        "category": entry.category,
+        "category": cast("contract.PricingCategory", entry.category),
         "input_cost_per_mtok": entry.input_cost_per_mtok,
         "output_cost_per_mtok": entry.output_cost_per_mtok,
         "cost_per_minute": entry.cost_per_minute,

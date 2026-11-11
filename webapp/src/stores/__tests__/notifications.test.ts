@@ -21,6 +21,7 @@ import {
   sendPushoverTest,
 } from '@/api/notifications'
 import { updatePreferences } from '@/api/preferences'
+import type { NotificationTopic } from '@/types/notifications'
 
 const mockFetchTopics = vi.mocked(fetchNotificationTopics)
 const mockFetchStatus = vi.mocked(fetchNotificationStatus)
@@ -45,7 +46,7 @@ const sampleTopics = [
     default: true,
     enabled: true,
   },
-]
+] satisfies NotificationTopic[]
 
 describe('notifications store', () => {
   beforeEach(() => {

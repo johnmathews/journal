@@ -32,6 +32,8 @@ if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
     from starlette.requests import Request
 
+    from journal.api.contract import schemas as contract
+    from journal.db.user_repository import SQLiteUserRepository
     from journal.services.auth import AuthService
 
 log = logging.getLogger(__name__)
@@ -116,9 +118,28 @@ def register_core_routes(
 
     @mcp.custom_route("/api/auth/me", methods=["GET"], name="api_auth_me")
     async def auth_me(request: Request) -> JSONResponse:
-        """Return the currently authenticated user."""
+        """Return the currently authenticated user.
+
+        Serializes the stored ``User`` row rather than the session's
+        ``AuthenticatedUser``, which carries no ``created_at``/``updated_at``
+        (it gave empty strings for both, F20). Same body as login, register
+        and ``PATCH /api/auth/me``.
+        """
+        result = _services_or_503(services_getter)
+        if isinstance(result, JSONResponse):
+            return result
+        user_repo: SQLiteUserRepository = result["user_repo"]
+
         user = get_authenticated_user(request)
-        return JSONResponse({"user": _user_to_dict(user)})
+        stored = user_repo.get_user_by_id(user.user_id)
+        if stored is None:
+            # The row went away after the middleware validated the session.
+            return JSONResponse(
+                {"error": "not_found", "message": "User not found"},
+                status_code=404,
+            )
+        body: contract.AuthUserResponse = {"user": _user_to_dict(stored)}
+        return JSONResponse(body)
 
     # ── GET /api/auth/config ───────────────────────────────────────────
 

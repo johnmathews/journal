@@ -28,6 +28,92 @@
       "title": "Addendum",
       "type": "object"
     },
+    "AdminUserListResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/admin/users`, newest account first.",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/AdminUserStats"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "title": "AdminUserListResponse",
+      "type": "object"
+    },
+    "AdminUserStats": {
+      "additionalProperties": false,
+      "description": "One user in `GET /api/admin/users` (`get_user_stats`).\n\nThe three flags are raw SQLite integers here, unlike `AuthUser`.",
+      "properties": {
+        "cost_estimate": {
+          "type": "number"
+        },
+        "cost_this_week": {
+          "type": "number"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "email_verified": {
+          "$ref": "#/$defs/SqliteBool"
+        },
+        "entry_count": {
+          "type": "integer"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "is_active": {
+          "$ref": "#/$defs/SqliteBool"
+        },
+        "is_admin": {
+          "$ref": "#/$defs/SqliteBool"
+        },
+        "job_count": {
+          "type": "integer"
+        },
+        "last_entry_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "total_words": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "display_name",
+        "is_admin",
+        "is_active",
+        "email_verified",
+        "created_at",
+        "entry_count",
+        "total_words",
+        "last_entry_at",
+        "job_count",
+        "cost_estimate",
+        "cost_this_week"
+      ],
+      "title": "AdminUserStats",
+      "type": "object"
+    },
     "AliasLookupResponse": {
       "additionalProperties": false,
       "description": "Body of `GET /api/entities/aliases/lookup`. `entity_id` is null (and\nthe other keys absent) when no entity of this user owns the alias.",
@@ -112,6 +198,234 @@
         "model"
       ],
       "title": "AnswerResponse",
+      "type": "object"
+    },
+    "ApiKey": {
+      "additionalProperties": false,
+      "description": "API key metadata (`journal.models.ApiKeyInfo`); never the secret.\n\nRevoked keys are listed too, with `revoked_at` set.",
+      "properties": {
+        "created_at": {
+          "type": "string"
+        },
+        "expires_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "integer"
+        },
+        "key_prefix": {
+          "type": "string"
+        },
+        "last_used_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "revoked_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "user_id": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "user_id",
+        "key_prefix",
+        "name",
+        "created_at",
+        "expires_at",
+        "last_used_at",
+        "revoked_at"
+      ],
+      "title": "ApiKey",
+      "type": "object"
+    },
+    "ApiKeyCreatedResponse": {
+      "additionalProperties": false,
+      "description": "Body of `POST /api/auth/api-keys` (201): the new key's metadata plus\nthe full secret, which is shown this once only.",
+      "properties": {
+        "created_at": {
+          "type": "string"
+        },
+        "expires_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "integer"
+        },
+        "key": {
+          "type": "string"
+        },
+        "key_prefix": {
+          "type": "string"
+        },
+        "last_used_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "revoked_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "user_id": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "user_id",
+        "key_prefix",
+        "name",
+        "created_at",
+        "expires_at",
+        "last_used_at",
+        "revoked_at",
+        "key"
+      ],
+      "title": "ApiKeyCreatedResponse",
+      "type": "object"
+    },
+    "ApiKeyListResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/auth/api-keys`, newest first.",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ApiKey"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "title": "ApiKeyListResponse",
+      "type": "object"
+    },
+    "ApiKeysResponse": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ApiKeyListResponse"
+        },
+        {
+          "$ref": "#/$defs/ApiKeyCreatedResponse"
+        }
+      ],
+      "title": "ApiKeysResponse"
+    },
+    "AuthConfigResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/auth/config` (no auth required).",
+      "properties": {
+        "registration_enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "registration_enabled"
+      ],
+      "title": "AuthConfigResponse",
+      "type": "object"
+    },
+    "AuthUser": {
+      "additionalProperties": false,
+      "description": "A user account: `auth_api._shared._user_to_dict` of a stored `User`.",
+      "properties": {
+        "created_at": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "email_verified": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "is_active": {
+          "type": "boolean"
+        },
+        "is_admin": {
+          "type": "boolean"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "display_name",
+        "is_admin",
+        "is_active",
+        "email_verified",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "AuthUser",
+      "type": "object"
+    },
+    "AuthUserResponse": {
+      "additionalProperties": false,
+      "description": "Body of login, register, `GET`/`PATCH /api/auth/me` and the admin\nuser update.",
+      "properties": {
+        "user": {
+          "$ref": "#/$defs/AuthUser"
+        }
+      },
+      "required": [
+        "user"
+      ],
+      "title": "AuthUserResponse",
       "type": "object"
     },
     "CalendarDay": {
@@ -368,6 +682,44 @@
       "title": "ChapterState",
       "type": "string"
     },
+    "ChunkingSettings": {
+      "additionalProperties": false,
+      "description": "`chunking` block of `GET /api/settings`.",
+      "properties": {
+        "boundary_percentile": {
+          "type": "integer"
+        },
+        "decisive_percentile": {
+          "type": "integer"
+        },
+        "embed_metadata_prefix": {
+          "type": "boolean"
+        },
+        "max_tokens": {
+          "type": "integer"
+        },
+        "min_tokens": {
+          "type": "integer"
+        },
+        "overlap_tokens": {
+          "type": "integer"
+        },
+        "strategy": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "strategy",
+        "max_tokens",
+        "min_tokens",
+        "overlap_tokens",
+        "boundary_percentile",
+        "decisive_percentile",
+        "embed_metadata_prefix"
+      ],
+      "title": "ChunkingSettings",
+      "type": "object"
+    },
     "CitationSegment": {
       "additionalProperties": false,
       "description": "A citation of a quote from an entry\n(`journal.services.storylines.segments.citation_segment`). `entry_date`\nis absent on narratives stored before the field existed.",
@@ -480,6 +832,24 @@
       "title": "DashboardBin",
       "type": "string"
     },
+    "EmbeddingSettings": {
+      "additionalProperties": false,
+      "description": "`embedding` block of `GET /api/settings`.",
+      "properties": {
+        "dimensions": {
+          "type": "integer"
+        },
+        "model": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "model",
+        "dimensions"
+      ],
+      "title": "EmbeddingSettings",
+      "type": "object"
+    },
     "Entity": {
       "additionalProperties": false,
       "description": "A full entity record: detail, update and alias routes.",
@@ -535,6 +905,33 @@
         "quarantined_at"
       ],
       "title": "Entity",
+      "type": "object"
+    },
+    "EntityCasingReloadSummary": {
+      "additionalProperties": false,
+      "description": "Body of `POST /api/admin/reload/entity-casing`.",
+      "properties": {
+        "exception_count": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "reloaded": {
+          "const": "entity-casing",
+          "type": "string"
+        },
+        "reloaded_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reloaded",
+        "exception_count",
+        "path",
+        "reloaded_at"
+      ],
+      "title": "EntityCasingReloadSummary",
       "type": "object"
     },
     "EntityDeleteResponse": {
@@ -629,6 +1026,24 @@
         "items"
       ],
       "title": "EntityDistributionResponse",
+      "type": "object"
+    },
+    "EntityExtractionSettings": {
+      "additionalProperties": false,
+      "description": "`entity_extraction` block of `GET /api/settings`.",
+      "properties": {
+        "dedup_similarity_threshold": {
+          "type": "number"
+        },
+        "model": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "model",
+        "dedup_similarity_threshold"
+      ],
+      "title": "EntityExtractionSettings",
       "type": "object"
     },
     "EntityListResponse": {
@@ -1452,6 +1867,126 @@
       "title": "EntryUpdateResponse",
       "type": "object"
     },
+    "FeatureSettings": {
+      "additionalProperties": false,
+      "description": "`features` block of `GET /api/settings`.",
+      "properties": {
+        "journal_author_name": {
+          "type": "string"
+        },
+        "mood_scorer_model": {
+          "type": "string"
+        },
+        "mood_scoring": {
+          "type": "boolean"
+        },
+        "strava_enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "mood_scoring",
+        "mood_scorer_model",
+        "journal_author_name",
+        "strava_enabled"
+      ],
+      "title": "FeatureSettings",
+      "type": "object"
+    },
+    "FitnessAuthStatus": {
+      "enum": [
+        "unknown",
+        "ok",
+        "broken"
+      ],
+      "title": "FitnessAuthStatus",
+      "type": "string"
+    },
+    "FitnessSourceHealth": {
+      "additionalProperties": false,
+      "description": "One fitness source in the `/api/health` `fitness` block.\n\n`auth_status` and `auth_broken_since` are null for a source with sync\nruns but no auth-state row.",
+      "properties": {
+        "auth_broken_since": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "auth_status": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FitnessAuthStatus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "last_success_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "auth_status",
+        "last_success_at",
+        "auth_broken_since"
+      ],
+      "title": "FitnessSourceHealth",
+      "type": "object"
+    },
+    "HealthResponse": {
+      "additionalProperties": false,
+      "description": "Body of the authenticated `GET /api/health`: liveness plus usage stats.",
+      "properties": {
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/ComponentCheck"
+          },
+          "type": "array"
+        },
+        "fitness": {
+          "additionalProperties": {
+            "$ref": "#/$defs/FitnessSourceHealth"
+          },
+          "type": "object"
+        },
+        "ingestion": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IngestionStats"
+            },
+            {
+              "$ref": "#/$defs/IngestionStatsError"
+            }
+          ]
+        },
+        "queries": {
+          "$ref": "#/$defs/QueryStats"
+        },
+        "status": {
+          "$ref": "#/$defs/HealthStatus"
+        }
+      },
+      "required": [
+        "status",
+        "checks",
+        "ingestion",
+        "queries"
+      ],
+      "title": "HealthResponse",
+      "type": "object"
+    },
     "HealthStatus": {
       "enum": [
         "ok",
@@ -1460,6 +1995,79 @@
       ],
       "title": "HealthStatus",
       "type": "string"
+    },
+    "IngestionStats": {
+      "additionalProperties": false,
+      "description": "Corpus statistics: `asdict(journal.models.IngestionStats)`.",
+      "properties": {
+        "avg_chunks_per_entry": {
+          "type": "number"
+        },
+        "avg_words_per_entry": {
+          "type": "number"
+        },
+        "by_source_type": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "entries_last_30d": {
+          "type": "integer"
+        },
+        "entries_last_7d": {
+          "type": "integer"
+        },
+        "last_ingestion_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "row_counts": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "total_chunks": {
+          "type": "integer"
+        },
+        "total_entries": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total_entries",
+        "entries_last_7d",
+        "entries_last_30d",
+        "by_source_type",
+        "avg_words_per_entry",
+        "avg_chunks_per_entry",
+        "last_ingestion_at",
+        "total_chunks",
+        "row_counts"
+      ],
+      "title": "IngestionStats",
+      "type": "object"
+    },
+    "IngestionStatsError": {
+      "additionalProperties": false,
+      "description": "Sent in place of `IngestionStats` when the stats query fails.",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "error"
+      ],
+      "title": "IngestionStatsError",
+      "type": "object"
     },
     "Job": {
       "additionalProperties": false,
@@ -1649,6 +2257,63 @@
       "title": "JobType",
       "type": "string"
     },
+    "LatencyPercentiles": {
+      "additionalProperties": false,
+      "description": "Per-query-type latency in ms; all null before the first sample.",
+      "properties": {
+        "p50_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "p95_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "p99_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "p50_ms",
+        "p95_ms",
+        "p99_ms"
+      ],
+      "title": "LatencyPercentiles",
+      "type": "object"
+    },
+    "MessageResponse": {
+      "additionalProperties": false,
+      "description": "A human-readable confirmation: forgot-password, reset-password,\nverify-email and resend-verification.",
+      "properties": {
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "message"
+      ],
+      "title": "MessageResponse",
+      "type": "object"
+    },
     "MoodBin": {
       "enum": [
         "day",
@@ -1714,6 +2379,40 @@
         "description"
       ],
       "title": "MoodDimensionsMeta",
+      "type": "object"
+    },
+    "MoodDimensionsReloadSummary": {
+      "additionalProperties": false,
+      "description": "Body of `POST /api/admin/reload/mood-dimensions` (409 when mood\nscoring is disabled).",
+      "properties": {
+        "dimension_count": {
+          "type": "integer"
+        },
+        "dimensions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "reloaded": {
+          "const": "mood-dimensions",
+          "type": "string"
+        },
+        "reloaded_at": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reloaded",
+        "dimension_count",
+        "dimensions",
+        "version",
+        "reloaded_at"
+      ],
+      "title": "MoodDimensionsReloadSummary",
       "type": "object"
     },
     "MoodDimensionsResponse": {
@@ -1993,6 +2692,328 @@
       "title": "MoodTrendsResponse",
       "type": "object"
     },
+    "NotificationStatusResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/notifications/status`.",
+      "properties": {
+        "configured": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "configured"
+      ],
+      "title": "NotificationStatusResponse",
+      "type": "object"
+    },
+    "NotificationTestResponse": {
+      "additionalProperties": false,
+      "description": "Body of `POST /api/notifications/test`.",
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sent": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "sent",
+        "error"
+      ],
+      "title": "NotificationTestResponse",
+      "type": "object"
+    },
+    "NotificationTopic": {
+      "additionalProperties": false,
+      "description": "One notification topic with the user's toggle state.",
+      "properties": {
+        "admin_only": {
+          "type": "boolean"
+        },
+        "default": {
+          "type": "boolean"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "group": {
+          "$ref": "#/$defs/NotificationTopicGroup"
+        },
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "group",
+        "admin_only",
+        "default",
+        "enabled"
+      ],
+      "title": "NotificationTopic",
+      "type": "object"
+    },
+    "NotificationTopicGroup": {
+      "enum": [
+        "success",
+        "failure",
+        "admin"
+      ],
+      "title": "NotificationTopicGroup",
+      "type": "string"
+    },
+    "NotificationTopicsResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/notifications/topics`. Admin-only topics are\nlisted for admins only.",
+      "properties": {
+        "topics": {
+          "items": {
+            "$ref": "#/$defs/NotificationTopic"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "topics"
+      ],
+      "title": "NotificationTopicsResponse",
+      "type": "object"
+    },
+    "NotificationValidateResponse": {
+      "additionalProperties": false,
+      "description": "Body of `POST /api/notifications/validate`: valid credentials are saved.",
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "valid": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "valid",
+        "error"
+      ],
+      "title": "NotificationValidateResponse",
+      "type": "object"
+    },
+    "OcrContextReloadSummary": {
+      "additionalProperties": false,
+      "description": "Body of `POST /api/admin/reload/ocr-context`.",
+      "properties": {
+        "context_chars": {
+          "type": "integer"
+        },
+        "context_files": {
+          "type": "integer"
+        },
+        "dual_pass": {
+          "type": "boolean"
+        },
+        "model": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "reloaded": {
+          "const": "ocr-context",
+          "type": "string"
+        },
+        "reloaded_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reloaded",
+        "provider",
+        "model",
+        "dual_pass",
+        "context_files",
+        "context_chars",
+        "reloaded_at"
+      ],
+      "title": "OcrContextReloadSummary",
+      "type": "object"
+    },
+    "OcrSettings": {
+      "additionalProperties": false,
+      "description": "`ocr` block of `GET /api/settings`.",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "model"
+      ],
+      "title": "OcrSettings",
+      "type": "object"
+    },
+    "OkResponse": {
+      "additionalProperties": false,
+      "description": "Body of logout and API-key revoke.",
+      "properties": {
+        "ok": {
+          "const": true,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ok"
+      ],
+      "title": "OkResponse",
+      "type": "object"
+    },
+    "PreferencesResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET` and `PATCH /api/users/me/preferences`.\n\nMaps each preference key to its stored JSON value.",
+      "properties": {
+        "preferences": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      "required": [
+        "preferences"
+      ],
+      "title": "PreferencesResponse",
+      "type": "object"
+    },
+    "PricingCategory": {
+      "enum": [
+        "llm",
+        "embedding",
+        "transcription"
+      ],
+      "title": "PricingCategory",
+      "type": "string"
+    },
+    "PricingEntry": {
+      "additionalProperties": false,
+      "description": "One model's price: `api._shared._pricing_to_dict`.",
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/PricingCategory"
+        },
+        "cost_per_minute": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "input_cost_per_mtok": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "last_verified": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "output_cost_per_mtok": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "model",
+        "category",
+        "input_cost_per_mtok",
+        "output_cost_per_mtok",
+        "cost_per_minute",
+        "last_verified"
+      ],
+      "title": "PricingEntry",
+      "type": "object"
+    },
+    "PricingListResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/settings/pricing`.",
+      "properties": {
+        "pricing": {
+          "items": {
+            "$ref": "#/$defs/PricingEntry"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "pricing"
+      ],
+      "title": "PricingListResponse",
+      "type": "object"
+    },
+    "PricingUpdateResponse": {
+      "additionalProperties": false,
+      "description": "Body of `PATCH /api/settings/pricing` (admin only).\n\n200 when every model updated; 207 with `errors` when some failed. (When\nall fail it is a 400 with the same shape.)",
+      "properties": {
+        "errors": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "pricing": {
+          "items": {
+            "$ref": "#/$defs/PricingEntry"
+          },
+          "type": "array"
+        },
+        "updated": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "updated",
+        "pricing"
+      ],
+      "title": "PricingUpdateResponse",
+      "type": "object"
+    },
     "PublicHealthResponse": {
       "additionalProperties": false,
       "description": "Body of the unauthenticated `GET /health`: liveness only.\n\nThe authenticated `GET /api/health` (`api_health_authed`) carries\nmore blocks and gets its own shape.",
@@ -2012,6 +3033,169 @@
         "checks"
       ],
       "title": "PublicHealthResponse",
+      "type": "object"
+    },
+    "QueryStats": {
+      "additionalProperties": false,
+      "description": "Query counters since server start (`journal.services.stats`).",
+      "properties": {
+        "by_type": {
+          "additionalProperties": {
+            "$ref": "#/$defs/QueryTypeStats"
+          },
+          "type": "object"
+        },
+        "started_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "total_queries": {
+          "type": "integer"
+        },
+        "uptime_seconds": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "total_queries",
+        "uptime_seconds",
+        "started_at",
+        "by_type"
+      ],
+      "title": "QueryStats",
+      "type": "object"
+    },
+    "QueryTypeStats": {
+      "additionalProperties": false,
+      "description": "Counter and latency for one query type.",
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "latency": {
+          "$ref": "#/$defs/LatencyPercentiles"
+        }
+      },
+      "required": [
+        "count",
+        "latency"
+      ],
+      "title": "QueryTypeStats",
+      "type": "object"
+    },
+    "ResetTokenValidResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/auth/verify-reset-token`; an invalid token is a 400.",
+      "properties": {
+        "valid": {
+          "const": true,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "valid"
+      ],
+      "title": "ResetTokenValidResponse",
+      "type": "object"
+    },
+    "RuntimeSetting": {
+      "additionalProperties": false,
+      "description": "One runtime-editable setting (`RuntimeSettings.get_all`).",
+      "properties": {
+        "choices": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "description": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "bool",
+            "string"
+          ],
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "required": [
+        "key",
+        "type",
+        "label",
+        "description",
+        "value"
+      ],
+      "title": "RuntimeSetting",
+      "type": "object"
+    },
+    "RuntimeSettingsListResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/settings/runtime`.",
+      "properties": {
+        "settings": {
+          "items": {
+            "$ref": "#/$defs/RuntimeSetting"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "settings"
+      ],
+      "title": "RuntimeSettingsListResponse",
+      "type": "object"
+    },
+    "RuntimeSettingsUpdateResponse": {
+      "additionalProperties": false,
+      "description": "Body of `PATCH /api/settings/runtime` (admin only).\n\n`warnings` lists the keys that failed when at least one other key was\nupdated; if every key fails the route answers 400 instead.",
+      "properties": {
+        "settings": {
+          "items": {
+            "$ref": "#/$defs/RuntimeSetting"
+          },
+          "type": "array"
+        },
+        "updated": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "updated",
+        "settings"
+      ],
+      "title": "RuntimeSettingsUpdateResponse",
       "type": "object"
     },
     "SearchChunkMatch": {
@@ -2146,6 +3330,47 @@
       "title": "SearchResultItem",
       "type": "object"
     },
+    "SearchSettings": {
+      "additionalProperties": false,
+      "description": "`search` block of `GET /api/settings`: the hybrid-search knobs (F17).",
+      "properties": {
+        "bm25_candidates": {
+          "type": "integer"
+        },
+        "dense_candidates": {
+          "type": "integer"
+        },
+        "fusion_top_m": {
+          "type": "integer"
+        },
+        "reranker": {
+          "type": "string"
+        },
+        "reranker_model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rrf_k": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "reranker",
+        "reranker_model",
+        "bm25_candidates",
+        "dense_candidates",
+        "fusion_top_m",
+        "rrf_k"
+      ],
+      "title": "SearchSettings",
+      "type": "object"
+    },
     "SearchSort": {
       "enum": [
         "relevance",
@@ -2165,6 +3390,62 @@
         }
       ],
       "title": "Segment"
+    },
+    "ServerSettings": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/settings`: non-secret config. Secrets are never sent.",
+      "properties": {
+        "chunking": {
+          "$ref": "#/$defs/ChunkingSettings"
+        },
+        "embedding": {
+          "$ref": "#/$defs/EmbeddingSettings"
+        },
+        "entity_extraction": {
+          "$ref": "#/$defs/EntityExtractionSettings"
+        },
+        "features": {
+          "$ref": "#/$defs/FeatureSettings"
+        },
+        "ocr": {
+          "$ref": "#/$defs/OcrSettings"
+        },
+        "pricing": {
+          "items": {
+            "$ref": "#/$defs/PricingEntry"
+          },
+          "type": "array"
+        },
+        "runtime": {
+          "items": {
+            "$ref": "#/$defs/RuntimeSetting"
+          },
+          "type": "array"
+        },
+        "search": {
+          "$ref": "#/$defs/SearchSettings"
+        },
+        "transcript_formatting": {
+          "$ref": "#/$defs/TranscriptFormattingSettings"
+        },
+        "transcription": {
+          "$ref": "#/$defs/TranscriptionSettings"
+        }
+      },
+      "required": [
+        "ocr",
+        "transcription",
+        "transcript_formatting",
+        "embedding",
+        "chunking",
+        "entity_extraction",
+        "search",
+        "features",
+        "runtime",
+        "pricing"
+      ],
+      "title": "ServerSettings",
+      "type": "object"
     },
     "SetStorylineAnchorsResponse": {
       "additionalProperties": false,
@@ -2197,6 +3478,62 @@
       ],
       "title": "SourceType",
       "type": "string"
+    },
+    "SqliteBool": {
+      "enum": [
+        0,
+        1
+      ],
+      "title": "SqliteBool",
+      "type": "integer"
+    },
+    "Statistics": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/stats`: `asdict(journal.models.Statistics)`.",
+      "properties": {
+        "avg_words_per_entry": {
+          "type": "number"
+        },
+        "date_range_end": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "date_range_start": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "entries_per_month": {
+          "type": "number"
+        },
+        "total_entries": {
+          "type": "integer"
+        },
+        "total_words": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total_entries",
+        "date_range_start",
+        "date_range_end",
+        "total_words",
+        "avg_words_per_entry",
+        "entries_per_month"
+      ],
+      "title": "Statistics",
+      "type": "object"
     },
     "StorylineAnchor": {
       "additionalProperties": false,
@@ -2439,6 +3776,157 @@
       "title": "TokenSpan",
       "type": "object"
     },
+    "TranscriptFormattingSettings": {
+      "additionalProperties": false,
+      "description": "`transcript_formatting` block of `GET /api/settings`.",
+      "properties": {
+        "model": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "model"
+      ],
+      "title": "TranscriptFormattingSettings",
+      "type": "object"
+    },
+    "TranscriptionContextReloadSummary": {
+      "additionalProperties": false,
+      "description": "Body of `POST /api/admin/reload/transcription-context`.",
+      "properties": {
+        "context_chars": {
+          "type": "integer"
+        },
+        "context_files": {
+          "type": "integer"
+        },
+        "reloaded": {
+          "const": "transcription-context",
+          "type": "string"
+        },
+        "reloaded_at": {
+          "type": "string"
+        },
+        "stack": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "reloaded",
+        "stack",
+        "context_files",
+        "context_chars",
+        "reloaded_at"
+      ],
+      "title": "TranscriptionContextReloadSummary",
+      "type": "object"
+    },
+    "TranscriptionFallbackSettings": {
+      "additionalProperties": false,
+      "description": "`transcription.fallback` block of `GET /api/settings`.",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "model": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled",
+        "model"
+      ],
+      "title": "TranscriptionFallbackSettings",
+      "type": "object"
+    },
+    "TranscriptionRetrySettings": {
+      "additionalProperties": false,
+      "description": "`transcription.retry` block of `GET /api/settings`.",
+      "properties": {
+        "base_delay_seconds": {
+          "type": "number"
+        },
+        "max_attempts": {
+          "type": "integer"
+        },
+        "max_delay_seconds": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "max_attempts",
+        "base_delay_seconds",
+        "max_delay_seconds"
+      ],
+      "title": "TranscriptionRetrySettings",
+      "type": "object"
+    },
+    "TranscriptionSettings": {
+      "additionalProperties": false,
+      "description": "`transcription` block of `GET /api/settings`.",
+      "properties": {
+        "fallback": {
+          "$ref": "#/$defs/TranscriptionFallbackSettings"
+        },
+        "model": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "retry": {
+          "$ref": "#/$defs/TranscriptionRetrySettings"
+        },
+        "shadow": {
+          "$ref": "#/$defs/TranscriptionShadowSettings"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "fallback",
+        "shadow",
+        "retry"
+      ],
+      "title": "TranscriptionSettings",
+      "type": "object"
+    },
+    "TranscriptionShadowSettings": {
+      "additionalProperties": false,
+      "description": "`transcription.shadow` block; provider and model are null when disabled.",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "enabled",
+        "provider",
+        "model"
+      ],
+      "title": "TranscriptionShadowSettings",
+      "type": "object"
+    },
     "UncertainSpan": {
       "additionalProperties": false,
       "description": "Half-open `[char_start, char_end)` range in `raw_text` the OCR model flagged.",
@@ -2629,6 +4117,63 @@
     "api_add_entity_alias": {
       "$ref": "#/$defs/Entity"
     },
+    "api_admin_reload_entity_casing": {
+      "$ref": "#/$defs/EntityCasingReloadSummary"
+    },
+    "api_admin_reload_mood_dimensions": {
+      "$ref": "#/$defs/MoodDimensionsReloadSummary"
+    },
+    "api_admin_reload_ocr_context": {
+      "$ref": "#/$defs/OcrContextReloadSummary"
+    },
+    "api_admin_reload_transcription_context": {
+      "$ref": "#/$defs/TranscriptionContextReloadSummary"
+    },
+    "api_admin_user_update": {
+      "$ref": "#/$defs/AuthUserResponse"
+    },
+    "api_admin_users_list": {
+      "$ref": "#/$defs/AdminUserListResponse"
+    },
+    "api_auth_api_key_revoke": {
+      "$ref": "#/$defs/OkResponse"
+    },
+    "api_auth_api_keys": {
+      "$ref": "#/$defs/ApiKeysResponse"
+    },
+    "api_auth_config": {
+      "$ref": "#/$defs/AuthConfigResponse"
+    },
+    "api_auth_forgot_password": {
+      "$ref": "#/$defs/MessageResponse"
+    },
+    "api_auth_login": {
+      "$ref": "#/$defs/AuthUserResponse"
+    },
+    "api_auth_logout": {
+      "$ref": "#/$defs/OkResponse"
+    },
+    "api_auth_me": {
+      "$ref": "#/$defs/AuthUserResponse"
+    },
+    "api_auth_me_update": {
+      "$ref": "#/$defs/AuthUserResponse"
+    },
+    "api_auth_register": {
+      "$ref": "#/$defs/AuthUserResponse"
+    },
+    "api_auth_resend_verification": {
+      "$ref": "#/$defs/MessageResponse"
+    },
+    "api_auth_reset_password": {
+      "$ref": "#/$defs/MessageResponse"
+    },
+    "api_auth_verify_email": {
+      "$ref": "#/$defs/MessageResponse"
+    },
+    "api_auth_verify_reset_token": {
+      "$ref": "#/$defs/ResetTokenValidResponse"
+    },
     "api_create_storyline": {
       "$ref": "#/$defs/CreateStorylineResponse"
     },
@@ -2692,6 +4237,9 @@
     "api_health": {
       "$ref": "#/$defs/PublicHealthResponse"
     },
+    "api_health_authed": {
+      "$ref": "#/$defs/HealthResponse"
+    },
     "api_job_detail": {
       "$ref": "#/$defs/Job"
     },
@@ -2710,6 +4258,30 @@
     "api_lookup_alias": {
       "$ref": "#/$defs/AliasLookupResponse"
     },
+    "api_notif_status": {
+      "$ref": "#/$defs/NotificationStatusResponse"
+    },
+    "api_notif_test": {
+      "$ref": "#/$defs/NotificationTestResponse"
+    },
+    "api_notif_topics": {
+      "$ref": "#/$defs/NotificationTopicsResponse"
+    },
+    "api_notif_validate": {
+      "$ref": "#/$defs/NotificationValidateResponse"
+    },
+    "api_preferences_get": {
+      "$ref": "#/$defs/PreferencesResponse"
+    },
+    "api_preferences_patch": {
+      "$ref": "#/$defs/PreferencesResponse"
+    },
+    "api_pricing_get": {
+      "$ref": "#/$defs/PricingListResponse"
+    },
+    "api_pricing_patch": {
+      "$ref": "#/$defs/PricingUpdateResponse"
+    },
     "api_read_storyline_chapter": {
       "$ref": "#/$defs/ChapterMeta"
     },
@@ -2719,6 +4291,12 @@
     "api_rename_storyline_chapter": {
       "$ref": "#/$defs/ChapterMeta"
     },
+    "api_runtime_settings_get": {
+      "$ref": "#/$defs/RuntimeSettingsListResponse"
+    },
+    "api_runtime_settings_patch": {
+      "$ref": "#/$defs/RuntimeSettingsUpdateResponse"
+    },
     "api_search": {
       "$ref": "#/$defs/SearchResponse"
     },
@@ -2727,6 +4305,12 @@
     },
     "api_set_storyline_anchors": {
       "$ref": "#/$defs/SetStorylineAnchorsResponse"
+    },
+    "api_settings": {
+      "$ref": "#/$defs/ServerSettings"
+    },
+    "api_stats": {
+      "$ref": "#/$defs/Statistics"
     },
     "api_storyline_chapter_detail": {
       "$ref": "#/$defs/ChapterDetail"
@@ -2752,6 +4336,25 @@
   },
   "required": [
     "api_add_entity_alias",
+    "api_admin_reload_entity_casing",
+    "api_admin_reload_mood_dimensions",
+    "api_admin_reload_ocr_context",
+    "api_admin_reload_transcription_context",
+    "api_admin_user_update",
+    "api_admin_users_list",
+    "api_auth_api_key_revoke",
+    "api_auth_api_keys",
+    "api_auth_config",
+    "api_auth_forgot_password",
+    "api_auth_login",
+    "api_auth_logout",
+    "api_auth_me",
+    "api_auth_me_update",
+    "api_auth_register",
+    "api_auth_resend_verification",
+    "api_auth_reset_password",
+    "api_auth_verify_email",
+    "api_auth_verify_reset_token",
     "api_create_storyline",
     "api_dashboard_calendar_heatmap",
     "api_dashboard_entity_distribution",
@@ -2773,18 +4376,31 @@
     "api_entry_entities",
     "api_entry_tokens",
     "api_health",
+    "api_health_authed",
     "api_job_detail",
     "api_list_entities",
     "api_list_entries",
     "api_list_jobs",
     "api_list_storylines",
     "api_lookup_alias",
+    "api_notif_status",
+    "api_notif_test",
+    "api_notif_topics",
+    "api_notif_validate",
+    "api_preferences_get",
+    "api_preferences_patch",
+    "api_pricing_get",
+    "api_pricing_patch",
     "api_read_storyline_chapter",
     "api_refresh_storyline",
     "api_rename_storyline_chapter",
+    "api_runtime_settings_get",
+    "api_runtime_settings_patch",
     "api_search",
     "api_search_answer",
     "api_set_storyline_anchors",
+    "api_settings",
+    "api_stats",
     "api_storyline_chapter_detail",
     "api_storyline_detail",
     "api_unpublish_storyline_chapter",

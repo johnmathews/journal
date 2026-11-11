@@ -10,27 +10,8 @@
 # Format: `#` comments, one `ceiling: N` line, then one route name per line,
 # sorted, no duplicates.
 
-ceiling: 67
+ceiling: 35
 
-api_admin_reload_entity_casing
-api_admin_reload_mood_dimensions
-api_admin_reload_ocr_context
-api_admin_reload_transcription_context
-api_admin_user_update
-api_admin_users_list
-api_auth_api_key_revoke
-api_auth_api_keys
-api_auth_config
-api_auth_forgot_password
-api_auth_login
-api_auth_logout
-api_auth_me
-api_auth_me_update
-api_auth_register
-api_auth_resend_verification
-api_auth_reset_password
-api_auth_verify_email
-api_auth_verify_reset_token
 api_conversations_create
 api_conversations_delete
 api_conversations_detail
@@ -54,7 +35,6 @@ api_fitness_strava_disconnect
 api_fitness_strava_exchange
 api_fitness_sync
 api_fitness_sync_status
-api_health_authed
 api_ingest_audio
 api_ingest_file
 api_ingest_images
@@ -64,18 +44,6 @@ api_list_quarantined_entities
 api_merge_candidates
 api_merge_entities
 api_mood_backfill
-api_notif_status
-api_notif_test
-api_notif_topics
-api_notif_validate
-api_preferences_get
-api_preferences_patch
-api_pricing_get
-api_pricing_patch
 api_quarantine_entity
 api_release_quarantine_entity
 api_resolve_merge_candidate
-api_runtime_settings_get
-api_runtime_settings_patch
-api_settings
-api_stats

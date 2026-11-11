@@ -1,32 +1,18 @@
+// Notification types. The `/api/notifications/*` response shapes are
+// generated from the server's API contract
+// (server/src/journal/api/contract/schemas.py); UI-only state stays
+// hand-written below.
+export type {
+  NotificationStatusResponse,
+  NotificationTestResponse,
+  NotificationTopic,
+  NotificationTopicGroup,
+  NotificationTopicsResponse,
+  NotificationValidateResponse,
+} from './generated/api'
+
 export type PushoverValidationStatus =
   | 'unchecked'
   | 'validating'
   | 'valid'
   | 'invalid'
-
-export interface NotificationTopic {
-  key: string
-  label: string
-  group: string
-  admin_only: boolean
-  default: boolean
-  enabled: boolean
-}
-
-export interface NotificationTopicsResponse {
-  topics: NotificationTopic[]
-}
-
-export interface NotificationStatusResponse {
-  configured: boolean
-}
-
-export interface NotificationValidateResponse {
-  valid: boolean
-  error: string | null
-}
-
-export interface NotificationTestResponse {
-  sent: boolean
-  error: string | null
-}

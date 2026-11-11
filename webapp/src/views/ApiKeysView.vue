@@ -1,24 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { apiFetch, ApiRequestError } from '@/api/client'
-
-interface ApiKey {
-  id: number
-  name: string
-  prefix: string
-  created_at: string
-  last_used_at: string | null
-  expires_at: string | null
-}
-
-interface CreateKeyResponse {
-  id: number
-  name: string
-  prefix: string
-  key: string
-  created_at: string
-  expires_at: string | null
-}
+import type {
+  ApiKey,
+  ApiKeyCreatedResponse,
+  ApiKeyListResponse,
+} from '@/types/auth'
 
 const keys = ref<ApiKey[]>([])
 const loading = ref(false)
@@ -37,7 +24,7 @@ function cancelCreate() {
 }
 
 // Newly created key (shown once)
-const createdKey = ref<CreateKeyResponse | null>(null)
+const createdKey = ref<ApiKeyCreatedResponse | null>(null)
 const copiedKey = ref(false)
 
 onMounted(async () => {
@@ -48,7 +35,7 @@ async function loadKeys() {
   loading.value = true
   error.value = null
   try {
-    const response = await apiFetch<{ items: ApiKey[] }>('/api/auth/api-keys')
+    const response = await apiFetch<ApiKeyListResponse>('/api/auth/api-keys')
     keys.value = response.items
   } catch (e) {
     error.value =
@@ -66,7 +53,7 @@ async function createKey() {
     if (newKeyExpiry.value) {
       body.expires_at = newKeyExpiry.value
     }
-    const result = await apiFetch<CreateKeyResponse>('/api/auth/api-keys', {
+    const result = await apiFetch<ApiKeyCreatedResponse>('/api/auth/api-keys', {
       method: 'POST',
       body: JSON.stringify(body),
     })
@@ -342,7 +329,7 @@ function formatDate(dateStr: string | null): string {
                 <code
                   class="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded font-mono text-gray-600 dark:text-gray-300"
                 >
-                  {{ key.prefix }}...
+                  {{ key.key_prefix }}...
                 </code>
               </td>
               <td class="px-5 py-3 text-gray-600 dark:text-gray-300">

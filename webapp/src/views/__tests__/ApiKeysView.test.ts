@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
 import ApiKeysView from '../ApiKeysView.vue'
+import type { ApiKey, ApiKeyCreatedResponse } from '@/types/auth'
 
 vi.mock('@/api/client', () => ({
   apiFetch: vi.fn(),
@@ -25,20 +26,24 @@ const fakeKeys = [
   {
     id: 1,
     name: 'MCP Server',
-    prefix: 'jrn_abc',
+    user_id: 1,
+    key_prefix: 'jrn_abc',
     created_at: '2026-01-15T10:00:00Z',
     last_used_at: '2026-04-10T14:30:00Z',
     expires_at: null,
+    revoked_at: null,
   },
   {
     id: 2,
     name: 'CI Pipeline',
-    prefix: 'jrn_def',
+    user_id: 1,
+    key_prefix: 'jrn_def',
     created_at: '2026-02-20T08:00:00Z',
     last_used_at: null,
     expires_at: '2026-12-31T00:00:00Z',
+    revoked_at: null,
   },
-]
+] satisfies ApiKey[]
 
 const router = createRouter({
   history: createWebHistory(),
@@ -81,8 +86,9 @@ describe('ApiKeysView', () => {
     expect(mockApiFetch).toHaveBeenCalledWith('/api/auth/api-keys')
     expect(wrapper.text()).toContain('MCP Server')
     expect(wrapper.text()).toContain('CI Pipeline')
-    expect(wrapper.text()).toContain('jrn_abc')
-    expect(wrapper.text()).toContain('jrn_def')
+    // The server sends `key_prefix`; the table shows it followed by "...".
+    const prefixes = wrapper.findAll('tbody code').map((c) => c.text())
+    expect(prefixes).toEqual(['jrn_abc...', 'jrn_def...'])
   })
 
   it('shows empty state when no keys exist', async () => {
@@ -134,11 +140,14 @@ describe('ApiKeysView', () => {
     const createdKeyResponse = {
       id: 3,
       name: 'Test Key',
-      prefix: 'jrn_xyz',
+      user_id: 1,
+      key_prefix: 'jrn_xyz',
       key: 'jrn_xyz_full_secret_key',
       created_at: '2026-04-14T10:00:00Z',
       expires_at: null,
-    }
+      last_used_at: null,
+      revoked_at: null,
+    } satisfies ApiKeyCreatedResponse
 
     // First call: loadKeys, second call: createKey, third call: loadKeys again
     mockApiFetch
@@ -173,11 +182,14 @@ describe('ApiKeysView', () => {
     const createdKeyResponse = {
       id: 4,
       name: 'Expiring Key',
-      prefix: 'jrn_exp',
+      user_id: 1,
+      key_prefix: 'jrn_exp',
       key: 'jrn_exp_secret',
       created_at: '2026-04-14T10:00:00Z',
       expires_at: '2026-12-31',
-    }
+      last_used_at: null,
+      revoked_at: null,
+    } satisfies ApiKeyCreatedResponse
 
     mockApiFetch
       .mockResolvedValueOnce({ items: [] })
@@ -337,11 +349,14 @@ describe('ApiKeysView', () => {
     const createdKeyResponse = {
       id: 3,
       name: 'Test Key',
-      prefix: 'jrn_xyz',
+      user_id: 1,
+      key_prefix: 'jrn_xyz',
       key: 'jrn_xyz_full_secret_key',
       created_at: '2026-04-14T10:00:00Z',
       expires_at: null,
-    }
+      last_used_at: null,
+      revoked_at: null,
+    } satisfies ApiKeyCreatedResponse
 
     mockApiFetch
       .mockResolvedValueOnce({ items: [] })
@@ -397,11 +412,14 @@ describe('ApiKeysView', () => {
     const createdKeyResponse = {
       id: 3,
       name: 'Test Key',
-      prefix: 'jrn_xyz',
+      user_id: 1,
+      key_prefix: 'jrn_xyz',
       key: 'jrn_xyz_full_secret_key',
       created_at: '2026-04-14T10:00:00Z',
       expires_at: null,
-    }
+      last_used_at: null,
+      revoked_at: null,
+    } satisfies ApiKeyCreatedResponse
 
     mockApiFetch
       .mockResolvedValueOnce({ items: [] })
@@ -440,11 +458,14 @@ describe('ApiKeysView', () => {
     const createdKeyResponse = {
       id: 3,
       name: 'Test Key',
-      prefix: 'jrn_xyz',
+      user_id: 1,
+      key_prefix: 'jrn_xyz',
       key: 'jrn_xyz_full_secret_key',
       created_at: '2026-04-14T10:00:00Z',
       expires_at: null,
-    }
+      last_used_at: null,
+      revoked_at: null,
+    } satisfies ApiKeyCreatedResponse
 
     mockApiFetch
       .mockResolvedValueOnce({ items: [] })
@@ -483,10 +504,12 @@ describe('ApiKeysView', () => {
         {
           id: 1,
           name: 'Test',
-          prefix: 'jrn_x',
+          user_id: 1,
+          key_prefix: 'jrn_x',
           created_at: '2026-01-15T10:00:00Z',
           last_used_at: null,
           expires_at: null,
+          revoked_at: null,
         },
       ],
     })

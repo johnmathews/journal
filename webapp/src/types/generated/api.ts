@@ -15,6 +15,8 @@ export type EntityType =
   | 'organization'
   | 'topic'
   | 'other'
+export type SqliteBool = 0 | 1
+export type ApiKeysResponse = ApiKeyListResponse | ApiKeyCreatedResponse
 export type ChapterState = 'draft' | 'published'
 export type StorylineStatus = 'active' | 'archived'
 export type DashboardBin = 'week' | 'month' | 'quarter' | 'year'
@@ -31,6 +33,7 @@ export type SourceType =
   | 'imported_text_file'
   | 'imported_audio_file'
 export type HealthStatus = 'ok' | 'degraded' | 'error'
+export type FitnessAuthStatus = 'unknown' | 'ok' | 'broken'
 export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed'
 export type JobType =
   | 'entity_extraction'
@@ -48,6 +51,8 @@ export type JobType =
   | 'storyline_extension_check'
   | 'storyline_generation'
   | 'storyline_update'
+export type NotificationTopicGroup = 'success' | 'failure' | 'admin'
+export type PricingCategory = 'llm' | 'embedding' | 'transcription'
 export type SearchSort = 'relevance' | 'date_desc' | 'date_asc'
 export type Segment = TextSegment | CitationSegment
 
@@ -56,6 +61,25 @@ export type Segment = TextSegment | CitationSegment
  */
 export interface JournalApi {
   api_add_entity_alias: Entity
+  api_admin_reload_entity_casing: EntityCasingReloadSummary
+  api_admin_reload_mood_dimensions: MoodDimensionsReloadSummary
+  api_admin_reload_ocr_context: OcrContextReloadSummary
+  api_admin_reload_transcription_context: TranscriptionContextReloadSummary
+  api_admin_user_update: AuthUserResponse
+  api_admin_users_list: AdminUserListResponse
+  api_auth_api_key_revoke: OkResponse
+  api_auth_api_keys: ApiKeysResponse
+  api_auth_config: AuthConfigResponse
+  api_auth_forgot_password: MessageResponse
+  api_auth_login: AuthUserResponse
+  api_auth_logout: OkResponse
+  api_auth_me: AuthUserResponse
+  api_auth_me_update: AuthUserResponse
+  api_auth_register: AuthUserResponse
+  api_auth_resend_verification: MessageResponse
+  api_auth_reset_password: MessageResponse
+  api_auth_verify_email: MessageResponse
+  api_auth_verify_reset_token: ResetTokenValidResponse
   api_create_storyline: CreateStorylineResponse
   api_dashboard_calendar_heatmap: CalendarHeatmapResponse
   api_dashboard_entity_distribution: EntityDistributionResponse
@@ -77,18 +101,31 @@ export interface JournalApi {
   api_entry_entities: EntryEntitiesResponse
   api_entry_tokens: EntryTokensResponse
   api_health: PublicHealthResponse
+  api_health_authed: HealthResponse
   api_job_detail: Job
   api_list_entities: EntityListResponse
   api_list_entries: EntryListResponse
   api_list_jobs: JobListResponse
   api_list_storylines: StorylineListResponse
   api_lookup_alias: AliasLookupResponse
+  api_notif_status: NotificationStatusResponse
+  api_notif_test: NotificationTestResponse
+  api_notif_topics: NotificationTopicsResponse
+  api_notif_validate: NotificationValidateResponse
+  api_preferences_get: PreferencesResponse
+  api_preferences_patch: PreferencesResponse
+  api_pricing_get: PricingListResponse
+  api_pricing_patch: PricingUpdateResponse
   api_read_storyline_chapter: ChapterMeta
   api_refresh_storyline: StorylineJobResponse
   api_rename_storyline_chapter: ChapterMeta
+  api_runtime_settings_get: RuntimeSettingsListResponse
+  api_runtime_settings_patch: RuntimeSettingsUpdateResponse
   api_search: SearchResponse
   api_search_answer: AnswerResponse
   api_set_storyline_anchors: SetStorylineAnchorsResponse
+  api_settings: ServerSettings
+  api_stats: Statistics
   api_storyline_chapter_detail: ChapterDetail
   api_storyline_detail: StorylineDetail
   api_unpublish_storyline_chapter: StorylineJobResponse
@@ -112,6 +149,155 @@ export interface Entity {
   quarantine_reason: string
   quarantined_at: string
   updated_at: string
+}
+/**
+ * Body of `POST /api/admin/reload/entity-casing`.
+ */
+export interface EntityCasingReloadSummary {
+  exception_count: number
+  path: string
+  reloaded: 'entity-casing'
+  reloaded_at: string
+}
+/**
+ * Body of `POST /api/admin/reload/mood-dimensions` (409 when mood
+ * scoring is disabled).
+ */
+export interface MoodDimensionsReloadSummary {
+  dimension_count: number
+  dimensions: string[]
+  reloaded: 'mood-dimensions'
+  reloaded_at: string
+  version: string
+}
+/**
+ * Body of `POST /api/admin/reload/ocr-context`.
+ */
+export interface OcrContextReloadSummary {
+  context_chars: number
+  context_files: number
+  dual_pass: boolean
+  model: string
+  provider: string
+  reloaded: 'ocr-context'
+  reloaded_at: string
+}
+/**
+ * Body of `POST /api/admin/reload/transcription-context`.
+ */
+export interface TranscriptionContextReloadSummary {
+  context_chars: number
+  context_files: number
+  reloaded: 'transcription-context'
+  reloaded_at: string
+  stack: string
+}
+/**
+ * Body of login, register, `GET`/`PATCH /api/auth/me` and the admin
+ * user update.
+ */
+export interface AuthUserResponse {
+  user: AuthUser
+}
+/**
+ * A user account: `auth_api._shared._user_to_dict` of a stored `User`.
+ */
+export interface AuthUser {
+  created_at: string
+  display_name: string
+  email: string
+  email_verified: boolean
+  id: number
+  is_active: boolean
+  is_admin: boolean
+  updated_at: string
+}
+/**
+ * Body of `GET /api/admin/users`, newest account first.
+ */
+export interface AdminUserListResponse {
+  items: AdminUserStats[]
+}
+/**
+ * One user in `GET /api/admin/users` (`get_user_stats`).
+ *
+ * The three flags are raw SQLite integers here, unlike `AuthUser`.
+ */
+export interface AdminUserStats {
+  cost_estimate: number
+  cost_this_week: number
+  created_at: string
+  display_name: string
+  email: string
+  email_verified: SqliteBool
+  entry_count: number
+  id: number
+  is_active: SqliteBool
+  is_admin: SqliteBool
+  job_count: number
+  last_entry_at: string | null
+  total_words: number
+}
+/**
+ * Body of logout and API-key revoke.
+ */
+export interface OkResponse {
+  ok: true
+}
+/**
+ * Body of `GET /api/auth/api-keys`, newest first.
+ */
+export interface ApiKeyListResponse {
+  items: ApiKey[]
+}
+/**
+ * API key metadata (`journal.models.ApiKeyInfo`); never the secret.
+ *
+ * Revoked keys are listed too, with `revoked_at` set.
+ */
+export interface ApiKey {
+  created_at: string
+  expires_at: string | null
+  id: number
+  key_prefix: string
+  last_used_at: string | null
+  name: string
+  revoked_at: string | null
+  user_id: number
+}
+/**
+ * Body of `POST /api/auth/api-keys` (201): the new key's metadata plus
+ * the full secret, which is shown this once only.
+ */
+export interface ApiKeyCreatedResponse {
+  created_at: string
+  expires_at: string | null
+  id: number
+  key: string
+  key_prefix: string
+  last_used_at: string | null
+  name: string
+  revoked_at: string | null
+  user_id: number
+}
+/**
+ * Body of `GET /api/auth/config` (no auth required).
+ */
+export interface AuthConfigResponse {
+  registration_enabled: boolean
+}
+/**
+ * A human-readable confirmation: forgot-password, reset-password,
+ * verify-email and resend-verification.
+ */
+export interface MessageResponse {
+  message: string
+}
+/**
+ * Body of `GET /api/auth/verify-reset-token`; an invalid token is a 400.
+ */
+export interface ResetTokenValidResponse {
+  valid: true
 }
 /**
  * Body of `POST /api/storylines` (201). `bootstrap_job_id` is null when
@@ -568,6 +754,79 @@ export interface ComponentCheck {
   status: HealthStatus
 }
 /**
+ * Body of the authenticated `GET /api/health`: liveness plus usage stats.
+ */
+export interface HealthResponse {
+  checks: ComponentCheck[]
+  fitness?: {
+    [k: string]: FitnessSourceHealth
+  }
+  ingestion: IngestionStats | IngestionStatsError
+  queries: QueryStats
+  status: HealthStatus
+}
+/**
+ * One fitness source in the `/api/health` `fitness` block.
+ *
+ * `auth_status` and `auth_broken_since` are null for a source with sync
+ * runs but no auth-state row.
+ */
+export interface FitnessSourceHealth {
+  auth_broken_since: string | null
+  auth_status: FitnessAuthStatus | null
+  last_success_at: string | null
+}
+/**
+ * Corpus statistics: `asdict(journal.models.IngestionStats)`.
+ */
+export interface IngestionStats {
+  avg_chunks_per_entry: number
+  avg_words_per_entry: number
+  by_source_type: {
+    [k: string]: number
+  }
+  entries_last_30d: number
+  entries_last_7d: number
+  last_ingestion_at: string | null
+  row_counts: {
+    [k: string]: number
+  }
+  total_chunks: number
+  total_entries: number
+}
+/**
+ * Sent in place of `IngestionStats` when the stats query fails.
+ */
+export interface IngestionStatsError {
+  error: string
+}
+/**
+ * Query counters since server start (`journal.services.stats`).
+ */
+export interface QueryStats {
+  by_type: {
+    [k: string]: QueryTypeStats
+  }
+  started_at: string | null
+  total_queries: number
+  uptime_seconds: number
+}
+/**
+ * Counter and latency for one query type.
+ */
+export interface QueryTypeStats {
+  count: number
+  latency: LatencyPercentiles
+}
+/**
+ * Per-query-type latency in ms; all null before the first sample.
+ */
+export interface LatencyPercentiles {
+  p50_ms: number | null
+  p95_ms: number | null
+  p99_ms: number | null
+}
+/**
  * One background job: `asdict`-like view of `journal.models.Job`.
  */
 export interface Job {
@@ -669,11 +928,115 @@ export interface AliasLookupResponse {
   entity_type?: EntityType
 }
 /**
+ * Body of `GET /api/notifications/status`.
+ */
+export interface NotificationStatusResponse {
+  configured: boolean
+}
+/**
+ * Body of `POST /api/notifications/test`.
+ */
+export interface NotificationTestResponse {
+  error: string | null
+  sent: boolean
+}
+/**
+ * Body of `GET /api/notifications/topics`. Admin-only topics are
+ * listed for admins only.
+ */
+export interface NotificationTopicsResponse {
+  topics: NotificationTopic[]
+}
+/**
+ * One notification topic with the user's toggle state.
+ */
+export interface NotificationTopic {
+  admin_only: boolean
+  default: boolean
+  enabled: boolean
+  group: NotificationTopicGroup
+  key: string
+  label: string
+}
+/**
+ * Body of `POST /api/notifications/validate`: valid credentials are saved.
+ */
+export interface NotificationValidateResponse {
+  error: string | null
+  valid: boolean
+}
+/**
+ * Body of `GET` and `PATCH /api/users/me/preferences`.
+ *
+ * Maps each preference key to its stored JSON value.
+ */
+export interface PreferencesResponse {
+  preferences: {
+    [k: string]: unknown
+  }
+}
+/**
+ * Body of `GET /api/settings/pricing`.
+ */
+export interface PricingListResponse {
+  pricing: PricingEntry[]
+}
+/**
+ * One model's price: `api._shared._pricing_to_dict`.
+ */
+export interface PricingEntry {
+  category: PricingCategory
+  cost_per_minute: number | null
+  input_cost_per_mtok: number | null
+  last_verified: string
+  model: string
+  output_cost_per_mtok: number | null
+}
+/**
+ * Body of `PATCH /api/settings/pricing` (admin only).
+ *
+ * 200 when every model updated; 207 with `errors` when some failed. (When
+ * all fail it is a 400 with the same shape.)
+ */
+export interface PricingUpdateResponse {
+  errors?: string[]
+  pricing: PricingEntry[]
+  updated: string[]
+}
+/**
  * Body of the job-queueing storyline routes (refresh, unpublish; 202).
  */
 export interface StorylineJobResponse {
   job_id: string
   status: JobStatus
+}
+/**
+ * Body of `GET /api/settings/runtime`.
+ */
+export interface RuntimeSettingsListResponse {
+  settings: RuntimeSetting[]
+}
+/**
+ * One runtime-editable setting (`RuntimeSettings.get_all`).
+ */
+export interface RuntimeSetting {
+  choices?: string[]
+  description: string
+  key: string
+  label: string
+  type: 'bool' | 'string'
+  value: boolean | string
+}
+/**
+ * Body of `PATCH /api/settings/runtime` (admin only).
+ *
+ * `warnings` lists the keys that failed when at least one other key was
+ * updated; if every key fails the route answers 400 instead.
+ */
+export interface RuntimeSettingsUpdateResponse {
+  settings: RuntimeSetting[]
+  updated: string[]
+  warnings?: string[]
 }
 /**
  * Body of `GET /api/search`.
@@ -739,6 +1102,124 @@ export interface AnswerCitation {
 export interface SetStorylineAnchorsResponse {
   anchors: StorylineAnchor[]
   id: number
+}
+/**
+ * Body of `GET /api/settings`: non-secret config. Secrets are never sent.
+ */
+export interface ServerSettings {
+  chunking: ChunkingSettings
+  embedding: EmbeddingSettings
+  entity_extraction: EntityExtractionSettings
+  features: FeatureSettings
+  ocr: OcrSettings
+  pricing: PricingEntry[]
+  runtime: RuntimeSetting[]
+  search: SearchSettings
+  transcript_formatting: TranscriptFormattingSettings
+  transcription: TranscriptionSettings
+}
+/**
+ * `chunking` block of `GET /api/settings`.
+ */
+export interface ChunkingSettings {
+  boundary_percentile: number
+  decisive_percentile: number
+  embed_metadata_prefix: boolean
+  max_tokens: number
+  min_tokens: number
+  overlap_tokens: number
+  strategy: string
+}
+/**
+ * `embedding` block of `GET /api/settings`.
+ */
+export interface EmbeddingSettings {
+  dimensions: number
+  model: string
+}
+/**
+ * `entity_extraction` block of `GET /api/settings`.
+ */
+export interface EntityExtractionSettings {
+  dedup_similarity_threshold: number
+  model: string
+}
+/**
+ * `features` block of `GET /api/settings`.
+ */
+export interface FeatureSettings {
+  journal_author_name: string
+  mood_scorer_model: string
+  mood_scoring: boolean
+  strava_enabled: boolean
+}
+/**
+ * `ocr` block of `GET /api/settings`.
+ */
+export interface OcrSettings {
+  model: string
+  provider: string
+}
+/**
+ * `search` block of `GET /api/settings`: the hybrid-search knobs (F17).
+ */
+export interface SearchSettings {
+  bm25_candidates: number
+  dense_candidates: number
+  fusion_top_m: number
+  reranker: string
+  reranker_model: string | null
+  rrf_k: number
+}
+/**
+ * `transcript_formatting` block of `GET /api/settings`.
+ */
+export interface TranscriptFormattingSettings {
+  model: string
+}
+/**
+ * `transcription` block of `GET /api/settings`.
+ */
+export interface TranscriptionSettings {
+  fallback: TranscriptionFallbackSettings
+  model: string
+  provider: string
+  retry: TranscriptionRetrySettings
+  shadow: TranscriptionShadowSettings
+}
+/**
+ * `transcription.fallback` block of `GET /api/settings`.
+ */
+export interface TranscriptionFallbackSettings {
+  enabled: boolean
+  model: string
+}
+/**
+ * `transcription.retry` block of `GET /api/settings`.
+ */
+export interface TranscriptionRetrySettings {
+  base_delay_seconds: number
+  max_attempts: number
+  max_delay_seconds: number
+}
+/**
+ * `transcription.shadow` block; provider and model are null when disabled.
+ */
+export interface TranscriptionShadowSettings {
+  enabled: boolean
+  model: string | null
+  provider: string | null
+}
+/**
+ * Body of `GET /api/stats`: `asdict(journal.models.Statistics)`.
+ */
+export interface Statistics {
+  avg_words_per_entry: number
+  date_range_end: string | null
+  date_range_start: string | null
+  entries_per_month: number
+  total_entries: number
+  total_words: number
 }
 /**
  * Body of `GET /api/storylines/{id}/chapters/{cid}`.

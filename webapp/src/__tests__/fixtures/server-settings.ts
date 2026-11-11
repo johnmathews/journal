@@ -37,6 +37,14 @@ export function makeServerSettings(
       model: 'claude-opus-4-6',
       dedup_similarity_threshold: 0.88,
     },
+    search: {
+      reranker: 'anthropic',
+      reranker_model: 'claude-haiku-4-5',
+      bm25_candidates: 50,
+      dense_candidates: 50,
+      fusion_top_m: 30,
+      rrf_k: 60,
+    },
     features: {
       mood_scoring: true,
       mood_scorer_model: 'claude-sonnet-4-5',
@@ -44,6 +52,7 @@ export function makeServerSettings(
       strava_enabled: false,
     },
     runtime: [],
+    pricing: [],
     ...overrides,
   }
 }

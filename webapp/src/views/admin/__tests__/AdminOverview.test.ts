@@ -58,6 +58,14 @@ function makeSettings(overrides: Partial<ServerSettings> = {}): ServerSettings {
       model: 'claude-opus-4-6',
       dedup_similarity_threshold: 0.88,
     },
+    search: {
+      reranker: 'anthropic',
+      reranker_model: 'claude-haiku-4-5',
+      bm25_candidates: 50,
+      dense_candidates: 50,
+      fusion_top_m: 30,
+      rrf_k: 60,
+    },
     features: {
       mood_scoring: true,
       mood_scorer_model: 'claude-sonnet-4-5',
@@ -65,6 +73,7 @@ function makeSettings(overrides: Partial<ServerSettings> = {}): ServerSettings {
       strava_enabled: false,
     },
     runtime: [],
+    pricing: [],
     ...overrides,
   }
 }
@@ -73,16 +82,15 @@ function makeHealth(overrides: Partial<HealthResponse> = {}): HealthResponse {
   return {
     status: 'ok',
     checks: [
-      { name: 'sqlite', status: 'ok', detail: '' },
-      { name: 'chromadb', status: 'ok', detail: '' },
+      { name: 'sqlite', status: 'ok', detail: '', error: null },
+      { name: 'chromadb', status: 'ok', detail: '', error: null },
     ],
     ingestion: {
       total_entries: 42,
-      total_words: 12345,
       total_chunks: 210,
       avg_words_per_entry: 294,
       avg_chunks_per_entry: 5.0,
-      last_ingested_at: '2026-04-14T10:00:00Z',
+      last_ingestion_at: '2026-04-14T10:00:00Z',
       entries_last_7d: 5,
       entries_last_30d: 18,
       by_source_type: { photo: 40, voice: 2 },
@@ -174,6 +182,22 @@ describe('AdminOverview', () => {
     const stats = wrapper.find('[data-testid="ingestion-stats"]')
     expect(stats.text()).toContain('5 entries')
     expect(stats.text()).toContain('18 entries')
+  })
+
+  it('shows the stats error when the server cannot read ingestion stats', async () => {
+    // `/api/health` sends `ingestion: { error }` when its stats query fails.
+    const wrapper = await mountView(
+      makeSettings(),
+      makeHealth({ ingestion: { error: 'database is locked' } }),
+    )
+    expect(wrapper.find('[data-testid="health-status"]').text()).toBe('ok')
+    expect(wrapper.find('[data-testid="health-checks"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="health-entries"]').text()).toBe('—')
+    expect(wrapper.find('[data-testid="health-chunks"]').text()).toBe('—')
+    expect(wrapper.find('[data-testid="ingestion-stats"]').exists()).toBe(false)
+    expect(
+      wrapper.find('[data-testid="ingestion-stats-error"]').text(),
+    ).toContain('database is locked')
   })
 
   it('renders a cost teaser linking to the pricing tab', async () => {

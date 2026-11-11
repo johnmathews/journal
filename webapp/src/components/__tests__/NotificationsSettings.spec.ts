@@ -29,6 +29,7 @@ import {
 } from '@/api/notifications'
 import { useAuthStore } from '@/stores/auth'
 import type { AuthUser } from '@/stores/auth'
+import type { NotificationTopic } from '@/types/notifications'
 
 const mockFetchTopics = vi.mocked(fetchNotificationTopics)
 const mockFetchStatus = vi.mocked(fetchNotificationStatus)
@@ -60,7 +61,7 @@ const sampleTopics = [
     default: true,
     enabled: true,
   },
-]
+] satisfies NotificationTopic[]
 
 function mountComponent() {
   return mount(NotificationsSettings, {
