@@ -9,6 +9,7 @@ self-contained; the bulkier ones split out:
   ``repair-entity-names`` → ``cli/entities.py``.
 - ``journal backfill-mood`` → ``cli/mood.py``.
 - ``journal seed`` reads its sample data from ``cli/_seed_samples.py``.
+- ``journal contract export`` → ``journal.api.contract.export``.
 
 The shared service-construction helper lives in ``cli/_services.py``
 so per-command modules can import it without pulling the whole
@@ -38,7 +39,7 @@ from journal.cli.fitness import (
     cmd_fitness_sync,
 )
 from journal.cli.mood import cmd_backfill_mood
-from journal.config import load_config
+from journal.config import Config, load_config
 from journal.db.factory import ConnectionFactory
 from journal.db.migrations import run_migrations
 from journal.db.repository import SQLiteEntryRepository
@@ -509,6 +510,15 @@ def cmd_health(args, config):
         sys.exit(2)
 
 
+def cmd_contract(args: argparse.Namespace, config: Config) -> None:
+    """Run a ``journal contract`` subcommand (currently only ``export``)."""
+    from journal.api.contract.export import write_schema
+
+    if args.contract_command == "export":
+        path = write_schema(Path(args.output) if args.output else None)
+        print(f"Wrote API contract schema to {path}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="journal",
@@ -927,6 +937,25 @@ def main():
         ),
     )
 
+    # contract export
+    p_contract = subparsers.add_parser(
+        "contract",
+        help="API response contract (contract/api.schema.json) tooling",
+    )
+    contract_sub = p_contract.add_subparsers(dest="contract_command", required=True)
+    p_contract_export = contract_sub.add_parser(
+        "export",
+        help=(
+            "Write the response JSON Schema from journal.api.contract to "
+            "contract/api.schema.json at the repo root."
+        ),
+    )
+    p_contract_export.add_argument(
+        "--output",
+        default=None,
+        help="Write to this path instead of <repo root>/contract/api.schema.json.",
+    )
+
     args = parser.parse_args()
     setup_logging(args.log_level)
     config = load_config()
@@ -957,5 +986,6 @@ def main():
         "fitness-status": cmd_fitness_status,
         "fitness-audit": cmd_fitness_audit,
         "bootstrap-storylines": cmd_bootstrap_storylines,
+        "contract": cmd_contract,
     }
     commands[args.command](args, config)

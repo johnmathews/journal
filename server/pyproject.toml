@@ -19,6 +19,7 @@ dependencies = [
     "pillow-heif>=1.6.0,<2",
     "stravalib~=2.6",
     "garminconnect==0.3.11",
+    "pydantic>=2.12,<3",
 ]
 
 [project.scripts]
