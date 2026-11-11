@@ -1,0 +1,570 @@
+<script setup lang="ts">
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { useSearchStore } from '@/stores/search'
+import { useConversationsStore } from '@/stores/conversations'
+import { renderSnippetHtml } from '@/utils/searchSnippet'
+import {
+  ALL_TIME_START,
+  SEARCH_RANGE_OPTIONS,
+  presetToDates,
+  todayIso,
+  type SearchRangePreset,
+} from '@/utils/dateRange'
+import type { SearchResultItem, SearchSort } from '@/types/search'
+
+const store = useSearchStore()
+const router = useRouter()
+const conversationsStore = useConversationsStore()
+
+const conversationError = ref<string | null>(null)
+
+async function continueConversation(): Promise<void> {
+  conversationError.value = null
+  try {
+    const id = await conversationsStore.start({
+      question: store.lastRunQuery,
+      answer: store.answer,
+      citations: store.answerCitations,
+    })
+    router.push(`/conversations/${id}`)
+  } catch {
+    // Surface the failure inline (SearchView has no toast) rather than
+    // leaving the button a silent dead-end.
+    conversationError.value =
+      'Could not start the conversation — please try again.'
+  }
+}
+
+// Local form state — bound to inputs and pushed into the store only
+// when the user submits. This keeps every keystroke from firing a
+// request and lets the existing result set stay visible while the
+// user refines a query.
+const queryInput = ref(store.query)
+const startDateInput = ref(store.startDate ?? '')
+const endDateInput = ref(store.endDate ?? '')
+const sortInput = ref<SearchSort>(store.sort)
+
+// "All time" is the natural default — the preset populates the
+// inputs with the journal's known date bounds, so resuming with an
+// empty store maps cleanly to the preset.
+const rangePreset = ref<SearchRangePreset>(
+  startDateInput.value || endDateInput.value ? 'custom' : 'all',
+)
+
+function applyPreset(preset: SearchRangePreset): void {
+  rangePreset.value = preset
+  if (preset === 'custom') {
+    return // leave whatever the user typed alone
+  }
+  const { from, to } = presetToDates(preset)
+  startDateInput.value = from ?? ''
+  endDateInput.value = to ?? ''
+}
+
+// Backfill the inputs on mount if the user is still on the default
+// "All time" preset and hasn't typed anything. The store may have
+// restored empty strings from a fresh session — without this, the
+// fields would render blank until the user opened the dropdown.
+onMounted(() => {
+  if (
+    rangePreset.value === 'all' &&
+    !startDateInput.value &&
+    !endDateInput.value
+  ) {
+    startDateInput.value = ALL_TIME_START
+    endDateInput.value = todayIso()
+  }
+})
+
+// User-edited dates flip the preset to "custom" so the dropdown
+// stays honest about what's actually being submitted.
+function onDateInput(): void {
+  if (rangePreset.value !== 'custom') {
+    rangePreset.value = 'custom'
+  }
+}
+
+// Whether the last-run query reads like a question. Used only to decide
+// whether to show the "Thinking…" tile optimistically while the answer
+// call is in flight — the server's classifier is authoritative for
+// whether an answer is actually produced. Ends with '?' or opens with a
+// wh-word; based on lastRunQuery so it tracks the displayed results.
+const looksLikeQuestion = computed(() => {
+  const q = store.lastRunQuery.trim().toLowerCase()
+  if (!q) return false
+  return q.endsWith('?') || /^(who|what|when|where|why|how)\b/.test(q)
+})
+
+// Show the answer tile while loading (only for question-shaped queries,
+// so keyword searches don't flash a tile), or once there's an answer or
+// error to display.
+const showAnswerPanel = computed(
+  () =>
+    (store.answerLoading && looksLikeQuestion.value) ||
+    !!store.answer ||
+    !!store.answerError,
+)
+
+async function submit(): Promise<void> {
+  // "All time" means unconstrained: the inputs stay visually
+  // backfilled (see onMounted), but sending the synthetic
+  // ALL_TIME_START → today bounds would constrain the dense
+  // post-filter and bust the server cache key for nothing — so the
+  // request carries no date params at all.
+  const allTime = rangePreset.value === 'all'
+  await store.runSearch({
+    q: queryInput.value,
+    start_date: allTime ? null : startDateInput.value || null,
+    end_date: allTime ? null : endDateInput.value || null,
+    sort: sortInput.value,
+    offset: 0,
+  })
+  // Auto-answer: every successful search asks the server to classify the
+  // query (cheap) and synthesize an answer if it's a question. Keyword
+  // searches return immediately with no answer. The list is already
+  // shown; the answer (if any) streams into the tile above it.
+  if (store.hasRun && !store.error) {
+    store.runAnswer()
+  }
+}
+
+// Auto-resubmit when the user picks a different sort order — the
+// dropdown reads as a live control, not "change-then-press-Search".
+// Re-orders the list only (same query → no re-classification or
+// re-answer; the existing answer stays in place). We only fire after at
+// least one search has run; otherwise initial mount or store-restore
+// would fire a request with an empty query.
+watch(sortInput, () => {
+  if (store.hasRun) store.runSearch({ sort: sortInput.value, offset: 0 })
+})
+
+function nextPage(): void {
+  store.runSearch({ offset: store.offset + store.limit })
+}
+
+function prevPage(): void {
+  const next = Math.max(0, store.offset - store.limit)
+  store.runSearch({ offset: next })
+}
+
+// Hybrid mode doesn't know the total count, so we infer "might have
+// more" from "the server returned exactly `limit` items".
+const canNext = computed(
+  () => store.items.length === store.limit && store.items.length > 0,
+)
+const canPrev = computed(() => store.offset > 0)
+const currentPage = computed(
+  () => Math.floor(store.offset / Math.max(1, store.limit)) + 1,
+)
+
+/**
+ * Pick the best display text for a single result row.
+ *
+ * Hybrid results carry `snippet` (BM25-marked excerpt) when BM25
+ * contributed and `matching_chunks` (dense top hits) when dense
+ * contributed. At least one of those is always present, since a
+ * result that neither retriever produced would not have made it
+ * into the response. Prefer the snippet — it's a focused excerpt
+ * around matched terms — and fall back to the top dense chunk.
+ */
+function displayHtml(item: SearchResultItem): string {
+  if (item.snippet) {
+    return renderSnippetHtml(item.snippet)
+  }
+  return renderSnippetHtml(item.matching_chunks[0].text)
+}
+
+function topChunkIndex(item: SearchResultItem): number | null {
+  const top = item.matching_chunks[0]
+  return top?.chunk_index ?? null
+}
+
+function scorePercent(score: number): string {
+  // Clamp and round — server-side scores can have trailing
+  // floating-point fuzz.
+  const pct = Math.max(0, Math.min(100, Math.round(score * 100)))
+  return `${pct}%`
+}
+
+/**
+ * Build a short, human-readable explanation of WHY a result matched.
+ * Hybrid results may match via keywords, semantic similarity, or
+ * both — surface that to the user so the ranking feels less opaque.
+ * Only invoked from the template guarded by the same lex||sem check,
+ * so the "neither" case isn't reachable here.
+ */
+function matchExplanation(item: SearchResultItem): string {
+  const lex = !!item.snippet
+  const sem = item.matching_chunks.length > 0
+  if (lex && sem) {
+    return 'Matched by keywords and meaning'
+  }
+  return lex ? 'Matched by keywords' : 'Matched by meaning'
+}
+</script>
+
+<template>
+  <div data-testid="search-view">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <h1
+        class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold"
+      >
+        Search
+      </h1>
+    </div>
+
+    <!-- Query form -->
+    <form
+      class="mb-4 flex flex-wrap items-end gap-3"
+      data-testid="search-form"
+      @submit.prevent="submit"
+    >
+      <div class="grow min-w-[16rem]">
+        <label
+          class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
+          for="search-query"
+          >Query</label
+        >
+        <input
+          id="search-query"
+          v-model="queryInput"
+          type="search"
+          placeholder="Search your journal…"
+          data-testid="search-query-input"
+          class="form-input w-full text-base sm:text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+        />
+      </div>
+      <div>
+        <label
+          class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
+          for="search-range"
+          >Range</label
+        >
+        <select
+          id="search-range"
+          :value="rangePreset"
+          data-testid="search-range-preset"
+          class="form-select text-base sm:text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          @change="
+            applyPreset(
+              ($event.target as HTMLSelectElement).value as SearchRangePreset,
+            )
+          "
+        >
+          <option
+            v-for="opt in SEARCH_RANGE_OPTIONS"
+            :key="opt.value"
+            :value="opt.value"
+          >
+            {{ opt.label }}
+          </option>
+        </select>
+      </div>
+      <div>
+        <label
+          class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
+          for="search-start"
+          >From</label
+        >
+        <input
+          id="search-start"
+          v-model="startDateInput"
+          type="date"
+          data-testid="search-start-date"
+          class="form-input text-base sm:text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          @input="onDateInput"
+        />
+      </div>
+      <div>
+        <label
+          class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
+          for="search-end"
+          >To</label
+        >
+        <input
+          id="search-end"
+          v-model="endDateInput"
+          type="date"
+          data-testid="search-end-date"
+          class="form-input text-base sm:text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          @input="onDateInput"
+        />
+      </div>
+      <div>
+        <label
+          class="block text-xs uppercase text-gray-600 dark:text-gray-300 font-semibold mb-1"
+          for="search-sort"
+          >Sort</label
+        >
+        <select
+          id="search-sort"
+          v-model="sortInput"
+          data-testid="search-sort"
+          class="form-select text-base sm:text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+        >
+          <option value="relevance">Relevance</option>
+          <option value="date_desc">Newest first</option>
+          <option value="date_asc">Oldest first</option>
+        </select>
+      </div>
+      <button
+        type="submit"
+        class="btn bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
+        data-testid="search-submit"
+        :disabled="store.loading"
+      >
+        <svg
+          v-if="store.loading"
+          class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          data-testid="search-submit-spinner"
+        >
+          <circle
+            class="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            stroke-width="4"
+          />
+          <path
+            class="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+          />
+        </svg>
+        {{ store.loading ? 'Searching…' : 'Search' }}
+      </button>
+    </form>
+
+    <!-- Answer tile — auto-generated for question-shaped searches.
+         Deliberately distinct from result cards: thicker violet accent
+         border + tint + an "Answer" header, so it reads as the AI answer,
+         not another match. -->
+    <div
+      v-if="showAnswerPanel"
+      class="mb-4 rounded-lg border-2 border-violet-400 dark:border-violet-600 bg-violet-50/60 dark:bg-violet-900/15 p-4 shadow-sm"
+      data-testid="answer-panel"
+    >
+      <div
+        class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300"
+      >
+        Answer
+      </div>
+      <div
+        v-if="store.answerLoading"
+        class="text-sm text-gray-600 dark:text-gray-300"
+      >
+        Thinking…
+      </div>
+      <div
+        v-else-if="store.answerError"
+        class="text-sm text-red-600 dark:text-red-400"
+        data-testid="answer-error"
+      >
+        {{ store.answerError }}
+      </div>
+      <template v-else>
+        <p
+          class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed"
+          data-testid="answer-text"
+        >
+          {{ store.answer }}
+        </p>
+        <div
+          v-if="store.answerCitations.length"
+          class="mt-3 flex flex-wrap gap-2"
+        >
+          <RouterLink
+            v-for="c in store.answerCitations"
+            :key="c.entry_id"
+            :to="`/entries/${c.entry_id}`"
+            class="text-xs px-2 py-1 rounded bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 hover:bg-violet-100"
+            data-testid="answer-citation"
+          >
+            {{ c.entry_date }}
+          </RouterLink>
+        </div>
+        <div v-if="store.answer" class="mt-3">
+          <button
+            type="button"
+            class="text-sm font-medium text-violet-700 dark:text-violet-300 hover:underline"
+            data-testid="continue-conversation"
+            @click="continueConversation"
+          >
+            Continue this conversation →
+          </button>
+          <p
+            v-if="conversationError"
+            class="mt-1 text-sm text-red-600 dark:text-red-400"
+            data-testid="continue-conversation-error"
+          >
+            {{ conversationError }}
+          </p>
+        </div>
+      </template>
+    </div>
+
+    <!-- Loading / error / empty states -->
+    <div
+      v-if="store.loading && !store.hasResults"
+      class="py-16 flex flex-col items-center justify-center gap-3 text-gray-600 dark:text-gray-300"
+      data-testid="loading-state"
+    >
+      <svg
+        class="animate-spin h-8 w-8 text-violet-500"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <circle
+          class="opacity-25"
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          stroke-width="4"
+        />
+        <path
+          class="opacity-75"
+          fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+        />
+      </svg>
+      <div>Searching…</div>
+    </div>
+
+    <div
+      v-else-if="store.error"
+      class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+      data-testid="error-banner"
+    >
+      {{ store.error }}
+    </div>
+
+    <div
+      v-else-if="!store.hasRun"
+      class="py-16 text-center text-gray-600 dark:text-gray-300"
+      data-testid="initial-state"
+    >
+      Enter a query above to search your journal.
+    </div>
+
+    <div
+      v-else-if="!store.hasResults"
+      class="py-16 text-center text-gray-600 dark:text-gray-300"
+      data-testid="empty-state"
+    >
+      No entries matched “{{ store.lastRunQuery }}”.
+    </div>
+
+    <!-- Results list -->
+    <ul v-else class="space-y-3" data-testid="search-results">
+      <li
+        v-for="item in store.items"
+        :key="item.entry_id"
+        class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs px-4 py-3"
+        data-testid="search-result-row"
+      >
+        <div class="flex items-center justify-between mb-1">
+          <RouterLink
+            :to="{
+              name: 'entry-detail',
+              params: { id: item.entry_id },
+              query:
+                topChunkIndex(item) !== null
+                  ? { chunk: String(topChunkIndex(item)) }
+                  : {},
+            }"
+            class="text-violet-600 dark:text-violet-400 hover:underline font-medium text-sm"
+            data-testid="search-result-link"
+          >
+            {{ item.entry_date }}
+          </RouterLink>
+          <span
+            class="inline-block text-xs font-mono text-gray-600 dark:text-gray-300"
+            data-testid="search-result-score"
+          >
+            {{ scorePercent(item.score) }}
+          </span>
+        </div>
+        <!-- eslint-disable vue/no-v-html -->
+        <!-- Safe: `displayHtml` routes every piece of text through
+             `renderSnippetHtml`, which HTML-escapes all user content
+             before wrapping matched terms in `<mark>` tags. The only
+             non-escaped markup in the output is the fixed `<mark>`
+             element itself. -->
+        <div
+          class="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap leading-relaxed"
+          data-testid="search-result-snippet"
+          v-html="displayHtml(item)"
+        ></div>
+        <!-- eslint-enable vue/no-v-html -->
+
+        <!-- "Why this matched" panel — surfaces lexical vs. semantic
+             contribution. A hybrid result can carry both signals. -->
+        <div
+          v-if="item.snippet || item.matching_chunks.length > 0"
+          class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700/40"
+          data-testid="match-explanation"
+        >
+          <span
+            class="text-xs font-medium text-violet-500 dark:text-violet-400"
+          >
+            {{ matchExplanation(item) }}
+          </span>
+          <span
+            v-if="item.matching_chunks.length > 0"
+            class="text-xs text-gray-600 dark:text-gray-300 ml-1"
+          >
+            — top passage similarity
+            {{ scorePercent(item.matching_chunks[0].score) }}
+          </span>
+          <ul
+            v-if="item.matching_chunks.length > 1"
+            class="mt-1 space-y-1"
+            data-testid="match-extra-chunks"
+          >
+            <li
+              v-for="(chunk, idx) in item.matching_chunks.slice(1, 3)"
+              :key="idx"
+              class="text-xs text-gray-600 dark:text-gray-300 pl-3 border-l-2 border-gray-200 dark:border-gray-700/60 line-clamp-2"
+            >
+              {{ scorePercent(chunk.score) }} — {{ chunk.text.slice(0, 150)
+              }}{{ chunk.text.length > 150 ? '…' : '' }}
+            </li>
+          </ul>
+        </div>
+      </li>
+    </ul>
+
+    <!-- Pagination (bottom of results) -->
+    <div
+      v-if="store.hasResults"
+      class="mt-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300"
+    >
+      <div data-testid="search-page-info">Page {{ currentPage }}</div>
+      <div class="flex gap-2">
+        <button
+          class="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+          :disabled="!canPrev"
+          data-testid="search-prev-page"
+          @click="prevPage"
+        >
+          Previous
+        </button>
+        <button
+          class="btn bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+          :disabled="!canNext"
+          data-testid="search-next-page"
+          @click="nextPage"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  </div>
+</template>

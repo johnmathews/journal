@@ -1,0 +1,769 @@
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { useStorylinesStore } from '@/stores/storylines'
+
+const authStore = useAuthStore()
+// Total unread published chapters — the badge on the Storylines link.
+// Derived from whatever list data is loaded; the badge simply hides
+// until the storylines list has been fetched at least once.
+const storylinesStore = useStorylinesStore()
+
+const props = defineProps<{
+  sidebarOpen: boolean
+}>()
+
+const emit = defineEmits<{
+  'close-sidebar': []
+}>()
+
+const sidebar = ref<HTMLDivElement | null>(null)
+const route = useRoute()
+
+// Expanded-by-default behaviour:
+//
+// - If localStorage has an explicit value, honour it — the user's
+//   stated preference always wins.
+// - Otherwise fall back to a viewport check: wide displays (the
+//   Tailwind `lg` breakpoint, 1024px+) start expanded, narrower
+//   viewports start collapsed. The mobile hamburger state is a
+//   separate ref (`sidebarOpen`), so this only affects the
+//   desktop layout.
+//
+// Guarded for SSR / test environments where `window.matchMedia`
+// may be missing — fall back to `false` rather than crashing.
+const storedSidebarExpanded = localStorage.getItem('sidebar-expanded')
+
+function defaultSidebarExpanded(): boolean {
+  if (typeof window === 'undefined' || !window.matchMedia) return false
+  return window.matchMedia('(min-width: 1024px)').matches
+}
+
+const sidebarExpanded = ref<boolean>(
+  storedSidebarExpanded === null
+    ? defaultSidebarExpanded()
+    : storedSidebarExpanded === 'true',
+)
+
+// close on click outside
+const clickHandler = (event: MouseEvent) => {
+  const target = event.target as Node | null
+  if (!sidebar.value || !target) return
+  if (!props.sidebarOpen || sidebar.value.contains(target)) return
+  emit('close-sidebar')
+}
+
+// auto-close the mobile overlay whenever navigation happens
+watch(
+  () => route.fullPath,
+  () => {
+    if (props.sidebarOpen) emit('close-sidebar')
+  },
+)
+
+// close if ESC pressed
+const keyHandler = (event: KeyboardEvent) => {
+  if (!props.sidebarOpen || event.keyCode !== 27) return
+  emit('close-sidebar')
+}
+
+onMounted(() => {
+  document.addEventListener('click', clickHandler)
+  document.addEventListener('keydown', keyHandler)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', clickHandler)
+  document.removeEventListener('keydown', keyHandler)
+})
+
+watch(
+  sidebarExpanded,
+  () => {
+    localStorage.setItem('sidebar-expanded', String(sidebarExpanded.value))
+    const body = document.querySelector('body')
+    if (!body) return
+    if (sidebarExpanded.value) {
+      body.classList.add('sidebar-expanded')
+    } else {
+      body.classList.remove('sidebar-expanded')
+    }
+  },
+  { immediate: true },
+)
+</script>
+
+<template>
+  <div class="min-w-fit">
+    <!-- Sidebar backdrop (mobile only) -->
+    <div
+      class="fixed inset-0 bg-gray-900/30 z-40 lg:hidden lg:z-auto transition-opacity duration-200"
+      :class="sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'"
+      aria-hidden="true"
+    ></div>
+
+    <!-- Sidebar -->
+    <div
+      id="sidebar"
+      ref="sidebar"
+      class="flex lg:flex! flex-col absolute z-40 left-0 top-0 lg:static lg:left-auto lg:top-auto lg:translate-x-0 h-[100dvh] overflow-y-scroll lg:overflow-y-auto no-scrollbar w-64 max-[400px]:w-full lg:w-20 lg:sidebar-expanded:!w-64 2xl:w-64! shrink-0 bg-white dark:bg-gray-800 pr-4 pb-4 [padding-left:calc(1rem+env(safe-area-inset-left))] [padding-top:calc(1rem+env(safe-area-inset-top))] transition-all duration-200 ease-in-out rounded-r-2xl shadow-xs"
+      :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+    >
+      <!-- Sidebar header -->
+      <div class="flex justify-between mb-10 pr-3 sm:px-2">
+        <!-- Logo / title — hidden when sidebar is collapsed on desktop -->
+        <RouterLink class="block" to="/" aria-label="Journal home">
+          <div>
+            <h1
+              class="text-2xl md:text-xl md:pl-2 text-gray-800 dark:text-gray-100 font-bold lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200 lg:whitespace-nowrap lg:sidebar-expanded:whitespace-normal 2xl:whitespace-normal overflow-hidden"
+            >
+              JOURNAL INSIGHTS TOOL
+            </h1>
+          </div>
+        </RouterLink>
+      </div>
+
+      <!-- Links -->
+      <div class="space-y-8">
+        <div>
+          <h2
+            class="text-m uppercase text-gray-600 dark:text-gray-300 font-semibold pl-3 lg:hidden lg:sidebar-expanded:block 2xl:block"
+          ></h2>
+          <ul class="mt-3" @click="$emit('close-sidebar')">
+            <!-- Dashboard link (home / `/`) -->
+            <RouterLink
+              v-slot="{ href, navigate, isExactActive }"
+              to="/"
+              custom
+            >
+              <li
+                class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
+                :class="
+                  isExactActive &&
+                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                "
+              >
+                <a
+                  :href="href"
+                  class="block truncate transition"
+                  data-testid="sidebar-dashboard-link"
+                  :class="
+                    isExactActive
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-800 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white'
+                  "
+                  @click="navigate"
+                >
+                  <div class="flex items-center">
+                    <svg
+                      class="shrink-0 fill-current"
+                      :class="
+                        isExactActive
+                          ? 'text-violet-500'
+                          : 'text-gray-600 dark:text-gray-300'
+                      "
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M0 3a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H1a1 1 0 0 1-1-1V3Zm9 0a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1V3Zm0 7a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-3Z"
+                      />
+                    </svg>
+                    <span
+                      class="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                      >Dashboard</span
+                    >
+                  </div>
+                </a>
+              </li>
+            </RouterLink>
+
+            <!-- New Entry link -->
+            <RouterLink
+              v-slot="{ href, navigate, isExactActive }"
+              to="/entries/new"
+              custom
+            >
+              <li
+                class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
+                :class="
+                  isExactActive &&
+                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                "
+              >
+                <a
+                  :href="href"
+                  class="block truncate transition"
+                  data-testid="sidebar-new-entry-link"
+                  :class="
+                    isExactActive
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-800 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white'
+                  "
+                  @click="navigate"
+                >
+                  <div class="flex items-center">
+                    <svg
+                      class="shrink-0 fill-current"
+                      :class="
+                        isExactActive
+                          ? 'text-violet-500'
+                          : 'text-gray-600 dark:text-gray-300'
+                      "
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M8 0a1 1 0 0 1 1 1v6h6a1 1 0 1 1 0 2H9v6a1 1 0 1 1-2 0V9H1a1 1 0 0 1 0-2h6V1a1 1 0 0 1 1-1z"
+                      />
+                    </svg>
+                    <span
+                      class="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                      >New Entry</span
+                    >
+                  </div>
+                </a>
+              </li>
+            </RouterLink>
+
+            <!-- Entries link -->
+            <RouterLink
+              v-slot="{ href, navigate, isActive }"
+              to="/entries"
+              custom
+            >
+              <li
+                class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
+                :class="
+                  isActive &&
+                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                "
+              >
+                <a
+                  :href="href"
+                  class="block truncate transition"
+                  data-testid="sidebar-entries-link"
+                  :class="
+                    isActive
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-800 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white'
+                  "
+                  @click="navigate"
+                >
+                  <div class="flex items-center">
+                    <svg
+                      class="shrink-0 fill-current"
+                      :class="
+                        isActive
+                          ? 'text-violet-500'
+                          : 'text-gray-600 dark:text-gray-300'
+                      "
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M1 3a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H2a1 1 0 0 1-1-1Zm0 5a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H2a1 1 0 0 1-1-1Zm1 4a1 1 0 1 0 0 2h12a1 1 0 1 0 0-2H2Z"
+                      />
+                    </svg>
+                    <span
+                      class="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                      >Entries</span
+                    >
+                  </div>
+                </a>
+              </li>
+            </RouterLink>
+
+            <!-- Fitness link -->
+            <RouterLink
+              v-slot="{ href, navigate, isActive }"
+              to="/fitness"
+              custom
+            >
+              <li
+                class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
+                :class="
+                  isActive &&
+                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                "
+              >
+                <a
+                  :href="href"
+                  class="block truncate transition"
+                  data-testid="sidebar-fitness-link"
+                  :class="
+                    isActive
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-800 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white'
+                  "
+                  @click="navigate"
+                >
+                  <div class="flex items-center">
+                    <svg
+                      class="shrink-0 fill-current"
+                      :class="
+                        isActive
+                          ? 'text-violet-500'
+                          : 'text-gray-600 dark:text-gray-300'
+                      "
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M8 14.5s-5.5-3.5-5.5-8a3.5 3.5 0 0 1 6.5-1.8A3.5 3.5 0 0 1 13.5 6.5c0 4.5-5.5 8-5.5 8Z"
+                      />
+                    </svg>
+                    <span
+                      class="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                      >Fitness</span
+                    >
+                  </div>
+                </a>
+              </li>
+            </RouterLink>
+
+            <!-- Storylines link -->
+            <RouterLink
+              v-slot="{ href, navigate, isActive }"
+              to="/storylines"
+              custom
+            >
+              <li
+                class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
+                :class="
+                  isActive &&
+                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                "
+              >
+                <a
+                  :href="href"
+                  class="block truncate transition"
+                  data-testid="sidebar-storylines-link"
+                  :class="
+                    isActive
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-800 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white'
+                  "
+                  @click="navigate"
+                >
+                  <div class="flex items-center">
+                    <svg
+                      class="shrink-0 fill-current"
+                      :class="
+                        isActive
+                          ? 'text-violet-500'
+                          : 'text-gray-600 dark:text-gray-300'
+                      "
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M2 2h12v2H2V2Zm0 4h12v2H2V6Zm0 4h8v2H2v-2Zm0 4h6v2H2v-2Z"
+                      />
+                    </svg>
+                    <span
+                      class="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                      >Storylines</span
+                    >
+                    <span
+                      v-if="storylinesStore.totalUnread > 0"
+                      class="ml-auto inline-flex items-center justify-center rounded-full bg-violet-500 text-white text-[10px] font-semibold px-1.5 py-0.5 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                      data-testid="sidebar-storylines-unread"
+                      :aria-label="`${storylinesStore.totalUnread} unread chapters`"
+                    >
+                      {{ storylinesStore.totalUnread }}
+                    </span>
+                  </div>
+                </a>
+              </li>
+            </RouterLink>
+
+            <!-- Search link -->
+            <RouterLink
+              v-slot="{ href, navigate, isActive }"
+              to="/search"
+              custom
+            >
+              <li
+                class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
+                :class="
+                  isActive &&
+                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                "
+              >
+                <a
+                  :href="href"
+                  class="block truncate transition"
+                  data-testid="sidebar-search-link"
+                  :class="
+                    isActive
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-800 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white'
+                  "
+                  @click="navigate"
+                >
+                  <div class="flex items-center">
+                    <svg
+                      class="shrink-0 fill-current"
+                      :class="
+                        isActive
+                          ? 'text-violet-500'
+                          : 'text-gray-600 dark:text-gray-300'
+                      "
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M7 14c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7ZM7 2C4.243 2 2 4.243 2 7s2.243 5 5 5 5-2.243 5-5-2.243-5-5-5Z"
+                      />
+                      <path
+                        d="M15.707 14.293 13.314 11.9a8.019 8.019 0 0 1-1.414 1.414l2.393 2.393a.997.997 0 0 0 1.414 0 .999.999 0 0 0 0-1.414Z"
+                      />
+                    </svg>
+                    <span
+                      class="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                      >Search</span
+                    >
+                  </div>
+                </a>
+              </li>
+            </RouterLink>
+
+            <!-- Conversations link -->
+            <RouterLink
+              v-slot="{ href, navigate, isActive }"
+              to="/conversations"
+              custom
+            >
+              <li
+                class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
+                :class="
+                  isActive &&
+                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                "
+              >
+                <a
+                  :href="href"
+                  class="block truncate transition"
+                  data-testid="sidebar-conversations-link"
+                  :class="
+                    isActive
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-800 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white'
+                  "
+                  @click="navigate"
+                >
+                  <div class="flex items-center">
+                    <svg
+                      class="shrink-0 fill-current"
+                      :class="
+                        isActive
+                          ? 'text-violet-500'
+                          : 'text-gray-600 dark:text-gray-300'
+                      "
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M8 0C3.6 0 0 3.1 0 7c0 1.9.9 3.6 2.3 4.9L1 16l4.6-1.4C6.4 14.9 7.2 15 8 15c4.4 0 8-3.1 8-7s-3.6-8-8-8Z"
+                      />
+                    </svg>
+                    <span
+                      class="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                      >Conversations</span
+                    >
+                  </div>
+                </a>
+              </li>
+            </RouterLink>
+
+            <!-- Entities link -->
+            <RouterLink
+              v-slot="{ href, navigate, isActive }"
+              to="/entities"
+              custom
+            >
+              <li
+                class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
+                :class="
+                  isActive &&
+                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                "
+              >
+                <a
+                  :href="href"
+                  class="block truncate transition"
+                  data-testid="sidebar-entities-link"
+                  :class="
+                    isActive
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-800 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white'
+                  "
+                  @click="navigate"
+                >
+                  <div class="flex items-center">
+                    <svg
+                      class="shrink-0 fill-current"
+                      :class="
+                        isActive
+                          ? 'text-violet-500'
+                          : 'text-gray-600 dark:text-gray-300'
+                      "
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M8 0a4 4 0 0 1 4 4v1a4 4 0 1 1-8 0V4a4 4 0 0 1 4-4Zm-5 13a5 5 0 0 1 10 0v3H3v-3Z"
+                      />
+                    </svg>
+                    <span
+                      class="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                      >Entities</span
+                    >
+                  </div>
+                </a>
+              </li>
+            </RouterLink>
+
+            <!-- Job History link -->
+            <RouterLink v-slot="{ href, navigate, isActive }" to="/jobs" custom>
+              <li
+                class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
+                :class="
+                  isActive &&
+                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                "
+              >
+                <a
+                  :href="href"
+                  class="block truncate transition"
+                  data-testid="sidebar-jobs-link"
+                  :class="
+                    isActive
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-800 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white'
+                  "
+                  @click="navigate"
+                >
+                  <div class="flex items-center">
+                    <svg
+                      class="shrink-0 fill-current"
+                      :class="
+                        isActive
+                          ? 'text-violet-500'
+                          : 'text-gray-600 dark:text-gray-300'
+                      "
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0Zm0 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2Zm.5 2v4.25l2.85 1.65-.75 1.3L7.5 9V4h1Z"
+                      />
+                    </svg>
+                    <span
+                      class="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                      >Job History</span
+                    >
+                  </div>
+                </a>
+              </li>
+            </RouterLink>
+
+            <!-- Settings link -->
+            <RouterLink
+              v-slot="{ href, navigate, isActive }"
+              to="/settings"
+              custom
+            >
+              <li
+                class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
+                :class="
+                  isActive &&
+                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                "
+              >
+                <a
+                  :href="href"
+                  class="block truncate transition"
+                  data-testid="sidebar-settings-link"
+                  :class="
+                    isActive
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-800 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white'
+                  "
+                  @click="navigate"
+                >
+                  <div class="flex items-center">
+                    <svg
+                      class="shrink-0 fill-current"
+                      :class="
+                        isActive
+                          ? 'text-violet-500'
+                          : 'text-gray-600 dark:text-gray-300'
+                      "
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M6.7.3a1 1 0 0 1 2.6 0l.2 1.5a5.5 5.5 0 0 1 1.5.9l1.4-.6a1 1 0 0 1 1.3.5l1.3 2.2a1 1 0 0 1-.3 1.3l-1.2.9a5.5 5.5 0 0 1 0 1.8l1.2.9a1 1 0 0 1 .3 1.3l-1.3 2.2a1 1 0 0 1-1.3.5l-1.4-.6a5.5 5.5 0 0 1-1.5.9l-.2 1.5a1 1 0 0 1-2.6 0l-.2-1.5a5.5 5.5 0 0 1-1.5-.9l-1.4.6a1 1 0 0 1-1.3-.5L1 11.4a1 1 0 0 1 .3-1.3l1.2-.9a5.5 5.5 0 0 1 0-1.8l-1.2-.9A1 1 0 0 1 1 5.2l1.3-2.2a1 1 0 0 1 1.3-.5l1.4.6a5.5 5.5 0 0 1 1.5-.9L6.7.3ZM8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"
+                      />
+                    </svg>
+                    <span
+                      class="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                      >Settings</span
+                    >
+                  </div>
+                </a>
+              </li>
+            </RouterLink>
+
+            <!-- API Keys link -->
+            <RouterLink
+              v-slot="{ href, navigate, isActive }"
+              to="/api-keys"
+              custom
+            >
+              <li
+                class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
+                :class="
+                  isActive &&
+                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                "
+              >
+                <a
+                  :href="href"
+                  class="block truncate transition"
+                  data-testid="sidebar-api-keys-link"
+                  :class="
+                    isActive
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-800 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white'
+                  "
+                  @click="navigate"
+                >
+                  <div class="flex items-center">
+                    <svg
+                      class="shrink-0 fill-current"
+                      :class="
+                        isActive
+                          ? 'text-violet-500'
+                          : 'text-gray-600 dark:text-gray-300'
+                      "
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M11 0a5 5 0 0 0-4.916 5.916L0 12v3a1 1 0 0 0 1 1h3v-2h2v-2h2l1.298-1.298A5 5 0 1 0 11 0Zm1.5 5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"
+                      />
+                    </svg>
+                    <span
+                      class="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                      >API Keys</span
+                    >
+                  </div>
+                </a>
+              </li>
+            </RouterLink>
+
+            <!-- Admin link (only for admin users) -->
+            <RouterLink
+              v-if="authStore.isAdmin"
+              v-slot="{ href, navigate, isActive }"
+              to="/admin"
+              custom
+            >
+              <li
+                class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
+                :class="
+                  isActive &&
+                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                "
+              >
+                <a
+                  :href="href"
+                  class="block truncate transition"
+                  data-testid="sidebar-admin-link"
+                  :class="
+                    isActive
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-800 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white'
+                  "
+                  @click="navigate"
+                >
+                  <div class="flex items-center">
+                    <svg
+                      class="shrink-0 fill-current"
+                      :class="
+                        isActive
+                          ? 'text-violet-500'
+                          : 'text-gray-600 dark:text-gray-300'
+                      "
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M8 0a2 2 0 0 1 2 2v2a2 2 0 0 1-4 0V2a2 2 0 0 1 2-2ZM3 6a2 2 0 0 1 2 2v2a2 2 0 0 1-4 0V8a2 2 0 0 1 2-2Zm10 0a2 2 0 0 1 2 2v2a2 2 0 0 1-4 0V8a2 2 0 0 1 2-2ZM8 12a2 2 0 0 1 2 2v.5a1.5 1.5 0 0 1-1.5 1.5h-1A1.5 1.5 0 0 1 6 14.5V14a2 2 0 0 1 2-2Z"
+                      />
+                    </svg>
+                    <span
+                      class="text-sm font-medium ml-4 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                      >Admin</span
+                    >
+                  </div>
+                </a>
+              </li>
+            </RouterLink>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Expand / collapse button -->
+      <div class="pt-3 hidden lg:inline-flex 2xl:hidden justify-end mt-auto">
+        <div class="w-12 pl-4 pr-3 py-2">
+          <button
+            class="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400"
+            @click.prevent="sidebarExpanded = !sidebarExpanded"
+          >
+            <span class="sr-only">Expand / collapse sidebar</span>
+            <svg
+              class="shrink-0 fill-current text-gray-600 dark:text-gray-300 sidebar-expanded:rotate-180"
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+            >
+              <path
+                d="M15 16a1 1 0 0 1-1-1V1a1 1 0 1 1 2 0v14a1 1 0 0 1-1 1ZM8.586 7H1a1 1 0 1 0 0 2h7.586l-2.793 2.793a1 1 0 1 0 1.414 1.414l4.5-4.5A.997.997 0 0 0 12 8.01M11.924 7.617a.997.997 0 0 0-.217-.324l-4.5-4.5a1 1 0 0 0-1.414 1.414L8.586 7M12 7.99a.996.996 0 0 0-.076-.373Z"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>

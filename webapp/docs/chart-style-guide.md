@@ -1,0 +1,152 @@
+# Chart style guide
+
+**Status:** active. **Last updated:** 2026-07-21.
+
+All charts in the webapp share a small set of conventions so the dashboard, the
+fitness page, and any new chart added later all hover, click, and read the same
+way. This guide documents the conventions and the helpers that enforce them.
+
+Source of truth: [`src/utils/chartjs-config.ts`](../src/utils/chartjs-config.ts).
+Don't re-derive any of this in a view — import the helper and pass per-chart
+overrides.
+
+## Core decisions
+
+1. **Tooltip mode is `index`, intersect is `false`.** Hover resolves to "every
+   series at this x" rather than the nearest single point. The vertical-crosshair
+   feel is what readers expect after the dashboard's entity-trends and mood
+   charts; the fitness charts (F6, 2026-05-11) were ported onto the same pairing.
+2. **Tooltip styling reads from `getChartColors()`.** Background, title, body,
+   and border are all driven from CSS variables so light/dark themes hand-off
+   cleanly. Never hard-code tooltip colors.
+3. **Grid color via `getThemedGridColor()`.** Reads `<html class="dark">` at
+   call time so a theme toggle after the chart renders picks up the right value.
+4. **`tooltipHoverDelayPlugin`** is registered globally in `chartjs-config.ts` —
+   you don't add it per chart. It enforces a 1 s dwell before the tooltip shows,
+   which keeps dense charts from feeling jumpy.
+
+## Helpers
+
+### `buildLineChartOptions({ colors, ... })`
+
+Returns the canonical line-chart options block: `responsive`,
+`maintainAspectRatio`, `interaction`, `plugins.legend`, `plugins.tooltip`,
+`scales.x`, `scales.y`. Use it for any new line chart.
+
+Args:
+
+- `colors` — pass `getChartColors()`.
+- `showLegend?: boolean` — default `false`. Most line charts in this app use
+  external chip toggles for series; the built-in legend is the wrong size and
+  position for that pattern. Set `true` for charts with no external toggle
+  surface.
+- `beginAtZero?: boolean` — default `true`. Pass `false` for metrics where
+  the interesting range floats above zero (resting HR, HRV, sleep score
+  starts at ~60).
+- `yTickPrecision?: number` — default `0` (integer ticks). Bump for decimal
+  metrics.
+
+### `getChartColors()`
+
+Returns the eight-color palette every chart should consume. Each color is
+returned as `{ light, dark }`; most call sites use `.light` and rely on
+Chart.js for theme handoff at draw time.
+
+### `getThemedGridColor()`
+
+Returns the appropriate grid-line color for the active theme. Call at render
+time, not at module load — a theme toggle between mounts should pick up the
+right value.
+
+### `formatBinLabel(isoDate, bin)`
+
+Lives in [`src/utils/binLabel.ts`](../src/utils/binLabel.ts). Formats an ISO
+`YYYY-MM-DD` into a readable x-axis label — `21 Apr` for week/daily bins,
+`Apr 2026` / `Q2 2026` / `2026` for coarser bins. Both the dashboard
+writing/word-count charts and the fitness daily charts route their labels
+through it, so every chart renders dates the same way instead of one showing
+`2026-04-20` and another `21 Apr`. Parsed and rendered in **UTC** so a
+date-only value never drifts a day for viewers west of UTC. `bin` defaults to
+`'week'` (the daily-fitness granularity).
+
+### `chartAreaGradient(ctx, chartArea, stops)`
+
+Builds a vertical canvas gradient between the chart's top and bottom. Used
+for filled line charts that want a fade from solid (top) to transparent
+(bottom).
+
+## Patterns
+
+### Bold MA over faded daily
+
+Sleep, HRV, and resting heart rate are noisy day-to-day but trend cleanly when
+smoothed. The convention (F7) is two datasets per chart:
+
+1. **Centred moving average** — bold (`borderWidth: 2.5`), filled with the
+   chart's primary color at ~0.18 opacity, `pointRadius: 0` so it reads as a
+   line not a scatter, `order: 1` so it draws on top. Dataset label reflects the
+   active window, e.g. `'3-day avg'` / `'5-day avg'` — the panel header already
+   names the metric, so the tooltip doesn't need to repeat it.
+2. **Daily series** — thin (`borderWidth: 1`), no fill, color at ~0.35 opacity,
+   `pointRadius: 2`, `order: 2` so it sits underneath. Dataset label is just
+   `'Daily'`.
+
+The smoothing window is **user-selectable on the fitness page** (3 / 5 / 7 days,
+default 3) via a segmented "Smoothing" control next to the Range/Bin chips. The
+choice persists across reloads (`@vueuse/core` `useStorage`, key
+`fitness:maWindow`) and applies to all three daily-wellness charts at once.
+
+Compute the MA with [`movingAverage(values, window)`](../src/utils/moving-average.ts)
+(or the `movingAverage3` wrapper for the fixed-3 case) — it truncates the window
+at series edges so the smoothed line spans the full date range, and skips nulls
+inside the window so single missing days don't blow a hole in the smoothing.
+
+### When NOT to use `buildLineChartOptions`
+
+- **Bar charts** — pass inline options. The stacked-bar chart on /fitness
+  reuses the same `interaction.mode='index'` + `tooltip.filter`/`itemSort`
+  pattern, but the rest of the options shape (scales `stacked: true`, no
+  `autoSkip` x-axis) doesn't match.
+- **Charts with click-to-drill-down** — the dashboard mood chart's
+  `options.onClick` needs to live close to the dataset definitions. Don't
+  shoehorn it through the builder.
+- **Dual-axis charts** — `scales.y1` / `scales.y2` aren't part of the builder
+  signature. The one dual-axis chart (`MoodFitnessChart.vue`, training load vs.
+  freshness) inlines its options but must **mirror** the builder's x-axis
+  `autoSkip: true` / `maxTicksLimit: 8` and the left y-axis `precision: 0`, so
+  it thins ticks the same way the single-axis charts do. Its `y1` (freshness
+  0–1) intentionally omits `precision` to keep decimal ticks. All three of its
+  series render **lines only** (`pointRadius: 0` — dots read as clutter at
+  ~90-point daily density) and use `cubicInterpolationMode: 'monotone'` instead
+  of `tension`: monotone cubic joins the points smoothly without overshooting
+  past the data range, which the default bezier `tension` does on spiky daily
+  data. Reach for monotone on any dense/noisy line chart for the same reason;
+  the sparse weekly dashboard charts keep plain `tension` since they don't
+  overshoot.
+
+## Adding a new line chart
+
+```ts
+import { Chart } from 'chart.js'
+import {
+  getChartColors,
+  buildLineChartOptions,
+} from '@/utils/chartjs-config'
+
+const colors = getChartColors()
+new Chart(canvas, {
+  type: 'line',
+  data: { labels, datasets: [{ label, data, borderColor: ..., ... }] },
+  options: buildLineChartOptions({ colors, beginAtZero: false }),
+})
+```
+
+That's the whole recipe. No inline `plugins`, `scales`, or `interaction` —
+the builder owns those. Per-chart needs (datasets, the chart `title` if any,
+y-axis min/max) stay at the call site.
+
+## Discoverability
+
+This guide is linked from [`docs/architecture.md`](./architecture.md) under
+the Charts section and from the project's `CLAUDE.md` Tech Stack section so a
+new contributor lands here when adding charts.

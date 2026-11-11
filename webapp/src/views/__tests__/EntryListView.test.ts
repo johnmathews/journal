@@ -1,0 +1,990 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
+import { createRouter, createWebHistory } from 'vue-router'
+import EntryListView from '../EntryListView.vue'
+
+/** Helper to build a mock entry with new-field defaults. */
+function mockEntry(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 1,
+    entry_date: '2026-03-22',
+    source_type: 'photo' as const,
+    page_count: 2,
+    word_count: 347,
+    chunk_count: 5,
+    created_at: '2026-03-23T10:30:00Z',
+    uncertain_span_count: 0,
+    doubts_verified: false,
+    language: 'en',
+    updated_at: '2026-03-23T11:00:00Z',
+    entity_mention_count: 3,
+    ...overrides,
+  }
+}
+
+vi.mock('@/api/entries', () => ({
+  fetchEntries: vi.fn().mockResolvedValue({
+    items: [
+      mockEntry({ id: 1, entry_date: '2026-03-22', word_count: 347 }),
+      mockEntry({
+        id: 2,
+        entry_date: '2026-03-21',
+        source_type: 'voice',
+        page_count: 0,
+        word_count: 120,
+        chunk_count: 2,
+        created_at: '2026-03-21T15:00:00Z',
+        updated_at: '2026-03-21T16:00:00Z',
+        entity_mention_count: 1,
+      }),
+    ],
+    total: 2,
+    limit: 20,
+    offset: 0,
+  }),
+  fetchEntry: vi.fn(),
+  updateEntryText: vi.fn(),
+}))
+
+const mockFetchPreferences = vi.fn().mockResolvedValue({ preferences: {} })
+const mockUpdatePreferences = vi.fn().mockResolvedValue({ preferences: {} })
+
+vi.mock('@/api/preferences', () => ({
+  fetchPreferences: (...args: unknown[]) => mockFetchPreferences(...args),
+  updatePreferences: (...args: unknown[]) => mockUpdatePreferences(...args),
+}))
+
+const router = createRouter({
+  history: createWebHistory(),
+  routes: [
+    { path: '/', name: 'entries', component: EntryListView },
+    {
+      path: '/entries/:id',
+      name: 'entry-detail',
+      component: { template: '<div />' },
+    },
+  ],
+})
+
+function mountComponent() {
+  return mount(EntryListView, {
+    global: {
+      plugins: [createPinia(), router],
+    },
+  })
+}
+
+describe('EntryListView', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia())
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+    mockUpdatePreferences.mockClear()
+    // Restore the default mock before each test (pagination tests override it)
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValue({
+      items: [
+        mockEntry({ id: 1, entry_date: '2026-03-22', word_count: 347 }),
+        mockEntry({
+          id: 2,
+          entry_date: '2026-03-21',
+          source_type: 'voice',
+          page_count: 0,
+          word_count: 120,
+          chunk_count: 2,
+          created_at: '2026-03-21T15:00:00Z',
+          updated_at: '2026-03-21T16:00:00Z',
+          entity_mention_count: 1,
+        }),
+      ],
+      total: 2,
+      limit: 20,
+      offset: 0,
+    })
+  })
+
+  it('renders the heading', () => {
+    const wrapper = mountComponent()
+    expect(wrapper.find('h1').text()).toBe('Journal Entries')
+  })
+
+  it('loads entries on mount', async () => {
+    mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+
+    const { fetchEntries } = await import('@/api/entries')
+    expect(fetchEntries).toHaveBeenCalled()
+  })
+
+  it('displays entry count after loading', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    const count = wrapper.find('[data-testid="entry-count"]')
+    expect(count.exists()).toBe(true)
+    expect(count.text()).toContain('2 entries')
+  })
+
+  it('renders one row per entry', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAll('[data-testid="entry-row"]')).toHaveLength(2)
+  })
+
+  it('navigates to entry-detail when a row is clicked', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    const pushSpy = vi.spyOn(router, 'push')
+    await wrapper.findAll('[data-testid="entry-row"]')[0].trigger('click')
+
+    expect(pushSpy).toHaveBeenCalledWith({
+      name: 'entry-detail',
+      params: { id: 1 },
+    })
+  })
+
+  it('shows an error banner when the store load fails', async () => {
+    const { fetchEntries } = await import('@/api/entries')
+    const mock = vi.mocked(fetchEntries)
+    mock.mockRejectedValueOnce(new Error('Network down'))
+
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    const banner = wrapper.find('[data-testid="error-banner"]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('Network down')
+  })
+
+  it('shows the empty state when there are no entries', async () => {
+    const { fetchEntries } = await import('@/api/entries')
+    const mock = vi.mocked(fetchEntries)
+    mock.mockResolvedValueOnce({
+      items: [],
+      total: 0,
+      limit: 20,
+      offset: 0,
+    })
+
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="empty-state"]').exists()).toBe(true)
+  })
+
+  it('renders the "showing N of M" count caption', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    const caption = wrapper.find('[data-testid="entries-count-caption"]')
+    expect(caption.exists()).toBe(true)
+    expect(caption.text()).toContain('showing 2 of 2')
+  })
+
+  it('does not render the old prev/next pager or page-size selector', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="prev-page"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="next-page"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="page-indicator"]').exists()).toBe(false)
+    expect(wrapper.find('#rows-per-page').exists()).toBe(false)
+  })
+
+  it('hides the "Load more" button when all rows are loaded', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    // Default mock: 2 of 2 loaded → hasMore is false.
+    expect(wrapper.find('[data-testid="entries-load-more"]').exists()).toBe(
+      false,
+    )
+  })
+
+  it('shows "Load more" and appends the next page on click', async () => {
+    const { fetchEntries } = await import('@/api/entries')
+    const mock = vi.mocked(fetchEntries)
+    // First page: 20 rows out of 45 total → hasMore is true.
+    mock.mockResolvedValueOnce({
+      items: Array.from({ length: 20 }, (_, i) => mockEntry({ id: i + 1 })),
+      total: 45,
+      limit: 20,
+      offset: 0,
+    })
+
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAll('[data-testid="entry-row"]')).toHaveLength(20)
+    const loadMore = wrapper.find('[data-testid="entries-load-more"]')
+    expect(loadMore.exists()).toBe(true)
+
+    // Second page appends onto the existing rows.
+    mock.mockResolvedValueOnce({
+      items: Array.from({ length: 20 }, (_, i) => mockEntry({ id: i + 21 })),
+      total: 45,
+      limit: 20,
+      offset: 20,
+    })
+    await loadMore.trigger('click')
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(mock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ limit: 20, offset: 20 }),
+    )
+    expect(wrapper.findAll('[data-testid="entry-row"]')).toHaveLength(40)
+  })
+
+  it('renders a scroll sentinel for infinite scroll', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(
+      wrapper.find('[data-testid="entries-scroll-sentinel"]').exists(),
+    ).toBe(true)
+  })
+
+  it('sorts by date descending by default', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    const rows = wrapper.findAll('[data-testid="entry-row"]')
+    // descending: 2026-03-22 (Mar) first, 2026-03-21 second
+    expect(rows[0].text()).toContain('22 Mar')
+    expect(rows[1].text()).toContain('21 Mar')
+  })
+
+  it('toggles sort direction on column header click', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[data-testid="sort-date"]').trigger('click')
+    const rows = wrapper.findAll('[data-testid="entry-row"]')
+    // toggled to ascending: 2026-03-21 first
+    expect(rows[0].text()).toContain('21 Mar')
+    expect(rows[1].text()).toContain('22 Mar')
+  })
+
+  it('sorts by a different column when its header is clicked', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[data-testid="sort-words"]').trigger('click')
+    const rows = wrapper.findAll('[data-testid="entry-row"]')
+    // ascending by words: 120 first, 347 second
+    expect(rows[0].text()).toContain('120')
+    expect(rows[1].text()).toContain('347')
+  })
+
+  it('sorting a column still reorders the loaded rows after an append', async () => {
+    const { fetchEntries } = await import('@/api/entries')
+    const mock = vi.mocked(fetchEntries)
+    mock.mockResolvedValueOnce({
+      items: [
+        mockEntry({ id: 1, entry_date: '2026-03-22', word_count: 347 }),
+        mockEntry({ id: 2, entry_date: '2026-03-21', word_count: 120 }),
+      ],
+      total: 4,
+      limit: 20,
+      offset: 0,
+    })
+
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    // Append two more rows with a lower word count.
+    mock.mockResolvedValueOnce({
+      items: [
+        mockEntry({ id: 3, entry_date: '2026-03-20', word_count: 90 }),
+        mockEntry({ id: 4, entry_date: '2026-03-19', word_count: 500 }),
+      ],
+      total: 4,
+      limit: 20,
+      offset: 20,
+    })
+    await wrapper.find('[data-testid="entries-load-more"]').trigger('click')
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.findAll('[data-testid="entry-row"]')).toHaveLength(4)
+
+    // Sort ascending by words across the full loaded set: 90, 120, 347, 500.
+    await wrapper.find('[data-testid="sort-words"]').trigger('click')
+    const rows = wrapper.findAll('[data-testid="entry-row"]')
+    expect(rows[0].text()).toContain('90')
+    expect(rows[3].text()).toContain('500')
+  })
+})
+
+describe('Source type column', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia())
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValue({
+      items: [
+        mockEntry({ id: 1, source_type: 'photo' }),
+        mockEntry({
+          id: 2,
+          entry_date: '2026-03-21',
+          source_type: 'voice',
+          created_at: '2026-03-21T15:00:00Z',
+        }),
+      ],
+      total: 2,
+      limit: 20,
+      offset: 0,
+    })
+  })
+
+  it('displays human-readable source labels', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    const cells = wrapper.findAll('[data-testid="source-cell"]')
+    expect(cells.length).toBe(2)
+    // Default sort is date desc: id=1 (photo) first, id=2 (voice) second
+    expect(cells[0].text()).toBe('OCR')
+    expect(cells[1].text()).toBe('Audio')
+  })
+})
+
+describe('Column visibility', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia())
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+    mockUpdatePreferences.mockClear()
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValue({
+      items: [mockEntry()],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    })
+  })
+
+  it('shows the Columns button', () => {
+    const wrapper = mountComponent()
+    expect(wrapper.find('[data-testid="columns-button"]').exists()).toBe(true)
+  })
+
+  it('toggles the column menu on button click', async () => {
+    const wrapper = mountComponent()
+    expect(wrapper.find('[data-testid="columns-menu"]').exists()).toBe(false)
+
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    expect(wrapper.find('[data-testid="columns-menu"]').exists()).toBe(true)
+  })
+
+  it('hides a column when its checkbox is unchecked', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    // Source column should be visible by default
+    expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(true)
+
+    // Open menu and uncheck source
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    await wrapper.find('[data-testid="col-toggle-source_type"]').setValue(false)
+
+    expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(false)
+  })
+
+  it('persists column changes to server via preferences API', async () => {
+    const wrapper = mountComponent()
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    await wrapper.find('[data-testid="col-toggle-source_type"]').setValue(false)
+
+    // The debounced save fires after 500ms
+    await new Promise((r) => setTimeout(r, 600))
+    expect(mockUpdatePreferences).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entry_list_columns: expect.objectContaining({
+          visibility: expect.objectContaining({ source_type: false }),
+          order: expect.any(Array),
+        }),
+      }),
+    )
+  })
+
+  it('loads saved visibility from server preferences on mount', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        entry_list_columns: {
+          visibility: {
+            source_type: false,
+            chunk_count: true,
+          },
+          order: undefined,
+        },
+      },
+    })
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    // Source hidden, chunks shown (overridden from default)
+    expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="sort-chunks"]').exists()).toBe(true)
+  })
+
+  it('falls back to defaults when preferences fetch fails', async () => {
+    mockFetchPreferences.mockRejectedValue(new Error('Network error'))
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    // Should show all default-visible columns
+    expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="sort-date"]').exists()).toBe(true)
+  })
+
+  it('restores defaults on reset', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        entry_list_columns: {
+          visibility: { source_type: false, chunk_count: true },
+        },
+      },
+    })
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    // Source should be hidden based on saved preferences
+    expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(false)
+
+    // Open menu and click reset
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    await wrapper.find('[data-testid="columns-reset"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    // Source back, chunks hidden (default)
+    expect(wrapper.find('[data-testid="sort-source"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="sort-chunks"]').exists()).toBe(false)
+  })
+
+  it('chunks column is hidden by default', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="sort-chunks"]').exists()).toBe(false)
+  })
+
+  it('new columns (language, modified, entities) are hidden by default', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="sort-language"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="sort-modified"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="sort-entities"]').exists()).toBe(false)
+  })
+
+  it('shows new columns when toggled on', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    await wrapper.find('[data-testid="col-toggle-language"]').setValue(true)
+    await wrapper.find('[data-testid="col-toggle-updated_at"]').setValue(true)
+    await wrapper
+      .find('[data-testid="col-toggle-entity_mention_count"]')
+      .setValue(true)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="sort-language"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="sort-modified"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="sort-entities"]').exists()).toBe(true)
+  })
+})
+
+describe('Source type label mapping', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia())
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValue({
+      items: [
+        mockEntry({
+          id: 1,
+          source_type: 'text_entry',
+          word_count: 100,
+          chunk_count: 1,
+        }),
+        mockEntry({
+          id: 2,
+          entry_date: '2026-03-21',
+          source_type: 'imported_text_file',
+          word_count: 200,
+          chunk_count: 2,
+          created_at: '2026-03-21T15:00:00Z',
+        }),
+        mockEntry({
+          id: 3,
+          entry_date: '2026-03-20',
+          source_type: 'imported_audio_file',
+          word_count: 150,
+          chunk_count: 1,
+          created_at: '2026-03-20T12:00:00Z',
+        }),
+      ],
+      total: 3,
+      limit: 20,
+      offset: 0,
+    })
+  })
+
+  it('maps all source types to readable labels', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    const cells = wrapper.findAll('[data-testid="source-cell"]')
+    expect(cells.length).toBe(3)
+    // Date desc: id=1 first, id=2 second, id=3 third
+    expect(cells[0].text()).toBe('Text')
+    expect(cells[1].text()).toBe('File')
+    expect(cells[2].text()).toBe('Audio (file)')
+  })
+})
+
+describe('OCR Doubts column', () => {
+  it('renders uncertain_span_count with color coding', async () => {
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+    const { fetchEntries } = await import('@/api/entries')
+    ;(fetchEntries as ReturnType<typeof vi.fn>).mockResolvedValue({
+      items: [
+        mockEntry({
+          id: 10,
+          entry_date: '2026-04-01',
+          uncertain_span_count: 0,
+        }),
+        mockEntry({
+          id: 11,
+          entry_date: '2026-04-02',
+          uncertain_span_count: 2,
+        }),
+        mockEntry({
+          id: 12,
+          entry_date: '2026-04-03',
+          uncertain_span_count: 5,
+        }),
+      ],
+      total: 3,
+      limit: 20,
+      offset: 0,
+    })
+
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    const cells = wrapper.findAll('[data-testid="doubts-cell"]')
+    expect(cells.length).toBe(3)
+
+    // Default sort is date descending, so order is: id=12, id=11, id=10
+    // 5 = red (2026-04-03)
+    expect(cells[0].text()).toBe('5')
+    expect(cells[0].classes().join(' ')).toContain('red')
+
+    // 2 = amber (2026-04-02)
+    expect(cells[1].text()).toBe('2')
+    expect(cells[1].classes().join(' ')).toContain('amber')
+
+    // 0 = green (2026-04-01)
+    expect(cells[2].text()).toBe('0')
+    expect(cells[2].classes().join(' ')).toContain('emerald')
+  })
+})
+
+describe('New columns rendering', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia())
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValue({
+      items: [
+        mockEntry({
+          id: 1,
+          language: 'nl',
+          updated_at: '2026-03-24T09:00:00Z',
+          entity_mention_count: 7,
+        }),
+      ],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    })
+  })
+
+  it('renders language column in uppercase when visible', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        entry_list_columns: { visibility: { language: true } },
+      },
+    })
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="sort-language"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('NL')
+  })
+
+  it('renders modified column with formatted datetime when visible', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        entry_list_columns: { visibility: { updated_at: true } },
+      },
+    })
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="sort-modified"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('24 Mar')
+  })
+
+  it('renders entities column with count when visible', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        entry_list_columns: { visibility: { entity_mention_count: true } },
+      },
+    })
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="sort-entities"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('7')
+  })
+})
+
+describe('Column menu drag handles', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia())
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValue({
+      items: [mockEntry()],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    })
+  })
+
+  it('always shows drag handles in column menu', async () => {
+    const wrapper = mountComponent()
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+
+    expect(
+      wrapper.findAll('[data-testid="drag-handle"]').length,
+    ).toBeGreaterThan(0)
+  })
+
+  it('menu items are always draggable', async () => {
+    const wrapper = mountComponent()
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+
+    const firstItem = wrapper.find('[data-testid="col-item-entry_date"]')
+    expect(firstItem.attributes('draggable')).toBe('true')
+  })
+
+  it('no-op drag handles do not crash', async () => {
+    const wrapper = mountComponent()
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+
+    const firstItem = wrapper.find('[data-testid="col-item-entry_date"]')
+    // Trigger dragend without a prior dragstart — the handlers should be safe
+    await firstItem.trigger('dragend')
+
+    // Drop on same index — should be a no-op
+    await firstItem.trigger('dragstart')
+    await firstItem.trigger('drop')
+    await firstItem.trigger('dragend')
+
+    // Component should still be functional
+    expect(wrapper.find('[data-testid="columns-menu"]').exists()).toBe(true)
+  })
+})
+
+describe('Column order', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia())
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+    mockUpdatePreferences.mockClear()
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValue({
+      items: [mockEntry()],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    })
+  })
+
+  it('renders columns in default order', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    const headers = wrapper.findAll('th')
+    // Default visible: Date, Source, Ingested, Doubts, Words, Pages
+    expect(headers[0].text()).toContain('Date')
+    expect(headers[1].text()).toContain('Source')
+    expect(headers[2].text()).toContain('Ingested')
+  })
+
+  it('loads saved column order from server preferences', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        entry_list_columns: {
+          order: [
+            'source_type',
+            'entry_date',
+            'created_at',
+            'uncertain_span_count',
+            'word_count',
+            'page_count',
+            'chunk_count',
+            'language',
+            'updated_at',
+            'entity_mention_count',
+          ],
+        },
+      },
+    })
+
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    const headers = wrapper.findAll('th')
+    expect(headers[0].text()).toContain('Source')
+    expect(headers[1].text()).toContain('Date')
+  })
+
+  it('falls back to defaults when preferences fetch fails', async () => {
+    mockFetchPreferences.mockRejectedValue(new Error('Network error'))
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    // Should fall back to defaults
+    const headers = wrapper.findAll('th')
+    expect(headers[0].text()).toContain('Date')
+  })
+
+  it('adds missing columns to the end when new columns are added', async () => {
+    // Simulate an old saved order that doesn't include the new columns
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        entry_list_columns: {
+          order: [
+            'entry_date',
+            'source_type',
+            'created_at',
+            'uncertain_span_count',
+            'word_count',
+            'page_count',
+            'chunk_count',
+          ],
+        },
+      },
+    })
+
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+
+    // The menu should still include all columns
+    expect(wrapper.find('[data-testid="col-item-language"]').exists()).toBe(
+      true,
+    )
+    expect(wrapper.find('[data-testid="col-item-updated_at"]').exists()).toBe(
+      true,
+    )
+    expect(
+      wrapper.find('[data-testid="col-item-entity_mention_count"]').exists(),
+    ).toBe(true)
+  })
+
+  it('reset restores default column order and persists to server', async () => {
+    mockFetchPreferences.mockResolvedValue({
+      preferences: {
+        entry_list_columns: {
+          visibility: { source_type: false },
+          order: [
+            'word_count',
+            'entry_date',
+            'source_type',
+            'created_at',
+            'uncertain_span_count',
+            'page_count',
+            'chunk_count',
+            'language',
+            'updated_at',
+            'entity_mention_count',
+          ],
+        },
+      },
+    })
+
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+
+    // Words should be first with custom order
+    let headers = wrapper.findAll('th')
+    expect(headers[0].text()).toContain('Words')
+
+    // Open menu and reset
+    await wrapper.find('[data-testid="columns-button"]').trigger('click')
+    await wrapper.find('[data-testid="columns-reset"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    // Date should be back to first
+    headers = wrapper.findAll('th')
+    expect(headers[0].text()).toContain('Date')
+
+    // Reset should persist defaults to server
+    await new Promise((r) => setTimeout(r, 600))
+    expect(mockUpdatePreferences).toHaveBeenCalled()
+  })
+})
+
+// --- Mobile stacked-card layout ---
+// happy-dom renders both the table and the cards; card tests scope to the
+// card-specific `entry-card` testid (the table uses `entry-row`).
+describe('EntryListView mobile cards', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia())
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+    mockUpdatePreferences.mockClear()
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValue({
+      items: [
+        mockEntry({ id: 1, entry_date: '2026-03-22', word_count: 347 }),
+        mockEntry({
+          id: 2,
+          entry_date: '2026-03-21',
+          source_type: 'voice',
+          word_count: 120,
+        }),
+      ],
+      total: 2,
+      limit: 20,
+      offset: 0,
+    })
+  })
+
+  it('renders one entry card per entry', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.findAll('[data-testid="entry-card"]')).toHaveLength(2)
+  })
+
+  it('entry card headline shows date and source label', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+    // Default sort: entry_date desc → id 1 (2026-03-22, photo) first.
+    const card = wrapper.findAll('[data-testid="entry-card"]')[0]
+    expect(card.text()).toContain('22 Mar 2026')
+    expect(card.text()).toContain('OCR') // photo → OCR label
+  })
+
+  it('entry card meta grid respects visible columns (Words shown, Chunks hidden by default)', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+    const card = wrapper.findAll('[data-testid="entry-card"]')[0]
+    // Words is visible by default → appears with its value.
+    expect(card.text()).toContain('Words')
+    expect(card.text()).toContain('347')
+    // Chunks is hidden by default → not in the card meta.
+    expect(card.text()).not.toContain('Chunks')
+  })
+
+  it('clicking an entry card navigates to the detail view', async () => {
+    const wrapper = mountComponent()
+    await new Promise((r) => setTimeout(r, 50))
+    await wrapper.vm.$nextTick()
+    const push = vi.spyOn(router, 'push')
+    await wrapper.findAll('[data-testid="entry-card"]')[0].trigger('click')
+    expect(push).toHaveBeenCalledWith({
+      name: 'entry-detail',
+      params: { id: 1 },
+    })
+  })
+})
+
+describe('EntryListView unconfirmed-date badge', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    mockFetchPreferences.mockResolvedValue({ preferences: {} })
+  })
+
+  async function mountWithEntries(items: Record<string, unknown>[]) {
+    const { fetchEntries } = await import('@/api/entries')
+    vi.mocked(fetchEntries).mockResolvedValue({
+      items: items as never[],
+      total: items.length,
+      limit: 20,
+      offset: 0,
+    })
+    const wrapper = mountComponent()
+    await vi.waitFor(() => {
+      expect(
+        wrapper.findAll('[data-testid="entry-row"]').length,
+      ).toBeGreaterThan(0)
+    })
+    return wrapper
+  }
+
+  it('shows a badge when date_confirmed is false', async () => {
+    const wrapper = await mountWithEntries([
+      mockEntry({ id: 1, date_confirmed: false }),
+    ])
+    expect(
+      wrapper.findAll('[data-testid="unconfirmed-date-badge"]').length,
+    ).toBeGreaterThan(0)
+  })
+
+  it('shows no badge for confirmed entries', async () => {
+    const wrapper = await mountWithEntries([
+      mockEntry({ id: 1, date_confirmed: true }),
+    ])
+    expect(
+      wrapper.findAll('[data-testid="unconfirmed-date-badge"]').length,
+    ).toBe(0)
+  })
+
+  it('shows no badge when the field is absent (old server payload)', async () => {
+    const wrapper = await mountWithEntries([mockEntry({ id: 1 })])
+    expect(
+      wrapper.findAll('[data-testid="unconfirmed-date-badge"]').length,
+    ).toBe(0)
+  })
+})

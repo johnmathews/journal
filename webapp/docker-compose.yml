@@ -1,0 +1,63 @@
+services:
+  webapp:
+    image: ghcr.io/johnmathews/journal-webapp:latest
+    ports:
+      - "8402:80"
+    depends_on:
+      - journal-server
+    restart: unless-stopped
+
+  journal-server:
+    image: ghcr.io/johnmathews/journal-server:latest
+    ports:
+      - "8400:8400"
+    environment:
+      # The server defaults MCP_PORT to 8000; set it explicitly so the
+      # process binds the port that the mapping above and the nginx
+      # proxy (nginx.conf -> journal-server:8400) both expect.
+      - MCP_PORT=8400
+      - DB_PATH=/data/journal.db
+      - CHROMADB_HOST=journal-chromadb
+      - CHROMADB_PORT=8000
+      - JOURNAL_SECRET_KEY=${JOURNAL_SECRET_KEY:?set JOURNAL_SECRET_KEY in .env}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - REGISTRATION_ENABLED=${REGISTRATION_ENABLED:-false}
+      - SESSION_EXPIRY_DAYS=${SESSION_EXPIRY_DAYS:-7}
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-465}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-}
+      - APP_BASE_URL=${APP_BASE_URL:-http://localhost:8402}
+    volumes:
+      - journal-data:/data
+    depends_on:
+      journal-chromadb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  journal-chromadb:
+    # journal-server publishes a chromadb image that bakes in `curl` so
+    # the healthcheck below works. Upstream `chromadb/chroma:latest`
+    # does not include curl, which would cause the healthcheck to fail
+    # forever and the journal-server `depends_on: service_healthy` to
+    # deadlock. See journal-server/Dockerfile.chromadb.
+    image: ghcr.io/johnmathews/journal-chromadb:latest
+    ports:
+      - "8401:8000"
+    volumes:
+      # The chroma image persists to /data (PERSIST_DIRECTORY in the
+      # image's /config.yaml) — not the legacy /chroma/chroma path.
+      - chromadb-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  journal-data:
+  chromadb-data:

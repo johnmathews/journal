@@ -1,0 +1,70 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build
+dist/
+dist-ssr/
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Testing
+coverage/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Secrets
+*.key
+*.pem
+credentials.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# Database
+*.db
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code local overrides
+.claude/settings.local.json
+
+# Playwright MCP artifacts
+.playwright-mcp/
+
+# UI verification screenshots, at any depth — this also covers
+# journal/screenshots/ and docs/screenshots/.
+screenshots/
+
+# Ad-hoc screenshots dropped at the repo root by verification sessions.
+# Anchored with a leading slash so it stays root-only: real image assets
+# (public/favicon.png, docs diagrams, src/assets/*) remain trackable. An
+# unanchored *.png here used to swallow those silently.
+/*.png
+
+# Python tool caches. Neither tool is a dependency of this repo — these
+# appear when server tooling is run with the webapp as the shell's cwd.
+# They also self-ignore, so without these lines they persist unseen.
+.pytest_cache/
+.ruff_cache/
+
+# superpowers session artifacts (review diffs; the commits are in git).
+.superpowers/
+
+.engineering-team/
+
+# Claude Code session worktrees: checkouts, never content.
+.claude/worktrees/
+
+# Git worktrees created by Claude Code sessions
+.claude/worktrees/

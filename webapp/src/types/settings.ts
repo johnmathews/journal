@@ -1,0 +1,108 @@
+export interface ServerSettings {
+  ocr: {
+    provider: string
+    model: string
+  }
+  transcription: {
+    provider: string
+    model: string
+    fallback: {
+      enabled: boolean
+      model: string
+    }
+    shadow: {
+      enabled: boolean
+      provider: string | null
+      model: string | null
+    }
+    retry: {
+      max_attempts: number
+      base_delay_seconds: number
+      max_delay_seconds: number
+    }
+  }
+  transcript_formatting: {
+    model: string
+  }
+  embedding: {
+    model: string
+    dimensions: number
+  }
+  chunking: {
+    strategy: string
+    max_tokens: number
+    min_tokens: number
+    overlap_tokens: number
+    boundary_percentile: number
+    decisive_percentile: number
+    embed_metadata_prefix: boolean
+  }
+  entity_extraction: {
+    model: string
+    dedup_similarity_threshold: number
+  }
+  features: {
+    mood_scoring: boolean
+    mood_scorer_model: string
+    journal_author_name: string
+    // Strava is mothballed (2026-07): the server derives this from
+    // STRAVA_ENABLED (default false). When false, all Strava UI is
+    // hidden; historical Strava rows keep rendering with their badge.
+    strava_enabled: boolean
+  }
+  runtime: RuntimeSetting[]
+  pricing?: PricingEntry[]
+}
+
+export interface PricingEntry {
+  model: string
+  category: 'llm' | 'embedding' | 'transcription'
+  input_cost_per_mtok: number | null
+  output_cost_per_mtok: number | null
+  cost_per_minute: number | null
+  last_verified: string
+}
+
+export interface RuntimeSetting {
+  key: string
+  type: 'bool' | 'string'
+  label: string
+  description: string
+  value: boolean | string
+  choices?: string[]
+}
+
+export interface ComponentCheck {
+  name: string
+  status: string
+  detail: string
+}
+
+export interface HealthResponse {
+  status: string
+  checks: ComponentCheck[]
+  ingestion: {
+    total_entries: number
+    total_words: number
+    total_chunks: number
+    avg_words_per_entry: number
+    avg_chunks_per_entry: number
+    last_ingested_at: string | null
+    entries_last_7d: number
+    entries_last_30d: number
+    by_source_type: Record<string, number>
+    row_counts: Record<string, number>
+  }
+  queries: {
+    total_queries: number
+    uptime_seconds: number
+    started_at: string | null
+    by_type: Record<
+      string,
+      {
+        count: number
+        latency: { p50_ms: number; p95_ms: number; p99_ms: number }
+      }
+    >
+  }
+}
