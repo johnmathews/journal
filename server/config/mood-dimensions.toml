@@ -1,0 +1,290 @@
+# Mood dimension definitions — source of truth for the per-entry
+# scoring pipeline and the dashboard mood chart.
+#
+# Versioning convention (see [meta] below): bump `version` to today's
+# date in YYYY-MM-DD whenever you edit this file in a way users would
+# care about (added/removed/renamed a facet, changed a scoring criterion,
+# changed the order). For multiple edits on the same day, append `.2`,
+# `.3`, … to disambiguate (e.g. `2026-05-05.2`). The current version is
+# surfaced in the webapp's admin "Moods" page so operators can see what
+# definitions are live without SSH'ing into the server.
+#
+# Each `[[dimension]]` block defines one facet. Fields:
+#
+#   name           — stable canonical key stored in `mood_scores.dimension`.
+#                    Must be snake_case and unique. Rename with care:
+#                    renaming here orphans historical scores under the old
+#                    name until pruned with `journal backfill-mood
+#                    --prune-retired`.
+#   positive_pole  — human-readable label for the high end of the scale.
+#                    Appears in the LLM prompt, the chart legend, and the
+#                    dashboard dimension toggle.
+#   negative_pole  — label for the low end. For unipolar facets this is
+#                    typically "absence of <positive_pole>".
+#   scale_type     — one of "bipolar" (score range -1..+1, with 0 as a
+#                    meaningful neutral) or "unipolar" (score range 0..+1,
+#                    with 0 meaning "absent" rather than "opposite").
+#                    Picks the right shape for facets where the negative
+#                    pole is genuinely absence (apathy, indifference)
+#                    rather than an opposite feeling.
+#   notes          — one or two sentences of scoring criteria that go into
+#                    the LLM prompt verbatim. Stable re-interpretation
+#                    after an edit happens via `journal backfill-mood
+#                    --force`.
+#
+# **Adding a facet:**   append a new [[dimension]] block, then optionally
+#                       run `journal backfill-mood --stale-only` to
+#                       score historical entries against the new facet.
+#                       Old entries without the facet are stored sparsely
+#                       as `null` and do not require a migration.
+# **Removing a facet:** delete the block. Historical scores under the
+#                       retired name are preserved by default; pass
+#                       `--prune-retired` to delete them if you're sure
+#                       you want them gone.
+# **Editing a facet:**  edit in place and run `journal backfill-mood
+#                       --force` so the LLM reinterprets every entry
+#                       against the new criteria. Scores persist under
+#                       the same `name`, so the chart continuity is
+#                       preserved.
+#
+# Ordering is load-bearing only for chart display — the dashboard renders
+# lines in the order defined here. Current ordering groups facets by
+# kind: affect axes (valence via joy_sadness; the two Thayer arousal
+# axes — energetic-arousal via energy_vigor and tense-arousal via
+# tension_calm), depletion/fatigue (physical_fatigue, mental_fatigue),
+# psychological needs (agency, fulfillment, connection), active negative
+# affect (frustration), stance (proactive_reactive).
+
+[meta]
+version = "2026-07-15"
+description = """
+The ten facets below are organised into five conceptual groups: affect
+axes (valence + the two Thayer arousal axes), depletion/fatigue
+(physical vs mental), psychological needs (agency, fulfillment,
+connection), active negative affect (frustration), and stance
+(proactive_reactive) — see the ordering note above. The old single
+`energy_fatigue` bipolar facet was split (2026-07-15) into four: an
+energetic-arousal drive axis (energy_vigor), a tense-arousal axis
+(tension_calm), and two unipolar depletion facets (physical_fatigue,
+mental_fatigue), so the system can tell "tired-and-wired" apart from
+"calmly energetic". The webapp's admin "Moods" page renders the same
+groups with plain-English explanations alongside each facet's full notes.
+"""
+
+[[dimension]]
+name = "joy_sadness"
+positive_pole = "joy"
+negative_pole = "sadness"
+scale_type = "bipolar"
+notes = """
+Predominantly joyful / pleasant / light-hearted (+1) vs predominantly
+sad / unpleasant / heavy-hearted (-1). The valence axis — how good or
+bad the entry feels overall, regardless of activation level. Score 0
+when neither pole dominates or the entry reads as emotionally flat.
+Small positive values (+0.2) for mild good moods; reserve +1 for
+genuine elation.
+
+Distinct from frustration. Sadness (loss, disappointment, melancholy)
+is not the same as frustration (irritation, anger, blocked goals).
+"Got rejected from the job, feeling low" scores joy_sadness strongly
+negative and frustration low. "Bug ate my afternoon, fuming" scores
+frustration high and joy_sadness near zero.
+"""
+
+[[dimension]]
+name = "energy_vigor"
+positive_pole = "vigorous"
+negative_pole = "flat"
+scale_type = "bipolar"
+notes = """
+Vigorous / raring to go (+1) vs flat / no get-up-and-go (-1). The
+energetic-arousal axis (Thayer): felt drive, momentum, and readiness
+to act, independent of valence. Score 0 for an ordinary baseline day
+with no notable lift or flatness.
+
+Score felt drive, NOT depletion. "Woke up raring to go, plans
+spilling out of me" scores high. "Everything felt like wading through
+treacle, no spark to start anything" scores low.
+
+Distinct from physical_fatigue and mental_fatigue (depletion, not
+drive) — you can be low-vigor without being fatigued (a flat, becalmed
+day), and you can run on adrenaline through real fatigue (high vigor
+while genuinely tired). Distinct from tension_calm — vigor is
+get-up-and-go, tension is jitteriness vs ease.
+"""
+
+[[dimension]]
+name = "tension_calm"
+positive_pole = "calm"
+negative_pole = "tense"
+scale_type = "bipolar"
+notes = """
+Calm / at ease (+1) vs tense / keyed-up (-1). The tense-arousal axis
+(Thayer): nervous activation, edginess, bracing. Score 0 for an even
+keel with no notable tension or unusual calm. Calm is deliberately
+placed at the +1 pole so the dashboard's "higher = better" convention
+holds without a render-time inversion.
+
+"Shoulders up by my ears, mind racing, couldn't sit still" scores
+strongly negative. "Slow Sunday, deep unhurried calm, nothing pulling
+at me" scores strongly positive.
+
+Distinct from energy_vigor — the two arousal axes are independent, so
+"calm and energetic" (high vigor, high calm) is a real state and so is
+"tired and wired" (low vigor, low calm / tense). Distinct from
+frustration — frustration is anger at a blocked goal, tension is
+diffuse nervous arousal with no specific target.
+"""
+
+[[dimension]]
+name = "physical_fatigue"
+positive_pole = "severe bodily depletion"
+negative_pole = "absence of bodily depletion"
+scale_type = "unipolar"
+notes = """
+How strongly does the entry convey bodily / muscular tiredness — heavy
+limbs, sore muscles, needing to lie down, the wrung-out exhaustion that
+follows hard exertion or a bad night's sleep? Score 0 when the body is
+fine or unmentioned, and 1 when the writer is physically wiped out.
+Unipolar because the low end is the absence of bodily depletion, not an
+active opposite (drive lives on energy_vigor).
+
+Contrast with mental_fatigue. "Legs are jelly after the long run but
+my head's clear and sharp" scores physical_fatigue high and
+mental_fatigue low. "Brain fried from back-to-back meetings but I could
+happily go for a run" scores mental_fatigue high and physical_fatigue
+low.
+"""
+
+[[dimension]]
+name = "mental_fatigue"
+positive_pole = "severe cognitive depletion"
+negative_pole = "absence of mental depletion"
+scale_type = "unipolar"
+notes = """
+How strongly does the entry convey cognitive / central depletion —
+brain fog, decision fatigue, no focus or willpower left, the drained
+feeling that follows sustained thinking or heavy emotional load? Score
+0 when the mind is sharp or unmentioned, and 1 for near-burnout. Unipolar
+because the low end is the absence of mental depletion, not an active
+opposite.
+
+Distinct from physical_fatigue (the body can be fresh while the mind is
+spent, and vice versa). Distinct from energy_vigor — depletion is not
+the same as low drive: a "tired-and-wired" evening scores mental_fatigue
+high while energy_vigor stays positive. Distinct from tension_calm —
+spent is not the same as on-edge; you can be calmly exhausted (high
+mental_fatigue, high calm).
+"""
+
+[[dimension]]
+name = "agency"
+positive_pole = "agency"
+negative_pole = "apathy"
+scale_type = "unipolar"
+notes = """
+How strongly does the entry convey a sense of agency — feeling in
+control, capable of acting on the writer's environment? Score 0 when
+the entry shows apathy or resignation (absence of agency). Score 1
+when the writer is clearly taking initiative or feels capable of
+shaping outcomes. Unipolar because apathy is felt as absence, not
+as an active opposite of agency.
+
+Distinct from fulfillment. Agency is about capability and control;
+fulfillment is about meaning and rightness. "Cleared the inbox, ran
+errands, ticked every box, felt nothing about any of it" scores
+agency high and fulfillment low — efficient but hollow. "Sat with
+grandmother in hospice, didn't do anything, but it mattered" scores
+agency low and fulfillment high.
+"""
+
+[[dimension]]
+name = "fulfillment"
+positive_pole = "meaningful fulfillment"
+negative_pole = "indifference"
+scale_type = "unipolar"
+notes = """
+How strongly does the entry convey a sense of meaning or fulfillment?
+Score 0 for indifference (absence of felt meaning) and 1 for strong
+fulfillment / rightness. Unipolar because indifference reads as
+absence rather than opposition.
+
+Distinct from joy — you can be joyful without feeling fulfilled (a
+fun party that felt empty afterwards), and fulfilled without joy (a
+difficult but meaningful conversation). Distinct from agency —
+fulfillment is meaning, agency is capability. "Cleared the inbox,
+felt nothing" scores fulfillment low despite high agency. "Sat with
+grandmother in hospice, didn't do anything, but it mattered" scores
+fulfillment high despite low agency. Distinct from connection —
+fulfillment can come from solo work; not all meaning is social.
+"""
+
+[[dimension]]
+name = "connection"
+positive_pole = "connected"
+negative_pole = "isolated"
+scale_type = "unipolar"
+notes = """
+How strongly does the entry convey felt closeness with specific other
+people — a partner, friend, family member, colleague, or a group of
+people the writer is with? Score 0 for solitary or disconnected entries
+(alone, or going through the motions with others present). Score 1 for
+strong interpersonal warmth: a deep conversation, shared joy, feeling
+held or holding someone else.
+
+Scope this to interpersonal closeness with concrete others. Felt
+belonging to abstract collectives, communities, or anything spiritual
+or transcendent is out of scope here — score those 0 unless a specific
+relationship is also present.
+
+Unipolar because the absence of connection reads as solitude rather
+than as an active opposite. Loneliness — felt isolation despite
+wanting connection — also scores 0 here; the negative emotional tone
+of loneliness lands on joy_sadness, not here.
+
+Distinct from fulfillment. A meaningful solo project scores
+fulfillment high and connection 0. A pleasant but shallow chat scores
+connection moderate and fulfillment 0. The richest entries often
+score both high together.
+"""
+
+[[dimension]]
+name = "frustration"
+positive_pole = "frustrated"
+negative_pole = "calm"
+scale_type = "unipolar"
+notes = """
+How strongly does the entry convey frustration, anger, or irritation —
+the active negative-affect family of blocked goals, things not going
+the writer's way, or feeling thwarted by people or circumstances?
+Score 0 for entries with no frustration signal. Score 1 for strong
+sustained anger.
+
+Unipolar because the opposite of frustration is calm / no friction —
+the absence rather than an active opposite. Resignation lands on
+agency (low), not here.
+
+Distinct from joy_sadness. Frustration is angry-at-something; sadness
+is heavy-hearted. They co-occur often but are distinct. "Stuck in
+traffic, livid" scores frustration high and joy_sadness only mildly
+negative. "Funeral was lovely but hard" scores joy_sadness strongly
+negative and frustration near 0.
+"""
+
+[[dimension]]
+name = "proactive_reactive"
+positive_pole = "proactive"
+negative_pole = "reactive"
+scale_type = "bipolar"
+notes = """
+Proactive / initiating / setting the day's agenda (+1) vs reactive /
+responding to external pressures / pushed around by events (-1).
+Score 0 for a balanced mix.
+
+This is a stance dimension — about behavior and how the day was
+structured — rather than a feeling. Score it from how the writer
+spent their time, not from how they felt about it. A reactive day
+can feel fulfilling (helping a colleague through a fire) and a
+proactive day can feel hollow (executing a checklist nobody asked
+for).
+"""

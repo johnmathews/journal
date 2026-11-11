@@ -1,0 +1,296 @@
+# OCR Context Priming
+
+The OCR provider can be primed with a static set of "context files" that tell the model about known proper nouns in the
+author's life — family names, places, recurring topics — so that handwritten tokens that match those names are
+transcribed correctly. Both the Anthropic (Claude) and Gemini providers support context priming — Anthropic puts the
+composed text in the top-level `system` block (with `cache_control` once the system text crosses the 4,096-token
+minimum); Gemini puts the same composed text into `system_instruction` on each call. **Production runs with
+`OCR_DUAL_PASS=true` (as of 2026-05-09): the dual-pass factory always wires Anthropic Claude Opus 4.6 as the primary
+and Google Gemini 2.5 Pro as the secondary, regardless of the `ocr_provider` runtime setting** — see
+`_build_dual_pass_provider` in `src/journal/providers/ocr.py`. The single-provider `ocr_provider=gemini` setting only
+takes effect when `ocr_dual_pass=false`. The Anthropic-specific caching discussion below applies to the Anthropic
+adapter (i.e. always relevant in dual-pass mode).
+
+This document explains the mechanism, the cost profile, the failure modes, and how to enable it.
+
+## Why
+
+Claude's vision OCR is very good at English handwriting in the general case, but it has no way to know that "Ritsya" is a
+name rather than a typo. Without priming, personal names, place names, and jargon are where OCR errors cluster. A
+glossary supplied in the system prompt gives the model candidates to prefer when the pen strokes are consistent with a
+known name.
+
+This is a principled application of Anthropic's `cache_control` feature to a specific problem. As of April 2026 there are
+**no published case studies** of glossary priming for handwriting OCR, so treat the first week of deployment as an
+experiment and measure.
+
+## How it's built
+
+### API mechanism
+
+Anthropic's Messages API `system` parameter accepts an array of text blocks, each of which can be independently cacheable
+via `cache_control`. The OCR adapter composes a single text block at construction time:
+
+```
+SYSTEM_PROMPT
+<hallucination prevention instructions>
+
+# people
+- Ritsya — daughter (also "Ritzya", "Ritsa")
+- ...
+
+# places
+- Blue Bottle — café in North London
+- ...
+```
+
+and marks it with `{"type": "ephemeral", "ttl": "1h"}` so Anthropic caches it for one hour. See
+https://platform.claude.com/docs/en/docs/build-with-claude/prompt-caching for the current caching documentation.
+
+### File format
+
+Plain markdown, one file per category, inside `context/`:
+
+- `context/people.md`
+- `context/places.md`
+- `context/topics.md`
+- `context/glossary.md`
+
+The filename stem becomes a section heading when the files are concatenated (underscores and dashes become spaces), so
+pick descriptive names. Files are loaded in alphabetical order for determinism.
+
+### Loading
+
+Both providers read `context/` **once at startup** in their `__init__`. Editing a file requires a server restart.
+Hot-reload was considered and rejected: a single-user tool has near-zero restart cost, and deterministic cache behaviour
+(cache key = process lifetime) is easier to reason about than "restart-sometimes" semantics.
+
+### Enabling it
+
+Set `OCR_CONTEXT_DIR` in the environment — the only signal that turns the feature on:
+
+```bash
+# .env
+OCR_CONTEXT_DIR=./context
+OCR_CONTEXT_CACHE_TTL=1h  # or "5m"
+```
+
+When `OCR_CONTEXT_DIR` is unset (the default), the OCR adapter behaves identically to the pre-feature version — the same
+`SYSTEM_PROMPT` is used, with no appended instructions or glossary.
+
+## The 4,096-token minimum (Anthropic-specific)
+
+This section applies only when Anthropic is the OCR provider (either as the primary, or as the second pass under
+`OCR_DUAL_PASS=true`). Gemini's caching mechanics are governed by the Vertex AI / Gemini API context-cache feature with
+a different minimum and TTL story; the Gemini adapter does not use Anthropic's `cache_control`.
+
+Anthropic's prompt cache has a minimum block size of **4,096 tokens** on Claude Opus 4.6 (confirmed against the current
+docs on 2026-04-10). If the composed system block is smaller, `cache_control` is **silently ignored** and every request
+pays full input price — no error, no warning from Anthropic.
+
+The provider counts tokens at startup using `tiktoken.get_encoding ("cl100k_base")` (a close-enough proxy for Claude's
+tokenizer, which Anthropic does not ship offline) and emits a **loud WARNING** when the block is below the minimum:
+
+> OCR system text is 1247 tokens (approx) — below the 4096-token cache minimum for claude-opus-4-6. cache_control will be
+> silently ignored and every request will pay full input price.
+
+Mitigations:
+
+1. **Add more files / more entries** until the composed block crosses 4,096 tokens.
+2. **Accept the un-cached cost** — at today's Opus input pricing, a ~2,000-token context adds ~$0.01 per OCR call, which
+   is tolerable for personal use but noticeable in a batch run.
+
+## Cost impact
+
+Numbers based on the Anthropic pricing multipliers published at
+https://platform.claude.com/docs/en/docs/build-with-claude/prompt-caching (cache-write 2× at 1-hour TTL, cache-read 0.1×,
+base input 1×):
+
+Assume a 4,200-token composed system block (just above the cache minimum) and ~$5/MTok base Opus input pricing.
+
+| Scenario                                      | Tokens billed | Cost    |
+| --------------------------------------------- | ------------- | ------- |
+| Cold start / first call of hour (cache write) | 4,200 × 2×    | ~$0.042 |
+| Cached call within hour (cache read)          | 4,200 × 0.1×  | ~$0.002 |
+| No caching (block too small)                  | 4,200 × 1×    | ~$0.021 |
+
+Break-even: after **2 cached hits**, the cost to cache-write the block is already amortized below its un-cached
+equivalent. Any ingestion session doing more than 3–4 OCR calls per hour comes out ahead with 1-hour TTL.
+
+## Hallucination risk
+
+The biggest risk is **hallucinated substitution**: the model "correcting" an ambiguous scribble to a glossary entry that
+isn't actually what was written. Without a mitigation, adding "Ritsya" to the glossary would tempt the model to
+transcribe any vaguely similar squiggle as "Ritsya", even when the page actually said "Rita" or a stranger's name. Errors
+would cluster on known entities, making them plausible and hard to spot.
+
+The mitigation is a strongly-worded instruction that the adapter prepends to the glossary (see
+`CONTEXT_USAGE_INSTRUCTIONS` in `src/journal/providers/ocr.py`):
+
+> The sections below contain proper nouns (people, places, topics) that appear frequently in this author's handwritten
+> journal. Use them as a candidate list ONLY — prefer a glossary spelling when the handwritten token is visually
+> consistent with the entry, but do NOT substitute for the sake of matching. If a word is ambiguous AND does not match
+> any glossary entry, transcribe exactly what you see, even if it looks like a typo. Never invent a glossary match that
+> isn't supported by the pen strokes on the page.
+
+After enabling the feature, **spot-check your first ~20 OCR outputs** against a run with the feature disabled to confirm
+you're getting accuracy gains rather than plausible-sounding fabrications. The anti-hallucination instruction is
+necessary but not sufficient — the ground truth is your eyes on the pages.
+
+## Other risks and mitigations
+
+- **Short-entry dilution.** A one-sentence handwritten page with 4k tokens of context in front of it is lopsided. In
+  practice Claude handles this fine because the user-turn instruction (`"Extract all handwritten text from this image."`)
+  narrows the task. If you notice summarisation or interpretation creeping in, strengthen the user-turn instruction
+  further.
+- **Cache invalidation by image churn.** Image blocks that change from request to request invalidate any downstream
+  cached blocks. Because the context sits in the `system` array (which is sent before the user turn with the image), the
+  cache survives.
+- **Cache-miss cost surprises.** If the user edits context files and restarts frequently, cache writes (2× multiplier)
+  dominate. At ~$0.04 per cold start this is negligible but worth knowing.
+
+## Crossed-out words (strikethrough removal)
+
+When the author strikes a word through to delete a mistake, that correction must **not** reach the entry text. This is
+handled in two layers:
+
+1. **System prompt** — the model is told that crossed-out text is a deletion: omit it entirely, do not transcribe it, and
+   do not mark it with strikethrough.
+2. **Deterministic safety net** — `strip_strikethrough(raw)` in `providers/ocr.py` removes any Markdown strikethrough
+   (`~~crossed out~~`) the model emits anyway. It runs on the raw model output **before** `parse_uncertain_markers`, so
+   the uncertain-span offsets are anchored to the already-stripped text and stay valid.
+
+The stripper removes each `~~…~~` span and cleans up the whitespace the removal would strand: collapsed double spaces, a
+space stranded before sentence punctuation (`"happy ."` → `"happy."`), and leading/trailing line whitespace. The regex is
+non-greedy and single-line, so `~~a~~b~~c~~` keeps the `b` between two struck words, and an unmatched lone `~~` is left
+untouched rather than swallowing the rest of a paragraph. A struck phrase that wraps across a physical line is the
+accepted tail risk — the system-prompt instruction is the primary defence there.
+
+Both the Anthropic and Gemini providers share `SYSTEM_PROMPT` and the same `extract()` cleanup path, so the behaviour is
+identical across providers (and through dual-pass reconciliation, which operates on each provider's already-stripped
+text). This is a forward-only behaviour: existing stored entries are not retroactively re-cleaned.
+
+## Markdown escapes (page fidelity)
+
+The OCR models are trained on Markdown, so punctuation that has Markdown meaning comes back backslash-escaped: a `***`
+divider centered on the page arrives as `\*\*\*` (a "protected" thematic break), `snake_case` as `snake\_case`, a
+literal `#` at line start as `\#`. Entry text is plain text and is displayed verbatim by the webapp, so every such
+escape is a character the author never wrote — a page-fidelity violation. Handled in the same two layers as
+strikethrough:
+
+1. **System prompt** — the model is told to output plain text, never escape punctuation with backslashes, and reproduce
+   every punctuation character exactly as the author wrote it.
+2. **Deterministic safety net** — `strip_markdown_escapes(raw)` in `providers/ocr.py` removes a backslash before any
+   CommonMark-escapable character (the ASCII punctuation set), including `\\` → `\` so a literal handwritten backslash
+   the model escaped round-trips correctly. Backslashes before letters, digits, or non-ASCII punctuation are not
+   Markdown escapes and are left untouched.
+
+Ordering: it runs **after** `strip_strikethrough` (so a handwritten literal `\~\~` unescapes to `~~` only after the
+strikethrough stripper has run, and survives) and **before** `parse_uncertain_markers` (unescaping changes character
+counts, so it must precede span-offset computation). Like the strikethrough stripper this is forward-only: entries
+stored before the fix are not retroactively re-cleaned.
+
+## Uncertainty spans (the "Review" feature)
+
+Glossary priming raises the ceiling on proper-noun accuracy but doesn't solve the deeper problem: **the user doesn't know
+which words to double-check**. Uncertainty spans address that directly — the OCR model is asked to mark the words it
+isn't confident about, and the webapp surfaces those marks behind a "Review" toggle so the author can spot-check them
+against the photo of the page.
+
+### Sentinel protocol
+
+The system prompt instructs the model to wrap uncertain words or phrases with Unicode sentinels:
+
+- `⟪` (U+27EA, MATHEMATICAL LEFT DOUBLE ANGLE BRACKET)
+- `⟫` (U+27EB, MATHEMATICAL RIGHT DOUBLE ANGLE BRACKET)
+
+These characters are used because they are extraordinarily unlikely to appear in handwritten English journal text.
+Picking ASCII-adjacent markers like `[?foo?]` or `<<foo>>` would conflict with legitimate writing; the math-bracket code
+points effectively never do.
+
+The model is instructed to use the sentinels **sparingly** and **only around the uncertain span** — not around whole
+sentences or paragraphs. A single span may cover one word or several consecutive words if the doubt applies to the whole
+phrase (e.g. a muddled proper-noun pair like "Emily Carr").
+
+### Parser
+
+`parse_uncertain_markers(raw)` in `providers/ocr.py` strips the sentinels from the model response and returns a
+`(clean_text, spans)` tuple where `spans` is a list of half-open `(char_start, char_end)` offsets into `clean_text`. The
+parser is deliberately forgiving:
+
+- **Unmatched opens** and **unmatched closes** are dropped silently; the surrounding text is preserved verbatim.
+- **Nested sentinels** collapse to the outermost pair.
+- **Empty pairs** (`⟪⟫`) and **whitespace-only pairs** are dropped.
+- **Whitespace immediately inside** an open/close pair is trimmed out of the recorded span — the span points at letters,
+  not padding.
+
+A single warning is logged per call if any markers were dropped, so malformed output is visible without being noisy.
+
+### Storage & API
+
+Per-entry spans live in the `entry_uncertain_spans` table (introduced by migration `0005`), keyed on `entry_id` with
+`(char_start, char_end)` offsets into `entries.raw_text`. For multi-page entries, the ingestion service shifts per-page
+spans by the cumulative length of prior pages (plus the `\n` page separator) so a single flat list addresses positions in
+the combined `entries.raw_text`.
+
+The spans are exposed on `GET /api/entries/{id}` as the `uncertain_spans` field (always present, empty for old entries).
+Entries ingested before migration `0005` simply return an empty array; the webapp renders no highlight in that case.
+
+### Edit behaviour
+
+`raw_text` is immutable. `PATCH /api/entries/{id}` only updates `final_text`, so uncertainty spans persist unchanged
+through every edit. This is deliberate — the Review toggle is a history of "here's what the model was unsure about when
+it read the page", not a dynamic signal that drifts as the user corrects things.
+
+### Dual-pass reconciliation
+
+When dual-pass OCR is enabled (`ocr_dual_pass` runtime setting), both providers run independently and each produces its
+own text with sentinel-marked uncertain spans. The `reconcile_ocr_results()` function aligns the two outputs at word
+level and uses each model's confidence signal to decide per-region:
+
+| Primary          | Secondary        | Action                                    | Doubt? |
+| ---------------- | ---------------- | ----------------------------------------- | ------ |
+| Confident        | Confident, agree | Keep text                                 | No     |
+| Confident        | Confident, differ| Keep primary text                         | No     |
+| **Uncertain**    | Confident        | **Substitute secondary text**             | Yes    |
+| Confident        | **Uncertain**    | Keep primary text                         | Yes    |
+| **Both uncertain** | —              | Keep primary text                         | Yes    |
+
+The key insight is that confident disagreements (neither model used sentinels) produce **no doubt**. This eliminates the
+noise from trivial differences (punctuation, spacing, "&" vs "and") that two OCR engines will always have. Only regions
+where at least one model flagged uncertainty become doubts.
+
+When the primary is uncertain but the secondary is confident, the output text is modified — the secondary's reading is
+spliced in. This means the reconciled `OCRResult.text` may differ from the primary's text. Span coordinates are
+adjusted to account for any length changes from substitutions.
+
+### Relationship to glossary priming
+
+Glossary priming and uncertainty flagging are **independent** for now. The glossary instructs the model to prefer known
+candidates over hallucinated typos; the uncertainty instruction asks it to flag words it can't confidently read. In
+practice they should work well together — glossary-primed words are less likely to be flagged as uncertain, and uncertain
+spans become the user's audit surface for "did the model pick a glossary entry, or did it genuinely read what I wrote?"
+
+A future iteration could tie the two together more tightly (e.g. "if you substituted a glossary entry for an ambiguous
+scribble, flag the substituted word"), but that's out of scope for the initial release.
+
+### Files to read if you change this
+
+- `src/journal/providers/ocr.py` — `parse_uncertain_markers`, `strip_markdown_escapes`, `OCRResult`, sentinel
+  constants, `SYSTEM_PROMPT`
+- `src/journal/services/ingestion/` — package containing the single- and multi-page flows; `_strip_and_shift_page_spans`
+  lives in the image-handling module after the 2026-05-07 split
+- `src/journal/db/migrations/0005_uncertain_spans.sql` — schema
+- `src/journal/db/repository/pages.py` — `add_uncertain_spans`, `get_uncertain_spans`
+- `tests/test_providers/test_ocr.py::TestParseUncertainMarkers` — exhaustive parser tests
+- `tests/test_services/test_ingestion.py::TestUncertainSpansIngestion` — end-to-end coverage including multi-page offset
+  arithmetic
+
+## Files to read if you change this
+
+- `src/journal/providers/ocr.py` — the adapter and `load_context_files`
+- `src/journal/config.py` — `ocr_context_dir`, `ocr_context_cache_ttl`
+- `tests/test_providers/test_ocr.py` — full test suite including context composition, cache warning, TTL validation, file
+  loading
+- `context/README.md` — user-facing guidance on what to put in the directory
+- `.env.example` — how to enable the feature via env vars

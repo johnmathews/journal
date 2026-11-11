@@ -1,0 +1,97 @@
+# Production: runs on the media VM. Images are built by GitHub Actions CI
+# and pushed to ghcr.io, then manually pulled on the VM. This is the
+# prod-shaped stack (app + ChromaDB); for local development use
+# docker-compose.dev.yml (ChromaDB only) and run the server natively.
+#
+# On media VM, MCP endpoint is reachable at http://127.0.0.1:8400/mcp from
+# the VM itself. External clients (Slack agent, webapp) MUST go through a
+# reverse proxy that terminates TLS and adds any additional authentication
+# — the port is intentionally bound to loopback only and every request is
+# authenticated in-app via sessions or per-user API keys.
+
+services:
+  journal:
+    container_name: journal
+    image: ghcr.io/johnmathews/journal-server:latest
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+      - DB_PATH=/data/journal.db
+      - CHROMADB_HOST=journal-chromadb
+      - CHROMADB_PORT=8000
+      # Bind inside the container on all interfaces — the host-side bind
+      # below restricts external reachability to loopback. Without the
+      # in-container 0.0.0.0, docker-proxy cannot forward the published
+      # port into the container's network namespace.
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8400
+      # Restricts DNS rebinding protection to the loopback / reverse-proxy
+      # host(s). Add any externally-facing hostname here if you front the
+      # service with a proxy at e.g. journal.home.arpa.
+      - MCP_ALLOWED_HOSTS=${MCP_ALLOWED_HOSTS:-127.0.0.1,localhost}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - SLACK_BOT_TOKEN=${SLACK_BOT_TOKEN:-}
+      # OCR provider: "anthropic" (default) or "gemini"
+      - OCR_PROVIDER=${OCR_PROVIDER:-anthropic}
+      - OCR_MODEL=${OCR_MODEL:-}
+      # Secret key for session tokens and signed URLs. The server refuses
+      # to start without it (mcp_server/runserver.py), so fail fast at
+      # compose time with a clear message instead of at container boot.
+      - JOURNAL_SECRET_KEY=${JOURNAL_SECRET_KEY:?JOURNAL_SECRET_KEY must be set in .env}
+      # Auth / accounts — all optional. The compose defaults below mirror
+      # config.py's own defaults (registration closed, rate limiting on)
+      # so behavior is identical whether or not the var is set in .env.
+      # Note: an empty string is NOT a safe default for the int/bool vars
+      # (int("") crashes, "" parses as false), hence the explicit values.
+      - REGISTRATION_ENABLED=${REGISTRATION_ENABLED:-false}
+      - APP_BASE_URL=${APP_BASE_URL:-http://localhost:5173}
+      - AUTH_RATE_LIMIT_ENABLED=${AUTH_RATE_LIMIT_ENABLED:-true}
+      - AUTH_RATE_LIMIT_MAX_REQUESTS=${AUTH_RATE_LIMIT_MAX_REQUESTS:-10}
+      - AUTH_RATE_LIMIT_WINDOW_SECONDS=${AUTH_RATE_LIMIT_WINDOW_SECONDS:-300}
+      # SMTP — needed only for verification / password-reset emails.
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-465}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-}
+      # Fitness pipeline (see docs/fitness-tier-plan.md). Strava client
+      # credentials are required at W11+ for live token refresh. Garmin
+      # credentials are per-user (stored in the DB via the webapp /
+      # CLI re-auth flow), not global env vars.
+      - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID:-}
+      - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET:-}
+      - STRAVA_REDIRECT_URI=${STRAVA_REDIRECT_URI:-http://localhost:8400/strava/callback}
+      - FITNESS_BACKFILL_START=${FITNESS_BACKFILL_START:-2026-01-01}
+      - FITNESS_TRANSIENT_FAILURE_THRESHOLD=${FITNESS_TRANSIENT_FAILURE_THRESHOLD:-3}
+    volumes:
+      - /srv/media/config/journal/data:/data
+    ports:
+      # Host-side bind is loopback-only. External access must go through
+      # a reverse proxy (Caddy/Traefik) that can add TLS and enforce any
+      # additional access controls.
+      - "127.0.0.1:8400:8400"
+    depends_on:
+      journal-chromadb:
+        condition: service_healthy
+    restart: always
+
+  journal-chromadb:
+    container_name: journal-chromadb
+    image: ghcr.io/johnmathews/journal-chromadb:latest
+    environment:
+      - TZ=${TZ:-Europe/Amsterdam}
+    volumes:
+      - /srv/media/config/journal/chromadb:/data
+    # ChromaDB is deliberately NOT published on the host — it has no auth
+    # of its own and exposes chunk text in cleartext. The `journal`
+    # service reaches it via compose-internal DNS (journal-chromadb:8000)
+    # and nothing outside the compose network needs to talk to it.
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+      start_interval: 2s
+    restart: always

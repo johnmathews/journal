@@ -1,0 +1,86 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+
+# Secrets
+*.key
+*.pem
+*.p12
+credentials.json
+vault_password
+
+# Claude Code local overrides
+.claude/settings.local.json
+.claude/worktrees/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+
+# Tool caches. These stayed out of `git status` only because pytest and
+# ruff each write a self-ignoring .gitignore inside their own cache — an
+# accident of tooling, not a choice this repo made. Ignore them by policy.
+.pytest_cache/
+.ruff_cache/
+
+# superpowers session artifacts (review diffs; the commits are in git).
+.superpowers/
+
+# Data — NEVER commit personal journal content
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+chroma-data/
+data/
+
+# Journal source files (images, audio) — personal content
+journal-images/
+journal-audio/
+uploads/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.mp3
+*.m4a
+*.wav
+*.mp4
+*.webm
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Playwright MCP ephemeral output — console logs, page
+# snapshots, and screenshots from verification runs. Written
+# relative to the shell CWD, which may land in this repo when
+# verifying the webapp from a cross-repo session.
+.playwright-mcp/
+
+# OCR context files — personal (family names, places, topics).
+# The README is checked in; everything else is local-only.
+/context/*
+!/context/README.md
+
+# engineering-team skill working notes (intermediate plans, reports).
+.engineering-team/

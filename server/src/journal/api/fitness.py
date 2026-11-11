@@ -1,0 +1,444 @@
+"""Fitness pipeline read-side routes.
+
+Owns the six GET endpoints under ``/api/fitness/``:
+
+- ``GET /api/fitness/activities?start=&end=&type=`` — windowed activities.
+- ``GET /api/fitness/daily?start=&end=`` — windowed daily rollups.
+- ``GET /api/fitness/sync/status`` — per-source auth + last-runs snapshot.
+- ``GET /api/fitness/integrity`` — soft-pointer orphan report.
+- ``GET /api/fitness/divergence?start=&end=&window=`` — mood↔recovery
+  divergence detector (fitness-schema.md §9).
+- ``GET /api/fitness/mood-recovery?from=&to=`` — date-aligned raw
+  training-load / recovery / fatigue rows for the webapp overlay.
+
+The rest of the ``/api/fitness/`` surface lives in sibling modules
+(carved out when this file outgrew the ~800-line size rule):
+
+- ``api/fitness_jobs.py``   — sync + backfill job creation (the
+  write/job-creation routing override — see ``api/_shared.py``'s
+  docstring).
+- ``api/fitness_garmin.py`` — Garmin connect / MFA / disconnect.
+- ``api/fitness_strava.py`` — Strava authorize_url / exchange /
+  disconnect.
+
+Auth is enforced by ``RequireAuthMiddleware``: every route below assumes
+``request.user`` is an :class:`AuthenticatedUser`. The per-route
+``get_authenticated_user`` call extracts the user_id for query scoping.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import asdict
+from datetime import date
+from typing import TYPE_CHECKING, Any
+
+from starlette.responses import JSONResponse
+
+from journal.api._handler import handler
+from journal.auth import get_authenticated_user
+from journal.db.fitness_integrity import check_fitness_integrity
+from journal.services.fitness.credentials import (
+    CredentialDecryptError,
+    CredentialKeyInvalid,
+    decrypt_credential,
+)
+from journal.services.fitness.divergence import (
+    compute_divergence,
+    mood_recovery_rows,
+)
+
+if TYPE_CHECKING:
+    import sqlite3
+    from collections.abc import Callable
+
+    from mcp.server.fastmcp import FastMCP
+    from starlette.requests import Request
+
+    from journal.db.fitness_repository import FitnessRepository
+    from journal.models import (
+        DivergenceDay,
+        FitnessActivity,
+        FitnessAuthState,
+        FitnessDaily,
+        FitnessSyncRun,
+    )
+    from journal.service_registry import ServicesDict
+
+log = logging.getLogger(__name__)
+
+_VALID_SOURCES = ("strava", "garmin")
+
+
+def _activity_to_dict(a: FitnessActivity) -> dict[str, Any]:
+    return {
+        "id": a.id,
+        "user_id": a.user_id,
+        "source": a.source,
+        "source_id": a.source_id,
+        "activity_type": a.activity_type,
+        "source_subtype": a.source_subtype,
+        "start_time": a.start_time,
+        "local_date": a.local_date,
+        "duration_s": a.duration_s,
+        "moving_time_s": a.moving_time_s,
+        "distance_m": a.distance_m,
+        "elevation_gain_m": a.elevation_gain_m,
+        "avg_hr_bpm": a.avg_hr_bpm,
+        "max_hr_bpm": a.max_hr_bpm,
+        "avg_pace_s_per_km": a.avg_pace_s_per_km,
+        "calories_kcal": a.calories_kcal,
+        "perceived_exertion": a.perceived_exertion,
+        "extras": a.extras,
+        "raw_ref_id": a.raw_ref_id,
+        "normalized_at": a.normalized_at,
+    }
+
+
+def _daily_to_dict(d: FitnessDaily) -> dict[str, Any]:
+    return {
+        "id": d.id,
+        "user_id": d.user_id,
+        "source": d.source,
+        "local_date": d.local_date,
+        "sleep_score": d.sleep_score,
+        "sleep_duration_s": d.sleep_duration_s,
+        "sleep_efficiency_pct": d.sleep_efficiency_pct,
+        "hrv_overnight_ms": d.hrv_overnight_ms,
+        "resting_hr_bpm": d.resting_hr_bpm,
+        "body_battery_high": d.body_battery_high,
+        "body_battery_low": d.body_battery_low,
+        "stress_avg": d.stress_avg,
+        "training_load_acute": d.training_load_acute,
+        "training_load_chronic": d.training_load_chronic,
+        "training_readiness": d.training_readiness,
+        "extras": d.extras,
+        "raw_ref_ids": d.raw_ref_ids,
+        "normalized_at": d.normalized_at,
+    }
+
+
+def _sync_run_to_dict(run: FitnessSyncRun) -> dict[str, Any]:
+    return {
+        "id": run.id,
+        "started_at": run.started_at,
+        "finished_at": run.finished_at,
+        "status": run.status,
+        "rows_fetched": run.rows_fetched,
+        "rows_normalized": run.rows_normalized,
+        # T7 (2026-05-11): per-bucket counts for the webapp's split display.
+        # Pre-T7 rows have 0 for both buckets (default column value), which
+        # the webapp UI presents as "—" rather than a misleading "0".
+        "workouts_fetched": run.workouts_fetched,
+        "wellness_fetched": run.wellness_fetched,
+        "workouts_normalized": run.workouts_normalized,
+        "wellness_normalized": run.wellness_normalized,
+        "error_class": run.error_class,
+        "error_message": run.error_message,
+    }
+
+
+def _garmin_credentials_saved(
+    auth: FitnessAuthState | None, credential_key: str,
+) -> bool:
+    """True iff the garmin auth row carries saved credentials that the
+    *currently configured* key can actually decrypt (W5).
+
+    False on: no row, no ``enc_password``, key unset, or a rotated/lost
+    key (``CredentialDecryptError``). The webapp uses this to decide
+    whether to offer the one-click reconnect, so "saved but unusable"
+    must read as False — never crash the status endpoint.
+    """
+    if auth is None or not credential_key:
+        return False
+    enc_password = (auth.extra_state or {}).get("enc_password")
+    if not isinstance(enc_password, str) or not enc_password:
+        return False
+    try:
+        decrypt_credential(enc_password, key=credential_key)
+    except (CredentialDecryptError, CredentialKeyInvalid):
+        return False
+    return True
+
+
+def _per_source_status(
+    repo: FitnessRepository,
+    *,
+    user_id: int,
+    source: str,
+    credential_key: str = "",
+) -> dict[str, Any] | None:
+    """Return the status payload for *source*, or ``None`` if this user
+    has never had any fitness activity on this source — i.e. no
+    ``fitness_auth_state`` row AND no ``fitness_sync_runs`` rows.
+
+    Returning ``None`` (rather than a default-populated dict) lets the
+    webapp tell "first-use, never connected" apart from "configured but
+    no successful sync yet" — only the first deserves the connect CTA.
+
+    The garmin payload additionally carries ``credentials_saved`` (W5),
+    computed against ``credential_key`` (the configured
+    ``FITNESS_CREDENTIAL_KEY``; ``""`` = feature off → always False).
+    The strava payload is unchanged.
+    """
+    auth: FitnessAuthState | None = repo.get_auth_state(
+        user_id=user_id, source=source,
+    )
+    last_runs = repo.list_recent_sync_runs(
+        user_id=user_id, source=source, limit=10,
+    )
+    if auth is None and not last_runs:
+        return None
+    last_success_at = repo.last_successful_sync_at(
+        user_id=user_id, source=source,
+    )
+    payload: dict[str, Any] = {
+        "auth_status": auth.auth_status if auth is not None else "unknown",
+        "auth_broken_since": auth.auth_broken_since if auth is not None else None,
+        "last_success_at": last_success_at,
+        "last_runs": [_sync_run_to_dict(r) for r in last_runs],
+    }
+    if source == "garmin":
+        payload["credentials_saved"] = _garmin_credentials_saved(
+            auth, credential_key,
+        )
+    return payload
+
+
+def _divergence_to_dict(d: DivergenceDay) -> dict[str, Any]:
+    return asdict(d)
+
+
+def _divergence_summary(days: list[DivergenceDay]) -> dict[str, int]:
+    """Count classified days by quadrant (unclassified days excluded)."""
+    summary: dict[str, int] = {}
+    for d in days:
+        if d.quadrant is not None:
+            summary[d.quadrant] = summary.get(d.quadrant, 0) + 1
+    return summary
+
+
+def _missing_param(name: str) -> JSONResponse:
+    return JSONResponse(
+        {"error": f"Query parameter '{name}' is required"},
+        status_code=400,
+    )
+
+
+def _invalid_date(name: str) -> JSONResponse:
+    return JSONResponse(
+        {"error": f"Query parameter '{name}' must be a YYYY-MM-DD date"},
+        status_code=400,
+    )
+
+
+def register_fitness_routes(
+    mcp: FastMCP,
+    services_getter: Callable[[], ServicesDict | None],
+) -> None:
+    """Register the four ``GET /api/fitness/*`` read routes.
+
+    The job-creation companions (``POST /api/fitness/sync/{source}``,
+    ``POST /api/fitness/backfill/{source}``) are registered by
+    ``register_fitness_jobs_routes`` per the routing override; the
+    Garmin/Strava auth flows by ``register_fitness_garmin_routes`` /
+    ``register_fitness_strava_routes``.
+    """
+
+    @mcp.custom_route(
+        "/api/fitness/activities",
+        methods=["GET"],
+        name="api_fitness_list_activities",
+    )
+    @handler(services_getter)
+    def list_activities(
+        request: Request, services: ServicesDict, body: None
+    ) -> JSONResponse:
+        user = get_authenticated_user(request)
+        repo: FitnessRepository = services["fitness_repo"]
+
+        start = request.query_params.get("start")
+        end = request.query_params.get("end")
+        if not start:
+            return _missing_param("start")
+        if not end:
+            return _missing_param("end")
+        activity_type = request.query_params.get("type")
+
+        activities = repo.list_activities(
+            user_id=user.user_id,
+            start=start,
+            end=end,
+            activity_type=activity_type,
+        )
+        log.info(
+            "GET /api/fitness/activities — %d items (%s..%s, type=%s)",
+            len(activities), start, end, activity_type,
+        )
+        return JSONResponse({"items": [_activity_to_dict(a) for a in activities]})
+
+    @mcp.custom_route(
+        "/api/fitness/daily",
+        methods=["GET"],
+        name="api_fitness_list_daily",
+    )
+    @handler(services_getter)
+    def list_daily(
+        request: Request, services: ServicesDict, body: None
+    ) -> JSONResponse:
+        user = get_authenticated_user(request)
+        repo: FitnessRepository = services["fitness_repo"]
+
+        start = request.query_params.get("start")
+        end = request.query_params.get("end")
+        if not start:
+            return _missing_param("start")
+        if not end:
+            return _missing_param("end")
+
+        daily = repo.list_daily(user_id=user.user_id, start=start, end=end)
+        log.info(
+            "GET /api/fitness/daily — %d items (%s..%s)",
+            len(daily), start, end,
+        )
+        return JSONResponse({"items": [_daily_to_dict(d) for d in daily]})
+
+    @mcp.custom_route(
+        "/api/fitness/sync/status",
+        methods=["GET"],
+        name="api_fitness_sync_status",
+    )
+    @handler(services_getter)
+    def sync_status(
+        request: Request, services: ServicesDict, body: None
+    ) -> JSONResponse:
+        user = get_authenticated_user(request)
+        repo: FitnessRepository = services["fitness_repo"]
+        # W5: getattr-with-default tolerates partial test configs; a
+        # missing key means credential persistence is off.
+        credential_key = getattr(
+            services.get("config"), "fitness_credential_key", "",
+        ) or ""
+
+        body = {
+            source: _per_source_status(
+                repo, user_id=user.user_id, source=source,
+                credential_key=credential_key,
+            )
+            for source in _VALID_SOURCES
+        }
+        log.info(
+            "GET /api/fitness/sync/status — strava=%s garmin=%s",
+            "configured" if body["strava"] else "null",
+            "configured" if body["garmin"] else "null",
+        )
+        return JSONResponse(body)
+
+    @mcp.custom_route(
+        "/api/fitness/integrity",
+        methods=["GET"],
+        name="api_fitness_integrity",
+    )
+    @handler(services_getter)
+    def integrity(
+        request: Request, services: ServicesDict, body: None
+    ) -> JSONResponse:
+        # Per-user scoped (W4 of the fitness multi-user plan): each caller
+        # sees only their own orphans. A non-admin caller never sees other
+        # users' raw rows in their report, even via the existence of orphan
+        # references.
+        user = get_authenticated_user(request)
+        conn: sqlite3.Connection = services["db_factory"].get()
+
+        report = check_fitness_integrity(conn, user_id=user.user_id)
+        body = {
+            "activities": [asdict(o) for o in report.activities],
+            "daily": [asdict(o) for o in report.daily],
+        }
+        log.info(
+            "GET /api/fitness/integrity — user_id=%d %d activity orphans, "
+            "%d daily orphans",
+            user.user_id, len(report.activities), len(report.daily),
+        )
+        return JSONResponse(body)
+
+    @mcp.custom_route(
+        "/api/fitness/divergence",
+        methods=["GET"],
+        name="api_fitness_divergence",
+    )
+    @handler(services_getter)
+    def divergence(
+        request: Request, services: ServicesDict, body: None
+    ) -> JSONResponse:
+        user = get_authenticated_user(request)
+        conn: sqlite3.Connection = services["db_factory"].get()
+
+        start = request.query_params.get("start")
+        end = request.query_params.get("end")
+        if not start:
+            return _missing_param("start")
+        if not end:
+            return _missing_param("end")
+        # compute_divergence parses these with date.fromisoformat, which would
+        # raise → 500. Validate up front so a malformed date returns 400.
+        for name, value in (("start", start), ("end", end)):
+            try:
+                date.fromisoformat(value)
+            except ValueError:
+                return _invalid_date(name)
+        # window is optional; a malformed value falls back to the default
+        # rather than 400 — the analytic is robust to any positive window.
+        window_raw = request.query_params.get("window")
+        window = 28
+        if window_raw:
+            try:
+                parsed = int(window_raw)
+                if parsed >= 1:
+                    window = parsed
+            except ValueError:
+                window = 28
+
+        days = compute_divergence(
+            conn, user_id=user.user_id, start=start, end=end, window=window,
+        )
+        log.info(
+            "GET /api/fitness/divergence — user_id=%d %d rows (%s..%s, window=%d)",
+            user.user_id, len(days), start, end, window,
+        )
+        return JSONResponse(
+            {
+                "rows": [_divergence_to_dict(d) for d in days],
+                "summary": _divergence_summary(days),
+            },
+        )
+
+    @mcp.custom_route(
+        "/api/fitness/mood-recovery",
+        methods=["GET"],
+        name="api_fitness_mood_recovery",
+    )
+    @handler(services_getter)
+    def mood_recovery(
+        request: Request, services: ServicesDict, body: None
+    ) -> JSONResponse:
+        # Uses ``from``/``to`` (not start/end) to match the webapp overlay's
+        # date-range vocabulary; both are required.
+        user = get_authenticated_user(request)
+        conn: sqlite3.Connection = services["db_factory"].get()
+
+        start = request.query_params.get("from")
+        end = request.query_params.get("to")
+        if not start:
+            return _missing_param("from")
+        if not end:
+            return _missing_param("to")
+
+        rows = mood_recovery_rows(
+            conn, user_id=user.user_id, start=start, end=end,
+        )
+        log.info(
+            "GET /api/fitness/mood-recovery — user_id=%d %d rows (%s..%s)",
+            user.user_id, len(rows), start, end,
+        )
+        return JSONResponse({"rows": rows})

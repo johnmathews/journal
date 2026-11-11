@@ -1,0 +1,1344 @@
+"""REST API tests for the fitness pipeline (W9).
+
+Covers the read-side routes in ``api/fitness.py`` plus the
+job-creation route in ``api/ingestion.py``:
+
+- ``GET  /api/fitness/activities?start=&end=&type=``
+- ``GET  /api/fitness/daily?start=&end=``
+- ``GET  /api/fitness/sync/status``
+- ``POST /api/fitness/sync/{source}``  (job creation, in ``ingestion.py``)
+- ``GET  /api/fitness/integrity``
+
+The fixture stack mirrors ``test_api_jobs.py``: an in-process FastMCP
+with the real route registrations and a fake auth middleware that
+injects ``user_id=1``. Anonymous-401 enforcement lives in the
+``RequireAuthMiddleware`` covered by ``test_auth.py`` — these tests
+go through ``_FakeAuthMiddleware`` so the per-route auth dependency
+(``get_authenticated_user``) is exercised but the middleware-level
+401 path is out of scope.
+"""
+
+import json
+import sqlite3
+import time
+from collections.abc import Generator
+from datetime import date, timedelta
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+
+import pytest
+from starlette.testclient import TestClient
+
+from journal.auth import AuthenticatedUser, _current_user_id
+from journal.db.factory import ConnectionFactory
+from journal.db.fitness_repository import FitnessRepository
+from journal.db.jobs_repository import SQLiteJobRepository
+from journal.db.migrations import run_migrations
+from journal.models import FitnessActivity, FitnessAuthState, FitnessDaily
+from journal.services.jobs import JobRunner
+
+_TEST_USER_ID = 1
+
+
+class _FakeAuthMiddleware:
+    """ASGI middleware that injects a test user (mirrors test_api_jobs.py)."""
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope["type"] in ("http", "websocket"):
+            scope["user"] = AuthenticatedUser(
+                user_id=_TEST_USER_ID,
+                email="test@example.com",
+                display_name="Test User",
+                is_admin=False,
+                is_active=True,
+                email_verified=True,
+            )
+            token = _current_user_id.set(_TEST_USER_ID)
+            try:
+                await self.app(scope, receive, send)
+            finally:
+                _current_user_id.reset(token)
+        else:
+            await self.app(scope, receive, send)
+
+
+# --------------------------------------------------------------------
+# Fixtures
+# --------------------------------------------------------------------
+
+
+@pytest.fixture
+def fitness_factory(tmp_path: Path) -> ConnectionFactory:
+    db_path = tmp_path / "fitness-api.db"
+    f = ConnectionFactory(db_path)
+    run_migrations(f.get())
+    return f
+
+
+@pytest.fixture
+def fitness_db(fitness_factory: ConnectionFactory) -> sqlite3.Connection:
+    """Calling-thread connection — used for raw SQL only."""
+    return fitness_factory.get()
+
+
+@pytest.fixture
+def fitness_repo(fitness_factory: ConnectionFactory) -> FitnessRepository:
+    return FitnessRepository(fitness_factory)
+
+
+@pytest.fixture
+def jobs_repository(fitness_factory: ConnectionFactory) -> SQLiteJobRepository:
+    return SQLiteJobRepository(fitness_factory)
+
+
+@pytest.fixture
+def job_runner(
+    jobs_repository: SQLiteJobRepository,
+) -> Generator[JobRunner]:
+    """JobRunner without fitness callables wired — submit_fitness_sync_*
+    therefore raises RuntimeError ("not configured"). Tests that need
+    the configured path use ``configured_runner`` instead."""
+    runner = JobRunner(
+        job_repository=jobs_repository,
+        entity_extraction_service=object(),  # type: ignore[arg-type]
+        mood_backfill_callable=lambda **_: None,  # type: ignore[arg-type]
+        mood_scoring_service=object(),  # type: ignore[arg-type]
+        entry_repository=object(),  # type: ignore[arg-type]
+    )
+    yield runner
+    runner.shutdown(wait=True, cancel_futures=False)
+
+
+@pytest.fixture
+def configured_runner(
+    jobs_repository: SQLiteJobRepository,
+) -> Generator[JobRunner]:
+    """JobRunner wired with no-op fitness callables so submit_fitness_sync_*
+    accepts the request. The callables return a result that mirrors
+    a successful zero-row sync."""
+    from journal.services.fitness.backfill import BackfillResult
+    from journal.services.fitness.fetch import FitnessSyncResult
+    from journal.services.fitness.normalize import NormalizeResult
+
+    def _make_fetch(source: str):
+        def _fetch(*, user_id: int) -> FitnessSyncResult:
+            return FitnessSyncResult(
+                status="success", run_id=0, rows_fetched=0, rows_normalized=0,
+            )
+        _fetch.__name__ = f"_fetch_{source}"
+        return _fetch
+
+    def _make_normalize(source: str):
+        def _normalize(*, user_id: int) -> NormalizeResult:
+            return NormalizeResult(source=source, rows_normalized=0, drift_count=0)
+        _normalize.__name__ = f"_normalize_{source}"
+        return _normalize
+
+    def _make_backfill(source: str):
+        def _backfill(
+            *, user_id: int, start: str, end: str | None = None,
+        ) -> BackfillResult:
+            return BackfillResult(
+                source=source,  # type: ignore[arg-type]
+                final_status="complete",
+                windows_attempted=1, windows_succeeded=1,
+                rows_fetched=0, rows_normalized=0,
+            )
+        _backfill.__name__ = f"_backfill_{source}"
+        return _backfill
+
+    runner = JobRunner(
+        job_repository=jobs_repository,
+        entity_extraction_service=object(),  # type: ignore[arg-type]
+        mood_backfill_callable=lambda **_: None,  # type: ignore[arg-type]
+        mood_scoring_service=object(),  # type: ignore[arg-type]
+        entry_repository=object(),  # type: ignore[arg-type]
+        fetch_strava_callable=_make_fetch("strava"),
+        fetch_garmin_callable=_make_fetch("garmin"),
+        normalize_strava_callable=_make_normalize("strava"),
+        normalize_garmin_callable=_make_normalize("garmin"),
+        backfill_strava_callable=_make_backfill("strava"),
+        backfill_garmin_callable=_make_backfill("garmin"),
+    )
+    yield runner
+    runner.shutdown(wait=True, cancel_futures=False)
+
+
+def _make_services(
+    fitness_factory: ConnectionFactory,
+    fitness_repo: FitnessRepository,
+    jobs_repository: SQLiteJobRepository,
+    job_runner: JobRunner,
+    *,
+    strava_enabled: bool = True,
+) -> dict:
+    # W1 strava-mothball: production defaults to STRAVA_ENABLED=false;
+    # tests that exercise live-Strava job routes opt in explicitly.
+    return {
+        "fitness_repo": fitness_repo,
+        "job_repository": jobs_repository,
+        "job_runner": job_runner,
+        "db_factory": fitness_factory,
+        "config": SimpleNamespace(strava_enabled=strava_enabled),
+    }
+
+
+@pytest.fixture
+def services(
+    fitness_factory: ConnectionFactory,
+    fitness_repo: FitnessRepository,
+    jobs_repository: SQLiteJobRepository,
+    job_runner: JobRunner,
+) -> dict:
+    return _make_services(
+        fitness_factory, fitness_repo, jobs_repository, job_runner,
+    )
+
+
+@pytest.fixture
+def configured_services(
+    fitness_factory: ConnectionFactory,
+    fitness_repo: FitnessRepository,
+    jobs_repository: SQLiteJobRepository,
+    configured_runner: JobRunner,
+) -> dict:
+    return _make_services(
+        fitness_factory, fitness_repo, jobs_repository, configured_runner,
+    )
+
+
+def _build_client(services: dict) -> TestClient:
+    from mcp.server.fastmcp import FastMCP
+
+    from journal.api import register_api_routes
+
+    test_mcp = FastMCP("test-journal-fitness")
+    register_api_routes(test_mcp, lambda: services)
+    app = _FakeAuthMiddleware(test_mcp.streamable_http_app())
+    return TestClient(app, raise_server_exceptions=False)
+
+
+@pytest.fixture
+def client(services: dict) -> Generator[TestClient]:
+    with _build_client(services) as tc:
+        yield tc
+
+
+@pytest.fixture
+def configured_client(configured_services: dict) -> Generator[TestClient]:
+    with _build_client(configured_services) as tc:
+        yield tc
+
+
+# --------------------------------------------------------------------
+# Seeding helpers — populate the DB with the minimum row set each
+# test needs. We go through FitnessRepository (real code path) so
+# the row layouts match production.
+# --------------------------------------------------------------------
+
+
+def _seed_raw_strava(
+    repo: FitnessRepository,
+    *,
+    source_id: str,
+    payload: dict[str, Any] | None = None,
+) -> int:
+    raw_id = repo.insert_raw(
+        source="strava",
+        user_id=_TEST_USER_ID,
+        endpoint="activities",
+        source_id=source_id,
+        payload_json=json.dumps(payload or {"id": source_id}),
+        sync_run_id=None,
+    )
+    assert raw_id is not None
+    return raw_id
+
+
+def _seed_raw_garmin(
+    repo: FitnessRepository,
+    *,
+    endpoint: str,
+    source_id: str,
+    payload: dict[str, Any] | None = None,
+) -> int:
+    raw_id = repo.insert_raw(
+        source="garmin",
+        user_id=_TEST_USER_ID,
+        endpoint=endpoint,
+        source_id=source_id,
+        payload_json=json.dumps(payload or {"id": source_id}),
+        sync_run_id=None,
+    )
+    assert raw_id is not None
+    return raw_id
+
+
+def _seed_activity(
+    repo: FitnessRepository,
+    *,
+    source: str,
+    source_id: str,
+    raw_ref_id: int,
+    activity_type: str = "run",
+    local_date: str = "2026-05-01",
+    start_time: str = "2026-05-01T07:00:00Z",
+) -> None:
+    repo.upsert_activity(
+        FitnessActivity(
+            user_id=_TEST_USER_ID,
+            source=source,
+            source_id=source_id,
+            activity_type=activity_type,
+            source_subtype="Run",
+            start_time=start_time,
+            local_date=local_date,
+            duration_s=1800,
+            moving_time_s=1800,
+            distance_m=5000.0,
+            avg_hr_bpm=140,
+            max_hr_bpm=160,
+            avg_pace_s_per_km=360.0,
+            raw_ref_id=raw_ref_id,
+        ),
+    )
+
+
+def _seed_daily(
+    repo: FitnessRepository,
+    *,
+    source: str,
+    local_date: str,
+    raw_ref_ids: list[int],
+) -> None:
+    repo.upsert_daily(
+        FitnessDaily(
+            user_id=_TEST_USER_ID,
+            source=source,
+            local_date=local_date,
+            sleep_score=80,
+            sleep_duration_s=27000,
+            resting_hr_bpm=55,
+            raw_ref_ids=raw_ref_ids,
+        ),
+    )
+
+
+def _wait_for_terminal_job(
+    client: TestClient, job_id: str, *, timeout: float = 5.0
+) -> dict:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        resp = client.get(f"/api/jobs/{job_id}")
+        assert resp.status_code == 200, resp.text
+        payload = resp.json()
+        if payload["status"] in ("succeeded", "failed"):
+            return payload
+        time.sleep(0.02)
+    raise AssertionError(f"job {job_id} did not reach terminal state in time")
+
+
+# --------------------------------------------------------------------
+# GET /api/fitness/activities
+# --------------------------------------------------------------------
+
+
+def test_list_activities_empty_returns_empty_array(client: TestClient) -> None:
+    resp = client.get("/api/fitness/activities?start=2026-05-01&end=2026-05-31")
+    assert resp.status_code == 200
+    assert resp.json() == {"items": []}
+
+
+def test_list_activities_returns_window(
+    client: TestClient, fitness_repo: FitnessRepository
+) -> None:
+    raw1 = _seed_raw_strava(fitness_repo, source_id="A1")
+    raw2 = _seed_raw_strava(fitness_repo, source_id="A2")
+    raw_outside = _seed_raw_strava(fitness_repo, source_id="A3")
+    _seed_activity(
+        fitness_repo, source="strava", source_id="A1", raw_ref_id=raw1,
+        activity_type="run", local_date="2026-05-02",
+        start_time="2026-05-02T08:00:00Z",
+    )
+    _seed_activity(
+        fitness_repo, source="strava", source_id="A2", raw_ref_id=raw2,
+        activity_type="ride", local_date="2026-05-04",
+        start_time="2026-05-04T09:00:00Z",
+    )
+    _seed_activity(
+        fitness_repo, source="strava", source_id="A3", raw_ref_id=raw_outside,
+        activity_type="run", local_date="2026-04-15",
+        start_time="2026-04-15T08:00:00Z",
+    )
+
+    resp = client.get("/api/fitness/activities?start=2026-05-01&end=2026-05-31")
+    assert resp.status_code == 200
+    items = resp.json()["items"]
+    assert len(items) == 2
+    assert {i["source_id"] for i in items} == {"A1", "A2"}
+    sample = next(i for i in items if i["source_id"] == "A1")
+    # Spot-check the fields W15 (webapp) will read.
+    assert sample["activity_type"] == "run"
+    assert sample["local_date"] == "2026-05-02"
+    assert sample["distance_m"] == 5000.0
+    assert sample["raw_ref_id"] == raw1
+
+
+def test_list_activities_type_filter(
+    client: TestClient, fitness_repo: FitnessRepository
+) -> None:
+    raw_run = _seed_raw_strava(fitness_repo, source_id="R1")
+    raw_ride = _seed_raw_strava(fitness_repo, source_id="C1")
+    _seed_activity(
+        fitness_repo, source="strava", source_id="R1", raw_ref_id=raw_run,
+        activity_type="run", local_date="2026-05-02",
+    )
+    _seed_activity(
+        fitness_repo, source="strava", source_id="C1", raw_ref_id=raw_ride,
+        activity_type="ride", local_date="2026-05-03",
+    )
+
+    resp = client.get(
+        "/api/fitness/activities?start=2026-05-01&end=2026-05-31&type=run",
+    )
+    assert resp.status_code == 200
+    items = resp.json()["items"]
+    assert len(items) == 1
+    assert items[0]["activity_type"] == "run"
+
+
+def test_list_activities_out_of_range_returns_empty_not_404(
+    client: TestClient, fitness_repo: FitnessRepository
+) -> None:
+    raw = _seed_raw_strava(fitness_repo, source_id="A1")
+    _seed_activity(
+        fitness_repo, source="strava", source_id="A1", raw_ref_id=raw,
+        activity_type="run", local_date="2026-05-02",
+    )
+    resp = client.get("/api/fitness/activities?start=2025-01-01&end=2025-12-31")
+    assert resp.status_code == 200
+    assert resp.json() == {"items": []}
+
+
+def test_list_activities_missing_params_returns_400(client: TestClient) -> None:
+    resp = client.get("/api/fitness/activities?start=2026-05-01")
+    assert resp.status_code == 400
+    assert "end" in resp.json()["error"]
+
+
+# --------------------------------------------------------------------
+# GET /api/fitness/daily
+# --------------------------------------------------------------------
+
+
+def test_list_daily_empty(client: TestClient) -> None:
+    resp = client.get("/api/fitness/daily?start=2026-05-01&end=2026-05-31")
+    assert resp.status_code == 200
+    assert resp.json() == {"items": []}
+
+
+def test_list_daily_returns_window(
+    client: TestClient, fitness_repo: FitnessRepository
+) -> None:
+    raw_id = _seed_raw_garmin(fitness_repo, endpoint="sleep", source_id="2026-05-02")
+    _seed_daily(
+        fitness_repo, source="garmin", local_date="2026-05-02", raw_ref_ids=[raw_id],
+    )
+    resp = client.get("/api/fitness/daily?start=2026-05-01&end=2026-05-31")
+    assert resp.status_code == 200
+    items = resp.json()["items"]
+    assert len(items) == 1
+    assert items[0]["local_date"] == "2026-05-02"
+    assert items[0]["sleep_score"] == 80
+    assert items[0]["raw_ref_ids"] == [raw_id]
+
+
+def test_list_daily_missing_params_returns_400(client: TestClient) -> None:
+    resp = client.get("/api/fitness/daily?end=2026-05-31")
+    assert resp.status_code == 400
+
+
+# --------------------------------------------------------------------
+# GET /api/fitness/divergence  &  /api/fitness/mood-recovery (§9)
+# --------------------------------------------------------------------
+
+
+def _seed_div_daily(
+    repo: FitnessRepository,
+    *,
+    local_date: str,
+    hrv: float | None = None,
+    sleep: int | None = None,
+) -> None:
+    raw_id = _seed_raw_garmin(repo, endpoint="sleep", source_id=f"div-{local_date}")
+    repo.upsert_daily(
+        FitnessDaily(
+            user_id=_TEST_USER_ID, source="garmin", local_date=local_date,
+            hrv_overnight_ms=hrv, sleep_score=sleep, raw_ref_ids=[raw_id],
+        ),
+    )
+
+
+def _seed_div_mood(
+    db: sqlite3.Connection,
+    *,
+    entry_date: str,
+    physical_fatigue: float | None = None,
+    mental_fatigue: float | None = None,
+) -> None:
+    cur = db.execute(
+        "INSERT INTO entries (user_id, entry_date, source_type, raw_text,"
+        " final_text, word_count) VALUES (?, ?, 'voice', 't', 't', 1)",
+        (_TEST_USER_ID, entry_date),
+    )
+    entry_id = cur.lastrowid
+    for dim, val in (
+        ("physical_fatigue", physical_fatigue),
+        ("mental_fatigue", mental_fatigue),
+    ):
+        if val is not None:
+            db.execute(
+                "INSERT INTO mood_scores (entry_id, dimension, score)"
+                " VALUES (?, ?, ?)",
+                (entry_id, dim, val),
+            )
+    db.commit()
+
+
+def test_divergence_empty_returns_empty(client: TestClient) -> None:
+    resp = client.get("/api/fitness/divergence?start=2026-06-01&end=2026-06-30")
+    assert resp.status_code == 200
+    assert resp.json() == {"rows": [], "summary": {}}
+
+
+def test_divergence_returns_classified_rows(
+    client: TestClient,
+    fitness_db: sqlite3.Connection,
+    fitness_repo: FitnessRepository,
+) -> None:
+    testday = "2026-06-15"
+    d0 = date.fromisoformat(testday)
+    baseline = [(d0 - timedelta(days=i)).isoformat() for i in range(10, 0, -1)]
+    for i, d in enumerate(baseline):
+        lo = i % 2 == 0
+        _seed_div_daily(
+            fitness_repo, local_date=d,
+            hrv=50.0 if lo else 60.0, sleep=75 if lo else 85,
+        )
+        _seed_div_mood(
+            fitness_db, entry_date=d,
+            physical_fatigue=0.3 if lo else 0.5,
+            mental_fatigue=0.3 if lo else 0.5,
+        )
+    # Tired but recovered → likely_mental_fatigue.
+    _seed_div_daily(fitness_repo, local_date=testday, hrv=60.0, sleep=85)
+    _seed_div_mood(
+        fitness_db, entry_date=testday,
+        physical_fatigue=0.6, mental_fatigue=0.4,
+    )
+
+    resp = client.get(
+        f"/api/fitness/divergence?start={testday}&end={testday}&window=28",
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["rows"]) == 1
+    row = body["rows"][0]
+    # Documented DivergenceDay shape.
+    for key in (
+        "local_date", "subjective_tired_z", "physical_fatigue",
+        "mental_fatigue", "recovery_z", "hrv_z", "resting_hr_z", "sleep_z",
+        "readiness_z", "acwr", "acwr_z", "quadrant", "n_signals", "sufficient",
+    ):
+        assert key in row
+    assert row["quadrant"] == "likely_mental_fatigue"
+    assert body["summary"] == {"likely_mental_fatigue": 1}
+
+
+def test_divergence_missing_params_returns_400(client: TestClient) -> None:
+    resp = client.get("/api/fitness/divergence?start=2026-06-01")
+    assert resp.status_code == 400
+
+
+def test_divergence_malformed_date_returns_400(client: TestClient) -> None:
+    # A malformed date must degrade to 400, not surface as a 500 from
+    # compute_divergence's date.fromisoformat.
+    resp = client.get("/api/fitness/divergence?start=garbage&end=2026-06-30")
+    assert resp.status_code == 400
+    assert "start" in resp.json()["error"]
+
+
+def test_mood_recovery_returns_date_aligned_rows(
+    client: TestClient,
+    fitness_db: sqlite3.Connection,
+    fitness_repo: FitnessRepository,
+) -> None:
+    _seed_div_daily(fitness_repo, local_date="2026-06-01", hrv=55.0)
+    _seed_div_mood(
+        fitness_db, entry_date="2026-06-02",
+        physical_fatigue=0.5, mental_fatigue=0.3,
+    )
+    resp = client.get("/api/fitness/mood-recovery?from=2026-06-01&to=2026-06-30")
+    assert resp.status_code == 200
+    rows = resp.json()["rows"]
+    by_date = {r["local_date"]: r for r in rows}
+    assert set(by_date) == {"2026-06-01", "2026-06-02"}
+    assert by_date["2026-06-01"]["hrv_overnight_ms"] == 55.0
+    assert by_date["2026-06-01"]["physical_fatigue"] is None
+    assert by_date["2026-06-02"]["training_load_acute"] is None
+    assert by_date["2026-06-02"]["physical_fatigue"] == 0.5
+
+
+def test_mood_recovery_missing_params_returns_400(client: TestClient) -> None:
+    resp = client.get("/api/fitness/mood-recovery?from=2026-06-01")
+    assert resp.status_code == 400
+
+
+# --------------------------------------------------------------------
+# GET /api/fitness/sync/status
+# --------------------------------------------------------------------
+
+
+def test_sync_status_empty_db_returns_null_per_source(client: TestClient) -> None:
+    """The most-likely first-use state: no auth_state rows, no sync_run rows.
+    Must return 200, not 500 or KeyError."""
+    resp = client.get("/api/fitness/sync/status")
+    assert resp.status_code == 200
+    assert resp.json() == {"strava": None, "garmin": None}
+
+
+def test_sync_status_populated(
+    client: TestClient, fitness_repo: FitnessRepository
+) -> None:
+    fitness_repo.upsert_auth_state(
+        FitnessAuthState(
+            user_id=_TEST_USER_ID,
+            source="strava",
+            access_token="tok",
+            refresh_token="ref",
+            auth_status="ok",
+        ),
+    )
+    run_id = fitness_repo.start_sync_run(user_id=_TEST_USER_ID, source="strava")
+    fitness_repo.finish_sync_run(
+        run_id, status="success", rows_fetched=3, rows_normalized=3,
+    )
+
+    resp = client.get("/api/fitness/sync/status")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["garmin"] is None
+    strava = body["strava"]
+    assert strava["auth_status"] == "ok"
+    assert strava["auth_broken_since"] is None
+    assert strava["last_success_at"] is not None
+    assert len(strava["last_runs"]) == 1
+    last = strava["last_runs"][0]
+    assert last["status"] == "success"
+    assert last["rows_fetched"] == 3
+    assert last["rows_normalized"] == 3
+    assert last["error_class"] is None
+
+
+def test_sync_status_auth_broken_surfaces_since(
+    client: TestClient, fitness_repo: FitnessRepository
+) -> None:
+    fitness_repo.transition_auth(
+        user_id=_TEST_USER_ID,
+        source="garmin",
+        status="broken",
+        at="2026-05-08T12:00:00Z",
+    )
+    resp = client.get("/api/fitness/sync/status")
+    assert resp.status_code == 200
+    garmin = resp.json()["garmin"]
+    assert garmin["auth_status"] == "broken"
+    assert garmin["auth_broken_since"] == "2026-05-08T12:00:00Z"
+    assert garmin["last_success_at"] is None
+    assert garmin["last_runs"] == []
+
+
+def _seed_garmin_saved_creds(
+    fitness_repo: FitnessRepository, *, key: str, password: str = "pw",
+) -> None:
+    from journal.services.fitness.credentials import encrypt_credential
+
+    fitness_repo.upsert_auth_state(
+        FitnessAuthState(
+            user_id=_TEST_USER_ID,
+            source="garmin",
+            extra_state={
+                "tokens_blob": "BLOB",
+                "upstream_user_id": "alice.j",
+                "garmin_username": "alice@example.com",
+                "enc_password": encrypt_credential(password, key=key),
+            },
+            auth_status="ok",
+        ),
+    )
+
+
+def _services_with_credential_key(
+    fitness_factory: ConnectionFactory,
+    fitness_repo: FitnessRepository,
+    jobs_repository: SQLiteJobRepository,
+    job_runner: JobRunner,
+    *,
+    credential_key: str,
+) -> dict:
+    services = _make_services(
+        fitness_factory, fitness_repo, jobs_repository, job_runner,
+    )
+    services["config"] = SimpleNamespace(
+        strava_enabled=True, fitness_credential_key=credential_key,
+    )
+    return services
+
+
+def test_sync_status_credentials_saved_true_when_decryptable(
+    fitness_factory: ConnectionFactory,
+    fitness_repo: FitnessRepository,
+    jobs_repository: SQLiteJobRepository,
+    job_runner: JobRunner,
+) -> None:
+    """W5: garmin payload reports credentials_saved=True iff the stored
+    ciphertext decrypts under the configured key."""
+    from cryptography.fernet import Fernet
+
+    key = Fernet.generate_key().decode()
+    _seed_garmin_saved_creds(fitness_repo, key=key)
+    services = _services_with_credential_key(
+        fitness_factory, fitness_repo, jobs_repository, job_runner,
+        credential_key=key,
+    )
+    with _build_client(services) as tc:
+        resp = tc.get("/api/fitness/sync/status")
+    assert resp.status_code == 200
+    assert resp.json()["garmin"]["credentials_saved"] is True
+
+
+def test_sync_status_credentials_saved_false_on_rotated_key(
+    fitness_factory: ConnectionFactory,
+    fitness_repo: FitnessRepository,
+    jobs_repository: SQLiteJobRepository,
+    job_runner: JobRunner,
+) -> None:
+    from cryptography.fernet import Fernet
+
+    old_key = Fernet.generate_key().decode()
+    new_key = Fernet.generate_key().decode()
+    _seed_garmin_saved_creds(fitness_repo, key=old_key)
+    services = _services_with_credential_key(
+        fitness_factory, fitness_repo, jobs_repository, job_runner,
+        credential_key=new_key,
+    )
+    with _build_client(services) as tc:
+        resp = tc.get("/api/fitness/sync/status")
+    assert resp.status_code == 200
+    assert resp.json()["garmin"]["credentials_saved"] is False
+
+
+def test_sync_status_credentials_saved_false_when_none_saved(
+    fitness_factory: ConnectionFactory,
+    fitness_repo: FitnessRepository,
+    jobs_repository: SQLiteJobRepository,
+    job_runner: JobRunner,
+) -> None:
+    """Key configured but the garmin row has no enc_password (pre-W5 row)."""
+    from cryptography.fernet import Fernet
+
+    fitness_repo.upsert_auth_state(
+        FitnessAuthState(
+            user_id=_TEST_USER_ID,
+            source="garmin",
+            extra_state={"tokens_blob": "BLOB"},
+            auth_status="ok",
+        ),
+    )
+    services = _services_with_credential_key(
+        fitness_factory, fitness_repo, jobs_repository, job_runner,
+        credential_key=Fernet.generate_key().decode(),
+    )
+    with _build_client(services) as tc:
+        resp = tc.get("/api/fitness/sync/status")
+    assert resp.status_code == 200
+    assert resp.json()["garmin"]["credentials_saved"] is False
+
+
+def test_sync_status_credentials_saved_false_when_key_unset(
+    client: TestClient, fitness_repo: FitnessRepository,
+) -> None:
+    """Ciphertext saved but no key configured (default services fixture has
+    no fitness_credential_key) — credentials are unusable, so False."""
+    from cryptography.fernet import Fernet
+
+    _seed_garmin_saved_creds(
+        fitness_repo, key=Fernet.generate_key().decode(),
+    )
+    resp = client.get("/api/fitness/sync/status")
+    assert resp.status_code == 200
+    assert resp.json()["garmin"]["credentials_saved"] is False
+
+
+def test_sync_status_strava_payload_has_no_credentials_saved(
+    client: TestClient, fitness_repo: FitnessRepository,
+) -> None:
+    """W5 scope guard: only the garmin payload gains credentials_saved."""
+    fitness_repo.upsert_auth_state(
+        FitnessAuthState(
+            user_id=_TEST_USER_ID,
+            source="strava",
+            access_token="tok",
+            refresh_token="ref",
+            auth_status="ok",
+        ),
+    )
+    resp = client.get("/api/fitness/sync/status")
+    assert resp.status_code == 200
+    assert "credentials_saved" not in resp.json()["strava"]
+
+
+def test_sync_status_keeps_both_keys_when_strava_disabled(
+    fitness_factory: ConnectionFactory,
+    fitness_repo: FitnessRepository,
+    jobs_repository: SQLiteJobRepository,
+    job_runner: JobRunner,
+) -> None:
+    """Webapp contract: the status payload keeps both source keys even
+    with Strava mothballed — historical Strava state must stay readable."""
+    services = _make_services(
+        fitness_factory, fitness_repo, jobs_repository, job_runner,
+        strava_enabled=False,
+    )
+    with _build_client(services) as tc:
+        resp = tc.get("/api/fitness/sync/status")
+    assert resp.status_code == 200
+    assert set(resp.json()) == {"strava", "garmin"}
+
+
+# --------------------------------------------------------------------
+# POST /api/fitness/sync/{source}
+# --------------------------------------------------------------------
+
+
+def test_sync_post_strava_returns_202_with_job_id(
+    configured_client: TestClient,
+) -> None:
+    resp = configured_client.post("/api/fitness/sync/strava")
+    assert resp.status_code == 202
+    body = resp.json()
+    assert "job_id" in body
+    assert body["status"] in ("queued", "running", "succeeded")
+
+
+def test_sync_post_garmin_returns_202_with_job_id(
+    configured_client: TestClient,
+) -> None:
+    resp = configured_client.post("/api/fitness/sync/garmin")
+    assert resp.status_code == 202
+    assert "job_id" in resp.json()
+
+
+def test_sync_post_unknown_source_returns_400(
+    configured_client: TestClient,
+) -> None:
+    resp = configured_client.post("/api/fitness/sync/whoop")
+    assert resp.status_code == 400
+    assert "source" in resp.json()["error"].lower()
+
+
+def test_sync_post_unconfigured_source_returns_503(
+    client: TestClient,  # client uses the unconfigured runner
+) -> None:
+    """Strava/Garmin not wired on this runner — submit raises RuntimeError.
+    Surfaced as 503 (not 500) so operators can tell "feature off" from
+    "real bug"."""
+    resp = client.post("/api/fitness/sync/strava")
+    assert resp.status_code == 503
+    assert "not configured" in resp.json()["error"].lower()
+
+
+def test_sync_post_returns_existing_running_job_id(
+    configured_services: dict,
+    jobs_repository: SQLiteJobRepository,
+) -> None:
+    """When a fitness_sync_strava is already running for this user,
+    a second POST returns 202 with the existing job_id — not a new id,
+    not 409. We seed a synthetic running job directly so the test
+    doesn't race the executor."""
+    # Insert a synthetic running job_type=fitness_sync_strava row.
+    existing = jobs_repository.create(
+        "fitness_sync_strava", {"user_id": _TEST_USER_ID}, user_id=_TEST_USER_ID,
+    )
+    jobs_repository.mark_running(existing.id)
+
+    with _build_client(configured_services) as tc:
+        resp = tc.post("/api/fitness/sync/strava")
+        assert resp.status_code == 202
+        body = resp.json()
+        assert body["job_id"] == existing.id
+        assert body["status"] == "running"
+        assert body.get("already_running") is True
+
+
+def test_sync_post_strava_disabled_returns_404(
+    fitness_factory: ConnectionFactory,
+    fitness_repo: FitnessRepository,
+    jobs_repository: SQLiteJobRepository,
+    configured_runner: JobRunner,
+) -> None:
+    """STRAVA_ENABLED=false mothball: even a fully wired runner must not
+    accept a Strava sync — 404 with an explicit reason."""
+    services = _make_services(
+        fitness_factory, fitness_repo, jobs_repository, configured_runner,
+        strava_enabled=False,
+    )
+    with _build_client(services) as tc:
+        resp = tc.post("/api/fitness/sync/strava")
+    assert resp.status_code == 404
+    assert resp.json() == {
+        "error": "Strava integration is disabled on this server",
+    }
+
+
+def test_sync_post_garmin_unaffected_when_strava_disabled(
+    fitness_factory: ConnectionFactory,
+    fitness_repo: FitnessRepository,
+    jobs_repository: SQLiteJobRepository,
+    configured_runner: JobRunner,
+) -> None:
+    services = _make_services(
+        fitness_factory, fitness_repo, jobs_repository, configured_runner,
+        strava_enabled=False,
+    )
+    with _build_client(services) as tc:
+        resp = tc.post("/api/fitness/sync/garmin")
+    assert resp.status_code == 202
+    assert "job_id" in resp.json()
+
+
+def test_backfill_post_strava_disabled_returns_404(
+    fitness_factory: ConnectionFactory,
+    fitness_repo: FitnessRepository,
+    jobs_repository: SQLiteJobRepository,
+    configured_runner: JobRunner,
+) -> None:
+    services = _make_services(
+        fitness_factory, fitness_repo, jobs_repository, configured_runner,
+        strava_enabled=False,
+    )
+    with _build_client(services) as tc:
+        resp = tc.post(
+            "/api/fitness/backfill/strava",
+            json={"start": "2026-01-01"},
+        )
+    assert resp.status_code == 404
+    assert resp.json() == {
+        "error": "Strava integration is disabled on this server",
+    }
+
+
+def test_backfill_post_garmin_unaffected_when_strava_disabled(
+    fitness_factory: ConnectionFactory,
+    fitness_repo: FitnessRepository,
+    jobs_repository: SQLiteJobRepository,
+    configured_runner: JobRunner,
+) -> None:
+    services = _make_services(
+        fitness_factory, fitness_repo, jobs_repository, configured_runner,
+        strava_enabled=False,
+    )
+    with _build_client(services) as tc:
+        resp = tc.post(
+            "/api/fitness/backfill/garmin",
+            json={"start": "2026-01-01"},
+        )
+    assert resp.status_code == 202
+    assert "job_id" in resp.json()
+
+
+# --------------------------------------------------------------------
+# GET /api/fitness/integrity
+# --------------------------------------------------------------------
+
+
+def test_integrity_clean_db_returns_empty(client: TestClient) -> None:
+    resp = client.get("/api/fitness/integrity")
+    assert resp.status_code == 200
+    assert resp.json() == {"activities": [], "daily": []}
+
+
+def _build_client_for_user(services: dict, user_id: int) -> TestClient:
+    """Same plumbing as ``_build_client`` but authenticates as ``user_id``
+    instead of the module-level ``_TEST_USER_ID``. Used by the cross-user
+    integrity tests (W1 of the fitness multi-user final-mile plan)."""
+    from mcp.server.fastmcp import FastMCP
+
+    from journal.api import register_api_routes
+
+    class _ClientAuthMiddleware:
+        def __init__(self, app: Any) -> None:
+            self.app = app
+
+        async def __call__(
+            self, scope: Any, receive: Any, send: Any,
+        ) -> None:
+            if scope["type"] in ("http", "websocket"):
+                scope["user"] = AuthenticatedUser(
+                    user_id=user_id,
+                    email=f"user{user_id}@example.com",
+                    display_name=f"User {user_id}",
+                    is_admin=False,
+                    is_active=True,
+                    email_verified=True,
+                )
+                token = _current_user_id.set(user_id)
+                try:
+                    await self.app(scope, receive, send)
+                finally:
+                    _current_user_id.reset(token)
+            else:
+                await self.app(scope, receive, send)
+
+    test_mcp = FastMCP(f"test-journal-fitness-user-{user_id}")
+    register_api_routes(test_mcp, lambda: services)
+    app = _ClientAuthMiddleware(test_mcp.streamable_http_app())
+    return TestClient(app, raise_server_exceptions=False)
+
+
+def test_integrity_with_orphans(
+    client: TestClient,
+    fitness_db: sqlite3.Connection,
+    fitness_repo: FitnessRepository,
+) -> None:
+    """Seed an activity whose raw_ref_id points at a row that doesn't
+    exist, plus a daily with a missing raw id. The integrity report
+    must surface both."""
+    real_raw = _seed_raw_strava(fitness_repo, source_id="REAL")
+    _seed_activity(
+        fitness_repo, source="strava", source_id="REAL", raw_ref_id=real_raw,
+    )
+    # Insert an activity row directly so we can give it a dangling raw_ref_id
+    # without violating any CHECK constraints (the soft pointer has no FK).
+    fitness_db.execute(
+        """
+        INSERT INTO fitness_activities (
+            user_id, source, source_id, activity_type, source_subtype,
+            start_time, local_date, duration_s, raw_ref_id
+        ) VALUES (?, 'strava', 'ORPHAN', 'run', 'Run',
+                  '2026-05-02T08:00:00Z', '2026-05-02', 1800, 99999)
+        """,
+        (_TEST_USER_ID,),
+    )
+    fitness_db.commit()
+
+    # And a daily row pointing at a missing raw garmin id.
+    _seed_daily(
+        fitness_repo, source="garmin", local_date="2026-05-03",
+        raw_ref_ids=[88888],
+    )
+
+    resp = client.get("/api/fitness/integrity")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["activities"]) == 1
+    activity_orphan = body["activities"][0]
+    assert activity_orphan["source"] == "strava"
+    assert activity_orphan["raw_ref_id"] == 99999
+    assert activity_orphan["issue"] == "raw_row_missing"
+
+    assert len(body["daily"]) == 1
+    daily_orphan = body["daily"][0]
+    assert daily_orphan["source"] == "garmin"
+    assert daily_orphan["missing_raw_ids"] == [88888]
+
+
+def test_integrity_user_a_cannot_see_user_b_orphans(
+    services: dict,
+    fitness_db: sqlite3.Connection,
+    fitness_repo: FitnessRepository,
+) -> None:
+    """W1 of the fitness multi-user final-mile plan: the integrity
+    endpoint must scope to the calling user. Seed orphans for both
+    users and assert each user's report contains only their own —
+    even when the orphan ``raw_ref_id`` values exist as real rows in
+    the other user's raw table.
+    """
+    user_a, user_b = 1, 2
+
+    # Seed a second user so the FK from fitness_activities can resolve.
+    fitness_db.execute(
+        """
+        INSERT OR IGNORE INTO users (id, email, password_hash, display_name,
+                                     email_verified, is_admin)
+        VALUES (?, 'user2@example.com', 'x', 'user2', 1, 0)
+        """,
+        (user_b,),
+    )
+    fitness_db.commit()
+
+    # User A: one activity with a dangling raw_ref_id.
+    fitness_db.execute(
+        """
+        INSERT INTO fitness_activities (
+            user_id, source, source_id, activity_type, source_subtype,
+            start_time, local_date, duration_s, raw_ref_id
+        ) VALUES (?, 'strava', 'A-ORPHAN', 'run', 'Run',
+                  '2026-05-02T08:00:00Z', '2026-05-02', 1800, 11111)
+        """,
+        (user_a,),
+    )
+    # User B: one activity with a different dangling raw_ref_id and one
+    # daily orphan. The activity id chosen here is intentionally distinct
+    # so it can't be confused with user A's in the asserted output.
+    fitness_db.execute(
+        """
+        INSERT INTO fitness_activities (
+            user_id, source, source_id, activity_type, source_subtype,
+            start_time, local_date, duration_s, raw_ref_id
+        ) VALUES (?, 'strava', 'B-ORPHAN', 'run', 'Run',
+                  '2026-05-03T08:00:00Z', '2026-05-03', 1800, 22222)
+        """,
+        (user_b,),
+    )
+    fitness_db.execute(
+        """
+        INSERT INTO fitness_daily (
+            user_id, source, local_date, sleep_score, raw_ref_ids_json
+        ) VALUES (?, 'garmin', '2026-05-03', 70, '[33333]')
+        """,
+        (user_b,),
+    )
+    fitness_db.commit()
+
+    # User A's report sees A-ORPHAN only.
+    client_a = _build_client_for_user(services, user_a)
+    body_a = client_a.get("/api/fitness/integrity").json()
+    a_raw_refs = {o["raw_ref_id"] for o in body_a["activities"]}
+    assert a_raw_refs == {11111}, body_a
+    assert body_a["daily"] == [], body_a
+
+    # User B's report sees B's activity + daily, never A's.
+    client_b = _build_client_for_user(services, user_b)
+    body_b = client_b.get("/api/fitness/integrity").json()
+    b_raw_refs = {o["raw_ref_id"] for o in body_b["activities"]}
+    assert b_raw_refs == {22222}, body_b
+    assert len(body_b["daily"]) == 1
+    assert body_b["daily"][0]["missing_raw_ids"] == [33333]
+
+    # Disjoint sets by construction; the strict equalities above already
+    # prove this, but state it explicitly as a regression anchor.
+    assert a_raw_refs.isdisjoint(b_raw_refs)
+
+
+def test_integrity_cross_user_raw_row_does_not_satisfy_pointer(
+    services: dict,
+    fitness_db: sqlite3.Connection,
+    fitness_repo: FitnessRepository,
+) -> None:
+    """The inner ``fitness_raw_*`` lookup that resolves soft pointers
+    must also be user-scoped: a raw row owned by user B at id N must
+    not silently satisfy user A's normalized row that points at id N.
+    Without the per-user filter in the JOIN, user A's orphan would
+    silently disappear from their report — a stealth integrity bug.
+    """
+    user_a, user_b = 1, 2
+    fitness_db.execute(
+        """
+        INSERT OR IGNORE INTO users (id, email, password_hash, display_name,
+                                     email_verified, is_admin)
+        VALUES (?, 'user2@example.com', 'x', 'user2', 1, 0)
+        """,
+        (user_b,),
+    )
+    fitness_db.commit()
+
+    # Seed a real raw row owned by user B. id is autoincrement so we
+    # read it back to point user A's bogus activity at the same id.
+    cur = fitness_db.execute(
+        """
+        INSERT INTO fitness_raw_strava (
+            user_id, source_id, endpoint, fetched_at, payload_json,
+            payload_sha256, sync_run_id
+        ) VALUES (?, 'B-REAL', 'activities',
+                  '2026-05-04T10:00:00Z', '{}', 'sha-b-real', NULL)
+        """,
+        (user_b,),
+    )
+    user_b_raw_id = cur.lastrowid
+    assert user_b_raw_id is not None
+
+    # User A activity points at user B's raw row id. Without per-user
+    # scoping, the JOIN would resolve — masking the orphan.
+    fitness_db.execute(
+        """
+        INSERT INTO fitness_activities (
+            user_id, source, source_id, activity_type, source_subtype,
+            start_time, local_date, duration_s, raw_ref_id
+        ) VALUES (?, 'strava', 'A-MASKED', 'run', 'Run',
+                  '2026-05-04T08:00:00Z', '2026-05-04', 1800, ?)
+        """,
+        (user_a, user_b_raw_id),
+    )
+    fitness_db.commit()
+
+    client_a = _build_client_for_user(services, user_a)
+    body_a = client_a.get("/api/fitness/integrity").json()
+    a_raw_refs = {o["raw_ref_id"] for o in body_a["activities"]}
+    assert user_b_raw_id in a_raw_refs, (
+        "user A's soft pointer to a user-B-owned raw row must surface "
+        "as an orphan — the per-user inner-join scope is the regression."
+    )
+
+
+# --------------------------------------------------------------------
+# POST /api/fitness/backfill/{source}   (W5)
+# --------------------------------------------------------------------
+
+
+def test_backfill_post_strava_returns_202_with_job_id(
+    configured_client: TestClient,
+) -> None:
+    resp = configured_client.post(
+        "/api/fitness/backfill/strava",
+        json={"start": "2026-01-01", "end": "2026-02-01"},
+    )
+    assert resp.status_code == 202
+    body = resp.json()
+    assert "job_id" in body
+    assert body["status"] in ("queued", "running", "succeeded")
+
+
+def test_backfill_post_garmin_returns_202_with_job_id(
+    configured_client: TestClient,
+) -> None:
+    resp = configured_client.post(
+        "/api/fitness/backfill/garmin",
+        json={"start": "2026-01-01"},  # end optional
+    )
+    assert resp.status_code == 202
+    assert "job_id" in resp.json()
+
+
+def test_backfill_post_unknown_source_400(
+    configured_client: TestClient,
+) -> None:
+    resp = configured_client.post(
+        "/api/fitness/backfill/whoop", json={"start": "2026-01-01"},
+    )
+    assert resp.status_code == 400
+    assert "source" in resp.json()["error"].lower()
+
+
+def test_backfill_post_missing_start_400(
+    configured_client: TestClient,
+) -> None:
+    resp = configured_client.post("/api/fitness/backfill/strava", json={})
+    assert resp.status_code == 400
+    assert "start" in resp.json()["error"].lower()
+
+
+def test_backfill_post_malformed_start_date_400(
+    configured_client: TestClient,
+) -> None:
+    resp = configured_client.post(
+        "/api/fitness/backfill/strava",
+        json={"start": "not-a-date"},
+    )
+    assert resp.status_code == 400
+    assert "yyyy-mm-dd" in resp.json()["error"].lower()
+
+
+def test_backfill_post_end_before_start_400(
+    configured_client: TestClient,
+) -> None:
+    resp = configured_client.post(
+        "/api/fitness/backfill/strava",
+        json={"start": "2026-03-01", "end": "2026-01-01"},
+    )
+    assert resp.status_code == 400
+    assert "end" in resp.json()["error"].lower()
+
+
+def test_backfill_post_unconfigured_source_503(
+    client: TestClient,  # unconfigured runner
+) -> None:
+    resp = client.post(
+        "/api/fitness/backfill/strava",
+        json={"start": "2026-01-01"},
+    )
+    assert resp.status_code == 503
+    assert "not configured" in resp.json()["error"].lower()
+
+
+def test_backfill_post_returns_existing_running_sync_job_id(
+    configured_services: dict,
+    jobs_repository: SQLiteJobRepository,
+) -> None:
+    """W5 spanning idempotency, direction A: a running ``fitness_sync_strava``
+    job blocks a backfill submit; the existing sync job_id comes back."""
+    existing = jobs_repository.create(
+        "fitness_sync_strava", {"user_id": _TEST_USER_ID},
+        user_id=_TEST_USER_ID,
+    )
+    jobs_repository.mark_running(existing.id)
+
+    with _build_client(configured_services) as tc:
+        resp = tc.post(
+            "/api/fitness/backfill/strava",
+            json={"start": "2026-01-01"},
+        )
+        assert resp.status_code == 202
+        body = resp.json()
+        assert body["job_id"] == existing.id
+        assert body["status"] == "running"
+        assert body.get("already_running") is True
+
+
+def test_sync_post_returns_existing_running_backfill_job_id(
+    configured_services: dict,
+    jobs_repository: SQLiteJobRepository,
+) -> None:
+    """W5 spanning idempotency, direction B: a queued
+    ``fitness_backfill_strava`` blocks a sync submit; the existing
+    backfill job_id comes back."""
+    existing = jobs_repository.create(
+        "fitness_backfill_strava",
+        {"user_id": _TEST_USER_ID, "start": "2026-01-01"},
+        user_id=_TEST_USER_ID,
+    )
+
+    with _build_client(configured_services) as tc:
+        resp = tc.post("/api/fitness/sync/strava")
+        assert resp.status_code == 202
+        body = resp.json()
+        assert body["job_id"] == existing.id
+        assert body["status"] == "queued"
+        assert body.get("already_running") is True
+
+
+def test_backfill_post_returns_existing_queued_backfill_job_id(
+    configured_services: dict,
+    jobs_repository: SQLiteJobRepository,
+) -> None:
+    """Same-class collision: a queued backfill returns its own job id
+    when a second backfill submit hits."""
+    existing = jobs_repository.create(
+        "fitness_backfill_garmin",
+        {"user_id": _TEST_USER_ID, "start": "2026-01-01"},
+        user_id=_TEST_USER_ID,
+    )
+
+    with _build_client(configured_services) as tc:
+        resp = tc.post(
+            "/api/fitness/backfill/garmin",
+            json={"start": "2026-02-01"},
+        )
+        assert resp.status_code == 202
+        body = resp.json()
+        assert body["job_id"] == existing.id
+        assert body.get("already_running") is True

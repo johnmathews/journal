@@ -1,0 +1,581 @@
+"""Tests for URL-based ingestion.
+
+The module-scoped autouse fixture `_skip_ssrf_validation` stubs out
+`_validate_public_url` so the tests can use literal hostnames like
+`example.com` and `files.slack.com` without triggering real DNS
+resolution (which is unreliable in CI and irrelevant to what these
+tests are checking). SSRF validation itself is covered by
+`tests/test_services/test_ssrf.py`.
+"""
+
+from unittest.mock import MagicMock, patch
+from urllib.error import HTTPError, URLError
+
+import pytest
+
+from journal.db.repository import SQLiteEntryRepository
+from journal.models import TranscriptionResult
+from journal.providers.ocr import OCRResult
+from journal.services.chunking import FixedTokenChunker
+from journal.services.ingestion import IngestionService
+from journal.vectorstore.store import InMemoryVectorStore
+
+
+def _ocr_result(text: str, spans: list[tuple[int, int]] | None = None) -> OCRResult:
+    return OCRResult(text=text, uncertain_spans=list(spans) if spans else [])
+
+
+@pytest.fixture(autouse=True)
+def _skip_ssrf_validation():
+    with patch("journal.services.ingestion.url_sources._validate_public_url"):
+        yield
+
+
+@pytest.fixture
+def mock_ocr():
+    provider = MagicMock()
+    provider.extract.return_value = _ocr_result(
+        "Today I walked through Vienna and met Atlas for coffee."
+    )
+    return provider
+
+
+@pytest.fixture
+def mock_transcription():
+    provider = MagicMock()
+    provider.transcribe.return_value = TranscriptionResult(
+        text="Voice journal entry about my day at work.",
+    )
+    return provider
+
+
+@pytest.fixture
+def mock_embeddings():
+    provider = MagicMock()
+    provider.embed_texts.return_value = [[0.1, 0.2, 0.3]]
+    provider.embed_query.return_value = [0.1, 0.2, 0.3]
+    return provider
+
+
+@pytest.fixture
+def ingestion_service(factory, mock_ocr, mock_transcription, mock_embeddings):
+    repo = SQLiteEntryRepository(factory)
+    vector_store = InMemoryVectorStore()
+    return IngestionService(
+        repository=repo,
+        vector_store=vector_store,
+        ocr_provider=mock_ocr,
+        transcription_provider=mock_transcription,
+        embeddings_provider=mock_embeddings,
+        chunker=FixedTokenChunker(max_tokens=150, overlap_tokens=40),
+        preprocess_images=False,
+    )
+
+
+@pytest.fixture
+def ingestion_service_with_slack(
+    factory, mock_ocr, mock_transcription, mock_embeddings,
+):
+    repo = SQLiteEntryRepository(factory)
+    vector_store = InMemoryVectorStore()
+    return IngestionService(
+        repository=repo,
+        vector_store=vector_store,
+        ocr_provider=mock_ocr,
+        transcription_provider=mock_transcription,
+        embeddings_provider=mock_embeddings,
+        chunker=FixedTokenChunker(max_tokens=150, overlap_tokens=40),
+        slack_bot_token="xoxb-test-token-123",
+        preprocess_images=False,
+    )
+
+
+def _mock_urlopen(data: bytes, content_type: str = "image/jpeg"):
+    """Create a mock urllib response."""
+    response = MagicMock()
+    response.read.return_value = data
+    response.headers = {"Content-Type": content_type}
+    response.__enter__ = lambda s: s
+    response.__exit__ = MagicMock(return_value=False)
+    return response
+
+
+def _redirect_error(url: str, location: str, code: int = 302) -> HTTPError:
+    """Build the HTTPError a redirect-disabled opener raises for a 3xx."""
+    return HTTPError(
+        url=url, code=code, msg="Found", hdrs={"Location": location}, fp=None,
+    )
+
+
+class TestIngestImageFromUrl:
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_downloads_and_ingests(self, mock_url, ingestion_service, mock_ocr):
+        mock_url.return_value = _mock_urlopen(b"fake image bytes")
+
+        entry = ingestion_service.ingest_image_from_url(
+            url="https://files.slack.com/image.jpg",
+            date="2026-03-22",
+        )
+
+        assert entry.entry_date == "2026-03-22"
+        assert entry.source_type == "photo"
+        # extract now receives a PageRole as the third positional arg
+        ocr_call = mock_ocr.extract.call_args
+        assert ocr_call.args[0] == b"fake image bytes"
+        assert ocr_call.args[1] == "image/jpeg"
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_uses_explicit_media_type(self, mock_url, ingestion_service, mock_ocr):
+        mock_url.return_value = _mock_urlopen(b"png data", content_type="application/octet-stream")
+
+        ingestion_service.ingest_image_from_url(
+            url="https://example.com/photo.png",
+            date="2026-03-22",
+            media_type="image/png",
+        )
+
+        ocr_call = mock_ocr.extract.call_args
+        assert ocr_call.args[0] == b"png data"
+        assert ocr_call.args[1] == "image/png"
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_infers_media_type_from_response(self, mock_url, ingestion_service, mock_ocr):
+        mock_url.return_value = _mock_urlopen(b"data", content_type="image/webp")
+
+        ingestion_service.ingest_image_from_url(
+            url="https://example.com/photo",
+            date="2026-03-22",
+        )
+
+        ocr_call = mock_ocr.extract.call_args
+        assert ocr_call.args[0] == b"data"
+        assert ocr_call.args[1] == "image/webp"
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_download_failure_raises(self, mock_url, ingestion_service):
+        mock_url.side_effect = URLError("Connection refused")
+
+        with pytest.raises(ValueError, match="Failed to download"):
+            ingestion_service.ingest_image_from_url(
+                url="https://example.com/broken",
+                date="2026-03-22",
+            )
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_http_error_raises(self, mock_url, ingestion_service):
+        mock_url.side_effect = HTTPError(
+            url="https://example.com/forbidden",
+            code=403,
+            msg="Forbidden",
+            hdrs=MagicMock(),
+            fp=None,
+        )
+
+        with pytest.raises(ValueError, match="Failed to download.*403"):
+            ingestion_service.ingest_image_from_url(
+                url="https://example.com/forbidden",
+                date="2026-03-22",
+            )
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_duplicate_detection(self, mock_url, ingestion_service):
+        mock_url.return_value = _mock_urlopen(b"same image data")
+
+        ingestion_service.ingest_image_from_url(
+            url="https://example.com/page1.jpg",
+            date="2026-03-22",
+        )
+
+        mock_url.return_value = _mock_urlopen(b"same image data")
+
+        with pytest.raises(ValueError, match="already been uploaded"):
+            ingestion_service.ingest_image_from_url(
+                url="https://example.com/page1.jpg",
+                date="2026-03-23",
+            )
+
+
+class TestSlackUrlAuth:
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_adds_bearer_header_for_slack_urls(
+        self, mock_url, ingestion_service_with_slack,
+    ):
+        mock_url.return_value = _mock_urlopen(b"slack image")
+
+        ingestion_service_with_slack.ingest_image_from_url(
+            url="https://files.slack.com/files-pri/T0X-F0X/journal.jpg",
+            date="2026-03-22",
+        )
+
+        req = mock_url.call_args[0][0]
+        assert req.get_header("Authorization") == "Bearer xoxb-test-token-123"
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_no_auth_header_for_non_slack_urls(
+        self, mock_url, ingestion_service_with_slack,
+    ):
+        mock_url.return_value = _mock_urlopen(b"other image")
+
+        ingestion_service_with_slack.ingest_image_from_url(
+            url="https://example.com/photo.jpg",
+            date="2026-03-22",
+        )
+
+        req = mock_url.call_args[0][0]
+        assert req.get_header("Authorization") is None
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_no_auth_header_when_token_not_configured(
+        self, mock_url, ingestion_service,
+    ):
+        mock_url.return_value = _mock_urlopen(b"slack image")
+
+        ingestion_service.ingest_image_from_url(
+            url="https://files.slack.com/files-pri/T0X-F0X/journal.jpg",
+            date="2026-03-22",
+        )
+
+        req = mock_url.call_args[0][0]
+        assert req.get_header("Authorization") is None
+
+
+class TestSlackTokenScoping:
+    """The Slack bearer token must be scoped to the exact host
+    ``files.slack.com`` over https — never attached because the string
+    happens to appear elsewhere in the URL, and never forwarded to a
+    different host across a redirect."""
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_no_auth_header_when_slack_host_only_in_query(
+        self, mock_url, ingestion_service_with_slack,
+    ):
+        # "files.slack.com" appears in the query string of a non-Slack
+        # host — a substring match would leak the token here.
+        mock_url.return_value = _mock_urlopen(b"not slack")
+
+        ingestion_service_with_slack.ingest_image_from_url(
+            url="https://evil.example/photo.jpg?x=files.slack.com",
+            date="2026-03-22",
+        )
+
+        req = mock_url.call_args[0][0]
+        assert req.get_header("Authorization") is None
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_no_auth_header_when_slack_host_only_in_path(
+        self, mock_url, ingestion_service_with_slack,
+    ):
+        mock_url.return_value = _mock_urlopen(b"not slack")
+
+        ingestion_service_with_slack.ingest_image_from_url(
+            url="https://evil.example/files.slack.com/photo.jpg",
+            date="2026-03-22",
+        )
+
+        req = mock_url.call_args[0][0]
+        assert req.get_header("Authorization") is None
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_no_auth_header_for_plain_http_slack_host(
+        self, mock_url, ingestion_service_with_slack,
+    ):
+        # The token is a credential — only send it over https.
+        mock_url.return_value = _mock_urlopen(b"slack image")
+
+        ingestion_service_with_slack.ingest_image_from_url(
+            url="http://files.slack.com/files-pri/T0X-F0X/journal.jpg",
+            date="2026-03-22",
+        )
+
+        req = mock_url.call_args[0][0]
+        assert req.get_header("Authorization") is None
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_token_not_forwarded_across_redirect_off_slack(
+        self, mock_url, ingestion_service_with_slack,
+    ):
+        # files.slack.com redirects to a third-party CDN: the first
+        # request carries the bearer token, the redirected one must not.
+        mock_url.side_effect = [
+            _redirect_error(
+                "https://files.slack.com/files-pri/T0X-F0X/journal.jpg",
+                "https://cdn.example.com/journal.jpg",
+            ),
+            _mock_urlopen(b"redirected image"),
+        ]
+
+        entry = ingestion_service_with_slack.ingest_image_from_url(
+            url="https://files.slack.com/files-pri/T0X-F0X/journal.jpg",
+            date="2026-03-22",
+        )
+
+        assert entry.source_type == "photo"
+        first_req = mock_url.call_args_list[0][0][0]
+        second_req = mock_url.call_args_list[1][0][0]
+        assert (
+            first_req.get_header("Authorization")
+            == "Bearer xoxb-test-token-123"
+        )
+        assert second_req.get_header("Authorization") is None
+
+
+class TestRedirectHandling:
+    """_download must follow redirects manually, re-validating every hop
+    against the SSRF guard and capping the chain length."""
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_redirect_to_private_address_rejected(
+        self, mock_url, ingestion_service,
+    ):
+        # Public URL 302s to the cloud-metadata IP. The redirect target
+        # must be run through _validate_public_url and refused.
+        mock_url.side_effect = _redirect_error(
+            "https://example.com/photo.jpg",
+            "http://169.254.169.254/latest/meta-data/",
+        )
+
+        def _validate(url: str) -> None:
+            if "169.254.169.254" in url:
+                raise ValueError(
+                    f"Refusing to fetch {url!r} — host resolved to "
+                    "non-public address 169.254.169.254"
+                )
+
+        with patch(
+            "journal.services.ingestion.url_sources._validate_public_url",
+            side_effect=_validate,
+        ) as mock_validate, pytest.raises(ValueError, match="non-public"):
+            ingestion_service.ingest_image_from_url(
+                url="https://example.com/photo.jpg",
+                date="2026-03-22",
+            )
+
+        # Both the original URL and the redirect target were validated.
+        validated = [c.args[0] for c in mock_validate.call_args_list]
+        assert validated == [
+            "https://example.com/photo.jpg",
+            "http://169.254.169.254/latest/meta-data/",
+        ]
+        # The private target was never fetched.
+        assert mock_url.call_count == 1
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_relative_redirect_resolved_against_current_url(
+        self, mock_url, ingestion_service, mock_ocr,
+    ):
+        mock_url.side_effect = [
+            _redirect_error(
+                "https://example.com/a/photo.jpg", "/b/photo.jpg",
+            ),
+            _mock_urlopen(b"image bytes"),
+        ]
+
+        ingestion_service.ingest_image_from_url(
+            url="https://example.com/a/photo.jpg",
+            date="2026-03-22",
+        )
+
+        second_req = mock_url.call_args_list[1][0][0]
+        assert second_req.full_url == "https://example.com/b/photo.jpg"
+        ocr_call = mock_ocr.extract.call_args
+        assert ocr_call.args[0] == b"image bytes"
+        assert ocr_call.args[1] == "image/jpeg"
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_redirect_chain_longer_than_five_hops_raises(
+        self, mock_url, ingestion_service,
+    ):
+        mock_url.side_effect = [
+            _redirect_error(
+                f"https://example.com/hop{i}",
+                f"https://example.com/hop{i + 1}",
+            )
+            for i in range(10)
+        ]
+
+        with pytest.raises(ValueError, match="[Tt]oo many redirects"):
+            ingestion_service.ingest_image_from_url(
+                url="https://example.com/hop0",
+                date="2026-03-22",
+            )
+
+        # Original request + at most 5 followed redirects.
+        assert mock_url.call_count == 6
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_redirect_chain_of_five_hops_succeeds(
+        self, mock_url, ingestion_service, mock_ocr,
+    ):
+        mock_url.side_effect = [
+            *(
+                _redirect_error(
+                    f"https://example.com/hop{i}",
+                    f"https://example.com/hop{i + 1}",
+                )
+                for i in range(5)
+            ),
+            _mock_urlopen(b"final image"),
+        ]
+
+        ingestion_service.ingest_image_from_url(
+            url="https://example.com/hop0",
+            date="2026-03-22",
+        )
+
+        assert mock_url.call_count == 6
+        ocr_call = mock_ocr.extract.call_args
+        assert ocr_call.args[0] == b"final image"
+        assert ocr_call.args[1] == "image/jpeg"
+
+
+class TestIngestMultiPageFromUrls:
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_downloads_all_pages_and_creates_single_entry(
+        self, mock_url, ingestion_service, mock_ocr,
+    ):
+        # Each call to urlopen returns a different mock response so the
+        # duplicate-hash check (which hashes raw bytes) passes for all pages.
+        mock_url.side_effect = [
+            _mock_urlopen(b"page one bytes"),
+            _mock_urlopen(b"page two bytes"),
+        ]
+        mock_ocr.extract.side_effect = [
+            _ocr_result("First page text about Vienna."),
+            _ocr_result("Second page text about Atlas."),
+        ]
+
+        entry = ingestion_service.ingest_multi_page_entry_from_urls(
+            urls=[
+                "https://example.com/page1.jpg",
+                "https://example.com/page2.jpg",
+            ],
+            date="2026-04-10",
+        )
+
+        assert entry.entry_date == "2026-04-10"
+        assert entry.source_type == "photo"
+        # Both page texts should be present in the combined entry.
+        assert "First page text about Vienna." in entry.raw_text
+        assert "Second page text about Atlas." in entry.raw_text
+        assert mock_ocr.extract.call_count == 2
+        assert mock_url.call_count == 2
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_respects_per_url_media_type_override(
+        self, mock_url, ingestion_service, mock_ocr,
+    ):
+        mock_url.side_effect = [
+            _mock_urlopen(b"first", content_type="application/octet-stream"),
+            _mock_urlopen(b"second", content_type="image/jpeg"),
+        ]
+
+        ingestion_service.ingest_multi_page_entry_from_urls(
+            urls=["https://example.com/p1", "https://example.com/p2.jpg"],
+            date="2026-04-10",
+            media_types=["image/png", None],
+        )
+
+        # First call: explicit override wins.
+        first_call = mock_ocr.extract.call_args_list[0]
+        assert first_call[0][1] == "image/png"
+        # Second call: inferred from response Content-Type.
+        second_call = mock_ocr.extract.call_args_list[1]
+        assert second_call[0][1] == "image/jpeg"
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_empty_urls_raises(self, mock_url, ingestion_service):
+        with pytest.raises(ValueError, match="At least one URL"):
+            ingestion_service.ingest_multi_page_entry_from_urls(
+                urls=[], date="2026-04-10",
+            )
+        mock_url.assert_not_called()
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_mismatched_media_types_length_raises(
+        self, mock_url, ingestion_service,
+    ):
+        with pytest.raises(ValueError, match="same length"):
+            ingestion_service.ingest_multi_page_entry_from_urls(
+                urls=["https://example.com/p1", "https://example.com/p2"],
+                date="2026-04-10",
+                media_types=["image/jpeg"],
+            )
+        mock_url.assert_not_called()
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_previously_ingested_page_raises(
+        self, mock_url, ingestion_service,
+    ):
+        # Ingest a single image first so its hash is recorded in source_files.
+        mock_url.return_value = _mock_urlopen(b"page one bytes")
+        ingestion_service.ingest_image_from_url(
+            url="https://example.com/first.jpg",
+            date="2026-04-09",
+        )
+
+        # Now a multi-page batch that includes the same bytes should fail
+        # because the hash is already in source_files.
+        mock_url.return_value = None
+        mock_url.side_effect = [
+            _mock_urlopen(b"page one bytes"),
+            _mock_urlopen(b"page two bytes"),
+        ]
+
+        with pytest.raises(ValueError, match="already been uploaded"):
+            ingestion_service.ingest_multi_page_entry_from_urls(
+                urls=[
+                    "https://example.com/p1.jpg",
+                    "https://example.com/p2.jpg",
+                ],
+                date="2026-04-10",
+            )
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_slack_urls_get_bearer_header(
+        self, mock_url, ingestion_service_with_slack,
+    ):
+        mock_url.side_effect = [
+            _mock_urlopen(b"slack page one"),
+            _mock_urlopen(b"slack page two"),
+        ]
+
+        ingestion_service_with_slack.ingest_multi_page_entry_from_urls(
+            urls=[
+                "https://files.slack.com/files-pri/T0X-F0X/p1.jpg",
+                "https://files.slack.com/files-pri/T0X-F0X/p2.jpg",
+            ],
+            date="2026-04-10",
+        )
+
+        for call in mock_url.call_args_list:
+            req = call[0][0]
+            assert req.get_header("Authorization") == "Bearer xoxb-test-token-123"
+
+
+class TestIngestVoiceFromUrl:
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_downloads_and_transcribes(self, mock_url, ingestion_service, mock_transcription):
+        mock_url.return_value = _mock_urlopen(b"fake audio bytes", content_type="audio/mp3")
+
+        entry = ingestion_service.ingest_voice_from_url(
+            url="https://example.com/note.mp3",
+            date="2026-03-22",
+        )
+
+        assert entry.entry_date == "2026-03-22"
+        assert entry.source_type == "voice"
+        mock_transcription.transcribe.assert_called_once_with(
+            b"fake audio bytes", "audio/mp3", "en",
+        )
+
+    @patch("journal.services.ingestion.url_sources.urlopen")
+    def test_passes_language(self, mock_url, ingestion_service, mock_transcription):
+        mock_url.return_value = _mock_urlopen(b"audio", content_type="audio/m4a")
+
+        ingestion_service.ingest_voice_from_url(
+            url="https://example.com/note.m4a",
+            date="2026-03-22",
+            language="nl",
+        )
+
+        mock_transcription.transcribe.assert_called_once_with(b"audio", "audio/m4a", "nl")

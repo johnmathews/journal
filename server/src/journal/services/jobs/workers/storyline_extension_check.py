@@ -1,0 +1,141 @@
+"""Worker body: classify whether a new entry extends each active storyline.
+
+Queued by the entity-extraction worker once an entry's mentions are
+committed (via ``JobRunner._maybe_queue_storyline_extension_check``), so
+the classifier's entity-overlap signal reads a populated mention set.
+For each ``yes`` decision, records the entry as pending on that
+storyline (``storyline_repository.add_pending_entry`` — lossless even
+when coalesced, see below) and queues a follow-up ``storyline_update``
+job via the runner's ``submit_storyline_update``, unless one is already
+queued. ``maybe`` decisions are recorded on the job result for future
+surfacing; ``no`` decisions are simply counted.
+
+The classifier handles its own per-storyline timestamp update
+(``record_extension_check``), so this worker is a thin orchestrator
+on top of the classifier.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING, Any
+
+from journal.services.jobs.errors import friendly_error
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from journal.services.jobs.workers import WorkerContext
+
+log = logging.getLogger(__name__)
+
+
+def run_storyline_extension_check(
+    ctx: WorkerContext,
+    job_id: str,
+    params: dict[str, Any],
+    submit_update: Callable[..., Any],
+) -> None:
+    """Classify ``entry_id`` against each active storyline, queue
+    updates for positive matches.
+
+    ``submit_update`` is the runner's ``submit_storyline_update`` bound
+    method, passed in so the worker stays free of any runner-side
+    reach-in. ``user_id`` is required in ``params``; ``parent_job_id``
+    is honoured if set.
+    """
+    user_id = params["user_id"]
+    parent_job_id = params.get("parent_job_id")
+    entry_id = params["entry_id"]
+
+    try:
+        ctx.jobs.mark_running(job_id)
+        ctx.jobs.update_progress(job_id, 0, 1)
+
+        if ctx.storyline_extension_classifier is None:
+            error_msg = (
+                "StorylineExtensionClassifier not configured; "
+                "cannot run extension check."
+            )
+            ctx.jobs.mark_failed(job_id, error_msg)
+            if ctx.notifier.get_notify_strategy(parent_job_id) != "compressed_all":
+                ctx.notifier.notify_failed(
+                    user_id, "storyline_extension_check", error_msg,
+                )
+            if parent_job_id:
+                ctx.notifier.try_pipeline_notification(parent_job_id, user_id)
+            return
+
+        results = ctx.storyline_extension_classifier.classify_for_entry(
+            entry_id=entry_id, user_id=user_id,
+        )
+
+        updates_queued: list[int] = []
+        coalesced_storyline_ids: list[int] = []
+        for r in results:
+            if r.decision == "yes":
+                # Record the entry as pending on this storyline FIRST —
+                # this is what makes coalescing lossless: whichever
+                # storyline_update job runs next (the one we're about to
+                # queue, or one already queued from an earlier entry in
+                # this burst) picks up every pending entry when it reads
+                # the pending table, so no entry is ever dropped even
+                # when we skip queuing a duplicate below.
+                if ctx.storyline_repository is not None:
+                    ctx.storyline_repository.add_pending_entry(
+                        r.storyline_id, entry_id,
+                    )
+                # Coalesce a burst ingest: if a plain update for this
+                # storyline is already queued (not yet running), it will
+                # pick up the pending entry just recorded above when it
+                # runs, so don't queue a duplicate — 30 gym entries → one
+                # update, not 30 serialized judge calls on the
+                # single-worker pool.
+                if ctx.jobs.find_pending_storyline_update(
+                    user_id=user_id, storyline_id=r.storyline_id,
+                ) is not None:
+                    coalesced_storyline_ids.append(r.storyline_id)
+                    continue
+                try:
+                    submit_update(r.storyline_id, user_id=user_id)
+                    updates_queued.append(r.storyline_id)
+                except Exception:  # noqa: BLE001 — log + continue
+                    log.exception(
+                        "Failed to queue update for storyline %d (entry %d)",
+                        r.storyline_id, entry_id,
+                    )
+
+        ctx.jobs.update_progress(job_id, 1, 1)
+        summary: dict[str, Any] = {
+            "entry_id": entry_id,
+            "classifications": [
+                {
+                    "storyline_id": r.storyline_id,
+                    "decision": r.decision,
+                    "stage": r.stage,
+                    "reasoning": r.reasoning,
+                }
+                for r in results
+            ],
+            "updates_queued": updates_queued,
+            "coalesced_storyline_ids": coalesced_storyline_ids,
+        }
+        ctx.jobs.mark_succeeded(job_id, summary)
+
+        if parent_job_id:
+            ctx.notifier.try_pipeline_notification(parent_job_id, user_id)
+        # No success notification by default — this fires on every
+        # ingestion and would be noisy. Failures still notify.
+    except Exception as exc:  # noqa: BLE001 — terminal-state guard
+        log.exception("Storyline extension check job %s failed", job_id)
+        try:
+            friendly = friendly_error(exc)
+            ctx.jobs.mark_failed(job_id, friendly)
+            if ctx.notifier.get_notify_strategy(parent_job_id) != "compressed_all":
+                ctx.notifier.notify_failed(
+                    user_id, "storyline_extension_check", friendly, exc,
+                )
+            if parent_job_id:
+                ctx.notifier.try_pipeline_notification(parent_job_id, user_id)
+        except Exception:  # noqa: BLE001
+            log.exception("Failed to record failure for job %s", job_id)

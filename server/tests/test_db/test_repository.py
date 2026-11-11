@@ -1,0 +1,1270 @@
+"""Tests for SQLite repository."""
+
+import sqlite3
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+
+import pytest
+
+from journal.db.factory import ConnectionFactory
+from journal.db.migrations import run_migrations
+from journal.db.repository import SQLiteEntryRepository
+from journal.models import ChunkSpan
+
+
+@pytest.fixture
+def repo(factory):
+    return SQLiteEntryRepository(factory)
+
+
+@pytest.fixture
+def repo_factory(tmp_path: Path) -> ConnectionFactory:
+    """ConnectionFactory pointing at a migrated temp DB."""
+    factory = ConnectionFactory(tmp_path / "repo.db")
+    run_migrations(factory.get())
+    return factory
+
+
+@pytest.fixture
+def repo_via_factory(repo_factory: ConnectionFactory) -> SQLiteEntryRepository:
+    """Factory-backed repo — production-equivalent path."""
+    return SQLiteEntryRepository(repo_factory)
+
+
+class TestCreateAndGetEntry:
+    def test_create_entry(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "Today was a good day.", 5)
+        assert entry.id == 1
+        assert entry.entry_date == "2026-03-22"
+        assert entry.source_type == "photo"
+        assert entry.raw_text == "Today was a good day."
+        assert entry.word_count == 5
+
+    def test_get_entry(self, repo):
+        created = repo.create_entry("2026-03-22", "photo", "Hello world", 2)
+        fetched = repo.get_entry(created.id)
+        assert fetched is not None
+        assert fetched.id == created.id
+        assert fetched.raw_text == "Hello world"
+
+    def test_get_entry_not_found(self, repo):
+        assert repo.get_entry(999) is None
+
+    def test_get_entries_by_date(self, repo):
+        repo.create_entry("2026-03-22", "photo", "Entry one", 2)
+        repo.create_entry("2026-03-22", "voice", "Entry two", 2)
+        repo.create_entry("2026-03-23", "photo", "Entry three", 2)
+
+        entries = repo.get_entries_by_date("2026-03-22")
+        assert len(entries) == 2
+
+
+class TestListEntries:
+    def test_list_entries_all(self, repo):
+        for i in range(5):
+            repo.create_entry(f"2026-03-{20 + i:02d}", "photo", f"Entry {i}", 2)
+        entries = repo.list_entries()
+        assert len(entries) == 5
+
+    def test_list_entries_with_date_filter(self, repo):
+        repo.create_entry("2026-03-01", "photo", "March start", 2)
+        repo.create_entry("2026-03-15", "photo", "March mid", 2)
+        repo.create_entry("2026-03-31", "photo", "March end", 2)
+
+        entries = repo.list_entries(start_date="2026-03-10", end_date="2026-03-20")
+        assert len(entries) == 1
+        assert entries[0].raw_text == "March mid"
+
+    def test_list_entries_pagination(self, repo):
+        for i in range(10):
+            repo.create_entry(f"2026-03-{i + 1:02d}", "photo", f"Entry {i}", 2)
+        page1 = repo.list_entries(limit=3, offset=0)
+        page2 = repo.list_entries(limit=3, offset=3)
+        assert len(page1) == 3
+        assert len(page2) == 3
+        assert page1[0].id != page2[0].id
+
+
+class TestFTS:
+    def test_search_text(self, repo):
+        repo.create_entry("2026-03-22", "photo", "Walked through Vienna today", 4)
+        repo.create_entry("2026-03-23", "photo", "Stayed home and read a book", 6)
+
+        results = repo.search_text("Vienna")
+        assert len(results) == 1
+        assert "Vienna" in results[0].raw_text
+
+    def test_search_text_with_date_filter(self, repo):
+        repo.create_entry("2026-01-15", "photo", "Vienna in January", 3)
+        repo.create_entry("2026-03-15", "photo", "Vienna in March", 3)
+
+        results = repo.search_text("Vienna", start_date="2026-03-01")
+        assert len(results) == 1
+        assert results[0].entry_date == "2026-03-15"
+
+    def test_search_text_no_results(self, repo):
+        repo.create_entry("2026-03-22", "photo", "Nothing relevant here", 3)
+        results = repo.search_text("Vienna")
+        assert len(results) == 0
+
+
+class TestFTSSnippets:
+    def test_search_text_with_snippets_wraps_matches(self, repo):
+        repo.create_entry(
+            "2026-03-22",
+            "photo",
+            "Walked through Vienna with Atlas and later met Robyn.",
+            10,
+        )
+        results = repo.search_text_with_snippets("Vienna")
+        assert len(results) == 1
+        entry, snippet = results[0]
+        assert entry.entry_date == "2026-03-22"
+        # STX/ETX should wrap the matched token (case-insensitive FTS5).
+        assert "\x02" in snippet
+        assert "\x03" in snippet
+        # Extracting the wrapped segment should equal the matched term.
+        start = snippet.index("\x02")
+        end = snippet.index("\x03")
+        assert snippet[start + 1 : end].lower() == "vienna"
+
+    def test_search_text_with_snippets_date_filter(self, repo):
+        repo.create_entry("2026-01-15", "photo", "Vienna in January", 3)
+        repo.create_entry("2026-03-15", "photo", "Vienna in March", 3)
+
+        results = repo.search_text_with_snippets(
+            "Vienna", start_date="2026-03-01"
+        )
+        assert len(results) == 1
+        entry, _ = results[0]
+        assert entry.entry_date == "2026-03-15"
+
+    def test_search_text_with_snippets_pagination(self, repo):
+        for i in range(5):
+            repo.create_entry(
+                f"2026-03-{10 + i:02d}",
+                "photo",
+                f"Entry number {i} mentions Atlas in some form.",
+                8,
+            )
+        page_one = repo.search_text_with_snippets("Atlas", limit=2, offset=0)
+        page_two = repo.search_text_with_snippets("Atlas", limit=2, offset=2)
+        assert len(page_one) == 2
+        assert len(page_two) == 2
+        ids_one = {e.id for e, _ in page_one}
+        ids_two = {e.id for e, _ in page_two}
+        assert ids_one.isdisjoint(ids_two)
+
+    def test_search_text_with_snippets_no_match(self, repo):
+        repo.create_entry("2026-03-22", "photo", "Nothing relevant here", 3)
+        results = repo.search_text_with_snippets("Vienna")
+        assert results == []
+
+    def test_count_text_matches(self, repo):
+        repo.create_entry("2026-03-01", "photo", "Atlas the dog", 3)
+        repo.create_entry("2026-03-02", "photo", "Atlas again", 2)
+        repo.create_entry("2026-03-03", "photo", "No match here", 3)
+        assert repo.count_text_matches("Atlas") == 2
+
+    def test_count_text_matches_with_date_filter(self, repo):
+        repo.create_entry("2026-01-15", "photo", "Vienna visit", 2)
+        repo.create_entry("2026-03-15", "photo", "Vienna trip", 2)
+        assert (
+            repo.count_text_matches("Vienna", start_date="2026-03-01") == 1
+        )
+
+
+class TestFTSPunctuation:
+    """Free-form queries with punctuation must never raise FTS5 errors.
+
+    User search text is natural language ("when did my back start
+    hurting?"). FTS5's MATCH grammar treats ``?``, quotes, hyphens,
+    parentheses, ``:``, ``*`` and the bare booleans ``AND/OR/NOT`` as
+    query operators, so passing the raw query straight to MATCH used to
+    raise ``sqlite3.OperationalError: fts5: syntax error near "?"``. The
+    repository now tokenises the query and wraps each token as a literal
+    phrase so punctuation is inert and content words still match.
+    """
+
+    def test_search_text_question_mark_does_not_raise(self, repo):
+        repo.create_entry(
+            "2026-03-22", "photo", "My back started hurting after the gym", 5
+        )
+        # The trailing '?' previously raised: fts5 syntax error near "?".
+        results = repo.search_text("back hurting?")
+        assert any("back" in r.raw_text for r in results)
+
+    def test_search_text_with_snippets_question_mark_does_not_raise(self, repo):
+        repo.create_entry(
+            "2026-03-22", "photo", "My back started hurting after the gym", 5
+        )
+        results = repo.search_text_with_snippets("back hurting?")
+        assert len(results) == 1
+
+    def test_count_text_matches_question_mark_does_not_raise(self, repo):
+        repo.create_entry("2026-03-22", "photo", "My back hurts", 3)
+        assert repo.count_text_matches("back?") == 1
+
+    def test_assorted_fts5_operators_are_inert(self, repo):
+        # Characters that are FTS5 operators must be treated as literal
+        # text rather than syntax — none of these may raise.
+        repo.create_entry("2026-03-22", "photo", "Met Robyn at the cafe", 4)
+        for q in [
+            'Robyn"',
+            "Robyn (cafe)",
+            "Robyn - cafe",
+            "cafe:",
+            "AND OR NOT",
+            "Robyn*",
+            "what did I do? (anything)",
+        ]:
+            repo.search_text(q)  # must not raise
+
+    def test_embedded_quote_still_matches_content_word(self, repo):
+        repo.create_entry("2026-03-22", "photo", "Met Robyn at the cafe", 4)
+        # A stray double-quote must be escaped, not treated as a phrase
+        # delimiter, and the content word must still match.
+        results = repo.search_text('Robyn"')
+        assert len(results) == 1
+
+    def test_all_punctuation_query_returns_empty(self, repo):
+        repo.create_entry("2026-03-22", "photo", "Something here", 3)
+        assert repo.search_text("???") == []
+        assert repo.search_text_with_snippets("?!") == []
+        assert repo.count_text_matches("...") == 0
+
+
+class TestWritingFrequency:
+    """T1.3a.i — get_writing_frequency across the four granularities."""
+
+    def test_invalid_granularity_raises(self, repo):
+        import pytest
+
+        with pytest.raises(ValueError, match="Unsupported granularity"):
+            repo.get_writing_frequency(None, None, "fortnight")
+
+    def test_empty_returns_empty_list(self, repo):
+        assert repo.get_writing_frequency(None, None, "week") == []
+
+    def test_week_bins_start_on_monday(self, repo):
+        # 2026-03-22 is a Sunday, 2026-03-23 is a Monday,
+        # 2026-03-24 is a Tuesday. All three should fall into the
+        # week starting Monday 2026-03-23 — except the Sunday
+        # entry, which belongs to the PREVIOUS week starting
+        # 2026-03-16. Verify both.
+        repo.create_entry("2026-03-22", "photo", "Sunday entry", 2)
+        repo.create_entry("2026-03-23", "photo", "Monday entry", 2)
+        repo.create_entry("2026-03-24", "photo", "Tuesday entry", 2)
+        repo.create_entry("2026-03-30", "photo", "Next Monday", 2)
+
+        bins = repo.get_writing_frequency(None, None, "week")
+        by_start = {b.bin_start: b for b in bins}
+
+        assert "2026-03-16" in by_start  # Sunday rolled into prior Monday
+        assert by_start["2026-03-16"].entry_count == 1
+        assert "2026-03-23" in by_start
+        assert by_start["2026-03-23"].entry_count == 2
+        assert "2026-03-30" in by_start
+        assert by_start["2026-03-30"].entry_count == 1
+
+    def test_month_bins_start_on_first_of_month(self, repo):
+        repo.create_entry("2026-03-01", "photo", "march start", 2)
+        repo.create_entry("2026-03-15", "photo", "march mid", 2)
+        repo.create_entry("2026-03-31", "photo", "march end", 2)
+        repo.create_entry("2026-04-01", "photo", "april start", 2)
+
+        bins = repo.get_writing_frequency(None, None, "month")
+        by_start = {b.bin_start: b for b in bins}
+
+        assert by_start["2026-03-01"].entry_count == 3
+        assert by_start["2026-04-01"].entry_count == 1
+
+    def test_quarter_bins_start_on_jan_apr_jul_oct(self, repo):
+        repo.create_entry("2026-01-15", "photo", "q1 mid", 2)
+        repo.create_entry("2026-02-28", "photo", "q1 end", 2)
+        repo.create_entry("2026-04-01", "photo", "q2 start", 2)
+        repo.create_entry("2026-07-15", "photo", "q3 mid", 2)
+        repo.create_entry("2026-12-31", "photo", "q4 end", 2)
+
+        bins = repo.get_writing_frequency(None, None, "quarter")
+        by_start = {b.bin_start: b for b in bins}
+
+        assert by_start["2026-01-01"].entry_count == 2
+        assert by_start["2026-04-01"].entry_count == 1
+        assert by_start["2026-07-01"].entry_count == 1
+        assert by_start["2026-10-01"].entry_count == 1
+
+    def test_year_bins_start_on_jan_first(self, repo):
+        repo.create_entry("2025-06-15", "photo", "2025 entry", 2)
+        repo.create_entry("2026-01-01", "photo", "2026 start", 2)
+        repo.create_entry("2026-12-31", "photo", "2026 end", 2)
+
+        bins = repo.get_writing_frequency(None, None, "year")
+        by_start = {b.bin_start: b for b in bins}
+
+        assert by_start["2025-01-01"].entry_count == 1
+        assert by_start["2026-01-01"].entry_count == 2
+
+    def test_total_words_sums_per_bin(self, repo):
+        # 2026-03-02 is a Monday, 2026-03-03 is Tuesday. Both fall
+        # in the week starting 2026-03-02.
+        repo.create_entry("2026-03-02", "photo", "a b c", 3)
+        repo.create_entry("2026-03-03", "photo", "d e f g", 4)
+        bins = repo.get_writing_frequency(None, None, "week")
+        assert len(bins) == 1
+        assert bins[0].bin_start == "2026-03-02"
+        assert bins[0].entry_count == 2
+        assert bins[0].total_words == 7
+
+    def test_date_filter_clamps_bins(self, repo):
+        repo.create_entry("2026-01-15", "photo", "january", 2)
+        repo.create_entry("2026-03-15", "photo", "march", 2)
+        repo.create_entry("2026-06-15", "photo", "june", 2)
+
+        bins = repo.get_writing_frequency(
+            start_date="2026-02-01",
+            end_date="2026-04-30",
+            granularity="month",
+        )
+        assert len(bins) == 1
+        assert bins[0].bin_start == "2026-03-01"
+
+    def test_empty_buckets_are_omitted(self, repo):
+        """March and May have entries; April has none. April must
+        NOT appear as a zero-count bin — callers that need dense
+        series fill gaps client-side."""
+        repo.create_entry("2026-03-01", "photo", "march", 2)
+        repo.create_entry("2026-05-01", "photo", "may", 2)
+        bins = repo.get_writing_frequency(None, None, "month")
+        starts = {b.bin_start for b in bins}
+        assert starts == {"2026-03-01", "2026-05-01"}
+
+    def test_results_sorted_ascending(self, repo):
+        repo.create_entry("2026-05-01", "photo", "may", 2)
+        repo.create_entry("2026-01-01", "photo", "jan", 2)
+        repo.create_entry("2026-03-01", "photo", "march", 2)
+        bins = repo.get_writing_frequency(None, None, "month")
+        starts = [b.bin_start for b in bins]
+        assert starts == sorted(starts)
+
+
+class TestIngestionStats:
+    """T1.2.b — get_ingestion_stats aggregates everything /health shows."""
+
+    def test_empty_corpus(self, repo):
+        from datetime import UTC, datetime
+
+        stats = repo.get_ingestion_stats(now=datetime(2026, 4, 11, tzinfo=UTC))
+        assert stats.total_entries == 0
+        assert stats.entries_last_7d == 0
+        assert stats.entries_last_30d == 0
+        assert stats.by_source_type == {}
+        assert stats.avg_words_per_entry == 0.0
+        assert stats.avg_chunks_per_entry == 0.0
+        assert stats.last_ingestion_at is None
+        assert stats.total_chunks == 0
+        # row_counts surfaces every whitelisted table even when empty.
+        for table in (
+            "entries",
+            "entry_pages",
+            "entry_chunks",
+            "mood_scores",
+            "source_files",
+            "entities",
+            "entity_aliases",
+            "entity_mentions",
+            "entity_relationships",
+        ):
+            assert stats.row_counts[table] == 0
+
+    def test_counts_by_source_and_date_windows(self, repo):
+        from datetime import UTC, datetime
+
+        now = datetime(2026, 4, 11, 12, 0, 0, tzinfo=UTC)
+        # Three entries within the last 7 days.
+        repo.create_entry("2026-04-05", "photo", "recent one two three", 4)
+        repo.create_entry("2026-04-08", "voice", "recent voice note here", 4)
+        repo.create_entry("2026-04-10", "photo", "also recent entry body", 4)
+        # One entry in last 30 days but NOT last 7.
+        repo.create_entry("2026-03-20", "photo", "medium age entry text", 4)
+        # One entry beyond 30 days.
+        repo.create_entry("2026-02-01", "voice", "old voice entry longer text", 5)
+
+        stats = repo.get_ingestion_stats(now=now)
+
+        assert stats.total_entries == 5
+        assert stats.entries_last_7d == 3
+        assert stats.entries_last_30d == 4  # 3 recent + 1 March 20
+        assert stats.by_source_type == {"photo": 3, "voice": 2}
+        assert stats.avg_words_per_entry == 4.2
+        assert stats.row_counts["entries"] == 5
+        assert stats.last_ingestion_at is not None
+
+    def test_avg_chunks_reflects_update_chunk_count(self, repo):
+        from datetime import UTC, datetime
+
+        e = repo.create_entry("2026-04-01", "photo", "body body body", 3)
+        repo.update_chunk_count(e.id, 4)
+        stats = repo.get_ingestion_stats(
+            now=datetime(2026, 4, 11, tzinfo=UTC)
+        )
+        assert stats.total_chunks == 4
+        assert stats.avg_chunks_per_entry == 4.0
+
+    def test_row_counts_include_entity_tables(self, repo):
+        from datetime import UTC, datetime
+
+        # Row counts are computed directly from COUNT(*) on the table
+        # names in `_HEALTH_ROW_COUNT_TABLES`, so the entity tables
+        # should show zero on a fresh schema without any entity
+        # extraction having been run.
+        stats = repo.get_ingestion_stats(now=datetime(2026, 4, 11, tzinfo=UTC))
+        assert "entity_mentions" in stats.row_counts
+        assert "entity_relationships" in stats.row_counts
+
+
+class TestStatistics:
+    def test_get_statistics(self, repo):
+        repo.create_entry("2026-01-15", "photo", "January entry", 2)
+        repo.create_entry("2026-02-15", "photo", "February entry with more words", 5)
+        repo.create_entry("2026-03-15", "voice", "March entry", 2)
+
+        stats = repo.get_statistics()
+        assert stats.total_entries == 3
+        assert stats.total_words == 9
+        assert stats.avg_words_per_entry == 3.0
+        assert stats.date_range_start == "2026-01-15"
+        assert stats.date_range_end == "2026-03-15"
+        assert stats.entries_per_month == 1.0
+
+    def test_get_statistics_empty(self, repo):
+        stats = repo.get_statistics()
+        assert stats.total_entries == 0
+        assert stats.total_words == 0
+
+    def test_get_statistics_date_filtered(self, repo):
+        repo.create_entry("2026-01-15", "photo", "Old entry", 2)
+        repo.create_entry("2026-03-15", "photo", "New entry", 2)
+
+        stats = repo.get_statistics(start_date="2026-03-01")
+        assert stats.total_entries == 1
+
+
+class TestMoodScores:
+    def test_add_mood_score(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "Feeling great", 2)
+        repo.add_mood_score(entry.id, "overall", 0.8, confidence=0.9)
+
+        row = repo.connection.execute(
+            "SELECT * FROM mood_scores WHERE entry_id = ?", (entry.id,)
+        ).fetchone()
+        assert row["dimension"] == "overall"
+        assert row["score"] == 0.8
+        assert row["confidence"] == 0.9
+
+    def test_get_mood_trends(self, repo):
+        e1 = repo.create_entry("2026-03-01", "photo", "Good day", 2)
+        e2 = repo.create_entry("2026-03-08", "photo", "Bad day", 2)
+        repo.add_mood_score(e1.id, "overall", 0.8)
+        repo.add_mood_score(e2.id, "overall", -0.3)
+
+        trends = repo.get_mood_trends(granularity="month")
+        assert len(trends) == 1  # Same month
+        assert trends[0].dimension == "overall"
+
+    def test_get_mood_trends_by_week(self, repo):
+        e1 = repo.create_entry("2026-03-01", "photo", "Good day", 2)
+        e2 = repo.create_entry("2026-03-15", "photo", "Bad day", 2)
+        repo.add_mood_score(e1.id, "overall", 0.8)
+        repo.add_mood_score(e2.id, "overall", -0.3)
+
+        trends = repo.get_mood_trends(granularity="week")
+        assert len(trends) == 2  # Different weeks
+
+
+class TestMoodScoresCRUD:
+    """T1.3b.iii — replace / get / missing / prune operations on
+    mood_scores."""
+
+    def test_replace_mood_scores_inserts_fresh(self, repo):
+        e = repo.create_entry("2026-04-01", "photo", "hello", 1)
+        repo.replace_mood_scores(
+            e.id,
+            [
+                ("joy_sadness", 0.5, 0.9, None),
+                ("agency", 0.7, None, None),
+            ],
+        )
+        scores = repo.get_mood_scores(e.id)
+        assert len(scores) == 2
+        by_dim = {s.dimension: s for s in scores}
+        assert by_dim["joy_sadness"].score == 0.5
+        assert by_dim["joy_sadness"].confidence == 0.9
+        assert by_dim["agency"].score == 0.7
+        assert by_dim["agency"].confidence is None
+
+    def test_replace_mood_scores_is_idempotent(self, repo):
+        e = repo.create_entry("2026-04-01", "photo", "hello", 1)
+        repo.replace_mood_scores(e.id, [("joy_sadness", 0.5, None, None)])
+        repo.replace_mood_scores(e.id, [("joy_sadness", 0.8, None, None)])
+        scores = repo.get_mood_scores(e.id)
+        # Second call REPLACED the first rather than appending.
+        assert len(scores) == 1
+        assert scores[0].score == 0.8
+
+    def test_replace_mood_scores_preserves_untouched_dims(self, repo):
+        e = repo.create_entry("2026-04-01", "photo", "hello", 1)
+        repo.replace_mood_scores(
+            e.id,
+            [
+                ("joy_sadness", 0.5, None, None),
+                ("agency", 0.7, None, None),
+            ],
+        )
+        # Rewrite only joy_sadness — agency row should survive.
+        repo.replace_mood_scores(e.id, [("joy_sadness", 0.2, None, None)])
+        scores = repo.get_mood_scores(e.id)
+        assert len(scores) == 2
+        by_dim = {s.dimension: s.score for s in scores}
+        assert by_dim["joy_sadness"] == 0.2
+        assert by_dim["agency"] == 0.7
+
+    def test_replace_mood_scores_empty_list_is_noop(self, repo):
+        e = repo.create_entry("2026-04-01", "photo", "hello", 1)
+        repo.replace_mood_scores(e.id, [("joy_sadness", 0.5, None, None)])
+        repo.replace_mood_scores(e.id, [])
+        scores = repo.get_mood_scores(e.id)
+        assert len(scores) == 1  # unchanged
+
+    def test_get_entries_missing_mood_scores_empty_dims(self, repo):
+        e = repo.create_entry("2026-04-01", "photo", "hello", 1)
+        assert repo.get_entries_missing_mood_scores([]) == []
+        # Also doesn't break when entries exist.
+        assert e.id
+
+    def test_get_entries_missing_mood_scores_all_missing(self, repo):
+        e1 = repo.create_entry("2026-04-01", "photo", "one", 1)
+        e2 = repo.create_entry("2026-04-02", "photo", "two", 1)
+        missing = repo.get_entries_missing_mood_scores(
+            ["joy_sadness", "agency"]
+        )
+        assert sorted(missing) == sorted([e1.id, e2.id])
+
+    def test_get_entries_missing_mood_scores_partial(self, repo):
+        e1 = repo.create_entry("2026-04-01", "photo", "one", 1)
+        e2 = repo.create_entry("2026-04-02", "photo", "two", 1)
+        # e1 has joy_sadness only; e2 has both.
+        repo.replace_mood_scores(e1.id, [("joy_sadness", 0.5, None, None)])
+        repo.replace_mood_scores(
+            e2.id,
+            [("joy_sadness", 0.5, None, None), ("agency", 0.3, None, None)],
+        )
+        missing = repo.get_entries_missing_mood_scores(
+            ["joy_sadness", "agency"]
+        )
+        assert missing == [e1.id]
+
+    def test_get_entries_missing_mood_scores_ignores_retired_dims(
+        self, repo
+    ):
+        """An entry that has a score for a RETIRED dimension (not in
+        `dimension_names`) should still count as missing if it's
+        missing a current one. `dimension_names` is the current set,
+        not the union of all scored dims."""
+        e = repo.create_entry("2026-04-01", "photo", "x", 1)
+        repo.replace_mood_scores(e.id, [("old_dim", 0.5, None, None)])
+        missing = repo.get_entries_missing_mood_scores(["joy_sadness"])
+        assert missing == [e.id]
+
+    def test_get_entries_missing_mood_scores_detects_edited_text(
+        self, repo
+    ):
+        """An entry fully scored but subsequently edited (updated_at >
+        mood_scores.created_at) must be treated as stale."""
+        import time
+
+        e = repo.create_entry("2026-04-01", "photo", "original", 1)
+        dims = ["joy_sadness", "agency"]
+        repo.replace_mood_scores(
+            e.id,
+            [("joy_sadness", 0.5, None, None), ("agency", 0.3, None, None)],
+        )
+        # Fully scored — not stale yet.
+        assert repo.get_entries_missing_mood_scores(dims) == []
+
+        # Edit the entry text (bumps updated_at).
+        time.sleep(1.1)
+        repo.update_final_text(e.id, "corrected text", 2, 1)
+
+        # Now stale because updated_at > max(mood_scores.created_at).
+        assert repo.get_entries_missing_mood_scores(dims) == [e.id]
+
+    def test_prune_retired_mood_scores(self, repo):
+        e = repo.create_entry("2026-04-01", "photo", "x", 1)
+        repo.replace_mood_scores(
+            e.id,
+            [
+                ("joy_sadness", 0.5, None, None),
+                ("agency", 0.3, None, None),
+                ("retired_one", 0.1, None, None),
+            ],
+        )
+        pruned = repo.prune_retired_mood_scores(["joy_sadness", "agency"])
+        assert pruned == 1
+        scores = repo.get_mood_scores(e.id)
+        assert {s.dimension for s in scores} == {"joy_sadness", "agency"}
+
+    def test_prune_retired_mood_scores_empty_current_wipes_all(
+        self, repo
+    ):
+        e = repo.create_entry("2026-04-01", "photo", "x", 1)
+        repo.replace_mood_scores(
+            e.id, [("joy_sadness", 0.5, None, None), ("agency", 0.3, None, None)]
+        )
+        pruned = repo.prune_retired_mood_scores([])
+        assert pruned == 2
+        assert repo.get_mood_scores(e.id) == []
+
+    def test_prune_retired_mood_scores_noop_when_all_current(self, repo):
+        e = repo.create_entry("2026-04-01", "photo", "x", 1)
+        repo.replace_mood_scores(
+            e.id, [("joy_sadness", 0.5, None, None)]
+        )
+        assert repo.prune_retired_mood_scores(["joy_sadness"]) == 0
+
+
+class TestMoodTrendsCanonicalDates:
+    """The refactor moves `get_mood_trends` onto the shared
+    `_bin_start_sql` helper so `period` is now a canonical ISO date
+    (not a %Y-%W string) and the supported granularities match
+    `get_writing_frequency` plus `day`."""
+
+    def test_week_period_is_monday_iso_date(self, repo):
+        # 2026-03-02 is a Monday, 2026-03-04 is Wednesday — same
+        # week, bin_start is Monday 2026-03-02.
+        e1 = repo.create_entry("2026-03-02", "photo", "a", 1)
+        e2 = repo.create_entry("2026-03-04", "photo", "b", 1)
+        repo.add_mood_score(e1.id, "joy_sadness", 0.5)
+        repo.add_mood_score(e2.id, "joy_sadness", 0.7)
+        trends = repo.get_mood_trends(granularity="week")
+        assert len(trends) == 1
+        assert trends[0].period == "2026-03-02"
+
+    def test_month_period_is_first_of_month(self, repo):
+        e = repo.create_entry("2026-03-15", "photo", "a", 1)
+        repo.add_mood_score(e.id, "joy_sadness", 0.5)
+        trends = repo.get_mood_trends(granularity="month")
+        assert trends[0].period == "2026-03-01"
+
+    def test_quarter_period_is_jan_apr_jul_oct(self, repo):
+        e = repo.create_entry("2026-08-15", "photo", "a", 1)  # Q3
+        repo.add_mood_score(e.id, "joy_sadness", 0.5)
+        trends = repo.get_mood_trends(granularity="quarter")
+        assert trends[0].period == "2026-07-01"
+
+    def test_year_period_is_jan_first(self, repo):
+        e = repo.create_entry("2026-06-15", "photo", "a", 1)
+        repo.add_mood_score(e.id, "joy_sadness", 0.5)
+        trends = repo.get_mood_trends(granularity="year")
+        assert trends[0].period == "2026-01-01"
+
+    def test_day_granularity_still_works(self, repo):
+        """Backward compat for the LLM-facing MCP tool."""
+        e = repo.create_entry("2026-03-15", "photo", "a", 1)
+        repo.add_mood_score(e.id, "joy_sadness", 0.5)
+        trends = repo.get_mood_trends(granularity="day")
+        assert trends[0].period == "2026-03-15"
+
+    def test_invalid_granularity_raises(self, repo):
+        import pytest
+
+        with pytest.raises(ValueError, match="Unsupported granularity"):
+            repo.get_mood_trends(granularity="fortnight")
+
+
+class TestTopicFrequency:
+    def test_get_topic_frequency(self, repo):
+        repo.create_entry("2026-03-01", "photo", "Walked through Vienna", 3)
+        repo.create_entry("2026-03-02", "photo", "More time in Vienna", 4)
+        repo.create_entry("2026-03-03", "photo", "Stayed home", 2)
+
+        freq = repo.get_topic_frequency("Vienna")
+        assert freq.topic == "Vienna"
+        assert freq.count == 2
+        assert len(freq.entries) == 2
+
+
+class TestFinalText:
+    def test_create_entry_defaults_final_text_to_raw_text(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "Hello world", 2)
+        assert entry.final_text == "Hello world"
+        assert entry.raw_text == "Hello world"
+
+    def test_create_entry_with_explicit_final_text(self, repo):
+        entry = repo.create_entry(
+            "2026-03-22", "photo", "raw OCR output", 3, final_text="corrected text"
+        )
+        assert entry.raw_text == "raw OCR output"
+        assert entry.final_text == "corrected text"
+
+    def test_update_final_text(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "raw text", 2)
+        assert entry.final_text == "raw text"
+
+        updated = repo.update_final_text(entry.id, "corrected text", 2, 3)
+        assert updated is not None
+        assert updated.final_text == "corrected text"
+        assert updated.word_count == 2
+        assert updated.chunk_count == 3
+        # raw_text unchanged
+        assert updated.raw_text == "raw text"
+
+    def test_update_final_text_not_found(self, repo):
+        result = repo.update_final_text(999, "text", 1, 1)
+        assert result is None
+
+    def test_chunk_count_default(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "Hello", 1)
+        assert entry.chunk_count == 0
+
+    def test_update_chunk_count(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "Hello world", 2)
+        repo.update_chunk_count(entry.id, 5)
+        updated = repo.get_entry(entry.id)
+        assert updated is not None
+        assert updated.chunk_count == 5
+
+    def test_fts_indexes_final_text(self, repo):
+        """FTS should index final_text, not raw_text."""
+        repo.create_entry(
+            "2026-03-22", "photo", "raw OCR garbled",
+            3, final_text="corrected Vienna text"
+        )
+        # Should find via final_text
+        results = repo.search_text("Vienna")
+        assert len(results) == 1
+        # Should NOT find via raw_text content that's not in final_text
+        results = repo.search_text("garbled")
+        assert len(results) == 0
+
+
+class TestEntryPages:
+    def test_add_and_get_entry_pages(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "Combined text", 2)
+        repo.add_entry_page(entry.id, 1, "Page one text")
+        repo.add_entry_page(entry.id, 2, "Page two text")
+
+        pages = repo.get_entry_pages(entry.id)
+        assert len(pages) == 2
+        assert pages[0].page_number == 1
+        assert pages[0].raw_text == "Page one text"
+        assert pages[1].page_number == 2
+        assert pages[1].raw_text == "Page two text"
+
+    def test_get_entry_pages_empty(self, repo):
+        entry = repo.create_entry("2026-03-22", "voice", "Voice note", 2)
+        pages = repo.get_entry_pages(entry.id)
+        assert pages == []
+
+    def test_add_entry_page_with_source_file(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "Text", 1)
+        # Create a source file first
+        repo.connection.execute(
+            "INSERT INTO source_files (entry_id, file_path, file_type, file_hash)"
+            " VALUES (?, ?, ?, ?)",
+            (entry.id, "image.jpg", "image/jpeg", "abc123"),
+        )
+        repo.connection.commit()
+        row = repo.connection.execute(
+            "SELECT id FROM source_files WHERE file_hash = 'abc123'"
+        ).fetchone()
+        sf_id = row["id"]
+
+        repo.add_entry_page(entry.id, 1, "Page text", source_file_id=sf_id)
+        pages = repo.get_entry_pages(entry.id)
+        assert len(pages) == 1
+        assert pages[0].source_file_id == sf_id
+
+    def test_pages_ordered_by_page_number(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "Combined", 1)
+        # Insert in reverse order
+        repo.add_entry_page(entry.id, 3, "Third")
+        repo.add_entry_page(entry.id, 1, "First")
+        repo.add_entry_page(entry.id, 2, "Second")
+
+        pages = repo.get_entry_pages(entry.id)
+        assert [p.page_number for p in pages] == [1, 2, 3]
+        assert [p.raw_text for p in pages] == ["First", "Second", "Third"]
+
+    def test_unique_page_number_per_entry(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "Text", 1)
+        repo.add_entry_page(entry.id, 1, "Page one")
+
+        with pytest.raises(sqlite3.IntegrityError):
+            repo.add_entry_page(entry.id, 1, "Duplicate page one")
+
+
+class TestEntryChunks:
+    def _span(self, text: str, start: int, end: int, tokens: int = 3) -> ChunkSpan:
+        return ChunkSpan(text=text, char_start=start, char_end=end, token_count=tokens)
+
+    def test_replace_chunks_inserts_rows(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "Chunk me.", 2)
+        spans = [
+            self._span("First chunk.", 0, 12),
+            self._span("Second chunk.", 14, 27),
+        ]
+        repo.replace_chunks(entry.id, spans)
+
+        result = repo.get_chunks(entry.id)
+        assert len(result) == 2
+        assert result[0].text == "First chunk."
+        assert result[0].char_start == 0
+        assert result[0].char_end == 12
+        assert result[0].token_count == 3
+        assert result[1].text == "Second chunk."
+        assert result[1].char_start == 14
+
+    def test_replace_chunks_clears_previous_rows(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "Some text", 2)
+        repo.replace_chunks(entry.id, [self._span("old one", 0, 7)])
+        repo.replace_chunks(entry.id, [self._span("new one", 0, 7), self._span("new two", 8, 15)])
+
+        result = repo.get_chunks(entry.id)
+        assert [c.text for c in result] == ["new one", "new two"]
+
+    def test_replace_chunks_with_empty_list_clears_table(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "Text", 1)
+        repo.replace_chunks(entry.id, [self._span("only chunk", 0, 10)])
+        repo.replace_chunks(entry.id, [])
+        assert repo.get_chunks(entry.id) == []
+
+    def test_get_chunks_empty_for_entry_without_chunks(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "Text", 1)
+        assert repo.get_chunks(entry.id) == []
+
+    def test_get_chunks_returns_insertion_order(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "Text", 1)
+        spans = [self._span(f"chunk {i}", i * 10, i * 10 + 7) for i in range(5)]
+        repo.replace_chunks(entry.id, spans)
+
+        result = repo.get_chunks(entry.id)
+        assert [c.text for c in result] == [f"chunk {i}" for i in range(5)]
+
+    def test_delete_entry_cascades_to_chunks(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "Text", 1)
+        repo.replace_chunks(entry.id, [self._span("to be deleted", 0, 13)])
+        repo.delete_entry(entry.id)
+        assert repo.get_chunks(entry.id) == []
+
+
+class TestUncertainSpans:
+    def test_get_uncertain_spans_empty_for_new_entry(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "hello world", 2)
+        assert repo.get_uncertain_spans(entry.id) == []
+
+    def test_add_and_get_uncertain_spans_round_trip(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "hello beautiful world", 3)
+        repo.add_uncertain_spans(entry.id, [(0, 5), (6, 15)])
+        spans = repo.get_uncertain_spans(entry.id)
+        assert spans == [(0, 5), (6, 15)]
+
+    def test_get_uncertain_spans_sorted_by_start(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "a b c d e f g", 7)
+        # Insert out of order on purpose; the getter sorts by char_start.
+        repo.add_uncertain_spans(entry.id, [(10, 11), (0, 1), (4, 5)])
+        assert repo.get_uncertain_spans(entry.id) == [(0, 1), (4, 5), (10, 11)]
+
+    def test_add_uncertain_spans_empty_list_is_noop(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "hello", 1)
+        repo.add_uncertain_spans(entry.id, [])
+        assert repo.get_uncertain_spans(entry.id) == []
+
+    def test_get_uncertain_spans_isolated_per_entry(self, repo):
+        e1 = repo.create_entry("2026-03-22", "photo", "first entry", 2)
+        e2 = repo.create_entry("2026-03-23", "photo", "second entry", 2)
+        repo.add_uncertain_spans(e1.id, [(0, 5)])
+        repo.add_uncertain_spans(e2.id, [(7, 12)])
+        assert repo.get_uncertain_spans(e1.id) == [(0, 5)]
+        assert repo.get_uncertain_spans(e2.id) == [(7, 12)]
+
+    def test_delete_entry_cascades_to_uncertain_spans(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "hello world", 2)
+        repo.add_uncertain_spans(entry.id, [(0, 5), (6, 11)])
+        repo.delete_entry(entry.id)
+        assert repo.get_uncertain_spans(entry.id) == []
+
+    def test_add_uncertain_spans_rejects_invalid_range(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "hello", 1)
+        with pytest.raises(sqlite3.IntegrityError):
+            repo.add_uncertain_spans(entry.id, [(5, 5)])  # char_end > char_start
+
+    def test_add_uncertain_spans_rejects_negative_start(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "hello", 1)
+        with pytest.raises(sqlite3.IntegrityError):
+            repo.add_uncertain_spans(entry.id, [(-1, 5)])
+
+
+class TestVerifyDoubts:
+    def test_verify_doubts_sets_flag(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "hello world", 2)
+        assert entry.doubts_verified is False
+        assert repo.verify_doubts(entry.id) is True
+        refreshed = repo.get_entry(entry.id)
+        assert refreshed.doubts_verified is True
+
+    def test_verify_doubts_returns_false_for_missing_entry(self, repo):
+        assert repo.verify_doubts(999) is False
+
+    def test_get_uncertain_span_count_returns_zero_when_verified(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "hello world", 2)
+        repo.add_uncertain_spans(entry.id, [(0, 5), (6, 11)])
+        assert repo.get_uncertain_span_count(entry.id) == 2
+        repo.verify_doubts(entry.id)
+        assert repo.get_uncertain_span_count(entry.id) == 0
+
+    def test_get_uncertain_spans_still_returns_rows_when_verified(self, repo):
+        """Span rows are preserved for future analysis even after verification."""
+        entry = repo.create_entry("2026-03-22", "photo", "hello world", 2)
+        repo.add_uncertain_spans(entry.id, [(0, 5)])
+        repo.verify_doubts(entry.id)
+        # Raw spans are still in the DB
+        spans = repo.get_uncertain_spans(entry.id)
+        assert spans == [(0, 5)]
+
+    def test_verify_doubts_is_idempotent(self, repo):
+        entry = repo.create_entry("2026-03-22", "photo", "hello", 1)
+        repo.verify_doubts(entry.id)
+        assert repo.verify_doubts(entry.id) is True
+        assert repo.get_entry(entry.id).doubts_verified is True
+
+
+class TestMoodDrilldown:
+    """Tests for get_mood_drilldown() — per-entry scores for one dimension."""
+
+    def test_returns_entries_in_period(self, repo):
+        e1 = repo.create_entry("2026-04-01", "photo", "day one", 2)
+        e2 = repo.create_entry("2026-04-05", "photo", "day five", 2)
+        repo.add_mood_score(e1.id, "joy_sadness", 0.6, confidence=0.9, rationale="felt good")
+        repo.add_mood_score(e2.id, "joy_sadness", -0.2, confidence=0.8, rationale="rough day")
+
+        results = repo.get_mood_drilldown("joy_sadness", "2026-04-01", "2026-04-30")
+        assert len(results) == 2
+        assert results[0].entry_id == e1.id
+        assert results[0].score == 0.6
+        assert results[1].entry_id == e2.id
+        assert results[1].score == -0.2
+
+    def test_excludes_other_dimensions(self, repo):
+        e = repo.create_entry("2026-04-01", "photo", "mixed day", 2)
+        repo.add_mood_score(e.id, "joy_sadness", 0.5, confidence=0.9, rationale="ok")
+        repo.add_mood_score(e.id, "agency", 0.8, confidence=0.9, rationale="empowered")
+
+        results = repo.get_mood_drilldown("joy_sadness", "2026-04-01", "2026-04-30")
+        assert len(results) == 1
+        assert results[0].score == 0.5
+
+    def test_empty_period_returns_empty(self, repo):
+        e = repo.create_entry("2026-04-01", "photo", "day one", 2)
+        repo.add_mood_score(e.id, "joy_sadness", 0.5, confidence=0.9, rationale="fine")
+
+        results = repo.get_mood_drilldown("joy_sadness", "2026-05-01", "2026-05-31")
+        assert results == []
+
+    def test_includes_rationale(self, repo):
+        e = repo.create_entry("2026-04-01", "photo", "reflective", 1)
+        repo.add_mood_score(
+            e.id, "agency", 0.7, confidence=0.85, rationale="took charge of the day"
+        )
+
+        results = repo.get_mood_drilldown("agency", "2026-04-01", "2026-04-30")
+        assert len(results) == 1
+        assert results[0].rationale == "took charge of the day"
+        assert results[0].confidence == 0.85
+
+    def test_null_rationale_handled(self, repo):
+        e = repo.create_entry("2026-04-01", "photo", "quiet day", 2)
+        repo.add_mood_score(e.id, "joy_sadness", 0.3, confidence=0.7)
+
+        results = repo.get_mood_drilldown("joy_sadness", "2026-04-01", "2026-04-30")
+        assert len(results) == 1
+        assert results[0].rationale is None
+
+
+class TestEntityDistribution:
+    """Tests for get_entity_distribution() — mention counts by entity."""
+
+    def _insert_entity(self, conn, entity_type: str, canonical_name: str) -> int:
+        """Insert an entity row and return its id."""
+        conn.execute(
+            "INSERT INTO entities (user_id, entity_type, canonical_name) VALUES (?, ?, ?)",
+            (1, entity_type, canonical_name),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT id FROM entities WHERE entity_type = ? AND canonical_name = ?",
+            (entity_type, canonical_name),
+        ).fetchone()
+        return int(row["id"])
+
+    def _insert_mention(
+        self, conn, entity_id: int, entry_id: int, quote: str = "mentioned"
+    ) -> None:
+        """Insert an entity_mentions row."""
+        conn.execute(
+            "INSERT INTO entity_mentions"
+            " (entity_id, entry_id, quote, confidence, extraction_run_id)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (entity_id, entry_id, quote, 0.9, "test-run-1"),
+        )
+        conn.commit()
+
+    def test_returns_mention_counts(self, repo):
+        e1 = repo.create_entry("2026-04-01", "photo", "met Alice", 2)
+        e2 = repo.create_entry("2026-04-02", "photo", "saw Alice again", 3)
+        alice_id = self._insert_entity(repo.connection, "person", "Alice")
+        self._insert_mention(repo.connection, alice_id, e1.id)
+        self._insert_mention(repo.connection, alice_id, e2.id)
+
+        results = repo.get_entity_distribution()
+        assert len(results) == 1
+        assert results[0].canonical_name == "Alice"
+        assert results[0].mention_count == 2
+
+    def test_filters_by_entity_type(self, repo):
+        e = repo.create_entry("2026-04-01", "photo", "trip to Vienna", 3)
+        alice_id = self._insert_entity(repo.connection, "person", "Alice")
+        vienna_id = self._insert_entity(repo.connection, "place", "Vienna")
+        self._insert_mention(repo.connection, alice_id, e.id)
+        self._insert_mention(repo.connection, vienna_id, e.id)
+
+        results = repo.get_entity_distribution(entity_type="place")
+        assert len(results) == 1
+        assert results[0].canonical_name == "Vienna"
+        assert results[0].entity_type == "place"
+
+    def test_filters_by_date_range(self, repo):
+        e1 = repo.create_entry("2026-03-01", "photo", "old entry", 2)
+        e2 = repo.create_entry("2026-04-15", "photo", "new entry", 2)
+        alice_id = self._insert_entity(repo.connection, "person", "Alice")
+        self._insert_mention(repo.connection, alice_id, e1.id)
+        self._insert_mention(repo.connection, alice_id, e2.id)
+
+        results = repo.get_entity_distribution(start_date="2026-04-01", end_date="2026-04-30")
+        assert len(results) == 1
+        assert results[0].mention_count == 1
+
+    def test_ordered_by_mention_count_descending(self, repo):
+        e1 = repo.create_entry("2026-04-01", "photo", "busy day", 2)
+        e2 = repo.create_entry("2026-04-02", "photo", "another day", 2)
+        alice_id = self._insert_entity(repo.connection, "person", "Alice")
+        bob_id = self._insert_entity(repo.connection, "person", "Bob")
+        # Alice: 2 mentions, Bob: 1 mention
+        self._insert_mention(repo.connection, alice_id, e1.id)
+        self._insert_mention(repo.connection, alice_id, e2.id)
+        self._insert_mention(repo.connection, bob_id, e1.id)
+
+        results = repo.get_entity_distribution()
+        assert len(results) == 2
+        assert results[0].canonical_name == "Alice"
+        assert results[0].mention_count == 2
+        assert results[1].canonical_name == "Bob"
+        assert results[1].mention_count == 1
+
+    def test_respects_limit(self, repo):
+        e = repo.create_entry("2026-04-01", "photo", "lots of people", 3)
+        for name in ["Alice", "Bob", "Charlie"]:
+            eid = self._insert_entity(repo.connection, "person", name)
+            self._insert_mention(repo.connection, eid, e.id)
+
+        results = repo.get_entity_distribution(limit=2)
+        assert len(results) == 2
+
+    def test_empty_returns_empty(self, repo):
+        results = repo.get_entity_distribution()
+        assert results == []
+
+
+class TestMoodTrendsScoreBounds:
+    """Tests for score_min/score_max fields on get_mood_trends()."""
+
+    def test_returns_score_min_max(self, repo):
+        e1 = repo.create_entry("2026-04-01", "photo", "good day", 2)
+        e2 = repo.create_entry("2026-04-02", "photo", "bad day", 2)
+        e3 = repo.create_entry("2026-04-03", "photo", "great day", 2)
+        repo.add_mood_score(e1.id, "joy_sadness", 0.3)
+        repo.add_mood_score(e2.id, "joy_sadness", -0.5)
+        repo.add_mood_score(e3.id, "joy_sadness", 0.9)
+
+        trends = repo.get_mood_trends(granularity="month")
+        assert len(trends) == 1
+        assert trends[0].score_min == -0.5
+        assert trends[0].score_max == 0.9
+
+    def test_single_entry_min_equals_max(self, repo):
+        e = repo.create_entry("2026-04-01", "photo", "only entry", 2)
+        repo.add_mood_score(e.id, "agency", 0.6)
+
+        trends = repo.get_mood_trends(granularity="month")
+        assert len(trends) == 1
+        assert trends[0].score_min == 0.6
+        assert trends[0].score_max == 0.6
+        assert trends[0].avg_score == 0.6
+
+
+class TestFactoryPathSemantics:
+    """Production-path coverage for the ``ConnectionFactory`` model.
+
+    The classes above exercise the bare-``Connection`` legacy path
+    (kept until W4 of ``docs/sqlite-per-thread-connections-plan.md``
+    retires the dual-constructor). These tests cover the factory path
+    that production now uses: each thread owns its own
+    ``sqlite3.Connection``, so the cross-thread implicit-transaction
+    collision becomes structurally impossible.
+    """
+
+    def test_lifecycle_round_trip(self, repo_via_factory):
+        entry = repo_via_factory.create_entry(
+            "2026-05-01", "photo", "Hello factory.", 2,
+        )
+        fetched = repo_via_factory.get_entry(entry.id)
+        assert fetched is not None
+        assert fetched.raw_text == "Hello factory."
+
+        repo_via_factory.add_entry_page(entry.id, 1, "Hello factory.")
+        pages = repo_via_factory.get_entry_pages(entry.id)
+        assert len(pages) == 1
+
+        repo_via_factory.add_mood_score(entry.id, "joy_sadness", 0.5)
+        assert len(repo_via_factory.get_mood_scores(entry.id)) == 1
+
+    def test_each_thread_gets_distinct_connection(self, repo_via_factory):
+        """The factory hands each thread its own connection. The repo's
+        ``connection`` property must reflect the *calling* thread's
+        connection — that is the structural property that makes the
+        prod commit race impossible.
+        """
+        main_conn_id = id(repo_via_factory.connection)
+        captured: list[int] = []
+
+        def worker() -> None:
+            captured.append(id(repo_via_factory.connection))
+
+        t = threading.Thread(target=worker)
+        t.start()
+        t.join()
+        assert len(captured) == 1
+        assert captured[0] != main_conn_id
+
+    def test_concurrent_writes_under_load(self, repo_via_factory):
+        """Many threads each creating entries + pages + chunks +
+        mood scores on the same factory. Under the old shared-
+        ``Connection`` model this would surface
+        ``no transaction is active`` from a concurrent commit;
+        under the factory model it must complete cleanly with every
+        row persisted.
+        """
+        thread_count = 6
+        entries_per_thread = 10
+        errors: list[BaseException] = []
+
+        def worker(prefix: str) -> None:
+            try:
+                for i in range(entries_per_thread):
+                    entry = repo_via_factory.create_entry(
+                        "2026-05-02",
+                        "photo",
+                        f"{prefix}-{i} text",
+                        3,
+                    )
+                    repo_via_factory.add_entry_page(
+                        entry.id, 1, f"{prefix}-{i} page",
+                    )
+                    repo_via_factory.replace_chunks(
+                        entry.id,
+                        [
+                            ChunkSpan(
+                                text=f"{prefix}-{i} chunk",
+                                char_start=0,
+                                char_end=10,
+                                token_count=3,
+                            ),
+                        ],
+                    )
+                    repo_via_factory.add_mood_score(
+                        entry.id, "joy_sadness", 0.1,
+                    )
+            except BaseException as exc:  # noqa: BLE001 — test-only
+                errors.append(exc)
+
+        with ThreadPoolExecutor(max_workers=thread_count) as ex:
+            futures = [
+                ex.submit(worker, f"t{i}") for i in range(thread_count)
+            ]
+            for f in as_completed(futures):
+                f.result()
+
+        assert errors == []
+        total = repo_via_factory.count_entries()
+        assert total == thread_count * entries_per_thread
+
+    def test_cross_thread_visibility_via_wal(self, repo_via_factory):
+        """A worker thread writes; the test thread reads. WAL +
+        per-thread connections must make the writer's committed rows
+        visible to the reader without any explicit cross-connection
+        coordination.
+        """
+        from threading import Event
+
+        written = Event()
+
+        def writer() -> None:
+            repo_via_factory.create_entry("2026-05-03", "photo", "one", 1)
+            repo_via_factory.create_entry("2026-05-03", "photo", "two", 1)
+            written.set()
+
+        t = threading.Thread(target=writer)
+        t.start()
+        written.wait(timeout=5.0)
+        t.join()
+        assert repo_via_factory.count_entries() == 2
+
+
+def test_create_entry_date_confirmed_flag(repo) -> None:
+    confirmed = repo.create_entry("2026-07-01", "photo", "raw", 1, user_id=1)
+    held = repo.create_entry(
+        "2025-07-09", "photo", "raw", 1, user_id=1, date_confirmed=False
+    )
+    assert repo.get_entry(confirmed.id).date_confirmed is True
+    assert repo.get_entry(held.id).date_confirmed is False
+
+
+class TestSearchExcludesQuarantined:
+    """FTS reaches quarantined rows via the entries_ai trigger even though
+    they have no chunks — the SQL filter is the gate (spec 2026-07-13,
+    final-review blocker)."""
+
+    def _seed(self, repo):
+        confirmed = repo.create_entry(
+            "2026-07-01", "photo", "the waveboard arrived today", 4, user_id=1,
+        )
+        repo.create_entry(
+            "2019-07-01", "photo", "an old waveboard memory", 4,
+            user_id=1, date_confirmed=False,
+        )
+        return confirmed
+
+    def test_search_text_excludes_unconfirmed(self, repo) -> None:
+        confirmed = self._seed(repo)
+        hits = repo.search_text("waveboard", user_id=1)
+        assert [e.id for e in hits] == [confirmed.id]
+
+    def test_search_snippets_excludes_unconfirmed(self, repo) -> None:
+        confirmed = self._seed(repo)
+        hits = repo.search_text_with_snippets("waveboard", user_id=1)
+        assert [e.id for e, _snippet in hits] == [confirmed.id]
+
+    def test_count_matches_excludes_unconfirmed(self, repo) -> None:
+        self._seed(repo)
+        assert repo.count_text_matches("waveboard", user_id=1) == 1
