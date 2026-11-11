@@ -37,7 +37,8 @@
       "enum": [
         "ok",
         "degraded",
-        "error"
+        "error",
+        "unknown"
       ],
       "title": "HealthStatus",
       "type": "string"
