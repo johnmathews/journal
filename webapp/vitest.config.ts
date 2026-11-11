@@ -9,6 +9,12 @@ export default mergeConfig(
       environment: 'happy-dom',
       root: fileURLToPath(new URL('./', import.meta.url)),
       setupFiles: ['./vitest.setup.ts'],
+      // Node 25+ ships a built-in `localStorage` global that is undefined
+      // unless --localstorage-file is given. Vitest keeps existing Node
+      // globals, so it shadows happy-dom's Storage and every
+      // localStorage.* call throws. Turning the Node feature off lets
+      // happy-dom's implementation through. Node 22 accepts the flag too.
+      execArgv: ['--no-experimental-webstorage'],
       include: ['src/**/*.{test,spec}.{js,ts}'],
       coverage: {
         provider: 'v8',

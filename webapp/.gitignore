@@ -65,3 +65,6 @@ screenshots/
 
 # Claude Code session worktrees: checkouts, never content.
 .claude/worktrees/
+
+# Git worktrees created by Claude Code sessions
+.claude/worktrees/

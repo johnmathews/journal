@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js 22+
+- Node.js 22+ (CI and the Docker image use 22, pinned in `.nvmrc`; the unit suite also runs on Node 26)
 - npm 10+
 - journal-server running on localhost:8400 (for API access)
 
