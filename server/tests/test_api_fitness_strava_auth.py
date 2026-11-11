@@ -25,7 +25,6 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlparse
 
 import pytest
-from starlette.testclient import TestClient
 from stravalib.exc import AccessUnauthorized
 
 from journal.auth import AuthenticatedUser, _current_user_id
@@ -35,9 +34,12 @@ from journal.db.migrations import run_migrations
 from journal.models import FitnessAuthState
 from journal.providers.strava import Tokens
 from journal.services.fitness.strava_pending import StravaPendingStore
+from tests.contract_check import ContractTestClient
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from starlette.testclient import TestClient
 
 
 # ── Fake exchange_code factory ────────────────────────────────────────
@@ -172,7 +174,7 @@ def _build_client(services: dict, *, user_id: int = 1) -> TestClient:
     test_mcp = FastMCP(f"test-strava-auth-user-{user_id}")
     register_api_routes(test_mcp, lambda: services)
     app = _UserAuthMiddleware(test_mcp.streamable_http_app(), user_id=user_id)
-    return TestClient(app, raise_server_exceptions=False)
+    return ContractTestClient(app, raise_server_exceptions=False)
 
 
 # ── Tests: authorize_url ─────────────────────────────────────────────

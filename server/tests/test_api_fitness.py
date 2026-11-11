@@ -37,6 +37,7 @@ from journal.db.jobs_repository import SQLiteJobRepository
 from journal.db.migrations import run_migrations
 from journal.models import FitnessActivity, FitnessAuthState, FitnessDaily
 from journal.services.jobs import JobRunner
+from tests.contract_check import ContractTestClient
 
 _TEST_USER_ID = 1
 
@@ -219,7 +220,7 @@ def _build_client(services: dict) -> TestClient:
     test_mcp = FastMCP("test-journal-fitness")
     register_api_routes(test_mcp, lambda: services)
     app = _FakeAuthMiddleware(test_mcp.streamable_http_app())
-    return TestClient(app, raise_server_exceptions=False)
+    return ContractTestClient(app, raise_server_exceptions=False)
 
 
 @pytest.fixture
@@ -1007,7 +1008,7 @@ def _build_client_for_user(services: dict, user_id: int) -> TestClient:
     test_mcp = FastMCP(f"test-journal-fitness-user-{user_id}")
     register_api_routes(test_mcp, lambda: services)
     app = _ClientAuthMiddleware(test_mcp.streamable_http_app())
-    return TestClient(app, raise_server_exceptions=False)
+    return ContractTestClient(app, raise_server_exceptions=False)
 
 
 def test_integrity_with_orphans(

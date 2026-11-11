@@ -23,12 +23,14 @@ import pytest
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
-from starlette.testclient import TestClient
+
+from tests.contract_check import ContractTestClient
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from starlette.requests import Request
+    from starlette.testclient import TestClient
 
 from journal.api._handler import JsonBody, handler
 from journal.db.factory import ConnectionFactory
@@ -40,7 +42,7 @@ _SERVICES: dict[str, Any] = {"marker": "wired"}
 
 def _client(routes: list[Route]) -> TestClient:
     app = Starlette(routes=routes)
-    return TestClient(app, raise_server_exceptions=False)
+    return ContractTestClient(app, raise_server_exceptions=False)
 
 
 class TestServicesGate:
@@ -229,7 +231,7 @@ class TestThreadBoundary:
             raise RuntimeError("boom from the worker thread")
 
         app = Starlette(routes=[Route("/t", body, methods=["GET"])])
-        client = TestClient(app, raise_server_exceptions=True)
+        client = ContractTestClient(app, raise_server_exceptions=True)
         with pytest.raises(RuntimeError, match="boom from the worker thread"):
             client.get("/t")
 

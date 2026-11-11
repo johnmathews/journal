@@ -236,11 +236,11 @@ def test_real_health_response_validates_strictly(
     from types import SimpleNamespace
 
     from mcp.server.fastmcp import FastMCP
-    from starlette.testclient import TestClient
 
     from journal.api import register_api_routes
     from journal.config import Config
     from journal.vectorstore.store import InMemoryVectorStore
+    from tests.contract_check import ContractTestClient
 
     assert callable(vector_store_factory)
     vector_store = vector_store_factory() or InMemoryVectorStore()
@@ -253,7 +253,7 @@ def test_real_health_response_validates_strictly(
     test_mcp = FastMCP("test-contract")
     register_api_routes(test_mcp, lambda: services)  # type: ignore[arg-type, return-value]
     try:
-        with TestClient(test_mcp.streamable_http_app()) as client:
+        with ContractTestClient(test_mcp.streamable_http_app()) as client:
             response = client.get("/health")
     finally:
         conn.close()

@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from mcp.server.fastmcp import FastMCP
-from starlette.testclient import TestClient
 
 from journal.api.storylines import register_storylines_routes
 from journal.api.storylines_write import register_storylines_write_routes
@@ -26,10 +25,13 @@ from journal.db.storyline_repository import SQLiteStorylineRepository
 from journal.entitystore.store import SQLiteEntityStore
 from journal.services.jobs import JobRunner
 from journal.services.storylines.engine import UpdateResult
+from tests.contract_check import ContractTestClient
 
 if TYPE_CHECKING:
     from collections.abc import Generator
     from pathlib import Path
+
+    from starlette.testclient import TestClient
 
 
 _TEST_USER_ID = 1
@@ -171,7 +173,7 @@ def app_with_storylines(
     app = mcp.streamable_http_app()
     app.add_middleware(_FakeAuthMiddleware)
 
-    client = TestClient(app)
+    client = ContractTestClient(app)
     try:
         yield client, {
             "factory": factory,
@@ -415,7 +417,7 @@ class TestStorylines503WhenUnwired:
         register_storylines_routes(mcp, lambda: {})
         app = mcp.streamable_http_app()
         app.add_middleware(_FakeAuthMiddleware)
-        client = TestClient(app)
+        client = ContractTestClient(app)
         resp = client.get("/api/storylines")
         assert resp.status_code == 503
 
@@ -424,6 +426,6 @@ class TestStorylines503WhenUnwired:
         register_storylines_routes(mcp, lambda: {})
         app = mcp.streamable_http_app()
         app.add_middleware(_FakeAuthMiddleware)
-        client = TestClient(app)
+        client = ContractTestClient(app)
         resp = client.get("/api/storylines/1")
         assert resp.status_code == 503

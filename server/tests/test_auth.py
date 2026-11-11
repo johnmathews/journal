@@ -9,7 +9,6 @@ import pytest
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 from starlette.routing import Route
-from starlette.testclient import TestClient
 
 from journal.auth import (
     PUBLIC_PATHS,
@@ -21,9 +20,11 @@ from journal.auth import (
     get_authenticated_user,
     set_session_cookie,
 )
+from tests.contract_check import ContractTestClient
 
 if TYPE_CHECKING:
     from starlette.requests import Request
+    from starlette.testclient import TestClient
 
 
 # ---------------------------------------------------------------------------
@@ -106,7 +107,7 @@ def _build_app(
     inner_app = Starlette(routes=routes)
     app = build_auth_middleware_stack(inner_app, svc)  # type: ignore[arg-type]
 
-    return TestClient(app, raise_server_exceptions=False)
+    return ContractTestClient(app, raise_server_exceptions=False)
 
 
 def _build_auth_service_with_user(
@@ -608,8 +609,6 @@ class TestInactiveBeforeUnverified:
 
 class TestGetAuthenticatedUser:
     def test_returns_user_when_authenticated(self) -> None:
-        from starlette.testclient import TestClient
-
         async def handler(request: Request) -> JSONResponse:
             user = get_authenticated_user(request)
             return JSONResponse({"user_id": user.user_id})
@@ -617,15 +616,13 @@ class TestGetAuthenticatedUser:
         svc = _build_auth_service_with_user()
         inner = Starlette(routes=[Route("/test", handler, methods=["GET"])])
         app = build_auth_middleware_stack(inner, svc)  # type: ignore[arg-type]
-        client = TestClient(app, raise_server_exceptions=False)
+        client = ContractTestClient(app, raise_server_exceptions=False)
         client.cookies.set("session_id", "sess-123")
         resp = client.get("/test")
         assert resp.status_code == 200
         assert resp.json()["user_id"] == 1
 
     def test_raises_when_not_authenticated(self) -> None:
-        from starlette.testclient import TestClient
-
         async def handler(request: Request) -> JSONResponse:
             user = get_authenticated_user(request)
             return JSONResponse({"user_id": user.user_id})
@@ -642,7 +639,7 @@ class TestGetAuthenticatedUser:
         app = AuthenticationMiddleware(
             inner, backend=backend, on_error=_on_auth_error
         )
-        client = TestClient(app, raise_server_exceptions=True)
+        client = ContractTestClient(app, raise_server_exceptions=True)
         with pytest.raises(RuntimeError, match="No authenticated user"):
             client.get("/test")
 
