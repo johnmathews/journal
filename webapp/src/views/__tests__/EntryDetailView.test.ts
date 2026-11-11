@@ -187,6 +187,23 @@ describe('EntryDetailView', () => {
     )
   })
 
+  it('never lets the corrected-text textarea scroll, so it wraps at the same width as the backdrop', async () => {
+    // Regression: with the default `overflow: auto`, a sub-pixel overflow
+    // (24.375px line height) gave the textarea a classic 15px scrollbar on
+    // macOS "always show scrollbars". The textarea then wrapped narrower
+    // than the highlighted backdrop and the caret drifted a line or more
+    // away from the visible text. happy-dom does no layout, so pin the
+    // class that prevents it; the grid already sizes the textarea to its
+    // content, so it never needs to scroll.
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+    await switchToEditMode(wrapper)
+
+    const textarea = wrapper.find('[data-testid="corrected-textarea"]')
+    expect(textarea.classes()).toContain('overflow-hidden')
+  })
+
   it('renders the diff toggle on by default with a visible legend', async () => {
     const wrapper = mountComponent()
     await flushPromises()

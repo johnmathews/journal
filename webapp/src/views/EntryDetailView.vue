@@ -1313,7 +1313,7 @@ onBeforeUnmount(() => {
                 <textarea
                   v-model="editedText"
                   spellcheck="false"
-                  class="diff-surface [grid-area:1/1] w-full border-0 bg-transparent text-transparent caret-gray-900 dark:caret-white resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/40 rounded-md px-3 py-2"
+                  class="diff-surface [grid-area:1/1] w-full overflow-hidden border-0 bg-transparent text-transparent caret-gray-900 dark:caret-white resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/40 rounded-md px-3 py-2"
                   data-testid="corrected-textarea"
                 />
               </template>
@@ -1381,6 +1381,14 @@ onBeforeUnmount(() => {
   The backdrop div and the textarea above it MUST use identical
   typography so that highlighted spans line up character-for-character
   with the glyphs the user is actually editing.
+
+  They must also wrap at the same width, so the textarea must never get
+  a scrollbar: it carries `overflow-hidden`. With the default
+  `overflow: auto`, a sub-pixel overflow from the fractional line height
+  gave it a 15px classic scrollbar on macOS, which narrowed its text,
+  made it wrap more lines, and put the caret a line or more away from the
+  visible text. The grid sizes the textarea to its content, so it never
+  needs to scroll.
 */
 .diff-surface {
   font-family: ui-serif, Georgia, Cambria, 'Times New Roman', serif;
