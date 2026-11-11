@@ -81,7 +81,7 @@ restart.
 ## Image source and update workflow
 
 Images are built and pushed to `ghcr.io/johnmathews/journal-{server,webapp,chromadb}` by
-GitHub Actions on push to `main` (see each repo's `.github/workflows/`).
+GitHub Actions on push to `main` (`.github/workflows/server.yml` and `webapp.yml` at the repo root).
 
 **`journal-server` and `journal-webapp` auto-deploy.** Since 2026-10-25 a What's Up Docker
 (WUD) container on `media` polls ghcr every minute; when the `latest` digest of either image
