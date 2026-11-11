@@ -130,10 +130,15 @@ script. Before deploying, decide whether the release needs an *out-of-band* back
 one-off script over historical rows that a migration can't express) by scanning the diff:
 
 ```bash
-# From a clean checkout of the release commit:
-git diff --stat <previous-deployed-sha>..main -- src/journal/db/migrations/   # new schema/backfill migrations
-git diff --stat <previous-deployed-sha>..main -- scripts/ bin/                # any standalone backfill/one-off scripts
+# From the repo root of a clean checkout of the release commit:
+git diff --stat <previous-deployed-sha>..main -- server/src/journal/db/migrations/   # new schema/backfill migrations
+git diff --stat <previous-deployed-sha>..main -- server/scripts/ server/bin/          # any standalone backfill/one-off scripts
 ```
+
+`<previous-deployed-sha>` is the running image's `org.opencontainers.image.revision` label. Images built before the
+2026-11-11 monorepo merge carry a `johnmathews/journal-server` SHA, which doesn't exist in this repo. For the first
+deploy after the merge, compare against the merge commit that imported `server/` instead
+(`git log --format=%h -1 --grep='import journal-server history'`).
 
 If `migrations/` shows new files, they apply automatically. If `scripts/`/`bin/` gained a
 backfill you were told to run, run it *after* `up -d` (so the schema exists) via
@@ -147,7 +152,7 @@ NULL by design.
 1. **CI is green on `main`** for the commit you're shipping (both `test` and
    `integration-test`, plus `build-and-push` so the `:latest` image exists):
    ```bash
-   gh run list --repo johnmathews/journal-server --branch main --limit 1 \
+   gh run list --repo johnmathews/journal --workflow server.yml --branch main --limit 1 \
      --json headSha,conclusion,status
    ```
 2. **Note the currently-deployed version** so you can verify the bump and roll back if

@@ -43,7 +43,7 @@ services:
     # the healthcheck below works. Upstream `chromadb/chroma:latest`
     # does not include curl, which would cause the healthcheck to fail
     # forever and the journal-server `depends_on: service_healthy` to
-    # deadlock. See journal-server/Dockerfile.chromadb.
+    # deadlock. See ../server/Dockerfile.chromadb.
     image: ghcr.io/johnmathews/journal-chromadb:latest
     ports:
       - "8401:8000"

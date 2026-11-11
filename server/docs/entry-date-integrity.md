@@ -92,4 +92,4 @@ storyline — fresh titles/narratives, published chapters arrive unread.
   later migration.
 - The webapp shows an "Unconfirmed date" badge (list) and a clickable
   pill (detail) for quarantined entries — see
-  `journal-webapp/docs/` for the UI side.
+  `webapp/docs/` for the UI side.

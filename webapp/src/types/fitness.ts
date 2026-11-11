@@ -1,5 +1,5 @@
 // Types for the W4–W14 fitness pipeline. Mirrors the wire shapes documented
-// in journal-server's docs/api.md § Fitness endpoints — the serialiser output
+// in server/docs/api.md § Fitness endpoints — the serialiser output
 // of `api/fitness.py` and `api/ingestion.py`. snake_case is preserved on
 // purpose, same convention as types/job.ts: faithful to the API contract
 // matters more than local camelCase consistency for this narrow layer.
@@ -141,7 +141,7 @@ export interface DedupedActivity {
 
 // ── W8: multi-user connect/backfill flow types ────────────────────────
 //
-// Mirrors the wire shapes documented in journal-server's docs/api.md for
+// Mirrors the wire shapes documented in server/docs/api.md for
 // the W2 (Garmin), W3 (Strava), and W5 (backfill) endpoints.
 
 /**

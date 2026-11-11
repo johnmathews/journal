@@ -1,0 +1,16 @@
+# Root-level ignores for the monorepo. server/.gitignore and webapp/.gitignore
+# still govern their own folders; don't hoist their patterns here (server's
+# *.png would hide webapp assets).
+
+# Engineering-team run artifacts and agent scratch state
+.engineering-team/
+.superpowers/
+.worktrees/
+.claude/settings.local.json
+.claude/worktrees/
+
+# Ad-hoc local screenshots
+/screenshots/
+
+# OS noise
+.DS_Store

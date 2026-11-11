@@ -43,7 +43,7 @@ src/
 
 ## Git Hooks
 
-Git hooks are managed by [Husky](https://typicode.github.io/husky/) (`.husky/` directory, installed automatically via `npm install`). A **pre-push** hook runs `format:check` (Prettier) + lint + `test:coverage` + build before every push.
+The repo's tracked pre-push hook lives at the monorepo root (`../.githooks/pre-push`); `npm install` enables it via the `prepare` script. When a push touches `webapp/` code, it runs `format:check` (Prettier) + lint + `test:coverage` + build.
 
 ## Coverage Thresholds
 
@@ -58,10 +58,9 @@ When adding new components or store actions, add corresponding tests to stay abo
 
 ## Commit, Push, and CI
 
-After committing, always push and watch GitHub Actions CI (`gh run watch`). If CI fails, read the
-logs, fix the issue, run the full test suite locally, commit, push, and watch again. Do not
-consider work done until CI is green. When fixing bugs, always write a failing test first that
-reproduces the issue, then fix the code to make it pass.
+This folder is part of the `johnmathews/journal` monorepo. Branching, PRs, CI
+(`.github/workflows/webapp.yml`) and shipping are described in the root `CLAUDE.md`. When fixing
+bugs, always write a failing test first that reproduces the issue, then fix the code to make it pass.
 
 ## Documentation lifecycle
 
@@ -74,39 +73,33 @@ reproduces the issue, then fix the code to make it pass.
 
 ## Shipping
 
-- **Lands by:** pull request (squash-merged; the `main` ruleset blocks force-push and deletion)
-- **Environments:**
-  - image: CI (`.github/workflows/ci.yml`, `docker` job) builds and pushes
-    `ghcr.io/johnmathews/journal-webapp:latest` on every push to `main`. CI does not deploy.
-    Check: `gh run list --workflow ci.yml --branch main --limit 1`
-  - production (`media` VM, https://journal.itsa-pizza.com): deployed by pulling the new image,
-    `ssh media 'cd /srv/media && docker compose pull journal-webapp && docker compose up -d journal-webapp'`.
-    Check: `ssh media 'cd /srv/media && docker inspect -f "{{.Image}} {{.State.StartedAt}}" $(docker compose ps -q journal-webapp)'`
-    (compare the image ID and start time with the latest `main` CI run).
+See the root `CLAUDE.md` (§ Shipping): the webapp image is built by `.github/workflows/webapp.yml` on `main` and
+deployed by hand on the `media` VM.
 
 ## Backend
 
-The webapp connects to journal-server's REST API at /api/*. During development, Vite proxies these requests to localhost:8400 where the journal-server runs.
+The webapp connects to the server's REST API at /api/* (the backend lives in `../server`). During development, Vite proxies these requests to localhost:8400 where the server runs.
 
 ## Local Full-Stack Quickstart
 
 The webapp can't be exercised meaningfully without a backend — protected routes 401, dashboards stay empty, etc. Use this runbook whenever you need to verify UI work in a real browser. Full details with SQL snippets and a fake-jobs seeder live in [`docs/development.md`](docs/development.md#local-full-stack-quickstart).
 
 ```bash
+# All commands run from the repo root, each in its own terminal.
 # 1. ChromaDB
-cd ../journal-server && docker compose -f docker-compose.dev.yml up -d
+(cd server && docker compose -f docker-compose.dev.yml up -d)
 
 # 2. Backend (separate terminal) — needs a .env (see docs/development.md)
-cd ../journal-server && uv sync && uv run python -m journal.mcp_server
+cd server && uv sync && uv run python -m journal.mcp_server
 
 # 3. Webapp (another terminal)
-cd journal-webapp && npm install && npm run dev   # http://localhost:5173
+cd webapp && npm install && npm run dev   # http://localhost:5173
 ```
 
 To get past auth, register at `/register` then mark the user verified in SQLite (SMTP isn't wired up in dev):
 
 ```bash
-sqlite3 ../journal-server/journal.db \
+sqlite3 server/journal.db \
   "UPDATE users SET email_verified = 1 WHERE email = 'dev@local.dev';"
 ```
 

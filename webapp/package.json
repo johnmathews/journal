@@ -13,19 +13,20 @@
     "lint": "eslint . --fix",
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
-    "prepare": "husky"
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/johnmathews/journal-webapp.git"
+    "url": "git+https://github.com/johnmathews/journal.git",
+    "directory": "webapp"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/johnmathews/journal-webapp/issues"
+    "url": "https://github.com/johnmathews/journal/issues"
   },
-  "homepage": "https://github.com/johnmathews/journal-webapp#readme",
+  "homepage": "https://github.com/johnmathews/journal/tree/main/webapp#readme",
   "dependencies": {
     "@types/diff-match-patch": "^1.0.36",
     "@vueuse/core": "^12.5.0",
@@ -47,7 +48,6 @@
     "eslint": "^10.2.0",
     "eslint-plugin-vue": "^10.8.0",
     "happy-dom": "^20.8.9",
-    "husky": "^9.1.7",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.0.2",
     "typescript": "^6.0.2",

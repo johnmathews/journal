@@ -131,7 +131,7 @@ export function fetchIntegrity(): Promise<FitnessIntegrityReport> {
 // ── W8: multi-user connect / OAuth / backfill client functions ────────
 //
 // One typed wrapper per W2/W3/W5 server endpoint. Response shapes match
-// the JSON bodies documented in journal-server's docs/api.md verbatim.
+// the JSON bodies documented in server/docs/api.md verbatim.
 // Errors (cool-down 429, expired pending session, upstream-account
 // mismatch 409, etc.) surface via apiFetch's ApiRequestError envelope —
 // these functions deliberately do not bake in retry/backoff. UX

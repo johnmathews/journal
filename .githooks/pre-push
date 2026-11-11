@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Pre-push gate for the journal monorepo.
+#
+# Runs the checks for each part the push touches:
+#   server/ or contract/  -> ruff + unit tests (integration tests need ChromaDB; CI runs them)
+#   webapp/ or contract/  -> prettier check, eslint, vitest with coverage thresholds, build
+# Docs, journal entries, Markdown and root files (.github/, CLAUDE.md) run nothing locally;
+# CI covers workflows.
+#
+# Installed by `npm install` in webapp/ (its `prepare` script), or once by hand:
+#   git config core.hooksPath .githooks
+set -euo pipefail
+
+root="$(git rev-parse --show-toplevel)"
+zero="0000000000000000000000000000000000000000"
+changed=""
+
+# git feeds one line per ref being pushed: <local ref> <local sha> <remote ref> <remote sha>
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue   # branch deletion: nothing to check
+  if [ "$remote_sha" = "$zero" ]; then
+    # New branch on the remote: compare against where it forked from main.
+    if base="$(git merge-base "$local_sha" origin/main 2>/dev/null)"; then
+      range="$base..$local_sha"
+    else
+      range=""                              # no origin/main yet: check everything
+    fi
+  else
+    range="$remote_sha..$local_sha"
+  fi
+  if [ -n "$range" ]; then
+    changed+="$(git diff --name-only "$range")"$'\n'
+  else
+    changed+="$(git ls-tree -r --name-only "$local_sha")"$'\n'
+  fi
+done
+
+# Prose (docs/, journal/, any .md) can't break a suite, so it doesn't trigger one.
+code="$(grep -vE '^(server|webapp)/(docs|journal)/|\.md$' <<<"$changed" || true)"
+
+run_server=false
+run_webapp=false
+grep -qE '^(server|contract)/' <<<"$code" && run_server=true
+grep -qE '^(webapp|contract)/' <<<"$code" && run_webapp=true
+
+if $run_server; then
+  echo "pre-push: server changed, running ruff and unit tests..."
+  (cd "$root/server" && uv run ruff check src/ tests/ && uv run pytest -m "not integration" -q)
+else
+  echo "pre-push: no server/ or contract/ code changes, skipping server checks."
+fi
+
+if $run_webapp; then
+  echo "pre-push: webapp changed, running format check, lint, tests with coverage, build..."
+  (cd "$root/webapp" && npm run format:check && npm run lint && npm run test:coverage && npm run build)
+else
+  echo "pre-push: no webapp/ or contract/ code changes, skipping webapp checks."
+fi
+
+echo "pre-push: all checks passed."

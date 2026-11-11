@@ -9,16 +9,16 @@
 ## Setup
 
 ```bash
-git clone https://github.com/johnmathews/journal-server.git
-cd journal-server
+git clone https://github.com/johnmathews/journal.git
+cd journal/server
 uv sync
 ```
 
 ### Renaming the working directory
 
-If you rename the directory after `uv sync` (e.g. cloning as
-`journal-server` and then renaming locally to `server` — the layout
-this repo's parent `journal/` workspace uses), the existing `.venv/`
+If you rename or move the directory after `uv sync` (e.g. moving a
+standalone `journal-server` checkout from before the 2026-11-11
+monorepo merge to `journal/server`), the existing `.venv/`
 contains scripts with absolute-path shebangs that point at the *old*
 directory. Symptoms: `uv run` succeeds but `python -m journal.mcp_server`
 or `journal` (the CLI script) prints a no-such-file error from
@@ -121,7 +121,7 @@ Migrations run automatically on startup. The current version is tracked via `PRA
 
 ## Local Development (Full Stack)
 
-To develop the journal-server and journal-webapp together locally:
+To develop the server and webapp together locally (commands start in `server/`):
 
 ```bash
 # 1. Start ChromaDB
@@ -143,7 +143,7 @@ uv run journal seed
 uv run python -m journal.mcp_server
 
 # 5. In another terminal, start the webapp
-cd ../journal-webapp
+cd ../webapp
 npm run dev
 # Opens at http://localhost:5173, proxies /api/* to localhost:8400
 ```

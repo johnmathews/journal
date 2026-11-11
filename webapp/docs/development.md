@@ -4,13 +4,13 @@
 
 - Node.js 22+ (CI and the Docker image use 22, pinned in `.nvmrc`; the unit suite also runs on Node 26)
 - npm 10+
-- journal-server running on localhost:8400 (for API access)
+- The server (`../server`) running on localhost:8400 (for API access)
 
 ## Setup
 
 ```bash
-git clone https://github.com/johnmathews/journal-webapp.git
-cd journal-webapp
+git clone https://github.com/johnmathews/journal.git
+cd journal/webapp
 npm install
 ```
 
@@ -29,18 +29,18 @@ To work without the backend, the app will show error states — this is expected
 The webapp needs the backend (REST API on `:8400`) and ChromaDB (`:8401`) to run. Once the stack is up, register a user via the UI, mark them email-verified in SQLite, and log in. Total time on a fresh checkout: ~2 minutes.
 
 ```bash
-# 1. ChromaDB (Docker)
-cd ../journal-server
+# 1. ChromaDB (Docker) — from webapp/
+cd ../server
 docker compose -f docker-compose.dev.yml up -d
 
-# 2. Backend (separate terminal)
-cd ../journal-server
+# 2. Backend (separate terminal) — from webapp/
+cd ../server
 cp .env.example .env  # first time only — see notes below
 uv sync
 uv run python -m journal.mcp_server   # listens on :8400
 
-# 3. Webapp (another terminal)
-cd ../journal-webapp
+# 3. Webapp (another terminal) — from server/
+cd ../webapp
 npm install                            # first time only
 npm run dev                            # opens http://localhost:5173
 ```
@@ -79,7 +79,8 @@ The auth middleware blocks unverified users from every protected endpoint, so a 
 2. Mark the new user verified:
 
    ```bash
-   sqlite3 journal-server/journal.db \
+   # from the repo root
+   sqlite3 server/journal.db \
      "UPDATE users SET email_verified = 1 WHERE email = 'dev@local.dev';"
    ```
 
@@ -92,7 +93,8 @@ curl -sS -X POST http://localhost:8400/api/auth/register \
   -H 'Content-Type: application/json' \
   -d '{"email":"dev@local.dev","password":"devpassword123","display_name":"Dev User"}'
 
-sqlite3 journal-server/journal.db \
+# from the repo root
+sqlite3 server/journal.db \
   "UPDATE users SET email_verified = 1 WHERE email = 'dev@local.dev';"
 ```
 
@@ -102,7 +104,7 @@ Then go to http://localhost:5173/login and sign in with the credentials.
 
 ```bash
 curl -sf http://localhost:8401/api/v2/heartbeat   # ChromaDB
-curl -sf http://localhost:8400/health             # journal-server (returns "degraded" with placeholder API keys — expected)
+curl -sf http://localhost:8400/health             # server (returns "degraded" with placeholder API keys — expected)
 curl -sf http://localhost:8400/api/auth/config    # should show {"registration_enabled":true}
 ```
 
@@ -111,7 +113,8 @@ curl -sf http://localhost:8400/api/auth/config    # should show {"registration_e
 The Job History view is empty for fresh users. To populate it without running real jobs (which need real API keys), insert fake rows:
 
 ```bash
-sqlite3 journal-server/journal.db <<'SQL'
+# from the repo root
+sqlite3 server/journal.db <<'SQL'
 -- Replace user_id=3 with the id from: SELECT id, email FROM users;
 INSERT INTO jobs (id, type, status, params_json, progress_current, progress_total,
                   result_json, error_message, created_at, started_at, finished_at, user_id)
@@ -132,11 +135,11 @@ SQL
 
 ```bash
 # Stop ChromaDB
-cd journal-server && docker compose -f docker-compose.dev.yml down
+cd server && docker compose -f docker-compose.dev.yml down   # from the repo root
 # Stop the foreground processes (Ctrl-C in their terminals)
 ```
 
-The SQLite DB persists between runs at `journal-server/journal.db`. Delete it to start clean — it will be re-created on next backend start.
+The SQLite DB persists between runs at `server/journal.db`. Delete it to start clean — it will be re-created on next backend start.
 
 ## Commands
 
@@ -191,9 +194,9 @@ src/
 
 ## Git Hooks
 
-Git hooks are managed by [Husky](https://typicode.github.io/husky/) and tracked in the `.husky/` directory. They are installed automatically when you run `npm install` (via the `prepare` script).
+The pre-push hook is tracked at the monorepo root in `.githooks/pre-push`. `npm install` enables it: the `prepare` script runs `git config core.hooksPath .githooks`.
 
-A **pre-push** hook runs `format:check`, `lint`, `test:coverage`, and `build` before every `git push` (see `.husky/pre-push`). If any step fails — Prettier finds drift, ESLint finds errors, tests fail, coverage drops below the minimums defined in `vitest.config.ts`, or `vue-tsc` rejects the build — the push is aborted.
+When a push touches `webapp/` (or `contract/`) code, the hook runs `format:check`, `lint`, `test:coverage` and `build`. If any step fails — Prettier finds drift, ESLint finds errors, tests fail, coverage drops below the minimums defined in `vitest.config.ts`, or `vue-tsc` rejects the build — the push is aborted. Pushes that only change docs, journal entries or Markdown skip the checks. The same hook runs the server's checks when `server/` code changes.
 
 ## Docker
 

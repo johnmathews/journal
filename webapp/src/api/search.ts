@@ -37,7 +37,7 @@ export function answerQuestion(
 }
 
 /**
- * Call the journal-server `/api/search` endpoint. `q` is required
+ * Call the server's `/api/search` endpoint. `q` is required
  * and non-empty; everything else is optional. Returns the server's
  * full envelope (query, mode, limit, offset, items) so callers can
  * detect "is there more" from `items.length === limit`.

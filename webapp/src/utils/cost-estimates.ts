@@ -57,7 +57,7 @@ export const DEFAULT_PRICING: PricingConfig = {
 
 /**
  * Dual-pass OCR always uses both default models regardless of ocr_provider.
- * Must match _DEFAULT_MODELS in journal-server/src/journal/providers/ocr.py.
+ * Must match _DEFAULT_MODELS in server/src/journal/providers/ocr.py.
  */
 export const DUAL_PASS_MODELS = {
   primary: 'claude-opus-4-6',

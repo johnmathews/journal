@@ -28,8 +28,8 @@ natural language queries about them.
 
 ```bash
 # Clone and install
-git clone https://github.com/johnmathews/journal-server.git
-cd journal-server
+git clone https://github.com/johnmathews/journal.git
+cd journal/server
 uv sync
 
 # Set up environment
@@ -83,6 +83,8 @@ This starts:
 All external APIs are behind provider-agnostic interfaces (Python Protocols), making it easy to swap providers.
 
 ## Documentation
+
+Commit SHAs and PR numbers dated before 2026-11-11 refer to the archived repos `johnmathews/journal-server` and `johnmathews/journal-webapp`.
 
 - [Architecture](docs/architecture.md) — System design and data flow
 - [Configuration](docs/configuration.md) — Environment variables reference
