@@ -32,9 +32,33 @@ export type SourceType =
   | 'text_entry'
   | 'imported_text_file'
   | 'imported_audio_file'
-export type HealthStatus = 'ok' | 'degraded' | 'error'
-export type FitnessAuthStatus = 'unknown' | 'ok' | 'broken'
 export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed'
+export type DivergenceQuadrant =
+  | 'likely_mental_fatigue'
+  | 'hidden_physical_under_recovery'
+  | 'congruent_fatigue'
+  | 'congruent_ok'
+export type GarminConnectResponse =
+  | ConnectedAccountResponse
+  | GarminMfaPendingResponse
+export type FitnessSource = 'strava' | 'garmin'
+export type FitnessActivityType =
+  | 'run'
+  | 'ride'
+  | 'swim'
+  | 'walk'
+  | 'hike'
+  | 'row'
+  | 'strength'
+  | 'other'
+export type FitnessAuthStatus = 'unknown' | 'ok' | 'broken'
+export type FitnessSyncRunStatus =
+  | 'running'
+  | 'success'
+  | 'auth_broken'
+  | 'transient_failure'
+  | 'normalize_drift'
+export type HealthStatus = 'ok' | 'degraded' | 'error'
 export type JobType =
   | 'entity_extraction'
   | 'entity_reembed'
@@ -100,6 +124,21 @@ export interface JournalApi {
   api_entry_detail: EntryDetailResponse
   api_entry_entities: EntryEntitiesResponse
   api_entry_tokens: EntryTokensResponse
+  api_fitness_backfill: FitnessSyncJobResponse
+  api_fitness_divergence: DivergenceResponse
+  api_fitness_garmin_connect: GarminConnectResponse
+  api_fitness_garmin_connect_mfa: ConnectedAccountResponse
+  api_fitness_garmin_disconnect: DisconnectResponse
+  api_fitness_garmin_reconnect: GarminConnectResponse
+  api_fitness_integrity: FitnessIntegrityReport
+  api_fitness_list_activities: FitnessActivitiesResponse
+  api_fitness_list_daily: FitnessDailyResponse
+  api_fitness_mood_recovery: MoodRecoveryResponse
+  api_fitness_strava_authorize_url: StravaAuthorizeUrlResponse
+  api_fitness_strava_disconnect: DisconnectResponse
+  api_fitness_strava_exchange: ConnectedAccountResponse
+  api_fitness_sync: FitnessSyncJobResponse
+  api_fitness_sync_status: FitnessSyncStatus
   api_health: PublicHealthResponse
   api_health_authed: HealthResponse
   api_job_detail: Job
@@ -733,6 +772,229 @@ export interface TokenSpan {
   index: number
   text: string
   token_id: number
+}
+/**
+ * Body of `POST /api/fitness/sync/{source}` and
+ * `POST /api/fitness/backfill/{source}` (202).
+ */
+export interface FitnessSyncJobResponse {
+  already_running?: true
+  job_id: string
+  status: JobStatus
+}
+/**
+ * Body of `GET /api/fitness/divergence`.
+ */
+export interface DivergenceResponse {
+  rows: DivergenceRow[]
+  summary: DivergenceSummary
+}
+/**
+ * One day of `GET /api/fitness/divergence`: `asdict(DivergenceDay)`.
+ *
+ * Every `*_z` is a rolling per-person z-score over the request's `window`
+ * (default 28 days), null without a baseline or a value that day.
+ * `quadrant` is null unless `sufficient`.
+ */
+export interface DivergenceRow {
+  acwr: number | null
+  acwr_z: number | null
+  hrv_z: number | null
+  local_date: string
+  mental_fatigue: number | null
+  n_signals: number
+  physical_fatigue: number | null
+  quadrant: DivergenceQuadrant | null
+  readiness_z: number | null
+  recovery_z: number | null
+  resting_hr_z: number | null
+  sleep_z: number | null
+  subjective_tired_z: number | null
+  sufficient: boolean
+}
+/**
+ * Classified days per quadrant. A quadrant with no days is absent.
+ */
+export interface DivergenceSummary {
+  congruent_fatigue?: number
+  congruent_ok?: number
+  hidden_physical_under_recovery?: number
+  likely_mental_fatigue?: number
+}
+/**
+ * A completed Garmin login (connect, reconnect, MFA) or Strava exchange.
+ */
+export interface ConnectedAccountResponse {
+  connected: true
+  upstream_user_id: string
+}
+/**
+ * Garmin wants an MFA code: send it with `pending_session` to
+ * `POST /api/fitness/garmin/connect/mfa`.
+ */
+export interface GarminMfaPendingResponse {
+  expires_at: string
+  mfa_required: true
+  pending_session: string
+}
+/**
+ * Body of the Garmin and Strava disconnect routes. `disconnected` is
+ * false when there was no auth row to delete.
+ */
+export interface DisconnectResponse {
+  disconnected: boolean
+}
+/**
+ * Body of `GET /api/fitness/integrity`: the caller's soft-pointer
+ * orphans (`journal.db.fitness_integrity`). Empty lists mean a clean DB.
+ */
+export interface FitnessIntegrityReport {
+  activities: FitnessActivityOrphan[]
+  daily: FitnessDailyOrphan[]
+}
+/**
+ * An activity whose `raw_ref_id` has no row in its source's raw table.
+ */
+export interface FitnessActivityOrphan {
+  activity_id: number
+  issue: 'raw_row_missing'
+  raw_ref_id: number
+  source: FitnessSource
+}
+/**
+ * A daily row with raw ids missing from `fitness_raw_garmin`.
+ */
+export interface FitnessDailyOrphan {
+  daily_id: number
+  missing_raw_ids: number[]
+  source: FitnessSource
+}
+/**
+ * Body of `GET /api/fitness/activities`.
+ */
+export interface FitnessActivitiesResponse {
+  items: FitnessActivity[]
+}
+/**
+ * One row of `fitness_activities` (`api/fitness.py::_activity_to_dict`).
+ */
+export interface FitnessActivity {
+  activity_type: FitnessActivityType
+  avg_hr_bpm: number | null
+  avg_pace_s_per_km: number | null
+  calories_kcal: number | null
+  distance_m: number | null
+  duration_s: number
+  elevation_gain_m: number | null
+  extras: {
+    [k: string]: unknown
+  }
+  id: number
+  local_date: string
+  max_hr_bpm: number | null
+  moving_time_s: number | null
+  normalized_at: string
+  perceived_exertion: number | null
+  raw_ref_id: number
+  source: FitnessSource
+  source_id: string
+  source_subtype: string
+  start_time: string
+  user_id: number
+}
+/**
+ * Body of `GET /api/fitness/daily`.
+ */
+export interface FitnessDailyResponse {
+  items: FitnessDaily[]
+}
+/**
+ * One row of `fitness_daily` (`api/fitness.py::_daily_to_dict`).
+ * Garmin is the only source of daily rows today.
+ */
+export interface FitnessDaily {
+  body_battery_high: number | null
+  body_battery_low: number | null
+  extras: {
+    [k: string]: unknown
+  }
+  hrv_overnight_ms: number | null
+  id: number
+  local_date: string
+  normalized_at: string
+  raw_ref_ids: number[]
+  resting_hr_bpm: number | null
+  sleep_duration_s: number | null
+  sleep_efficiency_pct: number | null
+  sleep_score: number | null
+  source: FitnessSource
+  stress_avg: number | null
+  training_load_acute: number | null
+  training_load_chronic: number | null
+  training_readiness: number | null
+  user_id: number
+}
+/**
+ * Body of `GET /api/fitness/mood-recovery`.
+ */
+export interface MoodRecoveryResponse {
+  rows: MoodRecoveryRow[]
+}
+/**
+ * One date of `GET /api/fitness/mood-recovery`: per-date averages of
+ * the raw daily wellness values and the fatigue mood facets. Any value is
+ * null when that side has no data for the date.
+ */
+export interface MoodRecoveryRow {
+  hrv_overnight_ms: number | null
+  local_date: string
+  mental_fatigue: number | null
+  physical_fatigue: number | null
+  training_load_acute: number | null
+  training_readiness: number | null
+}
+/**
+ * Body of `GET /api/fitness/strava/authorize_url`.
+ */
+export interface StravaAuthorizeUrlResponse {
+  authorize_url: string
+  expires_at: string
+  state: string
+}
+/**
+ * Body of `GET /api/fitness/sync/status`. A source is null when the
+ * user has neither an auth-state row nor a sync run for it.
+ */
+export interface FitnessSyncStatus {
+  garmin: FitnessSourceStatus | null
+  strava: FitnessSourceStatus | null
+}
+/**
+ * One source in `GET /api/fitness/sync/status`.
+ */
+export interface FitnessSourceStatus {
+  auth_broken_since: string | null
+  auth_status: FitnessAuthStatus
+  credentials_saved?: boolean
+  last_runs: FitnessSyncRun[]
+  last_success_at: string | null
+}
+/**
+ * One element of `last_runs` in the sync-status response.
+ */
+export interface FitnessSyncRun {
+  error_class: string | null
+  error_message: string | null
+  finished_at: string | null
+  id: number
+  rows_fetched: number
+  rows_normalized: number
+  started_at: string
+  status: FitnessSyncRunStatus
+  wellness_fetched: number
+  wellness_normalized: number
+  workouts_fetched: number
+  workouts_normalized: number
 }
 /**
  * Body of the unauthenticated `GET /health`: liveness only.

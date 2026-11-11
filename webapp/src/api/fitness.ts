@@ -1,5 +1,4 @@
 import { apiFetch } from './client'
-import type { JobSubmissionResponse } from '@/types/job'
 import type {
   FitnessActivitiesResponse,
   FitnessDailyResponse,
@@ -16,6 +15,7 @@ import type {
   FitnessBackfillRequest,
   MoodRecoveryResponse,
   DivergenceResponse,
+  FitnessSyncJobResponse,
 } from '@/types/fitness'
 
 function buildQuery(
@@ -104,16 +104,14 @@ export function fetchSyncStatus(): Promise<FitnessSyncStatus> {
   return apiFetch<FitnessSyncStatus>('/api/fitness/sync/status')
 }
 
+export type { FitnessSyncJobResponse }
+
 /**
  * Queue a fetch+normalize job for `source`. Returns the job id immediately;
  * caller polls via the existing jobs store. The server dedupes against an
  * in-flight job per (user, source) and may return `already_running: true`,
  * which we surface unchanged.
  */
-export interface FitnessSyncJobResponse extends JobSubmissionResponse {
-  already_running?: boolean
-}
-
 export function triggerSync(
   source: FitnessSource,
 ): Promise<FitnessSyncJobResponse> {

@@ -779,6 +779,25 @@
       "title": "ComponentCheck",
       "type": "object"
     },
+    "ConnectedAccountResponse": {
+      "additionalProperties": false,
+      "description": "A completed Garmin login (connect, reconnect, MFA) or Strava exchange.",
+      "properties": {
+        "connected": {
+          "const": true,
+          "type": "boolean"
+        },
+        "upstream_user_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "connected",
+        "upstream_user_id"
+      ],
+      "title": "ConnectedAccountResponse",
+      "type": "object"
+    },
     "ContentBoundary": {
       "additionalProperties": false,
       "description": "Half-open `[char_start, char_end)` range in `raw_text` holding the entry's content.",
@@ -831,6 +850,214 @@
       ],
       "title": "DashboardBin",
       "type": "string"
+    },
+    "DisconnectResponse": {
+      "additionalProperties": false,
+      "description": "Body of the Garmin and Strava disconnect routes. `disconnected` is\nfalse when there was no auth row to delete.",
+      "properties": {
+        "disconnected": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "disconnected"
+      ],
+      "title": "DisconnectResponse",
+      "type": "object"
+    },
+    "DivergenceQuadrant": {
+      "enum": [
+        "likely_mental_fatigue",
+        "hidden_physical_under_recovery",
+        "congruent_fatigue",
+        "congruent_ok"
+      ],
+      "title": "DivergenceQuadrant",
+      "type": "string"
+    },
+    "DivergenceResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/fitness/divergence`.",
+      "properties": {
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/DivergenceRow"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "$ref": "#/$defs/DivergenceSummary"
+        }
+      },
+      "required": [
+        "rows",
+        "summary"
+      ],
+      "title": "DivergenceResponse",
+      "type": "object"
+    },
+    "DivergenceRow": {
+      "additionalProperties": false,
+      "description": "One day of `GET /api/fitness/divergence`: `asdict(DivergenceDay)`.\n\nEvery `*_z` is a rolling per-person z-score over the request's `window`\n(default 28 days), null without a baseline or a value that day.\n`quadrant` is null unless `sufficient`.",
+      "properties": {
+        "acwr": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acwr_z": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hrv_z": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "local_date": {
+          "type": "string"
+        },
+        "mental_fatigue": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "n_signals": {
+          "type": "integer"
+        },
+        "physical_fatigue": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "quadrant": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DivergenceQuadrant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "readiness_z": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recovery_z": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resting_hr_z": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sleep_z": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "subjective_tired_z": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sufficient": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "local_date",
+        "subjective_tired_z",
+        "physical_fatigue",
+        "mental_fatigue",
+        "recovery_z",
+        "hrv_z",
+        "resting_hr_z",
+        "sleep_z",
+        "readiness_z",
+        "acwr",
+        "acwr_z",
+        "quadrant",
+        "n_signals",
+        "sufficient"
+      ],
+      "title": "DivergenceRow",
+      "type": "object"
+    },
+    "DivergenceSummary": {
+      "additionalProperties": false,
+      "description": "Classified days per quadrant. A quadrant with no days is absent.",
+      "properties": {
+        "congruent_fatigue": {
+          "type": "integer"
+        },
+        "congruent_ok": {
+          "type": "integer"
+        },
+        "hidden_physical_under_recovery": {
+          "type": "integer"
+        },
+        "likely_mental_fatigue": {
+          "type": "integer"
+        }
+      },
+      "title": "DivergenceSummary",
+      "type": "object"
     },
     "EmbeddingSettings": {
       "additionalProperties": false,
@@ -1893,6 +2120,211 @@
       "title": "FeatureSettings",
       "type": "object"
     },
+    "FitnessActivitiesResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/fitness/activities`.",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/FitnessActivity"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "title": "FitnessActivitiesResponse",
+      "type": "object"
+    },
+    "FitnessActivity": {
+      "additionalProperties": false,
+      "description": "One row of `fitness_activities` (`api/fitness.py::_activity_to_dict`).",
+      "properties": {
+        "activity_type": {
+          "$ref": "#/$defs/FitnessActivityType"
+        },
+        "avg_hr_bpm": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "avg_pace_s_per_km": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "calories_kcal": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "distance_m": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "duration_s": {
+          "type": "integer"
+        },
+        "elevation_gain_m": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "extras": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "local_date": {
+          "type": "string"
+        },
+        "max_hr_bpm": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "moving_time_s": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "normalized_at": {
+          "type": "string"
+        },
+        "perceived_exertion": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "raw_ref_id": {
+          "type": "integer"
+        },
+        "source": {
+          "$ref": "#/$defs/FitnessSource"
+        },
+        "source_id": {
+          "type": "string"
+        },
+        "source_subtype": {
+          "type": "string"
+        },
+        "start_time": {
+          "type": "string"
+        },
+        "user_id": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "user_id",
+        "source",
+        "source_id",
+        "activity_type",
+        "source_subtype",
+        "start_time",
+        "local_date",
+        "duration_s",
+        "moving_time_s",
+        "distance_m",
+        "elevation_gain_m",
+        "avg_hr_bpm",
+        "max_hr_bpm",
+        "avg_pace_s_per_km",
+        "calories_kcal",
+        "perceived_exertion",
+        "extras",
+        "raw_ref_id",
+        "normalized_at"
+      ],
+      "title": "FitnessActivity",
+      "type": "object"
+    },
+    "FitnessActivityOrphan": {
+      "additionalProperties": false,
+      "description": "An activity whose `raw_ref_id` has no row in its source's raw table.",
+      "properties": {
+        "activity_id": {
+          "type": "integer"
+        },
+        "issue": {
+          "const": "raw_row_missing",
+          "type": "string"
+        },
+        "raw_ref_id": {
+          "type": "integer"
+        },
+        "source": {
+          "$ref": "#/$defs/FitnessSource"
+        }
+      },
+      "required": [
+        "activity_id",
+        "source",
+        "raw_ref_id",
+        "issue"
+      ],
+      "title": "FitnessActivityOrphan",
+      "type": "object"
+    },
+    "FitnessActivityType": {
+      "enum": [
+        "run",
+        "ride",
+        "swim",
+        "walk",
+        "hike",
+        "row",
+        "strength",
+        "other"
+      ],
+      "title": "FitnessActivityType",
+      "type": "string"
+    },
     "FitnessAuthStatus": {
       "enum": [
         "unknown",
@@ -1900,6 +2332,243 @@
         "broken"
       ],
       "title": "FitnessAuthStatus",
+      "type": "string"
+    },
+    "FitnessDaily": {
+      "additionalProperties": false,
+      "description": "One row of `fitness_daily` (`api/fitness.py::_daily_to_dict`).\nGarmin is the only source of daily rows today.",
+      "properties": {
+        "body_battery_high": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "body_battery_low": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "extras": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "hrv_overnight_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "integer"
+        },
+        "local_date": {
+          "type": "string"
+        },
+        "normalized_at": {
+          "type": "string"
+        },
+        "raw_ref_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "resting_hr_bpm": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sleep_duration_s": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sleep_efficiency_pct": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sleep_score": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source": {
+          "$ref": "#/$defs/FitnessSource"
+        },
+        "stress_avg": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "training_load_acute": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "training_load_chronic": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "training_readiness": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "user_id": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "user_id",
+        "source",
+        "local_date",
+        "sleep_score",
+        "sleep_duration_s",
+        "sleep_efficiency_pct",
+        "hrv_overnight_ms",
+        "resting_hr_bpm",
+        "body_battery_high",
+        "body_battery_low",
+        "stress_avg",
+        "training_load_acute",
+        "training_load_chronic",
+        "training_readiness",
+        "extras",
+        "raw_ref_ids",
+        "normalized_at"
+      ],
+      "title": "FitnessDaily",
+      "type": "object"
+    },
+    "FitnessDailyOrphan": {
+      "additionalProperties": false,
+      "description": "A daily row with raw ids missing from `fitness_raw_garmin`.",
+      "properties": {
+        "daily_id": {
+          "type": "integer"
+        },
+        "missing_raw_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "source": {
+          "$ref": "#/$defs/FitnessSource"
+        }
+      },
+      "required": [
+        "daily_id",
+        "source",
+        "missing_raw_ids"
+      ],
+      "title": "FitnessDailyOrphan",
+      "type": "object"
+    },
+    "FitnessDailyResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/fitness/daily`.",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/FitnessDaily"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "title": "FitnessDailyResponse",
+      "type": "object"
+    },
+    "FitnessIntegrityReport": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/fitness/integrity`: the caller's soft-pointer\norphans (`journal.db.fitness_integrity`). Empty lists mean a clean DB.",
+      "properties": {
+        "activities": {
+          "items": {
+            "$ref": "#/$defs/FitnessActivityOrphan"
+          },
+          "type": "array"
+        },
+        "daily": {
+          "items": {
+            "$ref": "#/$defs/FitnessDailyOrphan"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "activities",
+        "daily"
+      ],
+      "title": "FitnessIntegrityReport",
+      "type": "object"
+    },
+    "FitnessSource": {
+      "enum": [
+        "strava",
+        "garmin"
+      ],
+      "title": "FitnessSource",
       "type": "string"
     },
     "FitnessSourceHealth": {
@@ -1943,6 +2612,230 @@
         "auth_broken_since"
       ],
       "title": "FitnessSourceHealth",
+      "type": "object"
+    },
+    "FitnessSourceStatus": {
+      "additionalProperties": false,
+      "description": "One source in `GET /api/fitness/sync/status`.",
+      "properties": {
+        "auth_broken_since": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "auth_status": {
+          "$ref": "#/$defs/FitnessAuthStatus"
+        },
+        "credentials_saved": {
+          "type": "boolean"
+        },
+        "last_runs": {
+          "items": {
+            "$ref": "#/$defs/FitnessSyncRun"
+          },
+          "type": "array"
+        },
+        "last_success_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "auth_status",
+        "auth_broken_since",
+        "last_success_at",
+        "last_runs"
+      ],
+      "title": "FitnessSourceStatus",
+      "type": "object"
+    },
+    "FitnessSyncJobResponse": {
+      "additionalProperties": false,
+      "description": "Body of `POST /api/fitness/sync/{source}` and\n`POST /api/fitness/backfill/{source}` (202).",
+      "properties": {
+        "already_running": {
+          "const": true,
+          "type": "boolean"
+        },
+        "job_id": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/JobStatus"
+        }
+      },
+      "required": [
+        "job_id",
+        "status"
+      ],
+      "title": "FitnessSyncJobResponse",
+      "type": "object"
+    },
+    "FitnessSyncRun": {
+      "additionalProperties": false,
+      "description": "One element of `last_runs` in the sync-status response.",
+      "properties": {
+        "error_class": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "error_message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "finished_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "integer"
+        },
+        "rows_fetched": {
+          "type": "integer"
+        },
+        "rows_normalized": {
+          "type": "integer"
+        },
+        "started_at": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/FitnessSyncRunStatus"
+        },
+        "wellness_fetched": {
+          "type": "integer"
+        },
+        "wellness_normalized": {
+          "type": "integer"
+        },
+        "workouts_fetched": {
+          "type": "integer"
+        },
+        "workouts_normalized": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "started_at",
+        "finished_at",
+        "status",
+        "rows_fetched",
+        "rows_normalized",
+        "workouts_fetched",
+        "wellness_fetched",
+        "workouts_normalized",
+        "wellness_normalized",
+        "error_class",
+        "error_message"
+      ],
+      "title": "FitnessSyncRun",
+      "type": "object"
+    },
+    "FitnessSyncRunStatus": {
+      "enum": [
+        "running",
+        "success",
+        "auth_broken",
+        "transient_failure",
+        "normalize_drift"
+      ],
+      "title": "FitnessSyncRunStatus",
+      "type": "string"
+    },
+    "FitnessSyncStatus": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/fitness/sync/status`. A source is null when the\nuser has neither an auth-state row nor a sync run for it.",
+      "properties": {
+        "garmin": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FitnessSourceStatus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "strava": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FitnessSourceStatus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "strava",
+        "garmin"
+      ],
+      "title": "FitnessSyncStatus",
+      "type": "object"
+    },
+    "GarminConnectResponse": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ConnectedAccountResponse"
+        },
+        {
+          "$ref": "#/$defs/GarminMfaPendingResponse"
+        }
+      ],
+      "title": "GarminConnectResponse"
+    },
+    "GarminMfaPendingResponse": {
+      "additionalProperties": false,
+      "description": "Garmin wants an MFA code: send it with `pending_session` to\n`POST /api/fitness/garmin/connect/mfa`.",
+      "properties": {
+        "expires_at": {
+          "type": "string"
+        },
+        "mfa_required": {
+          "const": true,
+          "type": "boolean"
+        },
+        "pending_session": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "mfa_required",
+        "pending_session",
+        "expires_at"
+      ],
+      "title": "GarminMfaPendingResponse",
       "type": "object"
     },
     "HealthResponse": {
@@ -2591,6 +3484,92 @@
         "items"
       ],
       "title": "MoodEntityCorrelationResponse",
+      "type": "object"
+    },
+    "MoodRecoveryResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/fitness/mood-recovery`.",
+      "properties": {
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/MoodRecoveryRow"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "rows"
+      ],
+      "title": "MoodRecoveryResponse",
+      "type": "object"
+    },
+    "MoodRecoveryRow": {
+      "additionalProperties": false,
+      "description": "One date of `GET /api/fitness/mood-recovery`: per-date averages of\nthe raw daily wellness values and the fatigue mood facets. Any value is\nnull when that side has no data for the date.",
+      "properties": {
+        "hrv_overnight_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "local_date": {
+          "type": "string"
+        },
+        "mental_fatigue": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "physical_fatigue": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "training_load_acute": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "training_readiness": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "local_date",
+        "training_load_acute",
+        "training_readiness",
+        "hrv_overnight_ms",
+        "physical_fatigue",
+        "mental_fatigue"
+      ],
+      "title": "MoodRecoveryRow",
       "type": "object"
     },
     "MoodScaleType": {
@@ -3727,6 +4706,28 @@
       "title": "StorylineSummary",
       "type": "object"
     },
+    "StravaAuthorizeUrlResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/fitness/strava/authorize_url`.",
+      "properties": {
+        "authorize_url": {
+          "type": "string"
+        },
+        "expires_at": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "authorize_url",
+        "state",
+        "expires_at"
+      ],
+      "title": "StravaAuthorizeUrlResponse",
+      "type": "object"
+    },
     "TextSegment": {
       "additionalProperties": false,
       "description": "A run of narrative prose.",
@@ -4234,6 +5235,51 @@
     "api_entry_tokens": {
       "$ref": "#/$defs/EntryTokensResponse"
     },
+    "api_fitness_backfill": {
+      "$ref": "#/$defs/FitnessSyncJobResponse"
+    },
+    "api_fitness_divergence": {
+      "$ref": "#/$defs/DivergenceResponse"
+    },
+    "api_fitness_garmin_connect": {
+      "$ref": "#/$defs/GarminConnectResponse"
+    },
+    "api_fitness_garmin_connect_mfa": {
+      "$ref": "#/$defs/ConnectedAccountResponse"
+    },
+    "api_fitness_garmin_disconnect": {
+      "$ref": "#/$defs/DisconnectResponse"
+    },
+    "api_fitness_garmin_reconnect": {
+      "$ref": "#/$defs/GarminConnectResponse"
+    },
+    "api_fitness_integrity": {
+      "$ref": "#/$defs/FitnessIntegrityReport"
+    },
+    "api_fitness_list_activities": {
+      "$ref": "#/$defs/FitnessActivitiesResponse"
+    },
+    "api_fitness_list_daily": {
+      "$ref": "#/$defs/FitnessDailyResponse"
+    },
+    "api_fitness_mood_recovery": {
+      "$ref": "#/$defs/MoodRecoveryResponse"
+    },
+    "api_fitness_strava_authorize_url": {
+      "$ref": "#/$defs/StravaAuthorizeUrlResponse"
+    },
+    "api_fitness_strava_disconnect": {
+      "$ref": "#/$defs/DisconnectResponse"
+    },
+    "api_fitness_strava_exchange": {
+      "$ref": "#/$defs/ConnectedAccountResponse"
+    },
+    "api_fitness_sync": {
+      "$ref": "#/$defs/FitnessSyncJobResponse"
+    },
+    "api_fitness_sync_status": {
+      "$ref": "#/$defs/FitnessSyncStatus"
+    },
     "api_health": {
       "$ref": "#/$defs/PublicHealthResponse"
     },
@@ -4375,6 +5421,21 @@
     "api_entry_detail",
     "api_entry_entities",
     "api_entry_tokens",
+    "api_fitness_backfill",
+    "api_fitness_divergence",
+    "api_fitness_garmin_connect",
+    "api_fitness_garmin_connect_mfa",
+    "api_fitness_garmin_disconnect",
+    "api_fitness_garmin_reconnect",
+    "api_fitness_integrity",
+    "api_fitness_list_activities",
+    "api_fitness_list_daily",
+    "api_fitness_mood_recovery",
+    "api_fitness_strava_authorize_url",
+    "api_fitness_strava_disconnect",
+    "api_fitness_strava_exchange",
+    "api_fitness_sync",
+    "api_fitness_sync_status",
     "api_health",
     "api_health_authed",
     "api_job_detail",

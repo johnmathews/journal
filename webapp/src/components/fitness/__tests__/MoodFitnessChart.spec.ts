@@ -194,10 +194,10 @@ describe('MoodFitnessChart', () => {
       // A congruent day should NOT surface as a flagged row.
       makeDivRow({ local_date: '2026-05-07', quadrant: 'congruent_ok' }),
     ]
+    // As the server sends it: no key for a quadrant without days.
     store.divergenceSummary = {
       likely_mental_fatigue: 1,
       hidden_physical_under_recovery: 1,
-      congruent_fatigue: 0,
       congruent_ok: 4,
     }
 
@@ -219,6 +219,37 @@ describe('MoodFitnessChart', () => {
     expect(
       wrapper.find('[data-testid="mood-fitness-summary-congruent_ok"]').text(),
     ).toContain('4')
+
+    wrapper.unmount()
+  })
+
+  it('shows 0 for a quadrant the server summary omits', async () => {
+    // The server only sends quadrants that have days
+    // (`_divergence_summary`), so a missing key means zero, not blank.
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const store = useFitnessStore()
+    store.moodRecovery = [makeMoodRow()]
+    store.divergence = [
+      makeDivRow({ local_date: '2026-05-09', quadrant: 'congruent_ok' }),
+    ]
+    store.divergenceSummary = { congruent_ok: 1 }
+
+    const wrapper = mount(MoodFitnessChart, {
+      global: { plugins: [pinia] },
+    })
+    await flushPromises()
+
+    expect(
+      wrapper
+        .find(
+          '[data-testid="mood-fitness-summary-hidden_physical_under_recovery"]',
+        )
+        .text(),
+    ).toBe('Hidden physical: 0')
+    expect(
+      wrapper.find('[data-testid="mood-fitness-summary-congruent_ok"]').text(),
+    ).toBe('Congruent OK: 1')
 
     wrapper.unmount()
   })

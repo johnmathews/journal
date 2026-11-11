@@ -10,7 +10,7 @@
 # Format: `#` comments, one `ceiling: N` line, then one route name per line,
 # sorted, no duplicates.
 
-ceiling: 35
+ceiling: 20
 
 api_conversations_create
 api_conversations_delete
@@ -20,21 +20,6 @@ api_conversations_reply
 api_delete_pair_decision
 api_entities_extract
 api_entity_merge_history
-api_fitness_backfill
-api_fitness_divergence
-api_fitness_garmin_connect
-api_fitness_garmin_connect_mfa
-api_fitness_garmin_disconnect
-api_fitness_garmin_reconnect
-api_fitness_integrity
-api_fitness_list_activities
-api_fitness_list_daily
-api_fitness_mood_recovery
-api_fitness_strava_authorize_url
-api_fitness_strava_disconnect
-api_fitness_strava_exchange
-api_fitness_sync
-api_fitness_sync_status
 api_ingest_audio
 api_ingest_file
 api_ingest_images
