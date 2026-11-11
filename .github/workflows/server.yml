@@ -1,11 +1,25 @@
-name: CI and Deploy
+name: Server CI and Deploy
 
 on:
   push:
     branches: [main]
+    paths:
+      - "server/**"
+      - "contract/**"
+      - ".github/workflows/server.yml"
   pull_request:
     branches: [main]
+    paths:
+      - "server/**"
+      - "contract/**"
+      - ".github/workflows/server.yml"
   workflow_dispatch:
+
+# Every `run:` step executes inside server/. Action inputs (Docker context,
+# Dockerfile path) are workspace-relative and set explicitly below.
+defaults:
+  run:
+    working-directory: server
 
 env:
   REGISTRY: ghcr.io
@@ -116,6 +130,8 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          labels: |
+            org.opencontainers.image.title=journal-server
           tags: |
             type=sha
             type=raw,value=latest
@@ -123,7 +139,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          context: .
+          context: server
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -133,6 +149,8 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.REGISTRY }}/johnmathews/journal-chromadb
+          labels: |
+            org.opencontainers.image.title=journal-chromadb
           tags: |
             type=sha
             type=raw,value=latest
@@ -140,8 +158,8 @@ jobs:
       - name: Build and push ChromaDB image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          context: .
-          file: Dockerfile.chromadb
+          context: server
+          file: server/Dockerfile.chromadb
           push: true
           tags: ${{ steps.chromadb-meta.outputs.tags }}
           labels: ${{ steps.chromadb-meta.outputs.labels }}

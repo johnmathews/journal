@@ -1,0 +1,41 @@
+# One config for the monorepo. Each ecosystem points at the folder that holds
+# its manifest. Security advisories are grouped into one PR per ecosystem;
+# routine minor/patch bumps into another; majors still arrive one by one.
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    directory: "/server"
+    schedule:
+      interval: "weekly"
+    groups:
+      security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "npm"
+    directory: "/webapp"
+    schedule:
+      interval: "weekly"
+    groups:
+      security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+
+  # SHA-pinned actions in .github/workflows/. Each pin carries its release
+  # tag as a trailing comment, which Dependabot updates alongside the SHA.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
