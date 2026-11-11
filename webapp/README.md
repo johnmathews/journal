@@ -177,6 +177,9 @@ See [docs/development.md](docs/development.md) for detailed development guide.
 
 See [docs/architecture.md](docs/architecture.md) for technical architecture and conventions.
 
+See [../docs/api-contract.md](../docs/api-contract.md) for the API contract: the response types in
+`src/types/generated/api.ts` are generated from the server and must not be edited by hand.
+
 See [docs/deployment.md](docs/deployment.md) for Docker, nginx, and production deployment.
 
 Commit SHAs and PR numbers dated before 2026-11-11 refer to the archived repos `johnmathews/journal-server` and `johnmathews/journal-webapp`.
@@ -200,7 +203,7 @@ src/
   layouts/          — DefaultLayout (sidebar + header + content slot)
   router/           — Vue Router configuration
   stores/           — Pinia stores (entries, entities, search, dashboard, etc.)
-  types/            — TypeScript interfaces matching API response schemas
+  types/            — TypeScript types; API response types re-exported from generated/api.ts
   utils/            — Pure helpers (chart config, search snippets, entity names)
   views/            — Page components, one per route
 ```

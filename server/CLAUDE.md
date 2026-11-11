@@ -77,7 +77,9 @@ src/journal/
                           ingestion, jobs, notifications, search, settings,
                           storylines, storylines_write, users, health — see
                           api/__init__.py for the authoritative list; auth routes
-                          live in auth_api/)
+                          live in auth_api/); api/contract/ holds the response
+                          TypedDicts and `journal contract export` (see
+                          ../docs/api-contract.md)
   auth_api/             — Auth REST endpoints carved into core/account/profile/
                           api_keys/admin
   cli/                  — Typer CLI: __init__ (entry), entities, fitness, mood,

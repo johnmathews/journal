@@ -12,8 +12,10 @@ import type {
   EntryEntitiesResponse,
   MergeCandidatesResponse,
   MergeHistoryResponse,
+  PairDecisionDeleteResponse,
   PairDecisionsResponse,
   QuarantinedEntitiesResponse,
+  ResolveMergeCandidateResponse,
 } from '@/types/entity'
 import type { JobSubmissionResponse } from '@/types/job'
 import { apiFetch } from './client'
@@ -159,7 +161,7 @@ export function fetchMergeCandidates(
 export function resolveMergeCandidate(
   candidateId: number,
   status: 'accepted' | 'dismissed',
-): Promise<{ id: number; status: string }> {
+): Promise<ResolveMergeCandidateResponse> {
   return apiFetch(`/api/entities/merge-candidates/${candidateId}`, {
     method: 'PATCH',
     body: JSON.stringify({ status }),
@@ -185,7 +187,7 @@ export function fetchPairDecisions(
 
 export function deletePairDecision(
   decisionId: number,
-): Promise<{ id: number; deleted: boolean }> {
+): Promise<PairDecisionDeleteResponse> {
   return apiFetch(`/api/entities/pair-decisions/${decisionId}`, {
     method: 'DELETE',
   })
@@ -196,9 +198,10 @@ export function deletePairDecision(
 // Returns every entity the authed user has flagged as quarantined.
 // The dedicated endpoint exists because GET /api/entities filters
 // quarantined entities out by default (and does not accept an
-// include_quarantined query param). Each item is shaped as a full
-// entity record with is_quarantined / quarantine_reason /
-// quarantined_at populated.
+// include_quarantined query param). Each item is an EntitySummary,
+// like a row of the regular list (mention_count and last_seen
+// included), with is_quarantined / quarantine_reason / quarantined_at
+// populated.
 export function fetchQuarantinedEntities(): Promise<QuarantinedEntitiesResponse> {
   return apiFetch<QuarantinedEntitiesResponse>('/api/entities/quarantined')
 }

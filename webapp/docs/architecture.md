@@ -154,7 +154,10 @@ Pure helper functions with no Vue or store dependencies.
 - **mood-display.ts**, **mood-groups.ts** — Display labels and group definitions for mood dimensions (mirrors the server's `mood-dimensions.toml`).
 
 ### Types (`src/types/`)
-Shared TypeScript interfaces matching the REST API response schemas.
+API response types are generated from the server's contract into `src/types/generated/api.ts` (`npm run contract:gen`;
+never edit it by hand). Each area file (`entry.ts`, `entity.ts`, `job.ts`, ...) re-exports the generated types under the
+names the code uses and keeps request params and client-only types hand-written. See
+[`../../docs/api-contract.md`](../../docs/api-contract.md).
 
 ## Routing
 

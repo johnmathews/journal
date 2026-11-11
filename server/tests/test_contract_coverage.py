@@ -5,9 +5,10 @@ Route names come from the real FastMCP app the server builds
 groups), not from grepping source.
 
 ``tests/contract_allowlist.txt`` lists the routes that have no response
-schema yet. It may only shrink: its ``ceiling:`` line must equal the number of
+schema. It may only shrink: its ``ceiling:`` line must equal the number of
 entries, so removing an entry means lowering the ceiling, and adding one means
-raising it in a reviewed diff. Contract batches W13 to W17 empty it.
+raising it in a reviewed diff. It is empty with ``ceiling: 0`` (since W17), so
+every route must be registered.
 
 The second half of this module tests the runtime check itself
 (``tests/contract_check.py``), which validates 2xx JSON bodies of registered

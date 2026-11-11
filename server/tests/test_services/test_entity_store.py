@@ -1051,10 +1051,12 @@ class TestEntityQuarantine:
         store.quarantine_entity(hidden_b.id, "noise")
 
         result = store.list_quarantined_entities(user_id=1)
-        ids = {e.id for e in result}
+        ids = {e.id for e, _, _ in result}
         assert ids == {hidden_a.id, hidden_b.id}
         assert active.id not in ids
-        assert all(e.is_quarantined for e in result)
+        assert all(e.is_quarantined for e, _, _ in result)
+        # No mentions yet: zero count, empty last-seen.
+        assert {(count, last) for _, count, last in result} == {(0, "")}
 
     def test_quarantined_entity_can_be_merge_survivor(
         self,

@@ -53,11 +53,23 @@ Two workflows, each triggered only by its own folder (plus `contract/` and the w
 
 - `.github/workflows/server.yml` — ruff, unit tests with coverage, pip-audit, ChromaDB integration tests; on `main`
   pushes the server and chromadb images.
-- `.github/workflows/webapp.yml` — eslint, vitest with coverage thresholds, build; on `main` pushes the webapp image.
+- `.github/workflows/webapp.yml` — eslint, vitest with coverage thresholds, `contract:check`, build; on `main` pushes
+  the webapp image.
 
 After pushing, watch the run(s) for the parts you changed (`gh run list -R johnmathews/journal --limit 5`, then
 `gh run watch <id>`). Work is not done until CI is green. If CI fails: read the logs, fix, run the suite locally,
 push, watch again. After 3 failed fix attempts, flag it to John.
+
+## API contract
+
+Every REST response body is a strict `TypedDict` in `server/src/journal/api/contract/schemas.py`, registered by route
+`name=`. It is exported to `contract/api.schema.json`, and the webapp's types are generated from that into
+`webapp/src/types/generated/api.ts`. Every server API test validates real 2xx bodies against it, and every
+`custom_route` must be registered (`server/tests/contract_allowlist.txt` is empty, ceiling 0).
+
+To change or add a response: edit the `TypedDict`, then `(cd server && uv run journal contract export)` and
+`(cd webapp && npm run contract:gen)`, and commit the three files together. Never edit the two generated files by hand.
+Workflow, conventions and limits: [`docs/api-contract.md`](docs/api-contract.md).
 
 ## Images (deliberate exception to the global naming rule)
 

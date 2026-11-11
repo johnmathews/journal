@@ -9,7 +9,9 @@ there.
 
 ``RESPONSE_SCHEMAS`` maps a route's ``name=`` (from
 ``@mcp.custom_route(..., name=...)``) to the ``TypedDict`` its 2xx JSON
-body must match. See ``journal.api.contract`` for the workflow.
+body must match. ``SHARED_SCHEMAS`` lists shapes that are no route's 2xx
+body (the error body); they are exported for the webapp but never
+validated at runtime. See ``journal.api.contract`` for the workflow.
 """
 
 from typing import Any, Final, Literal, NotRequired, TypeAliasType, TypedDict
@@ -56,6 +58,30 @@ class PublicHealthResponse(TypedDict):
 
     status: HealthStatus
     checks: list[ComponentCheck]
+
+
+# --- shared shapes ---------------------------------------------------------
+
+
+@with_config(CONTRACT_CONFIG)
+class ErrorResponse(TypedDict):
+    """Body of a non-2xx JSON response from the REST API.
+
+    Exported for the webapp, never validated: the runtime check covers 2xx
+    bodies only. A few routes add keys, e.g. the 409 from
+    `POST /api/entities/{id}/aliases` names the entity that owns the alias.
+    """
+
+    error: str
+    """A short code such as `not_found`, or on older routes the whole
+    human-readable message."""
+    message: NotRequired[str]
+    """Human-readable detail, when `error` is a code."""
+
+
+type NoContent = None
+"""A `204 No Content` response: the route sends no body, so the runtime
+check has nothing to validate."""
 
 
 # --- entries (api/entries.py) ---------------------------------------------
@@ -348,6 +374,120 @@ class AliasLookupResponse(TypedDict):
     entity_type: NotRequired[EntityType]
 
 
+# --- entity merge, candidates, quarantine (api/entity_merge.py) ------------
+
+
+@with_config(CONTRACT_CONFIG)
+class EntityMergeResponse(TypedDict):
+    """Body of `POST /api/entities/merge`. `survivor` is null only if the
+    survivor was deleted between the merge and the re-read."""
+
+    survivor: Entity | None
+    absorbed_ids: list[int]
+    mentions_reassigned: int
+    relationships_reassigned: int
+    aliases_added: int
+
+
+@with_config(CONTRACT_CONFIG)
+class QuarantinedEntitiesResponse(TypedDict):
+    """Body of `GET /api/entities/quarantined`: every quarantined entity of
+    the user, unpaginated."""
+
+    items: list[EntitySummary]
+    total: int
+
+
+type MergeCandidateStatus = Literal["pending", "accepted", "dismissed"]
+"""`entity_merge_candidates.status` (a CHECK constraint)."""
+
+
+@with_config(CONTRACT_CONFIG)
+class MergeCandidate(TypedDict):
+    """A pair of entities that extraction flagged as a possible duplicate.
+    `mention_count` and `last_seen` on both entities are 0 and empty."""
+
+    id: int
+    entity_a: EntitySummary
+    entity_b: EntitySummary
+    similarity: float
+    status: MergeCandidateStatus
+    extraction_run_id: str
+    created_at: str
+
+
+@with_config(CONTRACT_CONFIG)
+class MergeCandidatesResponse(TypedDict):
+    """Body of `GET /api/entities/merge-candidates`."""
+
+    items: list[MergeCandidate]
+    total: int
+
+
+@with_config(CONTRACT_CONFIG)
+class ResolveMergeCandidateResponse(TypedDict):
+    """Body of `PATCH /api/entities/merge-candidates/{id}`."""
+
+    id: int
+    status: Literal["accepted", "dismissed"]
+
+
+@with_config(CONTRACT_CONFIG)
+class PairDecision(TypedDict):
+    """A persisted "not a duplicate" decision. `mention_count` and
+    `last_seen` on both entities are 0 and empty."""
+
+    id: int
+    entity_a: EntitySummary
+    entity_b: EntitySummary
+    decision: Literal["rejected"]
+    """The only value the `entity_pair_decisions` CHECK constraint allows."""
+    decided_at: str
+
+
+@with_config(CONTRACT_CONFIG)
+class PairDecisionsResponse(TypedDict):
+    """Body of `GET /api/entities/pair-decisions`."""
+
+    items: list[PairDecision]
+    total: int
+
+
+@with_config(CONTRACT_CONFIG)
+class PairDecisionDeleteResponse(TypedDict):
+    """Body of `DELETE /api/entities/pair-decisions/{id}`."""
+
+    id: int
+    deleted: bool
+
+
+@with_config(CONTRACT_CONFIG)
+class MergeHistoryEntry(TypedDict):
+    """One absorbed entity, as it was when it was merged into the survivor."""
+
+    id: int
+    survivor_id: int
+    absorbed_id: int
+    absorbed_name: str
+    absorbed_type: EntityType
+    absorbed_desc: str
+    absorbed_aliases: list[str]
+    absorbed_is_quarantined: bool
+    absorbed_quarantine_reason: str
+    absorbed_quarantined_at: str
+    merged_at: str
+    merged_by: str
+    """`user` (the column default). Nothing writes another value today."""
+
+
+@with_config(CONTRACT_CONFIG)
+class MergeHistoryResponse(TypedDict):
+    """Body of `GET /api/entities/{id}/merge-history`, newest first."""
+
+    entity_id: int
+    history: list[MergeHistoryEntry]
+
+
 # --- jobs (api/jobs.py) ----------------------------------------------------
 
 type JobStatus = Literal["queued", "running", "succeeded", "failed"]
@@ -410,6 +550,30 @@ class JobListResponse(TypedDict):
     total: int
     limit: int
     offset: int
+
+
+@with_config(CONTRACT_CONFIG)
+class JobSubmissionResponse(TypedDict):
+    """Body of a route that queues a background job (202): image and audio
+    ingestion, entity extraction, mood backfill, storyline refresh and
+    unpublish. Poll `GET /api/jobs/{job_id}` for progress."""
+
+    job_id: str
+    status: JobStatus
+
+
+# --- ingestion (api/ingestion.py) ------------------------------------------
+
+
+@with_config(CONTRACT_CONFIG)
+class IngestTextResponse(TypedDict):
+    """Body of `POST /api/entries/ingest/text` and `/ingest/file` (201).
+    Each job id is null when that follow-up job was not queued (mood
+    scoring disabled, or the submit failed)."""
+
+    entry: EntryDetail
+    mood_job_id: str | None
+    entity_extraction_job_id: str | None
 
 
 # --- dashboard and insights (api/dashboard.py) -----------------------------
@@ -872,14 +1036,6 @@ class CreateStorylineResponse(TypedDict):
 
 
 @with_config(CONTRACT_CONFIG)
-class StorylineJobResponse(TypedDict):
-    """Body of the job-queueing storyline routes (refresh, unpublish; 202)."""
-
-    job_id: str
-    status: JobStatus
-
-
-@with_config(CONTRACT_CONFIG)
 class SetStorylineAnchorsResponse(TypedDict):
     """Body of `PUT /api/storylines/{id}/anchors`."""
 
@@ -892,6 +1048,52 @@ class StorylineDeleteResponse(TypedDict):
     """Body of `DELETE /api/storylines/{id}`."""
 
     deleted: bool
+
+
+# --- conversations (api/conversations.py) ---------------------------------
+
+type ConversationRole = Literal["user", "assistant"]
+"""`conversation_messages.role` (a CHECK constraint)."""
+
+
+@with_config(CONTRACT_CONFIG)
+class ConversationMessage(TypedDict):
+    """One turn of a conversation. `citations` is empty on user turns."""
+
+    id: int
+    role: ConversationRole
+    content: str
+    citations: list[AnswerCitation]
+    created_at: str
+
+
+@with_config(CONTRACT_CONFIG)
+class Conversation(TypedDict):
+    """A conversation with its messages, oldest first: `GET` and `POST`
+    (201) of `/api/conversations`."""
+
+    id: int
+    title: str
+    created_at: str
+    updated_at: str
+    messages: list[ConversationMessage]
+
+
+@with_config(CONTRACT_CONFIG)
+class ConversationSummary(TypedDict):
+    """A conversation in the list, without its messages."""
+
+    id: int
+    title: str
+    updated_at: str
+    message_count: int
+
+
+@with_config(CONTRACT_CONFIG)
+class ConversationListResponse(TypedDict):
+    """Body of `GET /api/conversations`."""
+
+    conversations: list[ConversationSummary]
 
 
 # --- authenticated health and stats (api/health.py) ------------------------
@@ -1733,9 +1935,26 @@ RESPONSE_SCHEMAS: Final[dict[str, type | TypeAliasType]] = {
     "api_lookup_alias": AliasLookupResponse,
     "api_add_entity_alias": Entity,
     "api_delete_entity_alias": Entity,
+    # entity merge, candidates, quarantine
+    "api_merge_entities": EntityMergeResponse,
+    "api_list_quarantined_entities": QuarantinedEntitiesResponse,
+    "api_quarantine_entity": Entity,
+    "api_release_quarantine_entity": Entity,
+    "api_merge_candidates": MergeCandidatesResponse,
+    "api_resolve_merge_candidate": ResolveMergeCandidateResponse,
+    "api_list_pair_decisions": PairDecisionsResponse,
+    "api_delete_pair_decision": PairDecisionDeleteResponse,
+    "api_entity_merge_history": MergeHistoryResponse,
     # jobs
     "api_list_jobs": JobListResponse,
     "api_job_detail": Job,
+    # ingestion and other job-queueing writes (api/ingestion.py)
+    "api_ingest_text": IngestTextResponse,
+    "api_ingest_file": IngestTextResponse,
+    "api_ingest_images": JobSubmissionResponse,
+    "api_ingest_audio": JobSubmissionResponse,
+    "api_entities_extract": JobSubmissionResponse,
+    "api_mood_backfill": JobSubmissionResponse,
     # dashboard and insights
     "api_dashboard_writing_stats": WritingStatsResponse,
     "api_dashboard_mood_dimensions": MoodDimensionsResponse,
@@ -1754,14 +1973,20 @@ RESPONSE_SCHEMAS: Final[dict[str, type | TypeAliasType]] = {
     "api_storyline_detail": StorylineDetail,
     "api_storyline_chapter_detail": ChapterDetail,
     "api_create_storyline": CreateStorylineResponse,
-    "api_refresh_storyline": StorylineJobResponse,
-    "api_unpublish_storyline_chapter": StorylineJobResponse,
+    "api_refresh_storyline": JobSubmissionResponse,
+    "api_unpublish_storyline_chapter": JobSubmissionResponse,
     "api_read_storyline_chapter": ChapterMeta,
     "api_unread_storyline_chapter": ChapterMeta,
     "api_rename_storyline_chapter": ChapterMeta,
     "api_update_storyline": StorylineSummary,
     "api_delete_storyline": StorylineDeleteResponse,
     "api_set_storyline_anchors": SetStorylineAnchorsResponse,
+    # conversations
+    "api_conversations_create": Conversation,
+    "api_conversations_list": ConversationListResponse,
+    "api_conversations_detail": Conversation,
+    "api_conversations_reply": ConversationMessage,
+    "api_conversations_delete": NoContent,
     # authenticated health and stats
     "api_health_authed": HealthResponse,
     "api_stats": Statistics,
@@ -1819,3 +2044,9 @@ RESPONSE_SCHEMAS: Final[dict[str, type | TypeAliasType]] = {
     "api_fitness_strava_exchange": ConnectedAccountResponse,
     "api_fitness_strava_disconnect": DisconnectResponse,
 }
+
+
+SHARED_SCHEMAS: Final[tuple[type, ...]] = (ErrorResponse,)
+"""Shapes exported to the contract that are no route's 2xx body. They land
+in `$defs` and are listed under the root's `x-shared-definitions`, so the
+webapp generator emits them too."""

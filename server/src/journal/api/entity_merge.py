@@ -115,8 +115,8 @@ def register_entity_merge_routes(
         user = get_authenticated_user(request)
         user_id = user.user_id
 
-        entities = entity_store.list_quarantined_entities(user_id=user_id)
-        items = [_entity_detail(e) for e in entities]
+        rows = entity_store.list_quarantined_entities(user_id=user_id)
+        items = [_entity_summary(e, count, last_seen) for e, count, last_seen in rows]
         log.info(
             "GET /api/entities/quarantined — %d entities", len(items),
         )
@@ -158,13 +158,15 @@ def register_entity_merge_routes(
             )
 
         updated = entity_store.get_entity(entity_id, user_id=user_id)
+        if updated is None:  # deleted between the update and this read
+            return JSONResponse(
+                {"error": f"Entity {entity_id} not found"}, status_code=404,
+            )
         log.info(
             "POST /api/entities/%d/quarantine — reason=%r",
             entity_id, reason_str,
         )
-        return JSONResponse(
-            _entity_detail(updated) if updated else {"id": entity_id}
-        )
+        return JSONResponse(_entity_detail(updated))
 
     @mcp.custom_route(
         "/api/entities/{entity_id:int}/release-quarantine",
@@ -194,12 +196,14 @@ def register_entity_merge_routes(
             )
 
         updated = entity_store.get_entity(entity_id, user_id=user_id)
+        if updated is None:  # deleted between the update and this read
+            return JSONResponse(
+                {"error": f"Entity {entity_id} not found"}, status_code=404,
+            )
         log.info(
             "POST /api/entities/%d/release-quarantine", entity_id,
         )
-        return JSONResponse(
-            _entity_detail(updated) if updated else {"id": entity_id}
-        )
+        return JSONResponse(_entity_detail(updated))
 
     @mcp.custom_route(
         "/api/entities/merge-candidates",

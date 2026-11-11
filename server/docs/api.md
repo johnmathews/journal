@@ -9,6 +9,11 @@ notifications) and `src/journal/auth_api/` (core, account, profile, api_keys, ad
 
 CORS is configurable via the `API_CORS_ORIGINS` environment variable (see [configuration.md](configuration.md)).
 
+The examples below are illustrative. The authoritative shape of every 2xx response body is its `TypedDict` in
+`src/journal/api/contract/schemas.py`, exported to `contract/api.schema.json` and checked against real bodies in the API
+tests. Error bodies are `{"error": ..., "message"?: ...}` (`ErrorResponse`). See
+[`docs/api-contract.md`](../../docs/api-contract.md) at the repo root.
+
 ## Authentication
 
 The server applies a single auth middleware stack (`src/journal/auth.py`) to **every** REST and MCP route. Two
@@ -1012,10 +1017,15 @@ incoming (entity is the object) lists.
   {
    "id": 12,
    "subject_entity_id": 7,
+   "subject_name": "Atlas",
+   "subject_type": "person",
    "predicate": "lives_in",
    "object_entity_id": 19,
+   "object_name": "Vienna",
+   "object_type": "place",
    "quote": "Atlas lives in Vienna",
    "entry_id": 42,
+   "entry_date": "2026-03-22",
    "confidence": 0.88,
    "extraction_run_id": "b1e2...",
    "created_at": "2026-03-22T18:04:11+00:00"
@@ -1267,6 +1277,9 @@ Get the merge history for an entity (all entities that were merged into it).
    "absorbed_type": "person",
    "absorbed_desc": "",
    "absorbed_aliases": ["aunt", "lizzie"],
+   "absorbed_is_quarantined": false,
+   "absorbed_quarantine_reason": "",
+   "absorbed_quarantined_at": "",
    "merged_at": "2026-04-12T10:30:00Z",
    "merged_by": "user"
   }
@@ -1281,6 +1294,9 @@ List quarantined entities for the authenticated user. Quarantined entities are h
 by default; this endpoint is the only path that surfaces them. See
 [entity-tracking.md](entity-tracking.md#quarantine) for the semantics.
 
+Each item has the `GET /api/entities` list shape (`EntitySummary`), with the mention count and the date of the latest
+mentioning entry. The list is unpaginated.
+
 **Response (200):**
 
 ```json
@@ -1291,10 +1307,9 @@ by default; this endpoint is the only path that surfaces them. See
    "canonical_name": "Hallucinated Name",
    "entity_type": "person",
    "aliases": [],
-   "description": "",
+   "mention_count": 1,
    "first_seen": "2026-04-01",
-   "created_at": "2026-04-01T09:00:00Z",
-   "updated_at": "2026-04-12T10:30:00Z",
+   "last_seen": "2026-04-01",
    "is_quarantined": true,
    "quarantine_reason": "canonical name not present in any quote",
    "quarantined_at": "2026-04-12T10:30:00Z"
@@ -1320,7 +1335,7 @@ but it is excluded from default lists and charts. Idempotent: calling it again r
 **Response (200):** Full entity detail with `is_quarantined: true`, `quarantine_reason`, and `quarantined_at` populated.
 
 **Response (400):** `reason` is not a string.
-**Response (404):** Entity not found or not owned by the authenticated user.
+**Response (404):** Entity not found or not owned by the authenticated user, or deleted while the request ran.
 
 ### POST /api/entities/{entity_id}/release-quarantine
 
@@ -1331,7 +1346,7 @@ Idempotent on already-active entities.
 
 **Response (200):** Full entity detail with `is_quarantined: false`, `quarantine_reason: ""`, `quarantined_at: ""`.
 
-**Response (404):** Entity not found or not owned by the authenticated user.
+**Response (404):** Entity not found or not owned by the authenticated user, or deleted while the request ran.
 
 ---
 

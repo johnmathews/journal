@@ -1,27 +1,15 @@
+// Conversation response types are generated from the server's API contract
+// (server/src/journal/api/contract/schemas.py). The request body for
+// starting a conversation stays hand-written below.
 import type { AnswerCitation } from './search'
 
-export interface ConversationMessage {
-  id: number
-  role: 'user' | 'assistant'
-  content: string
-  citations: AnswerCitation[]
-  created_at: string
-}
-
-export interface ConversationSummary {
-  id: number
-  title: string
-  updated_at: string
-  message_count: number
-}
-
-export interface Conversation {
-  id: number
-  title: string
-  created_at: string
-  updated_at: string
-  messages: ConversationMessage[]
-}
+export type {
+  Conversation,
+  ConversationListResponse,
+  ConversationMessage,
+  ConversationRole,
+  ConversationSummary,
+} from './generated/api'
 
 export interface StartConversationParams {
   question: string

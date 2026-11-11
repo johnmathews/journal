@@ -27,7 +27,7 @@ export type {
   StorylineAnchor,
   StorylineDeleteResponse,
   StorylineDetail,
-  StorylineJobResponse,
+  JobSubmissionResponse as StorylineJobResponse,
   StorylineListResponse,
   StorylineStatus,
   StorylineSummary,

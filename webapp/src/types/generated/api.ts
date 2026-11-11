@@ -17,11 +17,14 @@ export type EntityType =
   | 'other'
 export type SqliteBool = 0 | 1
 export type ApiKeysResponse = ApiKeyListResponse | ApiKeyCreatedResponse
+export type ConversationRole = 'user' | 'assistant'
+export type NoContent = null
 export type ChapterState = 'draft' | 'published'
 export type StorylineStatus = 'active' | 'archived'
 export type DashboardBin = 'week' | 'month' | 'quarter' | 'year'
 export type MoodScaleType = 'bipolar' | 'unipolar'
 export type MoodBin = 'day' | 'week' | 'month' | 'quarter' | 'year'
+export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed'
 export type EntryDetailResponse =
   | EntryDetail
   | EntryUpdateResponse
@@ -32,7 +35,6 @@ export type SourceType =
   | 'text_entry'
   | 'imported_text_file'
   | 'imported_audio_file'
-export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed'
 export type DivergenceQuadrant =
   | 'likely_mental_fatigue'
   | 'hidden_physical_under_recovery'
@@ -75,6 +77,7 @@ export type JobType =
   | 'storyline_extension_check'
   | 'storyline_generation'
   | 'storyline_update'
+export type MergeCandidateStatus = 'pending' | 'accepted' | 'dismissed'
 export type NotificationTopicGroup = 'success' | 'failure' | 'admin'
 export type PricingCategory = 'llm' | 'embedding' | 'transcription'
 export type SearchSort = 'relevance' | 'date_desc' | 'date_asc'
@@ -104,6 +107,11 @@ export interface JournalApi {
   api_auth_reset_password: MessageResponse
   api_auth_verify_email: MessageResponse
   api_auth_verify_reset_token: ResetTokenValidResponse
+  api_conversations_create: Conversation
+  api_conversations_delete: NoContent
+  api_conversations_detail: Conversation
+  api_conversations_list: ConversationListResponse
+  api_conversations_reply: ConversationMessage
   api_create_storyline: CreateStorylineResponse
   api_dashboard_calendar_heatmap: CalendarHeatmapResponse
   api_dashboard_entity_distribution: EntityDistributionResponse
@@ -116,9 +124,12 @@ export interface JournalApi {
   api_dashboard_writing_stats: WritingStatsResponse
   api_delete_entity: EntityDeleteResponse
   api_delete_entity_alias: Entity
+  api_delete_pair_decision: PairDecisionDeleteResponse
   api_delete_storyline: StorylineDeleteResponse
+  api_entities_extract: JobSubmissionResponse
   api_entity_detail: Entity
   api_entity_mentions: EntityMentionsResponse
+  api_entity_merge_history: MergeHistoryResponse
   api_entity_relationships: EntityRelationshipsResponse
   api_entry_chunks: EntryChunksResponse
   api_entry_detail: EntryDetailResponse
@@ -141,12 +152,21 @@ export interface JournalApi {
   api_fitness_sync_status: FitnessSyncStatus
   api_health: PublicHealthResponse
   api_health_authed: HealthResponse
+  api_ingest_audio: JobSubmissionResponse
+  api_ingest_file: IngestTextResponse
+  api_ingest_images: JobSubmissionResponse
+  api_ingest_text: IngestTextResponse
   api_job_detail: Job
   api_list_entities: EntityListResponse
   api_list_entries: EntryListResponse
   api_list_jobs: JobListResponse
+  api_list_pair_decisions: PairDecisionsResponse
+  api_list_quarantined_entities: QuarantinedEntitiesResponse
   api_list_storylines: StorylineListResponse
   api_lookup_alias: AliasLookupResponse
+  api_merge_candidates: MergeCandidatesResponse
+  api_merge_entities: EntityMergeResponse
+  api_mood_backfill: JobSubmissionResponse
   api_notif_status: NotificationStatusResponse
   api_notif_test: NotificationTestResponse
   api_notif_topics: NotificationTopicsResponse
@@ -155,9 +175,12 @@ export interface JournalApi {
   api_preferences_patch: PreferencesResponse
   api_pricing_get: PricingListResponse
   api_pricing_patch: PricingUpdateResponse
+  api_quarantine_entity: Entity
   api_read_storyline_chapter: ChapterMeta
-  api_refresh_storyline: StorylineJobResponse
+  api_refresh_storyline: JobSubmissionResponse
+  api_release_quarantine_entity: Entity
   api_rename_storyline_chapter: ChapterMeta
+  api_resolve_merge_candidate: ResolveMergeCandidateResponse
   api_runtime_settings_get: RuntimeSettingsListResponse
   api_runtime_settings_patch: RuntimeSettingsUpdateResponse
   api_search: SearchResponse
@@ -167,7 +190,7 @@ export interface JournalApi {
   api_stats: Statistics
   api_storyline_chapter_detail: ChapterDetail
   api_storyline_detail: StorylineDetail
-  api_unpublish_storyline_chapter: StorylineJobResponse
+  api_unpublish_storyline_chapter: JobSubmissionResponse
   api_unread_storyline_chapter: ChapterMeta
   api_update_entity: EntityUpdateResponse
   api_update_storyline: StorylineSummary
@@ -337,6 +360,50 @@ export interface MessageResponse {
  */
 export interface ResetTokenValidResponse {
   valid: true
+}
+/**
+ * A conversation with its messages, oldest first: `GET` and `POST`
+ * (201) of `/api/conversations`.
+ */
+export interface Conversation {
+  created_at: string
+  id: number
+  messages: ConversationMessage[]
+  title: string
+  updated_at: string
+}
+/**
+ * One turn of a conversation. `citations` is empty on user turns.
+ */
+export interface ConversationMessage {
+  citations: AnswerCitation[]
+  content: string
+  created_at: string
+  id: number
+  role: ConversationRole
+}
+/**
+ * One entry cited by a synthesized answer.
+ */
+export interface AnswerCitation {
+  entry_date: string
+  entry_id: number
+  snippet: string
+}
+/**
+ * Body of `GET /api/conversations`.
+ */
+export interface ConversationListResponse {
+  conversations: ConversationSummary[]
+}
+/**
+ * A conversation in the list, without its messages.
+ */
+export interface ConversationSummary {
+  id: number
+  message_count: number
+  title: string
+  updated_at: string
 }
 /**
  * Body of `POST /api/storylines` (201). `bootstrap_job_id` is null when
@@ -591,10 +658,26 @@ export interface EntityDeleteResponse {
   id: number
 }
 /**
+ * Body of `DELETE /api/entities/pair-decisions/{id}`.
+ */
+export interface PairDecisionDeleteResponse {
+  deleted: boolean
+  id: number
+}
+/**
  * Body of `DELETE /api/storylines/{id}`.
  */
 export interface StorylineDeleteResponse {
   deleted: boolean
+}
+/**
+ * Body of a route that queues a background job (202): image and audio
+ * ingestion, entity extraction, mood backfill, storyline refresh and
+ * unpublish. Poll `GET /api/jobs/{job_id}` for progress.
+ */
+export interface JobSubmissionResponse {
+  job_id: string
+  status: JobStatus
 }
 /**
  * Body of `GET /api/entities/{id}/mentions`.
@@ -616,6 +699,30 @@ export interface EntityMention {
   extraction_run_id: string
   id: number
   quote: string
+}
+/**
+ * Body of `GET /api/entities/{id}/merge-history`, newest first.
+ */
+export interface MergeHistoryResponse {
+  entity_id: number
+  history: MergeHistoryEntry[]
+}
+/**
+ * One absorbed entity, as it was when it was merged into the survivor.
+ */
+export interface MergeHistoryEntry {
+  absorbed_aliases: string[]
+  absorbed_desc: string
+  absorbed_id: number
+  absorbed_is_quarantined: boolean
+  absorbed_name: string
+  absorbed_quarantine_reason: string
+  absorbed_quarantined_at: string
+  absorbed_type: EntityType
+  id: number
+  merged_at: string
+  merged_by: string
+  survivor_id: number
 }
 /**
  * Body of `GET /api/entities/{id}/relationships`.
@@ -1089,6 +1196,16 @@ export interface LatencyPercentiles {
   p99_ms: number | null
 }
 /**
+ * Body of `POST /api/entries/ingest/text` and `/ingest/file` (201).
+ * Each job id is null when that follow-up job was not queued (mood
+ * scoring disabled, or the submit failed).
+ */
+export interface IngestTextResponse {
+  entity_extraction_job_id: string | null
+  entry: EntryDetail
+  mood_job_id: string | null
+}
+/**
  * One background job: `asdict`-like view of `journal.models.Job`.
  */
 export interface Job {
@@ -1158,6 +1275,32 @@ export interface JobListResponse {
   total: number
 }
 /**
+ * Body of `GET /api/entities/pair-decisions`.
+ */
+export interface PairDecisionsResponse {
+  items: PairDecision[]
+  total: number
+}
+/**
+ * A persisted "not a duplicate" decision. `mention_count` and
+ * `last_seen` on both entities are 0 and empty.
+ */
+export interface PairDecision {
+  decided_at: string
+  decision: 'rejected'
+  entity_a: EntitySummary
+  entity_b: EntitySummary
+  id: number
+}
+/**
+ * Body of `GET /api/entities/quarantined`: every quarantined entity of
+ * the user, unpaginated.
+ */
+export interface QuarantinedEntitiesResponse {
+  items: EntitySummary[]
+  total: number
+}
+/**
  * Body of `GET /api/storylines`.
  */
 export interface StorylineListResponse {
@@ -1188,6 +1331,37 @@ export interface AliasLookupResponse {
   canonical_name?: string
   entity_id: number | null
   entity_type?: EntityType
+}
+/**
+ * Body of `GET /api/entities/merge-candidates`.
+ */
+export interface MergeCandidatesResponse {
+  items: MergeCandidate[]
+  total: number
+}
+/**
+ * A pair of entities that extraction flagged as a possible duplicate.
+ * `mention_count` and `last_seen` on both entities are 0 and empty.
+ */
+export interface MergeCandidate {
+  created_at: string
+  entity_a: EntitySummary
+  entity_b: EntitySummary
+  extraction_run_id: string
+  id: number
+  similarity: number
+  status: MergeCandidateStatus
+}
+/**
+ * Body of `POST /api/entities/merge`. `survivor` is null only if the
+ * survivor was deleted between the merge and the re-read.
+ */
+export interface EntityMergeResponse {
+  absorbed_ids: number[]
+  aliases_added: number
+  mentions_reassigned: number
+  relationships_reassigned: number
+  survivor: Entity | null
 }
 /**
  * Body of `GET /api/notifications/status`.
@@ -1266,11 +1440,11 @@ export interface PricingUpdateResponse {
   updated: string[]
 }
 /**
- * Body of the job-queueing storyline routes (refresh, unpublish; 202).
+ * Body of `PATCH /api/entities/merge-candidates/{id}`.
  */
-export interface StorylineJobResponse {
-  job_id: string
-  status: JobStatus
+export interface ResolveMergeCandidateResponse {
+  id: number
+  status: 'accepted' | 'dismissed'
 }
 /**
  * Body of `GET /api/settings/runtime`.
@@ -1349,14 +1523,6 @@ export interface AnswerResponse {
   is_question: boolean
   model: string
   question: string
-}
-/**
- * One entry cited by a synthesized answer.
- */
-export interface AnswerCitation {
-  entry_date: string
-  entry_id: number
-  snippet: string
 }
 /**
  * Body of `PUT /api/storylines/{id}/anchors`.
@@ -1545,4 +1711,16 @@ export interface EntityUpdateResponse {
   quarantined_at: string
   reembed_job_id?: string
   updated_at: string
+}
+
+/**
+ * Body of a non-2xx JSON response from the REST API.
+ *
+ * Exported for the webapp, never validated: the runtime check covers 2xx
+ * bodies only. A few routes add keys, e.g. the 409 from
+ * `POST /api/entities/{id}/aliases` names the entity that owns the alias.
+ */
+export interface ErrorResponse {
+  error: string
+  message?: string
 }

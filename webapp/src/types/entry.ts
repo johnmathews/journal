@@ -29,8 +29,3 @@ export interface DateFilterParams {
 }
 
 export interface EntryListParams extends PaginationParams, DateFilterParams {}
-
-export interface ApiError {
-  error: string
-  message: string
-}

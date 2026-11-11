@@ -10,15 +10,19 @@ Document shape (all keys sorted, two-space indent, trailing newline)::
       "properties": {"api_health": {"$ref": "#/$defs/PublicHealthResponse"}},
       "required": ["api_health"],
       "title": "JournalApi",
-      "type": "object"
+      "type": "object",
+      "x-shared-definitions": ["ErrorResponse"]
     }
 
 The root object maps each route name to its response definition, so a
 TypeScript generator emits one named type per definition plus a
-``JournalApi`` interface keyed by route name. Per-property ``title`` keys
-that Pydantic adds are stripped (they make generators emit throwaway
-aliases); every definition's ``title`` is set to its ``$defs`` key because
-that is what names the generated type.
+``JournalApi`` interface keyed by route name. Shapes in ``SHARED_SCHEMAS``
+(no route's 2xx body) are in ``$defs`` too, but nothing in the root refers
+to them, so ``x-shared-definitions`` names them for the webapp generator.
+
+Per-property ``title`` keys that Pydantic adds are stripped (they make
+generators emit throwaway aliases); every definition's ``title`` is set to
+its ``$defs`` key because that is what names the generated type.
 """
 
 from __future__ import annotations
@@ -29,10 +33,10 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import TypeAdapter
 
-from journal.api.contract.schemas import RESPONSE_SCHEMAS
+from journal.api.contract.schemas import RESPONSE_SCHEMAS, SHARED_SCHEMAS
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
 SCHEMA_DIALECT = "https://json-schema.org/draft/2020-12/schema"
 ROOT_TITLE = "JournalApi"
@@ -67,11 +71,14 @@ def _strip_titles(schema: Any) -> None:
 
 def build_schema_document(
     schemas: Mapping[str, type] = RESPONSE_SCHEMAS,
+    shared: Sequence[type] = SHARED_SCHEMAS,
 ) -> dict[str, Any]:
-    """Build the contract document for ``schemas`` (route name -> TypedDict)."""
+    """Build the contract document for ``schemas`` (route name -> TypedDict)
+    plus the ``shared`` shapes that are no route's body."""
     route_names = sorted(schemas)
     refs, top = TypeAdapter.json_schemas(
-        [(name, "serialization", TypeAdapter(schemas[name])) for name in route_names],
+        [(name, "serialization", TypeAdapter(schemas[name])) for name in route_names]
+        + [(cls.__name__, "serialization", TypeAdapter(cls)) for cls in shared],
     )
     defs: dict[str, Any] = top.get("$defs", {})
     for def_name, definition in defs.items():
@@ -88,6 +95,7 @@ def build_schema_document(
         "properties": {name: refs[(name, "serialization")] for name in route_names},
         "required": route_names,
         "additionalProperties": False,
+        "x-shared-definitions": sorted(cls.__name__ for cls in shared),
         "$defs": defs,
     }
 

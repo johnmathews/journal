@@ -13,7 +13,7 @@ src/
   layouts/              — DefaultLayout wraps Sidebar + Header + <slot/>
   router/               — Vue Router configuration
   stores/               — Pinia stores (entries, etc.)
-  types/                — TypeScript type definitions
+  types/                — TypeScript types; API response types are generated (types/generated/api.ts, see ../docs/api-contract.md)
   utils/                — mosaic.ts (CSS/color helpers), chartjs-config.ts
   views/                — Page components (EntryListView, EntryDetailView)
 ```
@@ -43,7 +43,7 @@ src/
 
 ## Git Hooks
 
-The repo's tracked pre-push hook lives at the monorepo root (`../.githooks/pre-push`); `npm install` enables it via the `prepare` script. When a push touches `webapp/` code, it runs `format:check` (Prettier) + lint + `test:coverage` + build.
+The repo's tracked pre-push hook lives at the monorepo root (`../.githooks/pre-push`); `npm install` enables it via the `prepare` script. When a push touches `webapp/` or `contract/` code, it runs `contract:check` (generated API types up to date) + `format:check` (Prettier) + lint + `test:coverage` + build.
 
 ## Coverage Thresholds
 
@@ -73,8 +73,8 @@ bugs, always write a failing test first that reproduces the issue, then fix the 
 
 ## Shipping
 
-See the root `CLAUDE.md` (§ Shipping): the webapp image is built by `.github/workflows/webapp.yml` on `main` and
-deployed by hand on the `media` VM.
+See the root `CLAUDE.md` (§ Shipping): the webapp image is built by `.github/workflows/webapp.yml` on `main`, and
+What's Up Docker on the `media` VM deploys it automatically about a minute later. A green merge is a prod deploy.
 
 ## Backend
 

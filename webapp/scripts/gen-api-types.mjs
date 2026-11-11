@@ -31,22 +31,40 @@ const BANNER = `/**
  * \`npm run contract:check\` (CI and the pre-push hook) fails when they differ.
  */`
 
+const OPTIONS = {
+  // Every object in the contract sets additionalProperties itself; this
+  // default only matters if one ever doesn't, and then no index signature.
+  additionalProperties: false,
+  // Format below with the project's Prettier instead of the bundled style.
+  format: false,
+  cwd: dirname(schemaPath),
+}
+
 async function generate() {
   const schema = JSON.parse(await readFile(schemaPath, 'utf8'))
-  const ts = await compile(schema, schema.title ?? 'JournalApi', {
-    bannerComment: BANNER,
-    // Every object in the contract sets additionalProperties itself; this
-    // default only matters if one ever doesn't, and then no index signature.
-    additionalProperties: false,
-    // unreachableDefinitions stays off (the default): the export only writes
-    // $defs that a route reaches from the JournalApi root, so turning it on
-    // emits the same types plus a "referenced by JournalApi" note on each.
-    // Format below with the project's Prettier instead of the bundled style.
-    format: false,
-    cwd: dirname(schemaPath),
-  })
+  // unreachableDefinitions stays off (the default): turning it on adds a
+  // "referenced by JournalApi" note to every type. Route bodies are reached
+  // from the JournalApi root. Shared shapes that no route returns (the error
+  // body) are listed in x-shared-definitions and compiled one by one below.
+  const parts = [
+    await compile(schema, schema.title ?? 'JournalApi', {
+      ...OPTIONS,
+      bannerComment: BANNER,
+    }),
+  ]
+  for (const name of schema['x-shared-definitions'] ?? []) {
+    const definition = { ...schema.$defs[name], $defs: schema.$defs }
+    parts.push(
+      await compile(definition, name, {
+        ...OPTIONS,
+        bannerComment: '',
+        // Anything it references is already declared by the root pass.
+        declareExternallyReferenced: false,
+      }),
+    )
+  }
   const config = (await prettier.resolveConfig(outPath)) ?? {}
-  return prettier.format(ts, { ...config, filepath: outPath })
+  return prettier.format(parts.join('\n'), { ...config, filepath: outPath })
 }
 
 function firstDifference(a, b) {

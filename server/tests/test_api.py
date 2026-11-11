@@ -2856,6 +2856,65 @@ class TestEntityQuarantineApi:
         assert only["is_quarantined"] is True
         assert only["quarantine_reason"] == "noise"
 
+    def test_list_quarantined_carries_mention_count_and_last_seen(
+        self,
+        client: TestClient,
+        repo: SQLiteEntryRepository,
+        services: dict,
+    ) -> None:
+        """The Quarantined tab renders these rows in the entity table, which
+        shows `mention_count` and `last_seen` (blank before this fix)."""
+        entity_store: SQLiteEntityStore = services["entity_store"]
+        early = repo.create_entry("2026-01-05", "photo", "one", 1)
+        late = repo.create_entry("2026-02-10", "photo", "two", 1)
+        hidden = entity_store.create_entity("person", "Hallucinated", "", "2026-01-05")
+        entity_store.create_mention(hidden.id, early.id, "h", 0.9, "r1")
+        entity_store.create_mention(hidden.id, late.id, "h", 0.9, "r1")
+        entity_store.quarantine_entity(hidden.id, "noise")
+
+        resp = client.get("/api/entities/quarantined")
+        assert resp.status_code == 200
+        only = resp.json()["items"][0]
+        assert only["id"] == hidden.id
+        assert only["mention_count"] == 2
+        assert only["last_seen"] == "2026-02-10"
+        assert only["first_seen"] == "2026-01-05"
+
+    @pytest.mark.parametrize("action", ["quarantine", "release-quarantine"])
+    def test_quarantine_routes_404_when_entity_vanishes_mid_request(
+        self,
+        client: TestClient,
+        services: dict,
+        monkeypatch: pytest.MonkeyPatch,
+        action: str,
+    ) -> None:
+        """If the entity is deleted between the update and the re-read, the
+        route used to answer 200 with a bare `{"id": N}`, which is not an
+        entity record."""
+        entity_store: SQLiteEntityStore = services["entity_store"]
+        entity = entity_store.create_entity("person", "Atlas", "", "2026-01-01")
+        real_get = entity_store.get_entity
+        updated = {"done": False}
+
+        def get_unless_updated(entity_id: int, user_id: int | None = None):  # type: ignore[no-untyped-def]
+            return None if updated["done"] else real_get(entity_id, user_id=user_id)
+
+        def mark_updated(method: str) -> None:
+            real = getattr(entity_store, method)
+
+            def wrapper(*args: object) -> None:
+                real(*args)
+                updated["done"] = True  # the entity is deleted right after
+
+            monkeypatch.setattr(entity_store, method, wrapper)
+
+        monkeypatch.setattr(entity_store, "get_entity", get_unless_updated)
+        mark_updated("quarantine_entity")
+        mark_updated("release_quarantine")
+        resp = client.post(f"/api/entities/{entity.id}/{action}", json={"reason": "x"})
+        assert resp.status_code == 404
+        assert resp.json() == {"error": f"Entity {entity.id} not found"}
+
     def test_quarantine_endpoint_sets_flag(
         self, client: TestClient, services: dict
     ) -> None:

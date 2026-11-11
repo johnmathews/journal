@@ -1,7 +1,7 @@
 import type {
   Conversation,
+  ConversationListResponse,
   ConversationMessage,
-  ConversationSummary,
   StartConversationParams,
 } from '@/types/conversation'
 import { apiFetch } from './client'
@@ -19,12 +19,8 @@ export function createConversation(
   })
 }
 
-export function listConversations(): Promise<{
-  conversations: ConversationSummary[]
-}> {
-  return apiFetch<{ conversations: ConversationSummary[] }>(
-    '/api/conversations',
-  )
+export function listConversations(): Promise<ConversationListResponse> {
+  return apiFetch<ConversationListResponse>('/api/conversations')
 }
 
 export function getConversation(id: number): Promise<Conversation> {

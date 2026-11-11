@@ -816,6 +816,123 @@
       "title": "ContentBoundary",
       "type": "object"
     },
+    "Conversation": {
+      "additionalProperties": false,
+      "description": "A conversation with its messages, oldest first: `GET` and `POST`\n(201) of `/api/conversations`.",
+      "properties": {
+        "created_at": {
+          "type": "string"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "messages": {
+          "items": {
+            "$ref": "#/$defs/ConversationMessage"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "created_at",
+        "updated_at",
+        "messages"
+      ],
+      "title": "Conversation",
+      "type": "object"
+    },
+    "ConversationListResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/conversations`.",
+      "properties": {
+        "conversations": {
+          "items": {
+            "$ref": "#/$defs/ConversationSummary"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "conversations"
+      ],
+      "title": "ConversationListResponse",
+      "type": "object"
+    },
+    "ConversationMessage": {
+      "additionalProperties": false,
+      "description": "One turn of a conversation. `citations` is empty on user turns.",
+      "properties": {
+        "citations": {
+          "items": {
+            "$ref": "#/$defs/AnswerCitation"
+          },
+          "type": "array"
+        },
+        "content": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "role": {
+          "$ref": "#/$defs/ConversationRole"
+        }
+      },
+      "required": [
+        "id",
+        "role",
+        "content",
+        "citations",
+        "created_at"
+      ],
+      "title": "ConversationMessage",
+      "type": "object"
+    },
+    "ConversationRole": {
+      "enum": [
+        "user",
+        "assistant"
+      ],
+      "title": "ConversationRole",
+      "type": "string"
+    },
+    "ConversationSummary": {
+      "additionalProperties": false,
+      "description": "A conversation in the list, without its messages.",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "message_count": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "updated_at",
+        "message_count"
+      ],
+      "title": "ConversationSummary",
+      "type": "object"
+    },
     "CreateStorylineResponse": {
       "additionalProperties": false,
       "description": "Body of `POST /api/storylines` (201). `bootstrap_job_id` is null when\nthe bootstrap job could not be queued.",
@@ -1374,6 +1491,46 @@
         "total"
       ],
       "title": "EntityMentionsResponse",
+      "type": "object"
+    },
+    "EntityMergeResponse": {
+      "additionalProperties": false,
+      "description": "Body of `POST /api/entities/merge`. `survivor` is null only if the\nsurvivor was deleted between the merge and the re-read.",
+      "properties": {
+        "absorbed_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "aliases_added": {
+          "type": "integer"
+        },
+        "mentions_reassigned": {
+          "type": "integer"
+        },
+        "relationships_reassigned": {
+          "type": "integer"
+        },
+        "survivor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Entity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "survivor",
+        "absorbed_ids",
+        "mentions_reassigned",
+        "relationships_reassigned",
+        "aliases_added"
+      ],
+      "title": "EntityMergeResponse",
       "type": "object"
     },
     "EntityRelationship": {
@@ -2092,6 +2249,23 @@
         "content_boundary"
       ],
       "title": "EntryUpdateResponse",
+      "type": "object"
+    },
+    "ErrorResponse": {
+      "additionalProperties": false,
+      "description": "Body of a non-2xx JSON response from the REST API.\n\nExported for the webapp, never validated: the runtime check covers 2xx\nbodies only. A few routes add keys, e.g. the 409 from\n`POST /api/entities/{id}/aliases` names the entity that owns the alias.",
+      "properties": {
+        "error": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "error"
+      ],
+      "title": "ErrorResponse",
       "type": "object"
     },
     "FeatureSettings": {
@@ -2889,6 +3063,42 @@
       "title": "HealthStatus",
       "type": "string"
     },
+    "IngestTextResponse": {
+      "additionalProperties": false,
+      "description": "Body of `POST /api/entries/ingest/text` and `/ingest/file` (201).\nEach job id is null when that follow-up job was not queued (mood\nscoring disabled, or the submit failed).",
+      "properties": {
+        "entity_extraction_job_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "entry": {
+          "$ref": "#/$defs/EntryDetail"
+        },
+        "mood_job_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "entry",
+        "mood_job_id",
+        "entity_extraction_job_id"
+      ],
+      "title": "IngestTextResponse",
+      "type": "object"
+    },
     "IngestionStats": {
       "additionalProperties": false,
       "description": "Corpus statistics: `asdict(journal.models.IngestionStats)`.",
@@ -3129,6 +3339,24 @@
       "title": "JobStatus",
       "type": "string"
     },
+    "JobSubmissionResponse": {
+      "additionalProperties": false,
+      "description": "Body of a route that queues a background job (202): image and audio\ningestion, entity extraction, mood backfill, storyline refresh and\nunpublish. Poll `GET /api/jobs/{job_id}` for progress.",
+      "properties": {
+        "job_id": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/JobStatus"
+        }
+      },
+      "required": [
+        "job_id",
+        "status"
+      ],
+      "title": "JobSubmissionResponse",
+      "type": "object"
+    },
     "JobType": {
       "enum": [
         "entity_extraction",
@@ -3191,6 +3419,156 @@
         "p99_ms"
       ],
       "title": "LatencyPercentiles",
+      "type": "object"
+    },
+    "MergeCandidate": {
+      "additionalProperties": false,
+      "description": "A pair of entities that extraction flagged as a possible duplicate.\n`mention_count` and `last_seen` on both entities are 0 and empty.",
+      "properties": {
+        "created_at": {
+          "type": "string"
+        },
+        "entity_a": {
+          "$ref": "#/$defs/EntitySummary"
+        },
+        "entity_b": {
+          "$ref": "#/$defs/EntitySummary"
+        },
+        "extraction_run_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "similarity": {
+          "type": "number"
+        },
+        "status": {
+          "$ref": "#/$defs/MergeCandidateStatus"
+        }
+      },
+      "required": [
+        "id",
+        "entity_a",
+        "entity_b",
+        "similarity",
+        "status",
+        "extraction_run_id",
+        "created_at"
+      ],
+      "title": "MergeCandidate",
+      "type": "object"
+    },
+    "MergeCandidateStatus": {
+      "enum": [
+        "pending",
+        "accepted",
+        "dismissed"
+      ],
+      "title": "MergeCandidateStatus",
+      "type": "string"
+    },
+    "MergeCandidatesResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/entities/merge-candidates`.",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/MergeCandidate"
+          },
+          "type": "array"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "total"
+      ],
+      "title": "MergeCandidatesResponse",
+      "type": "object"
+    },
+    "MergeHistoryEntry": {
+      "additionalProperties": false,
+      "description": "One absorbed entity, as it was when it was merged into the survivor.",
+      "properties": {
+        "absorbed_aliases": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "absorbed_desc": {
+          "type": "string"
+        },
+        "absorbed_id": {
+          "type": "integer"
+        },
+        "absorbed_is_quarantined": {
+          "type": "boolean"
+        },
+        "absorbed_name": {
+          "type": "string"
+        },
+        "absorbed_quarantine_reason": {
+          "type": "string"
+        },
+        "absorbed_quarantined_at": {
+          "type": "string"
+        },
+        "absorbed_type": {
+          "$ref": "#/$defs/EntityType"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "merged_at": {
+          "type": "string"
+        },
+        "merged_by": {
+          "type": "string"
+        },
+        "survivor_id": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "survivor_id",
+        "absorbed_id",
+        "absorbed_name",
+        "absorbed_type",
+        "absorbed_desc",
+        "absorbed_aliases",
+        "absorbed_is_quarantined",
+        "absorbed_quarantine_reason",
+        "absorbed_quarantined_at",
+        "merged_at",
+        "merged_by"
+      ],
+      "title": "MergeHistoryEntry",
+      "type": "object"
+    },
+    "MergeHistoryResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/entities/{id}/merge-history`, newest first.",
+      "properties": {
+        "entity_id": {
+          "type": "integer"
+        },
+        "history": {
+          "items": {
+            "$ref": "#/$defs/MergeHistoryEntry"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "entity_id",
+        "history"
+      ],
+      "title": "MergeHistoryResponse",
       "type": "object"
     },
     "MessageResponse": {
@@ -3671,6 +4049,10 @@
       "title": "MoodTrendsResponse",
       "type": "object"
     },
+    "NoContent": {
+      "title": "NoContent",
+      "type": "null"
+    },
     "NotificationStatusResponse": {
       "additionalProperties": false,
       "description": "Body of `GET /api/notifications/status`.",
@@ -3867,6 +4249,76 @@
       "title": "OkResponse",
       "type": "object"
     },
+    "PairDecision": {
+      "additionalProperties": false,
+      "description": "A persisted \"not a duplicate\" decision. `mention_count` and\n`last_seen` on both entities are 0 and empty.",
+      "properties": {
+        "decided_at": {
+          "type": "string"
+        },
+        "decision": {
+          "const": "rejected",
+          "type": "string"
+        },
+        "entity_a": {
+          "$ref": "#/$defs/EntitySummary"
+        },
+        "entity_b": {
+          "$ref": "#/$defs/EntitySummary"
+        },
+        "id": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "entity_a",
+        "entity_b",
+        "decision",
+        "decided_at"
+      ],
+      "title": "PairDecision",
+      "type": "object"
+    },
+    "PairDecisionDeleteResponse": {
+      "additionalProperties": false,
+      "description": "Body of `DELETE /api/entities/pair-decisions/{id}`.",
+      "properties": {
+        "deleted": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "deleted"
+      ],
+      "title": "PairDecisionDeleteResponse",
+      "type": "object"
+    },
+    "PairDecisionsResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/entities/pair-decisions`.",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/PairDecision"
+          },
+          "type": "array"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "total"
+      ],
+      "title": "PairDecisionsResponse",
+      "type": "object"
+    },
     "PreferencesResponse": {
       "additionalProperties": false,
       "description": "Body of `GET` and `PATCH /api/users/me/preferences`.\n\nMaps each preference key to its stored JSON value.",
@@ -4014,6 +4466,27 @@
       "title": "PublicHealthResponse",
       "type": "object"
     },
+    "QuarantinedEntitiesResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/entities/quarantined`: every quarantined entity of\nthe user, unpaginated.",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/EntitySummary"
+          },
+          "type": "array"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "total"
+      ],
+      "title": "QuarantinedEntitiesResponse",
+      "type": "object"
+    },
     "QueryStats": {
       "additionalProperties": false,
       "description": "Query counters since server start (`journal.services.stats`).",
@@ -4081,6 +4554,28 @@
         "valid"
       ],
       "title": "ResetTokenValidResponse",
+      "type": "object"
+    },
+    "ResolveMergeCandidateResponse": {
+      "additionalProperties": false,
+      "description": "Body of `PATCH /api/entities/merge-candidates/{id}`.",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "accepted",
+            "dismissed"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "status"
+      ],
+      "title": "ResolveMergeCandidateResponse",
       "type": "object"
     },
     "RuntimeSetting": {
@@ -4600,24 +5095,6 @@
         "chapters"
       ],
       "title": "StorylineDetail",
-      "type": "object"
-    },
-    "StorylineJobResponse": {
-      "additionalProperties": false,
-      "description": "Body of the job-queueing storyline routes (refresh, unpublish; 202).",
-      "properties": {
-        "job_id": {
-          "type": "string"
-        },
-        "status": {
-          "$ref": "#/$defs/JobStatus"
-        }
-      },
-      "required": [
-        "job_id",
-        "status"
-      ],
-      "title": "StorylineJobResponse",
       "type": "object"
     },
     "StorylineListResponse": {
@@ -5175,6 +5652,21 @@
     "api_auth_verify_reset_token": {
       "$ref": "#/$defs/ResetTokenValidResponse"
     },
+    "api_conversations_create": {
+      "$ref": "#/$defs/Conversation"
+    },
+    "api_conversations_delete": {
+      "$ref": "#/$defs/NoContent"
+    },
+    "api_conversations_detail": {
+      "$ref": "#/$defs/Conversation"
+    },
+    "api_conversations_list": {
+      "$ref": "#/$defs/ConversationListResponse"
+    },
+    "api_conversations_reply": {
+      "$ref": "#/$defs/ConversationMessage"
+    },
     "api_create_storyline": {
       "$ref": "#/$defs/CreateStorylineResponse"
     },
@@ -5211,14 +5703,23 @@
     "api_delete_entity_alias": {
       "$ref": "#/$defs/Entity"
     },
+    "api_delete_pair_decision": {
+      "$ref": "#/$defs/PairDecisionDeleteResponse"
+    },
     "api_delete_storyline": {
       "$ref": "#/$defs/StorylineDeleteResponse"
+    },
+    "api_entities_extract": {
+      "$ref": "#/$defs/JobSubmissionResponse"
     },
     "api_entity_detail": {
       "$ref": "#/$defs/Entity"
     },
     "api_entity_mentions": {
       "$ref": "#/$defs/EntityMentionsResponse"
+    },
+    "api_entity_merge_history": {
+      "$ref": "#/$defs/MergeHistoryResponse"
     },
     "api_entity_relationships": {
       "$ref": "#/$defs/EntityRelationshipsResponse"
@@ -5286,6 +5787,18 @@
     "api_health_authed": {
       "$ref": "#/$defs/HealthResponse"
     },
+    "api_ingest_audio": {
+      "$ref": "#/$defs/JobSubmissionResponse"
+    },
+    "api_ingest_file": {
+      "$ref": "#/$defs/IngestTextResponse"
+    },
+    "api_ingest_images": {
+      "$ref": "#/$defs/JobSubmissionResponse"
+    },
+    "api_ingest_text": {
+      "$ref": "#/$defs/IngestTextResponse"
+    },
     "api_job_detail": {
       "$ref": "#/$defs/Job"
     },
@@ -5298,11 +5811,26 @@
     "api_list_jobs": {
       "$ref": "#/$defs/JobListResponse"
     },
+    "api_list_pair_decisions": {
+      "$ref": "#/$defs/PairDecisionsResponse"
+    },
+    "api_list_quarantined_entities": {
+      "$ref": "#/$defs/QuarantinedEntitiesResponse"
+    },
     "api_list_storylines": {
       "$ref": "#/$defs/StorylineListResponse"
     },
     "api_lookup_alias": {
       "$ref": "#/$defs/AliasLookupResponse"
+    },
+    "api_merge_candidates": {
+      "$ref": "#/$defs/MergeCandidatesResponse"
+    },
+    "api_merge_entities": {
+      "$ref": "#/$defs/EntityMergeResponse"
+    },
+    "api_mood_backfill": {
+      "$ref": "#/$defs/JobSubmissionResponse"
     },
     "api_notif_status": {
       "$ref": "#/$defs/NotificationStatusResponse"
@@ -5328,14 +5856,23 @@
     "api_pricing_patch": {
       "$ref": "#/$defs/PricingUpdateResponse"
     },
+    "api_quarantine_entity": {
+      "$ref": "#/$defs/Entity"
+    },
     "api_read_storyline_chapter": {
       "$ref": "#/$defs/ChapterMeta"
     },
     "api_refresh_storyline": {
-      "$ref": "#/$defs/StorylineJobResponse"
+      "$ref": "#/$defs/JobSubmissionResponse"
+    },
+    "api_release_quarantine_entity": {
+      "$ref": "#/$defs/Entity"
     },
     "api_rename_storyline_chapter": {
       "$ref": "#/$defs/ChapterMeta"
+    },
+    "api_resolve_merge_candidate": {
+      "$ref": "#/$defs/ResolveMergeCandidateResponse"
     },
     "api_runtime_settings_get": {
       "$ref": "#/$defs/RuntimeSettingsListResponse"
@@ -5365,7 +5902,7 @@
       "$ref": "#/$defs/StorylineDetail"
     },
     "api_unpublish_storyline_chapter": {
-      "$ref": "#/$defs/StorylineJobResponse"
+      "$ref": "#/$defs/JobSubmissionResponse"
     },
     "api_unread_storyline_chapter": {
       "$ref": "#/$defs/ChapterMeta"
@@ -5401,6 +5938,11 @@
     "api_auth_reset_password",
     "api_auth_verify_email",
     "api_auth_verify_reset_token",
+    "api_conversations_create",
+    "api_conversations_delete",
+    "api_conversations_detail",
+    "api_conversations_list",
+    "api_conversations_reply",
     "api_create_storyline",
     "api_dashboard_calendar_heatmap",
     "api_dashboard_entity_distribution",
@@ -5413,9 +5955,12 @@
     "api_dashboard_writing_stats",
     "api_delete_entity",
     "api_delete_entity_alias",
+    "api_delete_pair_decision",
     "api_delete_storyline",
+    "api_entities_extract",
     "api_entity_detail",
     "api_entity_mentions",
+    "api_entity_merge_history",
     "api_entity_relationships",
     "api_entry_chunks",
     "api_entry_detail",
@@ -5438,12 +5983,21 @@
     "api_fitness_sync_status",
     "api_health",
     "api_health_authed",
+    "api_ingest_audio",
+    "api_ingest_file",
+    "api_ingest_images",
+    "api_ingest_text",
     "api_job_detail",
     "api_list_entities",
     "api_list_entries",
     "api_list_jobs",
+    "api_list_pair_decisions",
+    "api_list_quarantined_entities",
     "api_list_storylines",
     "api_lookup_alias",
+    "api_merge_candidates",
+    "api_merge_entities",
+    "api_mood_backfill",
     "api_notif_status",
     "api_notif_test",
     "api_notif_topics",
@@ -5452,9 +6006,12 @@
     "api_preferences_patch",
     "api_pricing_get",
     "api_pricing_patch",
+    "api_quarantine_entity",
     "api_read_storyline_chapter",
     "api_refresh_storyline",
+    "api_release_quarantine_entity",
     "api_rename_storyline_chapter",
+    "api_resolve_merge_candidate",
     "api_runtime_settings_get",
     "api_runtime_settings_patch",
     "api_search",
@@ -5471,5 +6028,8 @@
     "api_verify_doubts"
   ],
   "title": "JournalApi",
-  "type": "object"
+  "type": "object",
+  "x-shared-definitions": [
+    "ErrorResponse"
+  ]
 }
