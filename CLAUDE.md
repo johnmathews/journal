@@ -73,14 +73,17 @@ Prod's compose file pulls these names. Do not rename them.
 
 - **Lands by:** pull request to `main` (squash-merged).
 - **Environments:**
-  - images: CI builds and pushes `:latest` and a SHA tag for each image whose part changed on `main`. CI does not
-    deploy. Check: `gh run list -R johnmathews/journal --workflow server.yml --branch main --limit 1` (or
-    `webapp.yml`).
-  - production (`media` VM, https://journal.itsa-pizza.com): deploy by pulling the new image(s), e.g.
-    `ssh media 'cd /srv/media && docker compose pull journal-webapp && docker compose up -d journal-webapp'`
-    (services: `journal-server`, `journal-webapp`, `journal-chromadb`). Check:
+  - images: CI builds and pushes `:latest` and a SHA tag for each image whose part changed on `main`. Check:
+    `gh run list -R johnmathews/journal --workflow server.yml --branch main --limit 1` (or `webapp.yml`).
+  - production (`media` VM, https://journal.itsa-pizza.com): **`journal-server` and `journal-webapp` deploy
+    automatically.** What's Up Docker (WUD) on `media` polls ghcr every minute and recreates either service when its
+    `:latest` digest changes, so **a green merge to `main` is a production deploy**, about a minute after the image
+    push. `journal-chromadb` is not watched and updates only by hand:
+    `ssh media 'cd /srv/media && docker compose pull journal-chromadb && docker compose up -d journal-chromadb'`.
+    Check what is running:
     `ssh media 'cd /srv/media && docker inspect -f "{{.Image}} {{.State.StartedAt}}" $(docker compose ps -q journal-webapp)'`
-    and compare with the latest `main` CI run. Full runbook: `server/docs/production-deployment.md`.
+    and compare with the latest `main` CI run. Pausing WUD, rollback and the full runbook:
+    `server/docs/production-deployment.md`.
 
 ## Bug fix workflow
 

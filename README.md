@@ -37,4 +37,6 @@ Two GitHub Actions workflows, each filtered to its own folder:
 - [`webapp.yml`](.github/workflows/webapp.yml): lint, tests with coverage thresholds, build; on `main` it pushes
   `ghcr.io/johnmathews/journal-webapp`.
 
-Deploys are manual; see [`server/docs/production-deployment.md`](server/docs/production-deployment.md).
+On the `media` VM, What's Up Docker redeploys `journal-server` and `journal-webapp` within about a minute of a new
+`:latest` image, so a green merge to `main` ships to production. `journal-chromadb` updates by hand. See
+[`server/docs/production-deployment.md`](server/docs/production-deployment.md).
