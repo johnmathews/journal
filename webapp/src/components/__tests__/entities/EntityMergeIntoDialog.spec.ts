@@ -55,6 +55,9 @@ describe('EntityMergeIntoDialog', () => {
     vi.mocked(fetchEntities).mockResolvedValue({
       items: [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 7,
           entity_type: 'person',
           canonical_name: 'Sarah',
@@ -96,6 +99,9 @@ describe('EntityMergeIntoDialog', () => {
     vi.mocked(fetchEntities).mockResolvedValue({
       items: [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 99, // same id as currentEntityId — must be filtered out
           entity_type: 'person',
           canonical_name: 'Sarah Duplicate',
@@ -105,6 +111,9 @@ describe('EntityMergeIntoDialog', () => {
           last_seen: '',
         },
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 7,
           entity_type: 'person',
           canonical_name: 'Sarah',
@@ -141,6 +150,9 @@ describe('EntityMergeIntoDialog', () => {
     vi.mocked(fetchEntities).mockResolvedValue({
       items: [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 7,
           entity_type: 'person',
           canonical_name: 'Sarah',
@@ -156,6 +168,9 @@ describe('EntityMergeIntoDialog', () => {
     })
     vi.mocked(mergeEntities).mockResolvedValue({
       survivor: {
+        is_quarantined: false,
+        quarantine_reason: '',
+        quarantined_at: '',
         id: 7,
         entity_type: 'person',
         canonical_name: 'Sarah',
@@ -241,6 +256,9 @@ describe('EntityMergeIntoDialog', () => {
     vi.mocked(fetchEntities).mockResolvedValue({
       items: [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 7,
           entity_type: 'person',
           canonical_name: 'Sarah',

@@ -9,20 +9,13 @@
 // directly — mirroring the API contract is more important than local
 // consistency. See journal/260411-batch-job-ui.md.
 
-export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed'
+// Job, JobType and JobStatus are generated from the server's API contract
+// (server/src/journal/api/contract/schemas.py). JobType lists every job
+// type the server creates (a server test checks it against the code), plus
+// legacy types that only old job rows carry.
+import type { JobStatus } from './generated/api'
 
-export type JobType =
-  | 'entity_extraction'
-  | 'mood_backfill'
-  | 'ingest_images'
-  | 'ingest_audio'
-  | 'mood_score_entry'
-  | 'reprocess_embeddings'
-  | 'save_entry_pipeline'
-  | 'entity_reembed'
-  | 'fitness_sync_strava'
-  | 'fitness_sync_garmin'
-  | 'storyline_update'
+export type { Job, JobListResponse, JobStatus, JobType } from './generated/api'
 
 /**
  * Response from the job-submission endpoints (POST /api/entities/extract,
@@ -32,30 +25,6 @@ export type JobType =
 export interface JobSubmissionResponse {
   job_id: string
   status: JobStatus
-}
-
-/**
- * Full job row returned by GET /api/jobs/{id}.
- */
-export interface Job {
-  id: string
-  type: JobType
-  status: JobStatus
-  params: Record<string, unknown>
-  progress_current: number
-  progress_total: number
-  result: Record<string, unknown> | null
-  error_message: string | null
-  status_detail: string | null
-  created_at: string
-  started_at: string | null
-  finished_at: string | null
-  // Per-job throughput metrics. Nullable: older jobs (and job types that
-  // don't call an LLM) have no recorded token/cost figures. The client
-  // passes these through untouched from GET /api/jobs.
-  input_tokens?: number | null
-  output_tokens?: number | null
-  cost_usd?: number | null
 }
 
 /**

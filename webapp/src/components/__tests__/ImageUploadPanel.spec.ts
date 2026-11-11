@@ -399,6 +399,9 @@ describe('ImageUploadPanel', () => {
 
     // Simulate the store returning a running job with progress
     jobsStore.jobs['job-progress'] = {
+      input_tokens: null,
+      output_tokens: null,
+      cost_usd: null,
       id: 'job-progress',
       type: 'ingest_images',
       status: 'running',
@@ -439,6 +442,9 @@ describe('ImageUploadPanel', () => {
 
     // Simulate step 0: progress_current=0, progress_total=3
     jobsStore.jobs['job-step0'] = {
+      input_tokens: null,
+      output_tokens: null,
+      cost_usd: null,
       id: 'job-step0',
       type: 'ingest_images',
       status: 'running',
@@ -481,6 +487,9 @@ describe('ImageUploadPanel', () => {
 
     // Job completes
     jobsStore.jobs['job-auto'] = {
+      input_tokens: null,
+      output_tokens: null,
+      cost_usd: null,
       id: 'job-auto',
       type: 'ingest_images',
       status: 'succeeded',

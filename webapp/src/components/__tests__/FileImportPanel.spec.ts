@@ -60,6 +60,7 @@ describe('FileImportPanel', () => {
     const store = useEntriesStore()
     const spy = vi.spyOn(store, 'importFile').mockResolvedValue({
       entry: {
+        date_confirmed: true,
         id: 7,
         entry_date: '2026-04-12',
         source_type: 'imported_text_file',
@@ -110,6 +111,7 @@ describe('FileImportPanel', () => {
     const store = useEntriesStore()
     vi.spyOn(store, 'importFile').mockResolvedValue({
       entry: {
+        date_confirmed: true,
         id: 55,
         entry_date: '2026-04-12',
         source_type: 'imported_text_file',

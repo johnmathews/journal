@@ -12,7 +12,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from journal.entitystore.protocol import _row_to_mention, _row_to_relationship
+from journal.entitystore.protocol import (
+    _row_to_mention,
+    _row_to_relationship,
+    _row_to_relationship_detail,
+)
 
 if TYPE_CHECKING:
     from journal.models import (
@@ -20,6 +24,7 @@ if TYPE_CHECKING:
         Entity,
         EntityMention,
         EntityRelationship,
+        EntityRelationshipDetail,
     )
 
 
@@ -230,6 +235,43 @@ class _MentionsMixin:
         return (
             [_row_to_relationship(r) for r in outgoing_rows],
             [_row_to_relationship(r) for r in incoming_rows],
+        )
+
+    def get_relationship_details_for_entity(
+        self, entity_id: int, user_id: int | None = None,
+    ) -> tuple[list[EntityRelationshipDetail], list[EntityRelationshipDetail]]:
+        """Return ``(outgoing, incoming)`` edges with names, types and entry date.
+
+        One query per direction joins both entities and the source entry,
+        so the API needs no per-edge lookups. Inner joins are safe: every
+        foreign key on ``entity_relationships`` cascades on delete. With
+        ``user_id``, only edges from that user's entries are returned (the
+        same scoping as ``get_relationships_for_entity``).
+        """
+        conn = self._conn()  # type: ignore[attr-defined]
+        select = (
+            "SELECT r.*,"
+            " s.canonical_name AS subject_name, s.entity_type AS subject_type,"
+            " o.canonical_name AS object_name, o.entity_type AS object_type,"
+            " e.entry_date AS entry_date"
+            " FROM entity_relationships r"
+            " JOIN entities s ON s.id = r.subject_entity_id"
+            " JOIN entities o ON o.id = r.object_entity_id"
+            " JOIN entries e ON e.id = r.entry_id"
+        )
+        user_filter = " AND e.user_id = ?" if user_id is not None else ""
+        user_params: tuple[int, ...] = (user_id,) if user_id is not None else ()
+        outgoing_rows = conn.execute(
+            f"{select} WHERE r.subject_entity_id = ?{user_filter} ORDER BY r.id",
+            (entity_id, *user_params),
+        ).fetchall()
+        incoming_rows = conn.execute(
+            f"{select} WHERE r.object_entity_id = ?{user_filter} ORDER BY r.id",
+            (entity_id, *user_params),
+        ).fetchall()
+        return (
+            [_row_to_relationship_detail(r) for r in outgoing_rows],
+            [_row_to_relationship_detail(r) for r in incoming_rows],
         )
 
     def get_relationships_for_entry(

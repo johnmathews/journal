@@ -26,14 +26,15 @@ from __future__ import annotations
 
 import io
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import tiktoken
 from PIL import Image
 
 if TYPE_CHECKING:
+    from journal.api.contract import schemas as contract
     from journal.db.pricing import PricingEntry
-    from journal.models import Job
+    from journal.models import Entity, EntityMention, EntityRelationshipDetail, Entry, Job
 
 
 def _now_iso() -> str:
@@ -99,10 +100,10 @@ def _pricing_to_dict(entry: PricingEntry) -> dict[str, object]:
 
 
 def _entry_to_dict(
-    entry: Any,
+    entry: Entry,
     page_count: int = 0,
     uncertain_spans: list[tuple[int, int]] | None = None,
-) -> dict[str, Any]:
+) -> contract.EntryDetail:
     """Convert an Entry to a JSON-serializable dict.
 
     `uncertain_spans` is a list of `(char_start, char_end)` pairs in
@@ -119,7 +120,7 @@ def _entry_to_dict(
     return {
         "id": entry.id,
         "entry_date": entry.entry_date,
-        "source_type": entry.source_type,
+        "source_type": cast("contract.SourceType", entry.source_type),
         "raw_text": entry.raw_text,
         "final_text": entry.final_text,
         "word_count": entry.word_count,
@@ -146,13 +147,13 @@ def _entry_to_dict(
 
 
 def _entity_summary(
-    entity: Any,
+    entity: Entity,
     mention_count: int = 0,
     last_seen: str = "",
     quotes: list[str] | None = None,
-) -> dict[str, Any]:
+) -> contract.EntitySummary:
     """Convert an Entity to a JSON-serialisable summary dict."""
-    d: dict[str, Any] = {
+    d: contract.EntitySummary = {
         "id": entity.id,
         "canonical_name": entity.canonical_name,
         "entity_type": entity.entity_type,
@@ -169,7 +170,7 @@ def _entity_summary(
     return d
 
 
-def _entity_detail(entity: Any) -> dict[str, Any]:
+def _entity_detail(entity: Entity) -> contract.Entity:
     """Convert an Entity to a full JSON-serialisable dict."""
     return {
         "id": entity.id,
@@ -186,7 +187,9 @@ def _entity_detail(entity: Any) -> dict[str, Any]:
     }
 
 
-def _mention_dict(mention: Any, entry_date: str | None = None) -> dict[str, Any]:
+def _mention_dict(
+    mention: EntityMention, entry_date: str | None = None,
+) -> contract.EntityMention:
     return {
         "id": mention.id,
         "entity_id": mention.entity_id,
@@ -199,21 +202,26 @@ def _mention_dict(mention: Any, entry_date: str | None = None) -> dict[str, Any]
     }
 
 
-def _relationship_dict(rel: Any) -> dict[str, Any]:
+def _relationship_dict(rel: EntityRelationshipDetail) -> contract.EntityRelationship:
     return {
         "id": rel.id,
         "subject_entity_id": rel.subject_entity_id,
+        "subject_name": rel.subject_name,
+        "subject_type": rel.subject_type,
         "predicate": rel.predicate,
         "object_entity_id": rel.object_entity_id,
+        "object_name": rel.object_name,
+        "object_type": rel.object_type,
         "quote": rel.quote,
         "entry_id": rel.entry_id,
+        "entry_date": rel.entry_date,
         "confidence": rel.confidence,
         "extraction_run_id": rel.extraction_run_id,
         "created_at": rel.created_at,
     }
 
 
-def _job_to_dict(job: Job) -> dict[str, Any]:
+def _job_to_dict(job: Job) -> contract.Job:
     """Convert a Job dataclass to a JSON-serialisable dict.
 
     Mirrors the canonical serialised shape the webapp consumes for
@@ -222,8 +230,8 @@ def _job_to_dict(job: Job) -> dict[str, Any]:
     """
     return {
         "id": job.id,
-        "type": job.type,
-        "status": job.status,
+        "type": cast("contract.JobType", job.type),
+        "status": cast("contract.JobStatus", job.status),
         "params": job.params,
         "progress_current": job.progress_current,
         "progress_total": job.progress_total,
@@ -240,16 +248,16 @@ def _job_to_dict(job: Job) -> dict[str, Any]:
 
 
 def _entry_summary(
-    entry: Any,
+    entry: Entry,
     page_count: int = 0,
     uncertain_span_count: int = 0,
     entity_mention_count: int = 0,
-) -> dict[str, Any]:
+) -> contract.EntrySummary:
     """Convert an Entry to a summary dict (no text fields)."""
     return {
         "id": entry.id,
         "entry_date": entry.entry_date,
-        "source_type": entry.source_type,
+        "source_type": cast("contract.SourceType", entry.source_type),
         "word_count": entry.word_count,
         "chunk_count": entry.chunk_count,
         "page_count": page_count,

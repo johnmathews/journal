@@ -5,6 +5,7 @@ import type { EntryDetail } from '@/types/entry'
 
 function makeEntry(overrides: Partial<EntryDetail> = {}): EntryDetail {
   return {
+    date_confirmed: true,
     id: 1,
     entry_date: '2026-03-22',
     source_type: 'photo',

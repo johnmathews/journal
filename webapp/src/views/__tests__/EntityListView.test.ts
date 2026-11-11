@@ -8,6 +8,9 @@ vi.mock('@/api/entities', () => ({
   fetchEntities: vi.fn().mockResolvedValue({
     items: [
       {
+        is_quarantined: false,
+        quarantine_reason: '',
+        quarantined_at: '',
         id: 2,
         entity_type: 'place',
         canonical_name: 'Blue Bottle',
@@ -17,6 +20,9 @@ vi.mock('@/api/entities', () => ({
         last_seen: '2026-03-01',
       },
       {
+        is_quarantined: false,
+        quarantine_reason: '',
+        quarantined_at: '',
         id: 1,
         entity_type: 'person',
         canonical_name: 'Ritsya',
@@ -115,6 +121,9 @@ describe('EntityListView', () => {
     vi.mocked(fetchEntities).mockResolvedValueOnce({
       items: [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 99,
           entity_type: 'activity',
           canonical_name: 'running',
@@ -201,6 +210,9 @@ describe('EntityListView', () => {
     vi.mocked(fetchEntities).mockResolvedValueOnce({
       items: [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 3,
           entity_type: 'activity',
           canonical_name: 'A',
@@ -210,6 +222,9 @@ describe('EntityListView', () => {
           last_seen: '',
         },
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 4,
           entity_type: 'organization',
           canonical_name: 'O',
@@ -219,6 +234,9 @@ describe('EntityListView', () => {
           last_seen: '',
         },
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person',
           canonical_name: 'P',
@@ -228,6 +246,9 @@ describe('EntityListView', () => {
           last_seen: '',
         },
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 2,
           entity_type: 'place',
           canonical_name: 'Pl',
@@ -237,6 +258,9 @@ describe('EntityListView', () => {
           last_seen: '',
         },
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 5,
           entity_type: 'topic',
           canonical_name: 'T',
@@ -246,6 +270,9 @@ describe('EntityListView', () => {
           last_seen: '',
         },
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 6,
           entity_type: 'other',
           canonical_name: 'X',
@@ -282,6 +309,9 @@ describe('EntityListView', () => {
     vi.mocked(fetchEntities).mockResolvedValueOnce({
       items: [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person',
           canonical_name: 'Ritsya',
@@ -311,6 +341,9 @@ describe('EntityListView', () => {
     spy.mockResolvedValue({
       items: [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 2,
           entity_type: 'person',
           canonical_name: 'John',
@@ -346,6 +379,9 @@ describe('EntityListView', () => {
     vi.mocked(fetchEntities).mockResolvedValueOnce({
       items: [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person',
           canonical_name: 'Solo',
@@ -451,6 +487,9 @@ describe('EntityListView', () => {
     vi.mocked(fetchEntities).mockResolvedValueOnce({
       items: [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 2,
           entity_type: 'place',
           canonical_name: 'Blue Bottle',
@@ -460,6 +499,9 @@ describe('EntityListView', () => {
           last_seen: '2026-03-01',
         },
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person',
           canonical_name: 'Ritsya',
@@ -488,6 +530,9 @@ describe('EntityListView', () => {
     vi.mocked(fetchEntities).mockResolvedValueOnce({
       items: [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 2,
           entity_type: 'place',
           canonical_name: 'Blue Bottle',
@@ -497,6 +542,9 @@ describe('EntityListView', () => {
           last_seen: '2026-03-01',
         },
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person',
           canonical_name: 'Ritsya',
@@ -526,6 +574,9 @@ describe('EntityListView', () => {
     vi.mocked(fetchEntities).mockResolvedValueOnce({
       items: [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 2,
           entity_type: 'place',
           canonical_name: 'Blue Bottle',
@@ -535,6 +586,9 @@ describe('EntityListView', () => {
           last_seen: '2026-03-01',
         },
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person',
           canonical_name: 'Ritsya',
@@ -560,6 +614,9 @@ describe('EntityListView', () => {
     vi.mocked(fetchEntities).mockResolvedValueOnce({
       items: [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 2,
           entity_type: 'place',
           canonical_name: 'Blue Bottle',
@@ -569,6 +626,9 @@ describe('EntityListView', () => {
           last_seen: '2026-03-01',
         },
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person',
           canonical_name: 'Ritsya',
@@ -605,6 +665,9 @@ describe('EntityListView', () => {
     vi.mocked(fetchEntities).mockResolvedValueOnce({
       items: [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 2,
           entity_type: 'place',
           canonical_name: 'Blue Bottle',
@@ -614,6 +677,9 @@ describe('EntityListView', () => {
           last_seen: '2026-03-01',
         },
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person',
           canonical_name: 'Ritsya',
@@ -656,6 +722,9 @@ describe('EntityListView', () => {
   const twoEntities = {
     items: [
       {
+        is_quarantined: false,
+        quarantine_reason: '',
+        quarantined_at: '',
         id: 2,
         entity_type: 'place' as const,
         canonical_name: 'Blue Bottle',
@@ -665,6 +734,9 @@ describe('EntityListView', () => {
         last_seen: '2026-03-01',
       },
       {
+        is_quarantined: false,
+        quarantine_reason: '',
+        quarantined_at: '',
         id: 1,
         entity_type: 'person' as const,
         canonical_name: 'Ritsya',
@@ -681,6 +753,9 @@ describe('EntityListView', () => {
 
   const mergeSuccessResponse = {
     survivor: {
+      is_quarantined: false,
+      quarantine_reason: '',
+      quarantined_at: '',
       id: 1,
       entity_type: 'person' as const,
       canonical_name: 'Ritsya',
@@ -701,6 +776,9 @@ describe('EntityListView', () => {
       {
         id: 100,
         entity_a: {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person' as const,
           canonical_name: 'Ritsya',
@@ -710,6 +788,9 @@ describe('EntityListView', () => {
           last_seen: '2026-03-22',
         },
         entity_b: {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 3,
           entity_type: 'person' as const,
           canonical_name: 'Ritzya',
@@ -950,6 +1031,9 @@ describe('EntityListView', () => {
       })
       vi.mocked(mergeEntities).mockResolvedValueOnce({
         survivor: {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person',
           canonical_name: 'Ritsya',
@@ -1157,6 +1241,9 @@ describe('EntityListView', () => {
         {
           id: 42,
           entity_a: {
+            is_quarantined: false,
+            quarantine_reason: '',
+            quarantined_at: '',
             id: 1,
             entity_type: 'person' as const,
             canonical_name: 'John Mathews',
@@ -1166,6 +1253,9 @@ describe('EntityListView', () => {
             last_seen: '',
           },
           entity_b: {
+            is_quarantined: false,
+            quarantine_reason: '',
+            quarantined_at: '',
             id: 2,
             entity_type: 'person' as const,
             canonical_name: "John Mathews' mother",
@@ -1879,6 +1969,9 @@ describe('EntityListView', () => {
     vi.mocked(fetchEntities).mockResolvedValue({
       items: [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person',
           canonical_name: 'Ritsya',
@@ -1888,6 +1981,9 @@ describe('EntityListView', () => {
           last_seen: '2026-03-22',
         },
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 2,
           entity_type: 'place',
           canonical_name: 'Blue Bottle',

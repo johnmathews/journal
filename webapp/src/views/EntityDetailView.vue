@@ -23,7 +23,8 @@ const store = useEntitiesStore()
 // Group mentions by entry for a cleaner presentation
 interface EntryGroup {
   entry_id: number
-  entry_date: string
+  /** Null when the server could not load the mention's entry. */
+  entry_date: string | null
   mentions: EntityMention[]
 }
 
@@ -39,8 +40,9 @@ const entriesByMention = computed<EntryGroup[]>(() => {
     }
     grouped.get(m.entry_id)!.mentions.push(m)
   }
+  // Newest first; groups without a date go last.
   return [...grouped.values()].sort((a, b) =>
-    b.entry_date.localeCompare(a.entry_date),
+    (b.entry_date ?? '').localeCompare(a.entry_date ?? ''),
   )
 })
 
@@ -658,7 +660,11 @@ async function confirmDelete() {
                 <span
                   class="text-violet-600 dark:text-violet-400 group-hover:underline font-medium"
                 >
-                  {{ formatDate(group.entry_date) }}
+                  {{
+                    group.entry_date
+                      ? formatDate(group.entry_date)
+                      : 'Unknown date'
+                  }}
                 </span>
                 <span class="text-[10px] text-gray-600 dark:text-gray-300">
                   {{ group.mentions.length }}

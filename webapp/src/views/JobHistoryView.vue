@@ -475,26 +475,35 @@ onUnmounted(() => {
   if (pollTimer != null) clearInterval(pollTimer)
 })
 
-function jobLabel(type: JobType): string {
-  switch (type) {
-    case 'entity_extraction':
-      return 'Entity extraction'
-    case 'mood_backfill':
-      return 'Mood backfill'
-    case 'ingest_images':
-      return 'Image ingestion'
-    case 'ingest_audio':
-      return 'Audio ingestion'
-    case 'mood_score_entry':
-      return 'Mood scoring'
-    case 'reprocess_embeddings':
-      return 'Reprocess embeddings'
-    case 'save_entry_pipeline':
-      return 'Entry pipeline'
-    default:
-      return type
-  }
+// Exhaustive over JobType, so a job type the server adds (and the contract
+// regenerates) fails the type check until it has a label here.
+const JOB_LABELS: Record<JobType, string> = {
+  entity_extraction: 'Entity extraction',
+  entity_reembed: 'Entity recognition refresh',
+  fitness_backfill_garmin: 'Garmin backfill',
+  fitness_backfill_strava: 'Strava backfill',
+  fitness_sync_garmin: 'Garmin sync',
+  fitness_sync_strava: 'Strava sync',
+  ingest_audio: 'Audio ingestion',
+  ingest_images: 'Image ingestion',
+  mood_backfill: 'Mood backfill',
+  mood_score_entry: 'Mood scoring',
+  reprocess_embeddings: 'Reprocess embeddings',
+  save_entry_pipeline: 'Entry pipeline',
+  storyline_extension_check: 'Storyline extension check',
+  storyline_generation: 'Storyline generation (legacy)',
+  storyline_update: 'Storyline update',
 }
+
+/** Label for a job type; an unknown type (newer server) shows as-is. */
+function jobLabel(type: JobType): string {
+  return JOB_LABELS[type] ?? type
+}
+
+/** Type-filter options: every job type, sorted by label. */
+const JOB_TYPE_OPTIONS = (Object.keys(JOB_LABELS) as JobType[])
+  .map((value) => ({ value, label: JOB_LABELS[value] }))
+  .sort((a, b) => a.label.localeCompare(b.label))
 
 function typeBadgeClass(type: JobType): string {
   switch (type) {
@@ -511,6 +520,15 @@ function typeBadgeClass(type: JobType): string {
       return 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300'
     case 'save_entry_pipeline':
       return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300'
+    case 'fitness_sync_garmin':
+    case 'fitness_sync_strava':
+    case 'fitness_backfill_garmin':
+    case 'fitness_backfill_strava':
+      return 'bg-lime-100 text-lime-700 dark:bg-lime-500/20 dark:text-lime-300'
+    case 'storyline_update':
+    case 'storyline_extension_check':
+    case 'storyline_generation':
+      return 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300'
     default:
       return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
   }
@@ -668,12 +686,13 @@ function isExpandable(job: Job): boolean {
         data-testid="filter-type"
       >
         <option value="">All types</option>
-        <option value="entity_extraction">Entity extraction</option>
-        <option value="ingest_audio">Audio ingestion</option>
-        <option value="ingest_images">Image ingestion</option>
-        <option value="mood_backfill">Mood backfill</option>
-        <option value="mood_score_entry">Mood scoring</option>
-        <option value="reprocess_embeddings">Reprocess embeddings</option>
+        <option
+          v-for="option in JOB_TYPE_OPTIONS"
+          :key="option.value"
+          :value="option.value"
+        >
+          {{ option.label }}
+        </option>
       </select>
 
       <input

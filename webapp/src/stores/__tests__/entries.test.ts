@@ -48,6 +48,7 @@ describe('useEntriesStore', () => {
     mockFetchEntries.mockResolvedValue({
       items: [
         {
+          date_confirmed: true,
           id: 1,
           entry_date: '2026-01-01',
           source_type: 'photo',
@@ -89,6 +90,7 @@ describe('useEntriesStore', () => {
 
   it('loadEntry populates currentEntry', async () => {
     const entry = {
+      date_confirmed: true,
       id: 1,
       entry_date: '2026-01-01',
       source_type: 'photo' as const,
@@ -115,6 +117,7 @@ describe('useEntriesStore', () => {
 
   it('saveEntryText updates currentEntry', async () => {
     const updated = {
+      date_confirmed: true,
       id: 1,
       entry_date: '2026-01-01',
       source_type: 'photo' as const,
@@ -225,6 +228,7 @@ describe('useEntriesStore', () => {
     mockFetchEntries.mockResolvedValue({
       items: [
         {
+          date_confirmed: true,
           id: 1,
           entry_date: '2026-01-01',
           source_type: 'photo',
@@ -252,6 +256,7 @@ describe('useEntriesStore', () => {
 
   it('updateDate updates currentEntry on success', async () => {
     const updated = {
+      date_confirmed: true,
       id: 1,
       entry_date: '2026-02-15',
       source_type: 'photo' as const,
@@ -300,6 +305,7 @@ describe('useEntriesStore', () => {
     mockFetchEntries.mockResolvedValue({
       items: [
         {
+          date_confirmed: true,
           id: 1,
           entry_date: '2026-01-01',
           source_type: 'photo',
@@ -314,6 +320,7 @@ describe('useEntriesStore', () => {
           entity_mention_count: 0,
         },
         {
+          date_confirmed: true,
           id: 2,
           entry_date: '2026-01-02',
           source_type: 'photo',
@@ -346,6 +353,7 @@ describe('useEntriesStore', () => {
 
   it('deleteEntry clears currentEntry when the deleted entry is loaded', async () => {
     const entry = {
+      date_confirmed: true,
       id: 42,
       entry_date: '2026-01-01',
       source_type: 'photo' as const,
@@ -394,6 +402,7 @@ describe('useEntriesStore', () => {
 
   it('verifyDoubts updates currentEntry with verified state', async () => {
     const verified = {
+      date_confirmed: true,
       id: 1,
       entry_date: '2026-01-01',
       source_type: 'photo' as const,
@@ -447,6 +456,7 @@ describe('useEntriesStore', () => {
     mockFetchEntries.mockResolvedValue({
       items: [
         {
+          date_confirmed: true,
           id: 1,
           entry_date: '2026-01-01',
           source_type: 'photo',
@@ -555,6 +565,7 @@ describe('useEntriesStore', () => {
 
   it('createTextEntry sets creating=true during call and false after', async () => {
     const entry = {
+      date_confirmed: true,
       id: 10,
       entry_date: '2026-04-12',
       source_type: 'text_entry' as const,
@@ -596,6 +607,7 @@ describe('useEntriesStore', () => {
   it('createTextEntry returns the result from ingestText', async () => {
     const response = {
       entry: {
+        date_confirmed: true,
         id: 11,
         entry_date: '2026-04-12',
         source_type: 'text_entry' as const,
@@ -649,6 +661,7 @@ describe('useEntriesStore', () => {
   it('importFile calls the right API function', async () => {
     const response = {
       entry: {
+        date_confirmed: true,
         id: 12,
         entry_date: '2026-04-12',
         source_type: 'imported_text_file' as const,

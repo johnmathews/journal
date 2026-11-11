@@ -47,6 +47,9 @@ function makePlaceholder(
     created_at: new Date().toISOString(),
     started_at: null,
     finished_at: null,
+    input_tokens: null,
+    output_tokens: null,
+    cost_usd: null,
   }
 }
 

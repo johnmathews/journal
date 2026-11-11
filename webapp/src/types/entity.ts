@@ -1,14 +1,24 @@
-// Types for the entity-tracking feature. Mirrors the server-side
-// shapes in server/src/journal/entitystore/store.py and
-// server/src/journal/models.py.
+// Types for the entity-tracking feature. Response shapes the server
+// returns from the entities/entries routes are generated from its API
+// contract (server/src/journal/api/contract/schemas.py); request params,
+// error bodies and the not-yet-covered merge/quarantine routes stay
+// hand-written below.
+import type { Entity, EntitySummary, EntityType } from './generated/api'
 
-export type EntityType =
-  | 'person'
-  | 'place'
-  | 'activity'
-  | 'organization'
-  | 'topic'
-  | 'other'
+export type {
+  AliasLookupResponse,
+  Entity,
+  EntityDeleteResponse,
+  EntityListResponse,
+  EntityMention,
+  EntityMentionsResponse,
+  EntityRelationship,
+  EntityRelationshipsResponse,
+  EntitySummary,
+  EntityType,
+  EntityUpdateResponse,
+  EntryEntitiesResponse,
+} from './generated/api'
 
 export const ENTITY_TYPES: EntityType[] = [
   'person',
@@ -19,70 +29,9 @@ export const ENTITY_TYPES: EntityType[] = [
   'other',
 ]
 
-export interface Entity {
-  id: number
-  entity_type: EntityType
-  canonical_name: string
-  description: string
-  aliases: string[]
-  first_seen: string
-  created_at: string
-  updated_at: string
-  // Quarantine state. The detail endpoint always emits these
-  // fields; older clients can ignore them safely. When the
-  // entity is not quarantined, `is_quarantined` is false and
-  // both string fields are empty.
-  is_quarantined?: boolean
-  quarantine_reason?: string
-  quarantined_at?: string
-}
-
-export interface EntitySummary {
-  id: number
-  entity_type: EntityType
-  canonical_name: string
-  aliases: string[]
-  mention_count: number
-  first_seen: string
-  last_seen: string
-  quotes?: string[]
-  // Quarantine state mirrors the server's entity-summary shape.
-  // Active-list responses always set `is_quarantined` to false;
-  // the dedicated quarantined-list endpoint sets it to true.
-  is_quarantined?: boolean
-  quarantine_reason?: string
-  quarantined_at?: string
-}
-
 export interface QuarantinedEntitiesResponse {
   items: EntitySummary[]
   total: number
-}
-
-export interface EntityMention {
-  id: number
-  entity_id: number
-  entry_id: number
-  entry_date: string
-  quote: string
-  confidence: number
-  extraction_run_id: string
-  created_at: string
-}
-
-export interface EntityRelationship {
-  id: number
-  subject_entity_id: number
-  subject_name: string
-  subject_type: EntityType
-  predicate: string
-  object_entity_id: number
-  object_name: string
-  object_type: EntityType
-  quote: string
-  entry_id: number
-  entry_date: string
-  confidence: number
 }
 
 // --- List / detail / params ---
@@ -92,25 +41,6 @@ export interface EntityListParams {
   search?: string
   limit?: number
   offset?: number
-}
-
-export interface EntityListResponse {
-  items: EntitySummary[]
-  total: number
-  limit: number
-  offset: number
-}
-
-export interface EntityMentionsResponse {
-  entity_id: number
-  mentions: EntityMention[]
-  total: number
-}
-
-export interface EntityRelationshipsResponse {
-  entity_id: number
-  outgoing: EntityRelationship[]
-  incoming: EntityRelationship[]
 }
 
 // Entity chip shown on the entry detail view.
@@ -127,23 +57,12 @@ export interface EntityRelationshipsResponse {
 // contract. See journal/260411-entry-entities-contract.md.
 export type EntryEntityRef = EntitySummary
 
-export interface EntryEntitiesResponse {
-  entry_id: number
-  items: EntitySummary[]
-  total: number
-}
-
 // --- Management (update / delete / merge) ---
 
 export interface EntityUpdateRequest {
   canonical_name?: string
   entity_type?: EntityType
   description?: string
-}
-
-export interface EntityDeleteResponse {
-  deleted: boolean
-  id: number
 }
 
 export interface EntityMergeRequest {
@@ -164,15 +83,6 @@ export interface AliasCollisionResponse {
   existing_entity_id: number
   existing_canonical_name: string
   existing_entity_type: EntityType
-}
-
-// GET /api/entities/aliases/lookup?alias=X — non-mutating collision
-// check used for inline warning before submit. `entity_id` is null
-// when no entity owns the alias yet.
-export interface AliasLookupResponse {
-  entity_id: number | null
-  canonical_name?: string
-  entity_type?: EntityType
 }
 
 export interface EntityMergeResponse {

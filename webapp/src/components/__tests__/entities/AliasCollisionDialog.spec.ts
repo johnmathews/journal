@@ -72,6 +72,9 @@ describe('AliasCollisionDialog', () => {
     const { mergeEntities } = await import('@/api/entities')
     vi.mocked(mergeEntities).mockResolvedValue({
       survivor: {
+        is_quarantined: false,
+        quarantine_reason: '',
+        quarantined_at: '',
         id: 7,
         entity_type: 'person',
         canonical_name: 'Sarah',

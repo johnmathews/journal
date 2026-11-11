@@ -58,6 +58,9 @@ vi.mock('@/stores/jobs', () => ({
 
 function makeJob(over: Partial<Job> = {}): Job {
   return {
+    input_tokens: null,
+    output_tokens: null,
+    cost_usd: null,
     id: 'job-1',
     type: 'fitness_sync_garmin',
     status: 'running',

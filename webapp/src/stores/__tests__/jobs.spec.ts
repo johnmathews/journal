@@ -21,6 +21,9 @@ vi.mock('@/api/jobs', () => ({
  */
 function makeJob(overrides: Partial<Job> = {}): Job {
   return {
+    input_tokens: null,
+    output_tokens: null,
+    cost_usd: null,
     id: 'job-1',
     type: 'entity_extraction',
     status: 'running',

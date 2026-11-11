@@ -261,6 +261,23 @@ class EntityRelationship:
 
 
 @dataclass
+class EntityRelationshipDetail(EntityRelationship):
+    """An ``EntityRelationship`` joined with both entities and its entry.
+
+    Read model for ``GET /api/entities/{id}/relationships``: the entity
+    page links each related entity by id and labels it with its name and
+    type, so the store joins them in one query instead of one lookup per
+    edge.
+    """
+
+    subject_name: str = ""
+    subject_type: EntityType = "other"
+    object_name: str = ""
+    object_type: EntityType = "other"
+    entry_date: str = ""
+
+
+@dataclass
 class MergeResult:
     survivor_id: int
     absorbed_ids: list[int]
