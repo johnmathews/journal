@@ -7,12 +7,22 @@ on:
       - "server/**"
       - "contract/**"
       - ".github/workflows/server.yml"
+      # Prose never reaches the image or the tests. Without these, a docs edit
+      # rebuilds :latest and WUD redeploys prod for nothing.
+      - "!server/docs/**"
+      - "!server/journal/**"
+      - "!**/*.md"
   pull_request:
     branches: [main]
     paths:
       - "server/**"
       - "contract/**"
       - ".github/workflows/server.yml"
+      # Prose never reaches the image or the tests. Without these, a docs edit
+      # rebuilds :latest and WUD redeploys prod for nothing.
+      - "!server/docs/**"
+      - "!server/journal/**"
+      - "!**/*.md"
   workflow_dispatch:
 
 # Every `run:` step executes inside server/. Action inputs (Docker context,
