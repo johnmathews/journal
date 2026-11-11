@@ -7,12 +7,22 @@ on:
       - "webapp/**"
       - "contract/**"
       - ".github/workflows/webapp.yml"
+      # Prose never reaches the image or the tests. Without these, a docs edit
+      # rebuilds :latest and WUD redeploys prod for nothing.
+      - "!webapp/docs/**"
+      - "!webapp/journal/**"
+      - "!**/*.md"
   pull_request:
     branches: [main]
     paths:
       - "webapp/**"
       - "contract/**"
       - ".github/workflows/webapp.yml"
+      # Prose never reaches the image or the tests. Without these, a docs edit
+      # rebuilds :latest and WUD redeploys prod for nothing.
+      - "!webapp/docs/**"
+      - "!webapp/journal/**"
+      - "!**/*.md"
   workflow_dispatch:
 
 # Every `run:` step executes inside webapp/. Action inputs (cache path,
