@@ -52,6 +52,7 @@ if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
     from starlette.requests import Request
 
+    from journal.api.contract import schemas as contract
     from journal.service_registry import ServicesDict
     from journal.services.jobs import JobRunner
 
@@ -215,7 +216,7 @@ def register_storylines_write_routes(
         )
         chapters = repo.list_chapters(storyline.id)
         anchors = _anchors_for(repo, entity_store, storyline.id)
-        detail = {
+        detail: contract.StorylineDetail = {
             **_storyline_to_dict(
                 storyline, anchors, _unread_count(chapters), len(chapters),
             ),

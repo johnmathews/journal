@@ -1,16 +1,23 @@
 /**
  * Insights page types. Used by the mood drill-down and entity
- * distribution features on `/insights`.
+ * distribution features on `/insights`. The response shapes are generated
+ * from the server's API contract
+ * (server/src/journal/api/contract/schemas.py); request params and the
+ * entity-type picker stay hand-written below.
  */
+import type { EntityType } from './generated/api'
 
-export type InsightsEntityType =
-  | 'topic'
-  | 'activity'
-  | 'place'
-  | 'person'
-  | 'organization'
-  | 'other'
+export type {
+  EntityDistributionItem,
+  EntityDistributionResponse,
+  MoodDrilldownEntry,
+  MoodDrilldownResponse,
+} from './generated/api'
 
+/** Entity types the distribution chart can filter by (all of them). */
+export type InsightsEntityType = EntityType
+
+/** Picker order for the entity-type filter. */
 export const INSIGHTS_ENTITY_TYPES: readonly InsightsEntityType[] = [
   'topic',
   'activity',
@@ -20,41 +27,10 @@ export const INSIGHTS_ENTITY_TYPES: readonly InsightsEntityType[] = [
   'other',
 ] as const
 
-/** One entry's mood score for a given dimension/period drill-down. */
-export interface MoodDrilldownEntry {
-  entry_id: number
-  entry_date: string
-  score: number
-  confidence: number | null
-  rationale: string | null
-}
-
-export interface MoodDrilldownResponse {
-  dimension: string
-  from: string
-  to: string
-  entries: MoodDrilldownEntry[]
-}
-
 export interface MoodDrilldownParams {
   dimension: string
   from: string
   to: string
-}
-
-/** One entity in the distribution chart. */
-export interface EntityDistributionItem {
-  canonical_name: string
-  entity_type: string
-  mention_count: number
-}
-
-export interface EntityDistributionResponse {
-  type: string | null
-  from: string | null
-  to: string | null
-  total: number
-  items: EntityDistributionItem[]
 }
 
 export interface EntityDistributionParams {

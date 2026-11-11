@@ -1,5 +1,33 @@
 {
   "$defs": {
+    "Addendum": {
+      "additionalProperties": false,
+      "description": "A later addition to a published chapter, rendered as its own block.",
+      "properties": {
+        "added_at": {
+          "type": "string"
+        },
+        "entry_ids": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "segments": {
+          "items": {
+            "$ref": "#/$defs/Segment"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "added_at",
+        "segments",
+        "entry_ids"
+      ],
+      "title": "Addendum",
+      "type": "object"
+    },
     "AliasLookupResponse": {
       "additionalProperties": false,
       "description": "Body of `GET /api/entities/aliases/lookup`. `entity_id` is null (and\nthe other keys absent) when no entity of this user owns the alias.",
@@ -25,6 +53,345 @@
         "entity_id"
       ],
       "title": "AliasLookupResponse",
+      "type": "object"
+    },
+    "AnswerCitation": {
+      "additionalProperties": false,
+      "description": "One entry cited by a synthesized answer.",
+      "properties": {
+        "entry_date": {
+          "type": "string"
+        },
+        "entry_id": {
+          "type": "integer"
+        },
+        "snippet": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "entry_id",
+        "entry_date",
+        "snippet"
+      ],
+      "title": "AnswerCitation",
+      "type": "object"
+    },
+    "AnswerResponse": {
+      "additionalProperties": false,
+      "description": "Body of `POST /api/search/answer`. `answered` is false (with a fixed\nmessage in `answer`) when the journal doesn't cover the question;\n`is_question` is false when the query was a plain search, and `answer`\nis then empty.",
+      "properties": {
+        "answer": {
+          "type": "string"
+        },
+        "answered": {
+          "type": "boolean"
+        },
+        "citations": {
+          "items": {
+            "$ref": "#/$defs/AnswerCitation"
+          },
+          "type": "array"
+        },
+        "is_question": {
+          "type": "boolean"
+        },
+        "model": {
+          "type": "string"
+        },
+        "question": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "question",
+        "answer",
+        "answered",
+        "is_question",
+        "citations",
+        "model"
+      ],
+      "title": "AnswerResponse",
+      "type": "object"
+    },
+    "CalendarDay": {
+      "additionalProperties": false,
+      "description": "One day with at least one entry.",
+      "properties": {
+        "date": {
+          "type": "string"
+        },
+        "entry_count": {
+          "type": "integer"
+        },
+        "total_words": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "date",
+        "entry_count",
+        "total_words"
+      ],
+      "title": "CalendarDay",
+      "type": "object"
+    },
+    "CalendarHeatmapResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/dashboard/calendar-heatmap`.\n`from`/`to` echo the query params and are null when omitted.",
+      "properties": {
+        "days": {
+          "items": {
+            "$ref": "#/$defs/CalendarDay"
+          },
+          "type": "array"
+        },
+        "from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "to": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "days"
+      ],
+      "title": "CalendarHeatmapResponse",
+      "type": "object"
+    },
+    "ChapterDetail": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/storylines/{id}/chapters/{cid}`.",
+      "properties": {
+        "addenda": {
+          "items": {
+            "$ref": "#/$defs/Addendum"
+          },
+          "type": "array"
+        },
+        "citation_count": {
+          "type": "integer"
+        },
+        "entry_count": {
+          "type": "integer"
+        },
+        "first_entry_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "generated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "integer"
+        },
+        "last_entry_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model_used": {
+          "type": "string"
+        },
+        "published_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "read_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "segments": {
+          "items": {
+            "$ref": "#/$defs/Segment"
+          },
+          "type": "array"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/ChapterState"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "seq",
+        "title",
+        "state",
+        "entry_count",
+        "first_entry_date",
+        "last_entry_date",
+        "published_at",
+        "read_at",
+        "citation_count",
+        "segments",
+        "addenda",
+        "model_used",
+        "generated_at"
+      ],
+      "title": "ChapterDetail",
+      "type": "object"
+    },
+    "ChapterMeta": {
+      "additionalProperties": false,
+      "description": "Chapter metadata: the chapter list on a storyline, and the body of the\nread, unread and rename routes. Dates and `entry_count` derive from the\nchapter's entries.",
+      "properties": {
+        "citation_count": {
+          "type": "integer"
+        },
+        "entry_count": {
+          "type": "integer"
+        },
+        "first_entry_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "type": "integer"
+        },
+        "last_entry_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "published_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "read_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/ChapterState"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "seq",
+        "title",
+        "state",
+        "entry_count",
+        "first_entry_date",
+        "last_entry_date",
+        "published_at",
+        "read_at",
+        "citation_count"
+      ],
+      "title": "ChapterMeta",
+      "type": "object"
+    },
+    "ChapterState": {
+      "enum": [
+        "draft",
+        "published"
+      ],
+      "title": "ChapterState",
+      "type": "string"
+    },
+    "CitationSegment": {
+      "additionalProperties": false,
+      "description": "A citation of a quote from an entry\n(`journal.services.storylines.segments.citation_segment`). `entry_date`\nis absent on narratives stored before the field existed.",
+      "properties": {
+        "entry_date": {
+          "type": "string"
+        },
+        "entry_id": {
+          "type": "integer"
+        },
+        "kind": {
+          "const": "citation",
+          "type": "string"
+        },
+        "quote": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "entry_id",
+        "quote"
+      ],
+      "title": "CitationSegment",
       "type": "object"
     },
     "ComponentCheck": {
@@ -77,6 +444,41 @@
       ],
       "title": "ContentBoundary",
       "type": "object"
+    },
+    "CreateStorylineResponse": {
+      "additionalProperties": false,
+      "description": "Body of `POST /api/storylines` (201). `bootstrap_job_id` is null when\nthe bootstrap job could not be queued.",
+      "properties": {
+        "bootstrap_job_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "storyline": {
+          "$ref": "#/$defs/StorylineDetail"
+        }
+      },
+      "required": [
+        "storyline",
+        "bootstrap_job_id"
+      ],
+      "title": "CreateStorylineResponse",
+      "type": "object"
+    },
+    "DashboardBin": {
+      "enum": [
+        "week",
+        "month",
+        "quarter",
+        "year"
+      ],
+      "title": "DashboardBin",
+      "type": "string"
     },
     "Entity": {
       "additionalProperties": false,
@@ -151,6 +553,82 @@
         "id"
       ],
       "title": "EntityDeleteResponse",
+      "type": "object"
+    },
+    "EntityDistributionItem": {
+      "additionalProperties": false,
+      "description": "Mention count of one entity in the window.",
+      "properties": {
+        "canonical_name": {
+          "type": "string"
+        },
+        "entity_type": {
+          "$ref": "#/$defs/EntityType"
+        },
+        "mention_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "canonical_name",
+        "entity_type",
+        "mention_count"
+      ],
+      "title": "EntityDistributionItem",
+      "type": "object"
+    },
+    "EntityDistributionResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/dashboard/entity-distribution`.\n`type` echoes the entity-type filter (null when absent).",
+      "properties": {
+        "from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/EntityDistributionItem"
+          },
+          "type": "array"
+        },
+        "to": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "total": {
+          "type": "integer"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntityType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "from",
+        "to",
+        "total",
+        "items"
+      ],
+      "title": "EntityDistributionResponse",
       "type": "object"
     },
     "EntityListResponse": {
@@ -407,6 +885,89 @@
         "quarantined_at"
       ],
       "title": "EntitySummary",
+      "type": "object"
+    },
+    "EntityTrendBin": {
+      "additionalProperties": false,
+      "description": "Mentions of one entity in one period.",
+      "properties": {
+        "entity": {
+          "type": "string"
+        },
+        "mention_count": {
+          "type": "integer"
+        },
+        "period": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "period",
+        "entity",
+        "mention_count"
+      ],
+      "title": "EntityTrendBin",
+      "type": "object"
+    },
+    "EntityTrendsResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/dashboard/entity-trends`.\n`entity_type` echoes the unvalidated `type` query param (null when absent);\n`entities` is the top-N entity names, in rank order.",
+      "properties": {
+        "bin": {
+          "$ref": "#/$defs/DashboardBin"
+        },
+        "bins": {
+          "items": {
+            "$ref": "#/$defs/EntityTrendBin"
+          },
+          "type": "array"
+        },
+        "entities": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "entity_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "to": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "bin",
+        "entity_type",
+        "entities",
+        "bins"
+      ],
+      "title": "EntityTrendsResponse",
       "type": "object"
     },
     "EntityType": {
@@ -1088,6 +1649,350 @@
       "title": "JobType",
       "type": "string"
     },
+    "MoodBin": {
+      "enum": [
+        "day",
+        "week",
+        "month",
+        "quarter",
+        "year"
+      ],
+      "title": "MoodBin",
+      "type": "string"
+    },
+    "MoodDimension": {
+      "additionalProperties": false,
+      "description": "One mood facet from the server's TOML config. `score_min` and\n`score_max` follow from `scale_type` (bipolar `[-1, 1]`, unipolar\n`[0, 1]`).",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "negative_pole": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "positive_pole": {
+          "type": "string"
+        },
+        "scale_type": {
+          "$ref": "#/$defs/MoodScaleType"
+        },
+        "score_max": {
+          "type": "number"
+        },
+        "score_min": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "positive_pole",
+        "negative_pole",
+        "scale_type",
+        "score_min",
+        "score_max",
+        "notes"
+      ],
+      "title": "MoodDimension",
+      "type": "object"
+    },
+    "MoodDimensionsMeta": {
+      "additionalProperties": false,
+      "description": "Metadata of the mood-dimensions config file; empty strings when mood\nscoring is off or the file has no `[meta]` block.",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "description"
+      ],
+      "title": "MoodDimensionsMeta",
+      "type": "object"
+    },
+    "MoodDimensionsResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/dashboard/mood-dimensions`. `dimensions` is empty\nwhen mood scoring is disabled.",
+      "properties": {
+        "dimensions": {
+          "items": {
+            "$ref": "#/$defs/MoodDimension"
+          },
+          "type": "array"
+        },
+        "meta": {
+          "$ref": "#/$defs/MoodDimensionsMeta"
+        }
+      },
+      "required": [
+        "dimensions",
+        "meta"
+      ],
+      "title": "MoodDimensionsResponse",
+      "type": "object"
+    },
+    "MoodDrilldownEntry": {
+      "additionalProperties": false,
+      "description": "One entry's score for the drilled-down dimension.",
+      "properties": {
+        "confidence": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "entry_date": {
+          "type": "string"
+        },
+        "entry_id": {
+          "type": "integer"
+        },
+        "rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "score": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "entry_id",
+        "entry_date",
+        "score",
+        "confidence",
+        "rationale"
+      ],
+      "title": "MoodDrilldownEntry",
+      "type": "object"
+    },
+    "MoodDrilldownResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/dashboard/mood-drilldown`.\n`from` and `to` are required query params, so they are never null here.",
+      "properties": {
+        "dimension": {
+          "type": "string"
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/MoodDrilldownEntry"
+          },
+          "type": "array"
+        },
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "dimension",
+        "from",
+        "to",
+        "entries"
+      ],
+      "title": "MoodDrilldownResponse",
+      "type": "object"
+    },
+    "MoodEntityCorrelationItem": {
+      "additionalProperties": false,
+      "description": "Average score of one dimension over the entries mentioning an entity.",
+      "properties": {
+        "avg_score": {
+          "type": "number"
+        },
+        "entity": {
+          "type": "string"
+        },
+        "entity_type": {
+          "$ref": "#/$defs/EntityType"
+        },
+        "entry_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "entity",
+        "entity_type",
+        "avg_score",
+        "entry_count"
+      ],
+      "title": "MoodEntityCorrelationItem",
+      "type": "object"
+    },
+    "MoodEntityCorrelationResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/dashboard/mood-entity-correlation`.\n`entity_type` echoes the unvalidated `type` query param (null when absent);\n`overall_avg` is 0 when nothing in the window is scored.",
+      "properties": {
+        "dimension": {
+          "type": "string"
+        },
+        "entity_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/MoodEntityCorrelationItem"
+          },
+          "type": "array"
+        },
+        "overall_avg": {
+          "type": "number"
+        },
+        "to": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "dimension",
+        "from",
+        "to",
+        "entity_type",
+        "overall_avg",
+        "items"
+      ],
+      "title": "MoodEntityCorrelationResponse",
+      "type": "object"
+    },
+    "MoodScaleType": {
+      "enum": [
+        "bipolar",
+        "unipolar"
+      ],
+      "title": "MoodScaleType",
+      "type": "string"
+    },
+    "MoodTrendBin": {
+      "additionalProperties": false,
+      "description": "One (period, dimension) bucket: `asdict(journal.models.MoodTrend)`.",
+      "properties": {
+        "avg_score": {
+          "type": "number"
+        },
+        "dimension": {
+          "type": "string"
+        },
+        "entry_count": {
+          "type": "integer"
+        },
+        "period": {
+          "type": "string"
+        },
+        "score_max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "score_min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "period",
+        "dimension",
+        "avg_score",
+        "entry_count",
+        "score_min",
+        "score_max"
+      ],
+      "title": "MoodTrendBin",
+      "type": "object"
+    },
+    "MoodTrendsResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/dashboard/mood-trends`.\nBuckets with no scored entries are omitted.",
+      "properties": {
+        "bin": {
+          "$ref": "#/$defs/MoodBin"
+        },
+        "bins": {
+          "items": {
+            "$ref": "#/$defs/MoodTrendBin"
+          },
+          "type": "array"
+        },
+        "from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "to": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "bin",
+        "bins"
+      ],
+      "title": "MoodTrendsResponse",
+      "type": "object"
+    },
     "PublicHealthResponse": {
       "additionalProperties": false,
       "description": "Body of the unauthenticated `GET /health`: liveness only.\n\nThe authenticated `GET /api/health` (`api_health_authed`) carries\nmore blocks and gets its own shape.",
@@ -1109,6 +2014,179 @@
       "title": "PublicHealthResponse",
       "type": "object"
     },
+    "SearchChunkMatch": {
+      "additionalProperties": false,
+      "description": "One chunk that matched the query (`journal.models.ChunkMatch`).\nOffsets and index are null for entries ingested before chunks were\npersisted.",
+      "properties": {
+        "char_end": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "char_start": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "chunk_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "score": {
+          "type": "number"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "score",
+        "chunk_index",
+        "char_start",
+        "char_end"
+      ],
+      "title": "SearchChunkMatch",
+      "type": "object"
+    },
+    "SearchResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/search`.",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/SearchResultItem"
+          },
+          "type": "array"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "query": {
+          "type": "string"
+        },
+        "reranker": {
+          "type": "string"
+        },
+        "sort": {
+          "$ref": "#/$defs/SearchSort"
+        }
+      },
+      "required": [
+        "query",
+        "limit",
+        "offset",
+        "sort",
+        "reranker",
+        "items"
+      ],
+      "title": "SearchResponse",
+      "type": "object"
+    },
+    "SearchResultItem": {
+      "additionalProperties": false,
+      "description": "One entry in the search results. `snippet` is an FTS5 excerpt (with\n`\\x02`/`\\x03` around matched terms) when BM25 contributed, else null;\n`matching_chunks` is filled when dense retrieval contributed.",
+      "properties": {
+        "entry_date": {
+          "type": "string"
+        },
+        "entry_id": {
+          "type": "integer"
+        },
+        "matching_chunks": {
+          "items": {
+            "$ref": "#/$defs/SearchChunkMatch"
+          },
+          "type": "array"
+        },
+        "score": {
+          "type": "number"
+        },
+        "snippet": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "entry_id",
+        "entry_date",
+        "text",
+        "score",
+        "snippet",
+        "matching_chunks"
+      ],
+      "title": "SearchResultItem",
+      "type": "object"
+    },
+    "SearchSort": {
+      "enum": [
+        "relevance",
+        "date_desc",
+        "date_asc"
+      ],
+      "title": "SearchSort",
+      "type": "string"
+    },
+    "Segment": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TextSegment"
+        },
+        {
+          "$ref": "#/$defs/CitationSegment"
+        }
+      ],
+      "title": "Segment"
+    },
+    "SetStorylineAnchorsResponse": {
+      "additionalProperties": false,
+      "description": "Body of `PUT /api/storylines/{id}/anchors`.",
+      "properties": {
+        "anchors": {
+          "items": {
+            "$ref": "#/$defs/StorylineAnchor"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "anchors"
+      ],
+      "title": "SetStorylineAnchorsResponse",
+      "type": "object"
+    },
     "SourceType": {
       "enum": [
         "photo",
@@ -1119,6 +2197,217 @@
       ],
       "title": "SourceType",
       "type": "string"
+    },
+    "StorylineAnchor": {
+      "additionalProperties": false,
+      "description": "One anchor entity. `canonical_name` is empty if the entity is gone.",
+      "properties": {
+        "canonical_name": {
+          "type": "string"
+        },
+        "entity_id": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "entity_id",
+        "canonical_name"
+      ],
+      "title": "StorylineAnchor",
+      "type": "object"
+    },
+    "StorylineDeleteResponse": {
+      "additionalProperties": false,
+      "description": "Body of `DELETE /api/storylines/{id}`.",
+      "properties": {
+        "deleted": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "deleted"
+      ],
+      "title": "StorylineDeleteResponse",
+      "type": "object"
+    },
+    "StorylineDetail": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/storylines/{id}`: the summary plus chapter metadata\nin `seq` order (the draft last).",
+      "properties": {
+        "anchors": {
+          "items": {
+            "$ref": "#/$defs/StorylineAnchor"
+          },
+          "type": "array"
+        },
+        "chapter_count": {
+          "type": "integer"
+        },
+        "chapters": {
+          "items": {
+            "$ref": "#/$defs/ChapterMeta"
+          },
+          "type": "array"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/StorylineStatus"
+        },
+        "unread_count": {
+          "type": "integer"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "status",
+        "anchors",
+        "unread_count",
+        "chapter_count",
+        "updated_at",
+        "created_at",
+        "chapters"
+      ],
+      "title": "StorylineDetail",
+      "type": "object"
+    },
+    "StorylineJobResponse": {
+      "additionalProperties": false,
+      "description": "Body of the job-queueing storyline routes (refresh, unpublish; 202).",
+      "properties": {
+        "job_id": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/JobStatus"
+        }
+      },
+      "required": [
+        "job_id",
+        "status"
+      ],
+      "title": "StorylineJobResponse",
+      "type": "object"
+    },
+    "StorylineListResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/storylines`.",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/StorylineSummary"
+          },
+          "type": "array"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "total": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "total",
+        "limit",
+        "offset"
+      ],
+      "title": "StorylineListResponse",
+      "type": "object"
+    },
+    "StorylineStatus": {
+      "enum": [
+        "active",
+        "archived"
+      ],
+      "title": "StorylineStatus",
+      "type": "string"
+    },
+    "StorylineSummary": {
+      "additionalProperties": false,
+      "description": "A storyline in a list, and the body of `PATCH /api/storylines/{id}`.",
+      "properties": {
+        "anchors": {
+          "items": {
+            "$ref": "#/$defs/StorylineAnchor"
+          },
+          "type": "array"
+        },
+        "chapter_count": {
+          "type": "integer"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/StorylineStatus"
+        },
+        "unread_count": {
+          "type": "integer"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "status",
+        "anchors",
+        "unread_count",
+        "chapter_count",
+        "updated_at",
+        "created_at"
+      ],
+      "title": "StorylineSummary",
+      "type": "object"
+    },
+    "TextSegment": {
+      "additionalProperties": false,
+      "description": "A run of narrative prose.",
+      "properties": {
+        "kind": {
+          "const": "text",
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text"
+      ],
+      "title": "TextSegment",
+      "type": "object"
     },
     "TokenSpan": {
       "additionalProperties": false,
@@ -1167,6 +2456,170 @@
       ],
       "title": "UncertainSpan",
       "type": "object"
+    },
+    "WordCountBucket": {
+      "additionalProperties": false,
+      "description": "One histogram bucket of entry word counts.",
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "range_end": {
+          "type": "integer"
+        },
+        "range_start": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "range_start",
+        "range_end",
+        "count"
+      ],
+      "title": "WordCountBucket",
+      "type": "object"
+    },
+    "WordCountDistributionResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/dashboard/word-count-distribution`.",
+      "properties": {
+        "bucket_size": {
+          "type": "integer"
+        },
+        "buckets": {
+          "items": {
+            "$ref": "#/$defs/WordCountBucket"
+          },
+          "type": "array"
+        },
+        "from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stats": {
+          "$ref": "#/$defs/WordCountStats"
+        },
+        "to": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "bucket_size",
+        "buckets",
+        "stats"
+      ],
+      "title": "WordCountDistributionResponse",
+      "type": "object"
+    },
+    "WordCountStats": {
+      "additionalProperties": false,
+      "description": "Summary of entry word counts in the window (zeros when empty).",
+      "properties": {
+        "avg": {
+          "type": "number"
+        },
+        "max": {
+          "type": "integer"
+        },
+        "median": {
+          "type": "number"
+        },
+        "min": {
+          "type": "integer"
+        },
+        "total_entries": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "min",
+        "max",
+        "avg",
+        "median",
+        "total_entries"
+      ],
+      "title": "WordCountStats",
+      "type": "object"
+    },
+    "WritingFrequencyBin": {
+      "additionalProperties": false,
+      "description": "One non-empty bucket: `asdict(journal.models.WritingFrequencyBin)`.\n`bin_start` is the ISO date of the bucket's first day.",
+      "properties": {
+        "bin_start": {
+          "type": "string"
+        },
+        "entry_count": {
+          "type": "integer"
+        },
+        "total_words": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "bin_start",
+        "entry_count",
+        "total_words"
+      ],
+      "title": "WritingFrequencyBin",
+      "type": "object"
+    },
+    "WritingStatsResponse": {
+      "additionalProperties": false,
+      "description": "Body of `GET /api/dashboard/writing-stats`.\nEmpty buckets are omitted.",
+      "properties": {
+        "bin": {
+          "$ref": "#/$defs/DashboardBin"
+        },
+        "bins": {
+          "items": {
+            "$ref": "#/$defs/WritingFrequencyBin"
+          },
+          "type": "array"
+        },
+        "from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "to": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "bin",
+        "bins"
+      ],
+      "title": "WritingStatsResponse",
+      "type": "object"
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1176,11 +2629,44 @@
     "api_add_entity_alias": {
       "$ref": "#/$defs/Entity"
     },
+    "api_create_storyline": {
+      "$ref": "#/$defs/CreateStorylineResponse"
+    },
+    "api_dashboard_calendar_heatmap": {
+      "$ref": "#/$defs/CalendarHeatmapResponse"
+    },
+    "api_dashboard_entity_distribution": {
+      "$ref": "#/$defs/EntityDistributionResponse"
+    },
+    "api_dashboard_entity_trends": {
+      "$ref": "#/$defs/EntityTrendsResponse"
+    },
+    "api_dashboard_mood_dimensions": {
+      "$ref": "#/$defs/MoodDimensionsResponse"
+    },
+    "api_dashboard_mood_drilldown": {
+      "$ref": "#/$defs/MoodDrilldownResponse"
+    },
+    "api_dashboard_mood_entity_correlation": {
+      "$ref": "#/$defs/MoodEntityCorrelationResponse"
+    },
+    "api_dashboard_mood_trends": {
+      "$ref": "#/$defs/MoodTrendsResponse"
+    },
+    "api_dashboard_word_count_distribution": {
+      "$ref": "#/$defs/WordCountDistributionResponse"
+    },
+    "api_dashboard_writing_stats": {
+      "$ref": "#/$defs/WritingStatsResponse"
+    },
     "api_delete_entity": {
       "$ref": "#/$defs/EntityDeleteResponse"
     },
     "api_delete_entity_alias": {
       "$ref": "#/$defs/Entity"
+    },
+    "api_delete_storyline": {
+      "$ref": "#/$defs/StorylineDeleteResponse"
     },
     "api_entity_detail": {
       "$ref": "#/$defs/Entity"
@@ -1218,11 +2704,47 @@
     "api_list_jobs": {
       "$ref": "#/$defs/JobListResponse"
     },
+    "api_list_storylines": {
+      "$ref": "#/$defs/StorylineListResponse"
+    },
     "api_lookup_alias": {
       "$ref": "#/$defs/AliasLookupResponse"
     },
+    "api_read_storyline_chapter": {
+      "$ref": "#/$defs/ChapterMeta"
+    },
+    "api_refresh_storyline": {
+      "$ref": "#/$defs/StorylineJobResponse"
+    },
+    "api_rename_storyline_chapter": {
+      "$ref": "#/$defs/ChapterMeta"
+    },
+    "api_search": {
+      "$ref": "#/$defs/SearchResponse"
+    },
+    "api_search_answer": {
+      "$ref": "#/$defs/AnswerResponse"
+    },
+    "api_set_storyline_anchors": {
+      "$ref": "#/$defs/SetStorylineAnchorsResponse"
+    },
+    "api_storyline_chapter_detail": {
+      "$ref": "#/$defs/ChapterDetail"
+    },
+    "api_storyline_detail": {
+      "$ref": "#/$defs/StorylineDetail"
+    },
+    "api_unpublish_storyline_chapter": {
+      "$ref": "#/$defs/StorylineJobResponse"
+    },
+    "api_unread_storyline_chapter": {
+      "$ref": "#/$defs/ChapterMeta"
+    },
     "api_update_entity": {
       "$ref": "#/$defs/EntityUpdateResponse"
+    },
+    "api_update_storyline": {
+      "$ref": "#/$defs/StorylineSummary"
     },
     "api_verify_doubts": {
       "$ref": "#/$defs/EntryDetail"
@@ -1230,8 +2752,19 @@
   },
   "required": [
     "api_add_entity_alias",
+    "api_create_storyline",
+    "api_dashboard_calendar_heatmap",
+    "api_dashboard_entity_distribution",
+    "api_dashboard_entity_trends",
+    "api_dashboard_mood_dimensions",
+    "api_dashboard_mood_drilldown",
+    "api_dashboard_mood_entity_correlation",
+    "api_dashboard_mood_trends",
+    "api_dashboard_word_count_distribution",
+    "api_dashboard_writing_stats",
     "api_delete_entity",
     "api_delete_entity_alias",
+    "api_delete_storyline",
     "api_entity_detail",
     "api_entity_mentions",
     "api_entity_relationships",
@@ -1244,8 +2777,20 @@
     "api_list_entities",
     "api_list_entries",
     "api_list_jobs",
+    "api_list_storylines",
     "api_lookup_alias",
+    "api_read_storyline_chapter",
+    "api_refresh_storyline",
+    "api_rename_storyline_chapter",
+    "api_search",
+    "api_search_answer",
+    "api_set_storyline_anchors",
+    "api_storyline_chapter_detail",
+    "api_storyline_detail",
+    "api_unpublish_storyline_chapter",
+    "api_unread_storyline_chapter",
     "api_update_entity",
+    "api_update_storyline",
     "api_verify_doubts"
   ],
   "title": "JournalApi",

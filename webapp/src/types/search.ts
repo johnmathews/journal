@@ -1,49 +1,25 @@
+// Search types. The `/api/search` and `/api/search/answer` response shapes
+// are generated from the server's API contract
+// (server/src/journal/api/contract/schemas.py); request params stay
+// hand-written below.
+//
+// - `SearchResultItem.snippet` is an FTS5 excerpt with ASCII `\x02` (start)
+//   and `\x03` (end) around matched terms when BM25 contributed (see
+//   `src/utils/searchSnippet.ts` for the renderer); `matching_chunks` is
+//   filled when dense retrieval contributed. Either or both may be present.
+// - `SearchChunkMatch` offsets and `chunk_index` are null for entries
+//   ingested before chunk persistence shipped.
 import type { DateFilterParams, PaginationParams } from './entry'
+import type { SearchSort } from './generated/api'
 
-/**
- * One chunk within a matching entry. Mirrors the server's
- * `ChunkMatch` dataclass. Offsets and `chunk_index` are nullable
- * because entries ingested before chunk persistence shipped have no
- * `entry_chunks` rows to join against and the server returns `null`
- * for those fields.
- */
-export interface SearchChunkMatch {
-  text: string
-  score: number
-  chunk_index: number | null
-  char_start: number | null
-  char_end: number | null
-}
-
-/**
- * One entry in a hybrid search response.
- *
- * - `snippet` is populated when BM25 contributed to the match — it's
- *   a short FTS5 excerpt with ASCII `\x02` (start) and `\x03` (end)
- *   control characters wrapping matched terms (see
- *   `src/utils/searchSnippet.ts` for the renderer).
- * - `matching_chunks` is populated when dense (embedding) retrieval
- *   contributed, sorted by chunk similarity descending.
- *
- * Either or both may be present per item — a result that both
- * retrievers found will carry both signals.
- */
-export interface SearchResultItem {
-  entry_id: number
-  entry_date: string
-  text: string
-  score: number
-  snippet: string | null
-  matching_chunks: SearchChunkMatch[]
-}
-
-/**
- * Result ordering. `relevance` (default) preserves the server's L2
- * rerank score order. The two date sorts apply across the full
- * reranked candidate set before pagination, so ordering is stable
- * across pages.
- */
-export type SearchSort = 'relevance' | 'date_desc' | 'date_asc'
+export type {
+  AnswerCitation,
+  AnswerResponse,
+  SearchChunkMatch,
+  SearchResponse,
+  SearchResultItem,
+  SearchSort,
+} from './generated/api'
 
 export interface SearchRequestParams
   extends PaginationParams, DateFilterParams {
@@ -51,47 +27,7 @@ export interface SearchRequestParams
   sort?: SearchSort
 }
 
-export interface SearchResponse {
-  query: string
-  limit: number
-  offset: number
-  sort: SearchSort
-  /**
-   * Class name of the active L2 reranker on the server (e.g.
-   * `AnthropicReranker`, `NoopReranker`). Useful for debugging and
-   * cache busting.
-   */
-  reranker: string
-  items: SearchResultItem[]
-}
-
 /** Request body for the opt-in answer-synthesis endpoint. */
 export interface AnswerRequestParams extends DateFilterParams {
   q: string
-}
-
-/** One cited entry backing a synthesized answer. */
-export interface AnswerCitation {
-  entry_id: number
-  entry_date: string
-  snippet: string
-}
-
-/**
- * Response from `POST /api/search/answer`. `answered` is false (with a
- * fixed "couldn't find" message in `answer`) when the journal doesn't
- * cover the question.
- */
-export interface AnswerResponse {
-  question: string
-  answer: string
-  answered: boolean
-  /**
-   * Whether the server classified the query as an answerable question.
-   * `false` means it was a plain keyword search — `answer` is empty and
-   * the client shows no answer tile.
-   */
-  is_question: boolean
-  citations: AnswerCitation[]
-  model: string
 }

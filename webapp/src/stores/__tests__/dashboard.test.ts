@@ -244,7 +244,10 @@ describe('useDashboardStore — mood surface', () => {
   })
 
   it('loadMoodDimensions populates state and flips the enabled flag', async () => {
-    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    mockMoodDims.mockResolvedValue({
+      dimensions: fakeDimensions,
+      meta: { version: '', description: '' },
+    })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
     expect(store.moodDimensions).toHaveLength(3)
@@ -261,7 +264,10 @@ describe('useDashboardStore — mood surface', () => {
       { ...fakeDimensions[0], name: 'proactive_reactive' },
       { ...fakeDimensions[0], name: 'fulfillment' },
     ]
-    mockMoodDims.mockResolvedValue({ dimensions: dims })
+    mockMoodDims.mockResolvedValue({
+      dimensions: dims,
+      meta: { version: '', description: '' },
+    })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
     // Only the affect group's defaultSelected subset should be preselected —
@@ -278,7 +284,10 @@ describe('useDashboardStore — mood surface', () => {
   })
 
   it('loadMoodDimensions ends with empty selection when response.dimensions is empty', async () => {
-    mockMoodDims.mockResolvedValue({ dimensions: [] })
+    mockMoodDims.mockResolvedValue({
+      dimensions: [],
+      meta: { version: '', description: '' },
+    })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
     expect(store.selectedMoodDimensions.size).toBe(0)
@@ -290,6 +299,7 @@ describe('useDashboardStore — mood surface', () => {
         { ...fakeDimensions[2], name: 'agency' },
         { ...fakeDimensions[0], name: 'fulfillment' },
       ],
+      meta: { version: '', description: '' },
     })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
@@ -305,6 +315,7 @@ describe('useDashboardStore — mood surface', () => {
         { ...fakeDimensions[0], name: 'joy_sadness' },
         { ...fakeDimensions[2], name: 'agency' },
       ],
+      meta: { version: '', description: '' },
     })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
@@ -312,7 +323,10 @@ describe('useDashboardStore — mood surface', () => {
   })
 
   it('loadMoodDimensions does not reapply defaults on subsequent calls', async () => {
-    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    mockMoodDims.mockResolvedValue({
+      dimensions: fakeDimensions,
+      meta: { version: '', description: '' },
+    })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
     // User clears the selection (show all).
@@ -380,7 +394,10 @@ describe('useDashboardStore — mood surface', () => {
   })
 
   it('toggleMoodDimension flips a single dimension independently', async () => {
-    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    mockMoodDims.mockResolvedValue({
+      dimensions: fakeDimensions,
+      meta: { version: '', description: '' },
+    })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
     // Default selection is the affect group's defaultSelected subset
@@ -404,7 +421,10 @@ describe('useDashboardStore — mood surface', () => {
   })
 
   it('toggleMoodDimension supports any subset', async () => {
-    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    mockMoodDims.mockResolvedValue({
+      dimensions: fakeDimensions,
+      meta: { version: '', description: '' },
+    })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
     store.showAllMoodDimensions()
@@ -419,7 +439,10 @@ describe('useDashboardStore — mood surface', () => {
   })
 
   it('toggleMoodDimension creates a new Set so Vue reactivity fires', async () => {
-    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    mockMoodDims.mockResolvedValue({
+      dimensions: fakeDimensions,
+      meta: { version: '', description: '' },
+    })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
     const before = store.selectedMoodDimensions
@@ -431,7 +454,10 @@ describe('useDashboardStore — mood surface', () => {
   })
 
   it('deselecting the last selected dimension falls back to show-all (Bug A regression)', async () => {
-    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    mockMoodDims.mockResolvedValue({
+      dimensions: fakeDimensions,
+      meta: { version: '', description: '' },
+    })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
     // Default selection is the affect defaultSelected subset (two members).
@@ -447,7 +473,10 @@ describe('useDashboardStore — mood surface', () => {
   })
 
   it('showAllMoodDimensions clears the selection', async () => {
-    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    mockMoodDims.mockResolvedValue({
+      dimensions: fakeDimensions,
+      meta: { version: '', description: '' },
+    })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
     expect(store.selectedMoodDimensions.size).toBeGreaterThan(0)
@@ -458,7 +487,10 @@ describe('useDashboardStore — mood surface', () => {
   })
 
   it('moodGroupSelectionState reports tristate correctly', async () => {
-    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    mockMoodDims.mockResolvedValue({
+      dimensions: fakeDimensions,
+      meta: { version: '', description: '' },
+    })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
     // Default selection: affect defaultSelected (joy_sadness + physical_fatigue).
@@ -473,7 +505,10 @@ describe('useDashboardStore — mood surface', () => {
   })
 
   it('toggleMoodGroup adds all when none selected, removes all when any selected', async () => {
-    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    mockMoodDims.mockResolvedValue({
+      dimensions: fakeDimensions,
+      meta: { version: '', description: '' },
+    })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
     store.showAllMoodDimensions()
@@ -495,7 +530,10 @@ describe('useDashboardStore — mood surface', () => {
   })
 
   it('toggleMoodGroup creates a new Set so Vue reactivity fires', async () => {
-    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    mockMoodDims.mockResolvedValue({
+      dimensions: fakeDimensions,
+      meta: { version: '', description: '' },
+    })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
     const before = store.selectedMoodDimensions
@@ -504,7 +542,10 @@ describe('useDashboardStore — mood surface', () => {
   })
 
   it('toggleMoodGroup is a no-op for an empty member list', async () => {
-    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    mockMoodDims.mockResolvedValue({
+      dimensions: fakeDimensions,
+      meta: { version: '', description: '' },
+    })
     const store = useDashboardStore()
     await store.loadMoodDimensions()
     const before = store.selectedMoodDimensions
@@ -513,7 +554,10 @@ describe('useDashboardStore — mood surface', () => {
   })
 
   it('reset wipes mood state back to defaults', async () => {
-    mockMoodDims.mockResolvedValue({ dimensions: fakeDimensions })
+    mockMoodDims.mockResolvedValue({
+      dimensions: fakeDimensions,
+      meta: { version: '', description: '' },
+    })
     mockMoodTrends.mockResolvedValue({
       from: null,
       to: null,

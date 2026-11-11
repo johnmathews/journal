@@ -480,6 +480,7 @@ describe('DashboardView — mood chart', () => {
     })
     vi.mocked(fetchMoodDimensions).mockResolvedValue({
       dimensions: fakeDimensions,
+      meta: { version: '', description: '' },
     })
     vi.mocked(fetchMoodTrends).mockResolvedValue({
       from: null,
@@ -528,7 +529,10 @@ describe('DashboardView — mood chart', () => {
       bin: 'week',
       bins: manyWritingBins,
     })
-    vi.mocked(fetchMoodDimensions).mockResolvedValue({ dimensions: [] })
+    vi.mocked(fetchMoodDimensions).mockResolvedValue({
+      dimensions: [],
+      meta: { version: '', description: '' },
+    })
     const wrapper = mountView()
     await flushPromises()
     expect(
@@ -765,6 +769,7 @@ describe('DashboardView — mood-entity correlation', () => {
     })
     vi.mocked(fetchMoodDimensions).mockResolvedValue({
       dimensions: fakeDimensions,
+      meta: { version: '', description: '' },
     })
     vi.mocked(fetchMoodTrends).mockResolvedValue({
       from: null,
@@ -830,7 +835,10 @@ describe('DashboardView — mood-entity correlation', () => {
       bin: 'week',
       bins: manyWritingBins,
     })
-    vi.mocked(fetchMoodDimensions).mockResolvedValue({ dimensions: [] })
+    vi.mocked(fetchMoodDimensions).mockResolvedValue({
+      dimensions: [],
+      meta: { version: '', description: '' },
+    })
     const wrapper = mountView()
     await flushPromises()
     expect(
