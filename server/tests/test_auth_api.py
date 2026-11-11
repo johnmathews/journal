@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from starlette.testclient import TestClient
 
 from journal.auth import build_auth_middleware_stack
 from journal.config import Config
@@ -14,11 +13,14 @@ from journal.db.factory import ConnectionFactory
 from journal.db.migrations import run_migrations
 from journal.db.user_repository import SQLiteUserRepository
 from journal.services.auth import AuthService
+from tests.contract_check import ContractTestClient
 
 if TYPE_CHECKING:
     import sqlite3
     from collections.abc import Generator
     from pathlib import Path
+
+    from starlette.testclient import TestClient
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -194,7 +196,7 @@ def client(services: dict, auth_service: AuthService) -> Generator[TestClient]:
     # Wrap with auth middleware so get_authenticated_user() works
     app = build_auth_middleware_stack(inner_app, auth_service)
 
-    with TestClient(app, raise_server_exceptions=False) as tc:
+    with ContractTestClient(app, raise_server_exceptions=False) as tc:
         yield tc
 
 
@@ -1216,7 +1218,7 @@ class TestServicesUnavailable:
         register_auth_routes(test_mcp, lambda: None)
         app = test_mcp.streamable_http_app()
 
-        with TestClient(app, raise_server_exceptions=False) as tc:
+        with ContractTestClient(app, raise_server_exceptions=False) as tc:
             resp = tc.post(
                 "/api/auth/login",
                 json={"email": "a@b.com", "password": "test"},

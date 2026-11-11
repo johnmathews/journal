@@ -11,15 +11,16 @@ from unittest.mock import MagicMock
 
 import pytest
 from starlette.responses import JSONResponse
-from starlette.testclient import TestClient
 
 from journal.ratelimit import (
     RATE_LIMITED_AUTH_PATHS,
     AuthRateLimitMiddleware,
     FixedWindowRateLimiter,
 )
+from tests.contract_check import ContractTestClient
 
 if TYPE_CHECKING:
+    from starlette.testclient import TestClient
     from starlette.types import Receive, Scope, Send
 
 
@@ -38,7 +39,7 @@ async def _ok_app(scope: Scope, receive: Receive, send: Send) -> None:
 
 
 def _client(limiter: FixedWindowRateLimiter) -> TestClient:
-    return TestClient(
+    return ContractTestClient(
         AuthRateLimitMiddleware(_ok_app, limiter),
         raise_server_exceptions=False,
     )
@@ -188,7 +189,7 @@ class TestMiddlewareStackWiring:
         app = build_auth_middleware_stack(
             _ok_app, auth_service, rate_limiter=limiter
         )
-        with TestClient(app, raise_server_exceptions=False) as tc:
+        with ContractTestClient(app, raise_server_exceptions=False) as tc:
             assert tc.post("/api/auth/login", json={}).status_code == 200
             assert tc.post("/api/auth/login", json={}).status_code == 200
             resp = tc.post("/api/auth/login", json={})
@@ -203,6 +204,6 @@ class TestMiddlewareStackWiring:
         from journal.auth import build_auth_middleware_stack
 
         app = build_auth_middleware_stack(_ok_app, auth_service)
-        with TestClient(app, raise_server_exceptions=False) as tc:
+        with ContractTestClient(app, raise_server_exceptions=False) as tc:
             for _ in range(25):
                 assert tc.post("/api/auth/login", json={}).status_code == 200

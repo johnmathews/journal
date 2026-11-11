@@ -29,7 +29,6 @@ from garminconnect import (
     GarminConnectConnectionError,
     GarminConnectTooManyRequestsError,
 )
-from starlette.testclient import TestClient
 
 from journal.auth import AuthenticatedUser, _current_user_id
 from journal.db.factory import ConnectionFactory
@@ -46,9 +45,12 @@ from journal.services.fitness.garmin_pending import (
     GarminPendingStore,
     GarminUpstreamCooldown,
 )
+from tests.contract_check import ContractTestClient
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from starlette.testclient import TestClient
 
 
 # ── Fake Garmin client ──────────────────────────────────────────────
@@ -246,7 +248,7 @@ def _build_client(services: dict, *, user_id: int = 1) -> TestClient:
     test_mcp = FastMCP(f"test-garmin-auth-user-{user_id}")
     register_api_routes(test_mcp, lambda: services)
     app = _UserAuthMiddleware(test_mcp.streamable_http_app(), user_id=user_id)
-    return TestClient(app, raise_server_exceptions=False)
+    return ContractTestClient(app, raise_server_exceptions=False)
 
 
 # ── Tests: connect (no MFA path) ─────────────────────────────────────

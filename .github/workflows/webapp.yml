@@ -46,6 +46,8 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run test:coverage
+      # Fails when src/types/generated/api.ts is stale against contract/api.schema.json.
+      - run: npm run contract:check
       - run: npm run build
 
       - name: Upload coverage report

@@ -18,6 +18,7 @@ from journal.db.user_repository import SQLiteUserRepository
 from journal.entitystore.store import SQLiteEntityStore
 from journal.services.ingestion import IngestionService
 from journal.services.query import QueryService
+from tests.contract_check import ContractTestClient
 
 _TEST_USER_ID = 1
 
@@ -144,7 +145,7 @@ def client(services: dict) -> Generator[TestClient]:
     # Build the Starlette app
     app = _FakeAuthMiddleware(test_mcp.streamable_http_app())
 
-    with TestClient(app, raise_server_exceptions=False) as tc:
+    with ContractTestClient(app, raise_server_exceptions=False) as tc:
         yield tc
 
 
@@ -1074,7 +1075,7 @@ class TestSearch:
         test_mcp = FastMCP("test-journal")
         register_api_routes(test_mcp, lambda: services)
         app = _FakeAuthMiddleware(test_mcp.streamable_http_app())
-        with TestClient(app, raise_server_exceptions=False) as tc:
+        with ContractTestClient(app, raise_server_exceptions=False) as tc:
             yield tc, real_vector_store
 
     def test_search_missing_query(self, client: TestClient) -> None:
@@ -1434,7 +1435,7 @@ class TestDashboardMoodDimensions:
         test_mcp = FastMCP("test-journal")
         register_api_routes(test_mcp, lambda: services)
         app = _FakeAuthMiddleware(test_mcp.streamable_http_app())
-        with TestClient(app, raise_server_exceptions=False) as tc:
+        with ContractTestClient(app, raise_server_exceptions=False) as tc:
             yield tc, services
 
     def test_mood_dimensions_returns_full_shape(
@@ -1503,7 +1504,7 @@ class TestDashboardMoodDimensions:
         services = {"ingestion": ingestion, "query": query}
         test_mcp = FastMCP("test-journal")
         register_api_routes(test_mcp, lambda: services)
-        with TestClient(
+        with ContractTestClient(
             _FakeAuthMiddleware(test_mcp.streamable_http_app()),
             raise_server_exceptions=False,
         ) as tc:
@@ -1571,7 +1572,7 @@ class TestDashboardMoodTrends:
 
         test_mcp = FastMCP("test-journal")
         register_api_routes(test_mcp, lambda: None)
-        with TestClient(
+        with ContractTestClient(
             _FakeAuthMiddleware(test_mcp.streamable_http_app()),
             raise_server_exceptions=False,
         ) as tc:
@@ -1633,7 +1634,7 @@ class TestHealth:
         test_mcp = FastMCP("test-journal")
         register_api_routes(test_mcp, lambda: services)
         app = _FakeAuthMiddleware(test_mcp.streamable_http_app())
-        with TestClient(app, raise_server_exceptions=False) as tc:
+        with ContractTestClient(app, raise_server_exceptions=False) as tc:
             yield tc, services
 
     def test_health_empty_server(
@@ -1742,7 +1743,7 @@ class TestHealth:
         test_mcp = FastMCP("test-journal")
         register_api_routes(test_mcp, lambda: services)
         app = _FakeAuthMiddleware(test_mcp.streamable_http_app())
-        with TestClient(app, raise_server_exceptions=False) as tc:
+        with ContractTestClient(app, raise_server_exceptions=False) as tc:
             resp = tc.get("/health")
             assert resp.status_code == 200
             data = resp.json()
@@ -1758,7 +1759,7 @@ class TestHealth:
 
         test_mcp = FastMCP("test-journal")
         register_api_routes(test_mcp, lambda: None)
-        with TestClient(
+        with ContractTestClient(
             _FakeAuthMiddleware(test_mcp.streamable_http_app()),
             raise_server_exceptions=False,
         ) as tc:
@@ -1844,7 +1845,7 @@ class TestApiHealthFitness:
         test_mcp = FastMCP("test-journal")
         register_api_routes(test_mcp, lambda: services)
         app = _FakeAuthMiddleware(test_mcp.streamable_http_app())
-        with TestClient(app, raise_server_exceptions=False) as tc:
+        with ContractTestClient(app, raise_server_exceptions=False) as tc:
             yield tc, services, fitness_repo
 
     def test_unauth_health_omits_fitness_block_even_when_configured(
@@ -2040,7 +2041,7 @@ class TestApiHealthFitness:
         test_mcp = FastMCP("test-journal")
         register_api_routes(test_mcp, lambda: services)
         app = _FakeAuthMiddleware(test_mcp.streamable_http_app())
-        with TestClient(app, raise_server_exceptions=False) as tc:
+        with ContractTestClient(app, raise_server_exceptions=False) as tc:
             data = tc.get("/api/health").json()
         assert data["status"] == "degraded"
 
@@ -2217,7 +2218,7 @@ class TestDashboardWritingStats:
 
         test_mcp = FastMCP("test-journal")
         register_api_routes(test_mcp, lambda: None)
-        with TestClient(
+        with ContractTestClient(
             _FakeAuthMiddleware(test_mcp.streamable_http_app()),
             raise_server_exceptions=False,
         ) as tc:
@@ -3248,7 +3249,7 @@ def non_admin_client(services: dict) -> Generator[TestClient]:
     test_mcp = FastMCP("test-journal")
     register_api_routes(test_mcp, lambda: services)
     app = _FakeNonAdminMiddleware(test_mcp.streamable_http_app())
-    with TestClient(app, raise_server_exceptions=False) as tc:
+    with ContractTestClient(app, raise_server_exceptions=False) as tc:
         yield tc
 
 

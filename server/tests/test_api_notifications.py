@@ -24,14 +24,16 @@ from unittest.mock import MagicMock, call
 
 import pytest
 from mcp.server.fastmcp import FastMCP
-from starlette.testclient import TestClient
 
 from journal.api.notifications import register_notifications_routes
 from journal.auth import AuthenticatedUser, _current_user_id
 from journal.services.notifications import NotificationResult
+from tests.contract_check import ContractTestClient
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from starlette.testclient import TestClient
 
 _TEST_USER_ID = 1
 
@@ -76,7 +78,7 @@ def _make_client(
     register_notifications_routes(mcp, services_getter)
     middleware = _FakeAdminAuthMiddleware if is_admin else _FakeAuthMiddleware
     app = middleware(mcp.streamable_http_app())
-    return TestClient(app, raise_server_exceptions=False)
+    return ContractTestClient(app, raise_server_exceptions=False)
 
 
 @pytest.fixture

@@ -24,6 +24,7 @@ from journal.services.chunking import FixedTokenChunker
 from journal.services.ingestion import IngestionService
 from journal.services.jobs import JobRunner
 from journal.services.query import QueryService
+from tests.contract_check import ContractTestClient
 
 _TEST_USER_ID = 1
 
@@ -151,7 +152,7 @@ def client(services: dict) -> Generator[TestClient]:
     test_mcp = FastMCP("test-journal")
     register_api_routes(test_mcp, lambda: services)
     app = _FakeAuthMiddleware(test_mcp.streamable_http_app())
-    with TestClient(app, raise_server_exceptions=False) as tc:
+    with ContractTestClient(app, raise_server_exceptions=False) as tc:
         yield tc
 
 
@@ -592,7 +593,7 @@ class TestApiIngestWithFactory:
         test_mcp = FastMCP("test-journal")
         register_api_routes(test_mcp, lambda: factory_services)
         app = _FakeAuthMiddleware(test_mcp.streamable_http_app())
-        with TestClient(app, raise_server_exceptions=False) as tc:
+        with ContractTestClient(app, raise_server_exceptions=False) as tc:
             yield tc
 
     def test_audio_endpoint_works_with_default_factory(

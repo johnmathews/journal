@@ -16,6 +16,7 @@ from journal.db.user_repository import SQLiteUserRepository
 from journal.entitystore.store import SQLiteEntityStore
 from journal.services.ingestion import IngestionService
 from journal.services.query import QueryService
+from tests.contract_check import ContractTestClient
 
 _TEST_USER_ID = 1
 
@@ -135,7 +136,7 @@ def client(services: dict) -> Generator[TestClient]:
 
     app = _FakeAuthMiddleware(test_mcp.streamable_http_app())
 
-    with TestClient(app, raise_server_exceptions=False) as tc:
+    with ContractTestClient(app, raise_server_exceptions=False) as tc:
         yield tc
 
 

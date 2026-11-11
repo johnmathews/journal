@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from mcp.server.fastmcp import FastMCP
-from starlette.testclient import TestClient
 
 from journal.api.conversations import register_conversations_routes
 from journal.auth import AuthenticatedUser, _current_user_id
@@ -22,10 +21,13 @@ from journal.services.conversations.handlers import (
     TemporalHandler,
     TrendHandler,
 )
+from tests.contract_check import ContractTestClient
 
 if TYPE_CHECKING:
     from collections.abc import Generator
     from pathlib import Path
+
+    from starlette.testclient import TestClient
 
 _TEST_USER_ID = 1
 
@@ -101,7 +103,7 @@ def _make_client(
     register_conversations_routes(mcp, lambda: services)
     app = mcp.streamable_http_app()
     app.add_middleware(_FakeAuthMiddleware)
-    return TestClient(app), svc, factory
+    return ContractTestClient(app), svc, factory
 
 
 @pytest.fixture
@@ -225,6 +227,6 @@ def test_service_unwired_is_503() -> None:
     register_conversations_routes(mcp, lambda: {})
     app = mcp.streamable_http_app()
     app.add_middleware(_FakeAuthMiddleware)
-    client = TestClient(app)
+    client = ContractTestClient(app)
     resp = client.get("/api/conversations")
     assert resp.status_code == 503
