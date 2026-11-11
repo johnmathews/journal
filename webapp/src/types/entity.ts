@@ -1,6 +1,6 @@
 // Types for the entity-tracking feature. Mirrors the server-side
-// shapes in journal-server/src/journal/entitystore/store.py and
-// journal-server/src/journal/models.py.
+// shapes in server/src/journal/entitystore/store.py and
+// server/src/journal/models.py.
 
 export type EntityType =
   | 'person'

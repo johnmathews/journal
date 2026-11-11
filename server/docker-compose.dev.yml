@@ -1,10 +1,10 @@
 # Local development: runs ChromaDB only.
-# The journal-server and webapp run natively.
+# The server and webapp run natively.
 #
 # Usage:
 #   docker compose -f docker-compose.dev.yml up -d
 #   uv run python -m journal.mcp_server          # backend on :8400
-#   cd ../journal-webapp && npm run dev           # frontend on :5173
+#   cd ../webapp && npm run dev                   # frontend on :5173
 
 services:
   journal-chromadb:

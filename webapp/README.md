@@ -1,6 +1,6 @@
 # Journal Webapp
 
-Web frontend for the [Journal Analysis Tool](https://github.com/johnmathews/journal-server) — a personal journal
+Web frontend for the [Journal Analysis Tool](https://github.com/johnmathews/journal) — a personal journal
 insight engine that ingests handwritten pages (OCR) and voice notes (transcription), then lets you browse, correct,
 search, and analyze your journal entries.
 
@@ -69,7 +69,8 @@ and admin roles. API key management for programmatic access.
 
 ## Running Locally
 
-Three services need to run: ChromaDB (vector database), journal-server (API), and the webapp (frontend).
+Three services need to run: ChromaDB (vector database), the server (API, in `../server`), and the webapp (frontend).
+The commands below start from `webapp/`.
 
 ### Prerequisites
 
@@ -79,10 +80,10 @@ Three services need to run: ChromaDB (vector database), journal-server (API), an
 
 ### 1. Create environment files
 
-**journal-server/.env** (copy from `.env.example`):
+**server/.env** (copy from `.env.example`):
 
 ```bash
-cd ../journal-server
+cd ../server
 cp .env.example .env
 ```
 
@@ -100,7 +101,7 @@ API_CORS_ORIGINS=http://localhost:5173
 
 Real API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are only needed for ingestion — not for browsing seeded data.
 
-**journal-webapp/.env.local** (copy from `.env.example`):
+**webapp/.env.local** (copy from `.env.example`):
 
 ```bash
 cp .env.example .env.local
@@ -113,14 +114,14 @@ Leave `VITE_API_URL` blank — the Vite dev server proxies `/api/*` to `localhos
 **Terminal 1 — ChromaDB:**
 
 ```bash
-cd ../journal-server
+cd ../server
 docker compose -f docker-compose.dev.yml up -d
 ```
 
 **Terminal 2 — Journal Server (port 8400):**
 
 ```bash
-cd ../journal-server
+cd ../server
 uv sync
 uv run journal seed   # populate sample data (no API keys needed)
 set -a && source .env && set +a && uv run python -m journal.mcp_server
@@ -151,7 +152,7 @@ curl -s -X POST http://localhost:8400/api/auth/register \
   -d '{"email":"test@test.com","password":"testpass123","display_name":"Bilbo"}'
 
 # Promote to admin, verify email, and reassign entries
-sqlite3 ../journal-server/journal.db \
+sqlite3 ../server/journal.db \
   "UPDATE users SET is_admin=1, email_verified=1 WHERE email='test@test.com';
    UPDATE entries SET user_id = (SELECT id FROM users WHERE email='test@test.com');"
 ```
@@ -177,6 +178,8 @@ See [docs/development.md](docs/development.md) for detailed development guide.
 See [docs/architecture.md](docs/architecture.md) for technical architecture and conventions.
 
 See [docs/deployment.md](docs/deployment.md) for Docker, nginx, and production deployment.
+
+Commit SHAs and PR numbers dated before 2026-11-11 refer to the archived repos `johnmathews/journal-server` and `johnmathews/journal-webapp`.
 
 ## Docker (production)
 
@@ -204,4 +207,4 @@ src/
 
 ## Related
 
-- [journal-server](https://github.com/johnmathews/journal-server) — Python backend (REST API + MCP server + CLI)
+- [server](../server) — Python backend (REST API + MCP server + CLI), in the same repo

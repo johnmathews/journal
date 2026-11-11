@@ -316,7 +316,7 @@ The webapp never connects to the MCP protocol. MCP is for LLM clients (Claude, N
 ### Display contract: the DB is the single source of truth
 
 Entity `canonical_name` and aliases are normalised on the **server** at write time
-(see journal-server's `services/entity_naming.py` and `config/entity-casing-exceptions.toml`).
+(see `server/src/journal/services/entity_naming.py` and `server/config/entity-casing-exceptions.toml`).
 The webapp renders these strings **verbatim** — there is intentionally no client-side
 title-caser. If two views ever disagree about how an entity is displayed, that is a bug:
 both views read the same column from the same row, so the rendered string must match.

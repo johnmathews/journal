@@ -47,7 +47,7 @@ you've seen. Bold the name so the markdown stripper for the Whisper prompt keeps
 ```markdown
 # Topics
 
-- **journal-server** — Python backend in this monorepo
+- **journal** — this monorepo: Python backend in `server/`, Vue webapp in `webapp/`
 - **dual-pass OCR** — Anthropic + Gemini reconciliation strategy
 - **HRV** — heart-rate variability
 ```

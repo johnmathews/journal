@@ -30,7 +30,7 @@ function buildQuery(
 
 /**
  * Fetch per-bucket writing frequency + word count from the
- * journal-server dashboard endpoint. Throws `ApiRequestError`
+ * server's dashboard endpoint. Throws `ApiRequestError`
  * on 4xx/5xx — the store surfaces the server-supplied message
  * directly to the user (notably `invalid_bin` / 400 for an
  * unsupported granularity, which should only happen if the

@@ -1,5 +1,5 @@
 // Types for async background jobs. Mirrors the server-side shape in
-// journal-server/src/journal/models.py (Job dataclass) and the
+// server/src/journal/models.py (Job dataclass) and the
 // /api/jobs/{id} REST response.
 //
 // Field names are snake_case on purpose to match the wire format. The

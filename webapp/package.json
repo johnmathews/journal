@@ -17,15 +17,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/johnmathews/journal-webapp.git"
+    "url": "git+https://github.com/johnmathews/journal.git",
+    "directory": "webapp"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/johnmathews/journal-webapp/issues"
+    "url": "https://github.com/johnmathews/journal/issues"
   },
-  "homepage": "https://github.com/johnmathews/journal-webapp#readme",
+  "homepage": "https://github.com/johnmathews/journal/tree/main/webapp#readme",
   "dependencies": {
     "@types/diff-match-patch": "^1.0.36",
     "@vueuse/core": "^12.5.0",

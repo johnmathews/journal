@@ -2,7 +2,7 @@
 
 **Status:** active reference. Last updated 2026-07-12 (draft/published reader
 redesign — see the server spec
-`journal-server/docs/superpowers/specs/2026-07-12-storylines-redesign-design.md`).
+`server/docs/superpowers/specs/2026-07-12-storylines-redesign-design.md`).
 
 A storyline is an entity-anchored, AI-synthesized narrative about a recurring
 thread in the journal, split into **chapters**. Published chapters are
@@ -97,8 +97,8 @@ then clears the chapter cache and reloads detail + list.
 `updateStoryline`, `deleteStoryline`, `setStorylineAnchors`,
 `refreshStoryline`, `unpublishNewest`, `markChapterRead`,
 `markChapterUnread`, `renameChapter`. Types in `src/types/storyline.ts`
-mirror the server serializers in `journal-server`
-`src/journal/api/storylines.py` exactly.
+mirror the server serializers in
+`server/src/journal/api/storylines.py` exactly.
 
 ## Tests
 

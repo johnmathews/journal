@@ -102,7 +102,7 @@ the top of the linked doc tells you whether it's active, closed, or superseded.
   reference docs for the hybrid search and multi-provider transcription stacks (both shipped
   2026-05-01).
 
-Scope is cross-cutting: some items are pure backend (`journal-server`), some pure frontend (`journal-webapp`), many touch
+Scope is cross-cutting: some items are pure backend (`server/`), some pure frontend (`webapp/`), many touch
 both. Each item is tagged with `[server]`, `[webapp]`, or `[both]`.
 
 ---
@@ -204,7 +204,7 @@ diff-vs-current display and optional regenerate on save).
 ### 3. Entity graph visualization view `[webapp]`
 
 New `/graph` route using **Cytoscape.js** (library bake-off already happened — see
-`journal-webapp/journal/260411-auth-header-overlay-cache-entity-views.md`). Renders the entity-and-relationship graph as
+`webapp/journal/260411-auth-header-overlay-cache-entity-views.md`). Renders the entity-and-relationship graph as
 an interactive force- directed layout.
 
 **Features**
@@ -273,7 +273,7 @@ Audio player alongside transcript in `EntryDetailView` for voice entries. Needs:
 2. Frontend `<audio>` element with transcript scrubbing (timestamp markers if Whisper gave us word-level timestamps,
    otherwise simple playback).
 
-**Source:** `journal-webapp/docs/archive/future-features.md` "Phase 4".
+**Source:** `webapp/docs/archive/future-features.md` "Phase 4".
 
 ---
 
@@ -282,7 +282,7 @@ Audio player alongside transcript in `EntryDetailView` for voice entries. Needs:
 Export entries (or a filtered subset) to Markdown, PDF, or JSON. `GET /api/export?format=markdown&from=...&to=...` with
 server-side rendering. Button on `EntryListView` above the filtered list.
 
-**Source:** `journal-webapp/docs/archive/future-features.md` "Phase 5".
+**Source:** `webapp/docs/archive/future-features.md` "Phase 5".
 
 ---
 
@@ -313,7 +313,7 @@ that maps free-text predicates to a canonical set — keeps the graph queryable.
 then cluster.
 
 **Source:** `docs/entity-tracking.md` "Known risks",
-`journal-server/journal/260411-security-ocr-context-entity-tracking.md` "Deferred to a future session".
+`server/journal/260411-security-ocr-context-entity-tracking.md` "Deferred to a future session".
 
 ---
 
@@ -326,7 +326,7 @@ contributes nothing to the graph.
 **Approach:** most likely a second LLM pass over the entry that's given the already-extracted entity list and asked to
 fill in pronoun references. Expensive if done every run; cheap if done only as part of `extract-entities --stale-only`.
 
-**Source:** `journal-server/journal/260411-security-ocr-context-entity-tracking.md` "Deferred to a future session".
+**Source:** `server/journal/260411-security-ocr-context-entity-tracking.md` "Deferred to a future session".
 
 ---
 
@@ -439,7 +439,7 @@ Now that auto-reextraction-on-save shipped (Closed item 23), the stale-chips con
 likely to surface as a real UX bug rather than a benign display lag. Worth revisiting — promote
 to Tier 2 if the user observes it.
 
-**Source:** `journal-webapp/journal/260411-auth-header-overlay-cache-entity-views.md` "Risks and known gaps".
+**Source:** `webapp/journal/260411-auth-header-overlay-cache-entity-views.md` "Risks and known gaps".
 
 ---
 
@@ -448,7 +448,7 @@ to Tier 2 if the user observes it.
 If you click an entity, view its detail, then hit back to `/entities`, you land on page 1 not the page you came from.
 Minor UX — fix is to persist `currentParams.offset` across mount cycles or via route query params.
 
-**Source:** `journal-webapp/journal/260411-auth-header-overlay-cache-entity-views.md` "Risks and known gaps".
+**Source:** `webapp/journal/260411-auth-header-overlay-cache-entity-views.md` "Risks and known gaps".
 
 ---
 
@@ -457,7 +457,7 @@ Minor UX — fix is to persist `currentParams.offset` across mount cycles or via
 Anthropic and OpenAI data retention is a policy discussion, not a code change. Signing a ZDR addendum removes
 provider-side retention as a privacy concern for journal content.
 
-**Source:** `docs/security.md`; `journal-server/journal/260411-security-ocr-context-entity-tracking.md`.
+**Source:** `docs/security.md`; `server/journal/260411-security-ocr-context-entity-tracking.md`.
 
 ---
 
@@ -467,7 +467,7 @@ The server currently binds to `127.0.0.1:8400` per the 2026-04-11 security harde
 the VM terminates TLS and fronts the server when exposing it beyond loopback. Out of scope for the codebase; a deployment
 concern.
 
-**Source:** `journal-server/journal/260411-security-ocr-context-entity-tracking.md` "Deferred to a future session".
+**Source:** `server/journal/260411-security-ocr-context-entity-tracking.md` "Deferred to a future session".
 
 ---
 
@@ -476,7 +476,7 @@ concern.
 `/srv/media/config/journal` (SQLite DB, ChromaDB data, any source images/audio) should be backed up with encryption at
 rest to protect against disk loss. Out of scope for the codebase.
 
-**Source:** `journal-server/journal/260411-security-ocr-context-entity-tracking.md` "Deferred to a future session".
+**Source:** `server/journal/260411-security-ocr-context-entity-tracking.md` "Deferred to a future session".
 
 ---
 

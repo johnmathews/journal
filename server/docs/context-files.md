@@ -16,7 +16,7 @@ A single set of files drives both pipelines.
 ## Where they live
 
 ```
-journal-server/
+server/
   context/
     README.md       <- shipped, gitignored otherwise
     people.md       <- you create
@@ -52,7 +52,7 @@ OCR system prompt, so pick descriptive stems.
 ```markdown
 # Topics
 
-- **journal-server** — the Python backend in this monorepo
+- **journal** — this monorepo: Python backend in `server/`, Vue webapp in `webapp/`
 - **Mosaic** — the admin UI template the webapp is derived from
 - **dual-pass OCR** — Anthropic + Gemini reconciliation
 ```
