@@ -1,0 +1,4 @@
+# Written by `npm run contract:gen` (already Prettier-formatted with this
+# project's config). Only the generator may change it; `npm run contract:check`
+# guards it.
+src/types/generated/

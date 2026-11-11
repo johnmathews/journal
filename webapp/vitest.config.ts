@@ -27,6 +27,10 @@ export default mergeConfig(
           'src/main.ts',
           'src/router/**',
           'src/types/**',
+          // Written by `npm run contract:gen` from contract/api.schema.json.
+          // Already covered by src/types/** but listed so it stays excluded
+          // if that line ever narrows.
+          'src/types/generated/**',
           'src/assets/**',
         ],
         // Minimum coverage the suite must hit; CI fails if any metric
