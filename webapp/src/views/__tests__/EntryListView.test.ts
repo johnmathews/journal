@@ -7,6 +7,7 @@ import EntryListView from '../EntryListView.vue'
 /** Helper to build a mock entry with new-field defaults. */
 function mockEntry(overrides: Partial<Record<string, unknown>> = {}) {
   return {
+    date_confirmed: true,
     id: 1,
     entry_date: '2026-03-22',
     source_type: 'photo' as const,
@@ -28,6 +29,7 @@ vi.mock('@/api/entries', () => ({
     items: [
       mockEntry({ id: 1, entry_date: '2026-03-22', word_count: 347 }),
       mockEntry({
+        date_confirmed: true,
         id: 2,
         entry_date: '2026-03-21',
         source_type: 'voice',
@@ -86,6 +88,7 @@ describe('EntryListView', () => {
       items: [
         mockEntry({ id: 1, entry_date: '2026-03-22', word_count: 347 }),
         mockEntry({
+          date_confirmed: true,
           id: 2,
           entry_date: '2026-03-21',
           source_type: 'voice',
@@ -534,6 +537,7 @@ describe('Source type label mapping', () => {
           chunk_count: 1,
         }),
         mockEntry({
+          date_confirmed: true,
           id: 2,
           entry_date: '2026-03-21',
           source_type: 'imported_text_file',
@@ -542,6 +546,7 @@ describe('Source type label mapping', () => {
           created_at: '2026-03-21T15:00:00Z',
         }),
         mockEntry({
+          date_confirmed: true,
           id: 3,
           entry_date: '2026-03-20',
           source_type: 'imported_audio_file',
@@ -886,6 +891,7 @@ describe('EntryListView mobile cards', () => {
       items: [
         mockEntry({ id: 1, entry_date: '2026-03-22', word_count: 347 }),
         mockEntry({
+          date_confirmed: true,
           id: 2,
           entry_date: '2026-03-21',
           source_type: 'voice',

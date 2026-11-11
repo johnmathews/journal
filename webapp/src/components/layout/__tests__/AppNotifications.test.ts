@@ -27,6 +27,9 @@ function makeJob(overrides: Partial<Job> & { id: string; type: JobType }): Job {
     created_at: new Date().toISOString(),
     started_at: null,
     finished_at: null,
+    input_tokens: null,
+    output_tokens: null,
+    cost_usd: null,
     ...overrides,
   }
 }
@@ -136,6 +139,9 @@ describe('AppNotifications', () => {
     ['ingest_audio', 'Audio ingestion'],
     ['mood_score_entry', 'Mood scoring'],
     ['reprocess_embeddings', 'Re-embedding'],
+    ['fitness_backfill_garmin', 'Garmin backfill'],
+    ['fitness_backfill_strava', 'Strava backfill'],
+    ['storyline_extension_check', 'Storyline extension check'],
   ] as [JobType, string][])(
     'shows correct label for %s',
     async (type, expected) => {
@@ -144,6 +150,14 @@ describe('AppNotifications', () => {
       expect(wrapper.text()).toContain(expected)
     },
   )
+
+  it('shows the raw type for a job type it does not know', async () => {
+    const wrapper = mountWith(
+      makeJob({ id: 'j1', type: 'brand_new_type' as JobType }),
+    )
+    await wrapper.find('[data-testid="notifications-bell"]').trigger('click')
+    expect(wrapper.text()).toContain('brand_new_type')
+  })
 
   // --- Status display ---
 

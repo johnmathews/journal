@@ -23,6 +23,7 @@ vi.mock('@/api/entities', () => ({
 vi.mock('@/api/entries', () => ({
   fetchEntries: vi.fn(),
   fetchEntry: vi.fn().mockResolvedValue({
+    date_confirmed: true,
     id: 1,
     entry_date: '2026-03-22',
     source_type: 'photo',
@@ -36,6 +37,7 @@ vi.mock('@/api/entries', () => ({
     updated_at: '2026-03-23T10:30:00Z',
   }),
   updateEntryText: vi.fn().mockResolvedValue({
+    date_confirmed: true,
     id: 1,
     entry_date: '2026-03-22',
     source_type: 'photo',
@@ -49,6 +51,7 @@ vi.mock('@/api/entries', () => ({
     updated_at: '2026-03-23T10:30:00Z',
   }),
   verifyDoubts: vi.fn().mockResolvedValue({
+    date_confirmed: true,
     id: 1,
     entry_date: '2026-03-22',
     source_type: 'photo',
@@ -221,6 +224,7 @@ describe('EntryDetailView', () => {
     // This entry defaults to read mode; switch to edit to see the panels.
     const { fetchEntry } = await import('@/api/entries')
     ;(fetchEntry as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      date_confirmed: true,
       id: 1,
       entry_date: '2026-03-22',
       source_type: 'photo',
@@ -253,6 +257,7 @@ describe('EntryDetailView', () => {
   it('hides the legend and strips highlight marks when the diff toggle is turned off', async () => {
     const { fetchEntry } = await import('@/api/entries')
     ;(fetchEntry as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      date_confirmed: true,
       id: 1,
       entry_date: '2026-03-22',
       source_type: 'photo',
@@ -589,6 +594,7 @@ describe('EntryDetailView', () => {
   it('renders the Modified badge when raw_text differs from final_text', async () => {
     const { fetchEntry } = await import('@/api/entries')
     ;(fetchEntry as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      date_confirmed: true,
       id: 1,
       entry_date: '2026-03-22',
       source_type: 'photo',
@@ -924,6 +930,7 @@ describe('EntryDetailView', () => {
       // where either is null used to blow up the whole template.
       const { fetchEntry } = await import('@/api/entries')
       vi.mocked(fetchEntry).mockResolvedValueOnce({
+        date_confirmed: true,
         id: 1,
         entry_date: '2026-03-22',
         source_type: 'photo',
@@ -985,6 +992,7 @@ describe('EntryDetailView', () => {
 
       // Let the promise resolve so the auto-unmount cleanup is tidy.
       resolveFetch({
+        date_confirmed: true,
         id: 1,
         entry_date: '2026-03-22',
         source_type: 'photo',
@@ -1070,6 +1078,9 @@ describe('EntryDetailView', () => {
         entry_id: 1,
         items: [
           {
+            is_quarantined: false,
+            quarantine_reason: '',
+            quarantined_at: '',
             id: 42,
             canonical_name: 'Alice',
             entity_type: 'person',
@@ -1103,6 +1114,9 @@ describe('EntryDetailView', () => {
         entry_id: 1,
         items: [
           {
+            is_quarantined: false,
+            quarantine_reason: '',
+            quarantined_at: '',
             id: 42,
             canonical_name: 'Alice',
             entity_type: 'person',
@@ -1112,6 +1126,9 @@ describe('EntryDetailView', () => {
             last_seen: '2026-03-22',
           },
           {
+            is_quarantined: false,
+            quarantine_reason: '',
+            quarantined_at: '',
             id: 99,
             canonical_name: 'Berlin',
             entity_type: 'place',
@@ -1160,6 +1177,7 @@ describe('EntryDetailView', () => {
     it('clicking an entity chip highlights the entity name in the text', async () => {
       const { fetchEntry } = await import('@/api/entries')
       vi.mocked(fetchEntry).mockResolvedValueOnce({
+        date_confirmed: true,
         id: 1,
         entry_date: '2026-03-22',
         source_type: 'photo',
@@ -1181,6 +1199,9 @@ describe('EntryDetailView', () => {
         entry_id: 1,
         items: [
           {
+            is_quarantined: false,
+            quarantine_reason: '',
+            quarantined_at: '',
             id: 42,
             entity_type: 'person',
             canonical_name: 'Alice',
@@ -1216,6 +1237,7 @@ describe('EntryDetailView', () => {
       // entity named "text" would inject <mark> inside class="text-emerald-900"
       const { fetchEntry } = await import('@/api/entries')
       vi.mocked(fetchEntry).mockResolvedValueOnce({
+        date_confirmed: true,
         id: 1,
         entry_date: '2026-03-22',
         source_type: 'photo',
@@ -1237,6 +1259,9 @@ describe('EntryDetailView', () => {
         entry_id: 1,
         items: [
           {
+            is_quarantined: false,
+            quarantine_reason: '',
+            quarantined_at: '',
             id: 99,
             entity_type: 'activity',
             canonical_name: 'text',
@@ -1288,6 +1313,7 @@ describe('EntryDetailView', () => {
     it('highlights entity terms that contain apostrophes', async () => {
       const { fetchEntry } = await import('@/api/entries')
       vi.mocked(fetchEntry).mockResolvedValueOnce({
+        date_confirmed: true,
         id: 1,
         entry_date: '2026-03-22',
         source_type: 'photo',
@@ -1309,6 +1335,9 @@ describe('EntryDetailView', () => {
         entry_id: 1,
         items: [
           {
+            is_quarantined: false,
+            quarantine_reason: '',
+            quarantined_at: '',
             id: 77,
             entity_type: 'person',
             canonical_name: "O'Brien",
@@ -1346,6 +1375,7 @@ describe('EntryDetailView', () => {
     it('single-char alias does not match inside words (word boundary)', async () => {
       const { fetchEntry } = await import('@/api/entries')
       vi.mocked(fetchEntry).mockResolvedValueOnce({
+        date_confirmed: true,
         id: 1,
         entry_date: '2026-03-22',
         source_type: 'photo',
@@ -1367,6 +1397,9 @@ describe('EntryDetailView', () => {
         entry_id: 1,
         items: [
           {
+            is_quarantined: false,
+            quarantine_reason: '',
+            quarantined_at: '',
             id: 50,
             entity_type: 'person',
             canonical_name: 'Ritsya',
@@ -1421,6 +1454,7 @@ describe('EntryDetailView', () => {
     ) {
       const { fetchEntry } = await import('@/api/entries')
       vi.mocked(fetchEntry).mockResolvedValueOnce({
+        date_confirmed: true,
         id: 1,
         entry_date: '2026-03-22',
         source_type: 'photo',

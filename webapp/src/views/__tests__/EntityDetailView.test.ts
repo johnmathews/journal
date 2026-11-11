@@ -3,7 +3,15 @@ import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
 import EntityDetailView from '../EntityDetailView.vue'
+import type {
+  Entity,
+  EntityMentionsResponse,
+  EntityRelationshipsResponse,
+} from '@/types/entity'
 
+// The default fixtures are checked against the generated contract types
+// (`satisfies`), so they can't drift from what the server sends. An untyped
+// mock once carried relationship names the server never sent (F7).
 vi.mock('@/api/entities', () => ({
   fetchEntities: vi
     .fn()
@@ -17,7 +25,10 @@ vi.mock('@/api/entities', () => ({
     first_seen: '2026-01-02',
     created_at: '2026-01-02T00:00:00Z',
     updated_at: '2026-04-01T00:00:00Z',
-  }),
+    is_quarantined: false,
+    quarantine_reason: '',
+    quarantined_at: '',
+  } satisfies Entity),
   addEntityAlias: vi.fn(),
   removeEntityAlias: vi.fn(),
   lookupAliasOwner: vi.fn(),
@@ -36,7 +47,7 @@ vi.mock('@/api/entities', () => ({
       },
     ],
     total: 1,
-  }),
+  } satisfies EntityMentionsResponse),
   fetchEntityRelationships: vi.fn().mockResolvedValue({
     entity_id: 42,
     outgoing: [
@@ -53,10 +64,12 @@ vi.mock('@/api/entities', () => ({
         entry_id: 5,
         entry_date: '2026-03-22',
         confidence: 0.88,
+        extraction_run_id: 'abc',
+        created_at: '2026-03-22T10:00:00Z',
       },
     ],
     incoming: [],
-  }),
+  } satisfies EntityRelationshipsResponse),
   triggerEntityExtraction: vi.fn(),
   updateEntity: vi.fn(),
   deleteEntity: vi.fn().mockResolvedValue({ deleted: true, id: 42 }),
@@ -134,6 +147,49 @@ describe('EntityDetailView', () => {
     )
   })
 
+  it('renders a mention whose entry date is null without crashing (F19)', async () => {
+    // The server sends entry_date: null when it cannot load a mention's
+    // entry (e.g. deleted mid-request). Two groups make the sort compare
+    // a null date with a real one.
+    const { fetchEntityMentions } = await import('@/api/entities')
+    vi.mocked(fetchEntityMentions).mockResolvedValueOnce({
+      entity_id: 42,
+      mentions: [
+        {
+          id: 1,
+          entity_id: 42,
+          entry_id: 5,
+          entry_date: null,
+          quote: 'an orphaned mention',
+          confidence: 0.9,
+          extraction_run_id: 'abc',
+          created_at: '2026-03-22T10:00:00Z',
+        },
+        {
+          id: 2,
+          entity_id: 42,
+          entry_id: 6,
+          entry_date: '2026-03-22',
+          quote: 'walked with Ritsya',
+          confidence: 0.9,
+          extraction_run_id: 'abc',
+          created_at: '2026-03-22T10:00:00Z',
+        },
+      ],
+      total: 2,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const groups = wrapper.findAll('[data-testid="mention-entry-group"]')
+    expect(groups).toHaveLength(2)
+    // Dated entries first, the undated one last with a placeholder label.
+    expect(groups[0].text()).toContain('22 Mar 2026')
+    expect(groups[1].text()).toContain('Unknown date')
+    expect(groups[1].text()).toContain('an orphaned mention')
+  })
+
   it('renders outgoing relationships with the predicate and object', async () => {
     const wrapper = mountView()
     await flushPromises()
@@ -141,7 +197,13 @@ describe('EntityDetailView', () => {
     const outgoing = wrapper.findAll('[data-testid="relationship-outgoing"]')
     expect(outgoing).toHaveLength(1)
     expect(outgoing[0].text()).toContain('visited')
-    expect(outgoing[0].text()).toContain('Blue Bottle')
+    // Name, type badge and link come from object_name / object_type /
+    // object_entity_id, which the server now sends (F7).
+    const link = outgoing[0].find('a')
+    expect(link.text()).toBe('Blue Bottle')
+    expect(link.attributes('href')).toBe('/entities/7')
+    expect(outgoing[0].html()).toContain('bg-sky-100')
+    expect(outgoing[0].text()).toContain('place')
   })
 
   it('Back button navigates to the entity list', async () => {
@@ -171,6 +233,9 @@ describe('EntityDetailView', () => {
     const { fetchEntity, fetchEntityMentions, fetchEntityRelationships } =
       await import('@/api/entities')
     vi.mocked(fetchEntity).mockResolvedValueOnce({
+      is_quarantined: false,
+      quarantine_reason: '',
+      quarantined_at: '',
       id: 99,
       entity_type: 'other',
       canonical_name: 'Mystery',
@@ -189,6 +254,8 @@ describe('EntityDetailView', () => {
       entity_id: 99,
       outgoing: [
         {
+          extraction_run_id: 'run-1',
+          created_at: '2026-03-22T10:00:00Z',
           id: 1,
           subject_entity_id: 99,
           subject_name: 'Mystery',
@@ -203,6 +270,8 @@ describe('EntityDetailView', () => {
           confidence: 0.8,
         },
         {
+          extraction_run_id: 'run-1',
+          created_at: '2026-03-22T10:00:00Z',
           id: 2,
           subject_entity_id: 99,
           subject_name: 'Mystery',
@@ -219,6 +288,8 @@ describe('EntityDetailView', () => {
       ],
       incoming: [
         {
+          extraction_run_id: 'run-1',
+          created_at: '2026-03-22T10:00:00Z',
           id: 3,
           subject_entity_id: 4,
           subject_name: 'AI',
@@ -262,6 +333,9 @@ describe('EntityDetailView', () => {
     const { fetchEntity, fetchEntityMentions, fetchEntityRelationships } =
       await import('@/api/entities')
     vi.mocked(fetchEntity).mockResolvedValueOnce({
+      is_quarantined: false,
+      quarantine_reason: '',
+      quarantined_at: '',
       id: 77,
       entity_type: 'place',
       canonical_name: 'Lonely Café',
@@ -325,6 +399,9 @@ describe('EntityDetailView', () => {
   it('saves edit and updates entity name', async () => {
     const { updateEntity } = await import('@/api/entities')
     vi.mocked(updateEntity).mockResolvedValueOnce({
+      is_quarantined: false,
+      quarantine_reason: '',
+      quarantined_at: '',
       id: 42,
       entity_type: 'person',
       canonical_name: 'Ritsya Mathews',
@@ -381,6 +458,9 @@ describe('EntityDetailView', () => {
   describe('alias editing', () => {
     function entityWithAliases(aliases: string[]) {
       return {
+        is_quarantined: false,
+        quarantine_reason: '',
+        quarantined_at: '',
         id: 42,
         entity_type: 'person' as const,
         canonical_name: 'Ritsya',
@@ -645,6 +725,9 @@ describe('EntityDetailView', () => {
     const spy = vi.mocked(fetchEntity)
     spy.mockClear()
     spy.mockResolvedValueOnce({
+      is_quarantined: false,
+      quarantine_reason: '',
+      quarantined_at: '',
       id: 43,
       entity_type: 'person',
       canonical_name: 'Other',

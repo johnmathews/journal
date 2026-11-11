@@ -16,6 +16,7 @@ from journal.models import (
     Entity,
     EntityMention,
     EntityRelationship,
+    EntityRelationshipDetail,
     MergeCandidate,
     MergeResult,
     PairDecision,
@@ -86,6 +87,26 @@ def _row_to_relationship(row: sqlite3.Row) -> EntityRelationship:
         confidence=row["confidence"],
         extraction_run_id=row["extraction_run_id"],
         created_at=row["created_at"],
+    )
+
+
+def _row_to_relationship_detail(row: sqlite3.Row) -> EntityRelationshipDetail:
+    """Row of ``entity_relationships`` plus the joined names/types/entry date."""
+    return EntityRelationshipDetail(
+        id=row["id"],
+        subject_entity_id=row["subject_entity_id"],
+        predicate=row["predicate"],
+        object_entity_id=row["object_entity_id"],
+        quote=row["quote"],
+        entry_id=row["entry_id"],
+        confidence=row["confidence"],
+        extraction_run_id=row["extraction_run_id"],
+        created_at=row["created_at"],
+        subject_name=row["subject_name"],
+        subject_type=row["subject_type"],
+        object_name=row["object_name"],
+        object_type=row["object_type"],
+        entry_date=row["entry_date"],
     )
 
 
@@ -203,6 +224,14 @@ class EntityStore(Protocol):
     def get_relationships_for_entity(
         self, entity_id: int, user_id: int | None = None,
     ) -> tuple[list[EntityRelationship], list[EntityRelationship]]: ...
+
+    def get_relationship_details_for_entity(
+        self, entity_id: int, user_id: int | None = None,
+    ) -> tuple[list[EntityRelationshipDetail], list[EntityRelationshipDetail]]:
+        """Like ``get_relationships_for_entity``, joined with both
+        entities' names/types and the source entry's date (one query
+        per direction)."""
+        ...
 
     def get_relationships_for_entry(
         self, entry_id: int

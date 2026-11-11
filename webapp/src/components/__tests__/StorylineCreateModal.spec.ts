@@ -20,6 +20,9 @@ function cleanupBody(): void {
 
 function makeEntity(overrides: Partial<EntitySummary> = {}): EntitySummary {
   return {
+    is_quarantined: false,
+    quarantine_reason: '',
+    quarantined_at: '',
     id: 100,
     entity_type: 'activity',
     canonical_name: 'Running',

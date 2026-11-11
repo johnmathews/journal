@@ -3,7 +3,7 @@ import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import JobHistoryView from '../JobHistoryView.vue'
-import type { Job } from '@/types/job'
+import type { Job, JobType } from '@/types/job'
 
 const mockListJobs = vi.fn()
 const mockGetJob = vi.fn()
@@ -43,6 +43,9 @@ function makeJob(overrides: Partial<Job> = {}): Job {
     created_at: '2026-04-13T10:00:00Z',
     started_at: '2026-04-13T10:00:01Z',
     finished_at: '2026-04-13T10:00:05Z',
+    input_tokens: null,
+    output_tokens: null,
+    cost_usd: null,
     ...overrides,
   }
 }
@@ -361,6 +364,7 @@ describe('JobHistoryView', () => {
         type: 'ingest_images',
         status: 'succeeded',
         result: {
+          date_confirmed: true,
           entry_id: 10,
           word_count: 250,
           chunk_count: 5,
@@ -382,6 +386,7 @@ describe('JobHistoryView', () => {
         type: 'ingest_audio',
         status: 'succeeded',
         result: {
+          date_confirmed: true,
           entry_id: 11,
           word_count: 120,
           chunk_count: 2,
@@ -467,6 +472,54 @@ describe('JobHistoryView', () => {
     expect(typeBadges[2].classes()).toContain('bg-amber-100')
   })
 
+  it.each([
+    ['fitness_backfill_garmin', 'Garmin backfill', 'bg-lime-100'],
+    ['fitness_backfill_strava', 'Strava backfill', 'bg-lime-100'],
+    ['storyline_extension_check', 'Storyline extension check', 'bg-rose-100'],
+    ['storyline_update', 'Storyline update', 'bg-rose-100'],
+    ['fitness_sync_garmin', 'Garmin sync', 'bg-lime-100'],
+  ] as [JobType, string, string][])(
+    'labels and colours %s jobs',
+    async (type, label, badgeClass) => {
+      const wrapper = await mountView([makeJob({ id: 'j1', type })])
+      const badge = wrapper.find('[data-testid="type-badge"]')
+      expect(badge.text()).toBe(label)
+      expect(badge.classes()).toContain(badgeClass)
+    },
+  )
+
+  it('shows an unknown job type as-is with a grey badge', async () => {
+    const wrapper = await mountView([
+      makeJob({ id: 'j1', type: 'brand_new_type' as JobType }),
+    ])
+    const badge = wrapper.find('[data-testid="type-badge"]')
+    expect(badge.text()).toBe('brand_new_type')
+    expect(badge.classes()).toContain('bg-gray-100')
+  })
+
+  it('offers every job type in the type filter, sorted by label', async () => {
+    const wrapper = await mountView([makeJob()])
+    const options = wrapper
+      .findAll('[data-testid="filter-type"] option')
+      .map((o) => [o.attributes('value') ?? '', o.text()] as const)
+    expect(options[0]).toEqual(['', 'All types'])
+    const labels = options.slice(1).map((option) => option[1])
+    expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)))
+    expect(options).toContainEqual([
+      'fitness_backfill_garmin',
+      'Garmin backfill',
+    ])
+    expect(options).toContainEqual([
+      'fitness_backfill_strava',
+      'Strava backfill',
+    ])
+    expect(options).toContainEqual([
+      'storyline_extension_check',
+      'Storyline extension check',
+    ])
+    expect(options).toHaveLength(16)
+  })
+
   it('shows relative time next to absolute time', async () => {
     const wrapper = await mountView([makeJob()])
     const relTime = wrapper.find('[data-testid="relative-time"]')
@@ -493,6 +546,7 @@ describe('JobHistoryView', () => {
         type: 'ingest_images',
         status: 'succeeded',
         result: {
+          date_confirmed: true,
           entry_id: 10,
           word_count: 250,
           chunk_count: 5,

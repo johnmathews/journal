@@ -419,6 +419,9 @@ describe('VoiceRecordPanel', () => {
 
     // Simulate job reaching terminal state
     jobsStore.jobs['auto-ack-job'] = {
+      input_tokens: null,
+      output_tokens: null,
+      cost_usd: null,
       id: 'auto-ack-job',
       type: 'ingest_audio',
       status: 'succeeded',

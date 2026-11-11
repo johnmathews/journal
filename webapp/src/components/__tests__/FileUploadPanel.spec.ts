@@ -386,6 +386,9 @@ describe('FileUploadPanel', () => {
     expect(wrapper.text()).toContain('Processing your journal entry')
 
     jobsStore.jobs['job-auto'] = {
+      input_tokens: null,
+      output_tokens: null,
+      cost_usd: null,
       id: 'job-auto',
       type: 'ingest_images',
       status: 'succeeded',
@@ -482,6 +485,7 @@ describe('FileUploadPanel', () => {
     const store = useEntriesStore()
     const spy = vi.spyOn(store, 'importFile').mockResolvedValue({
       entry: {
+        date_confirmed: true,
         id: 7,
         entry_date: '2026-04-12',
         source_type: 'imported_text_file',
@@ -520,6 +524,7 @@ describe('FileUploadPanel', () => {
     const store = useEntriesStore()
     vi.spyOn(store, 'importFile').mockResolvedValue({
       entry: {
+        date_confirmed: true,
         id: 55,
         entry_date: '2026-04-12',
         source_type: 'imported_text_file',
@@ -572,6 +577,9 @@ describe('FileUploadPanel', () => {
     await flushPromises()
 
     jobsStore.jobs['job-progress'] = {
+      input_tokens: null,
+      output_tokens: null,
+      cost_usd: null,
       id: 'job-progress',
       type: 'ingest_images',
       status: 'running',

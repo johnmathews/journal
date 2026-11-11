@@ -5,6 +5,9 @@ import type { Job } from '@/types/job'
 
 function makeJob(overrides: Partial<Job> = {}): Job {
   return {
+    input_tokens: null,
+    output_tokens: null,
+    cost_usd: null,
     id: 'j-1',
     type: 'mood_backfill',
     status: 'succeeded',

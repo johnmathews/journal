@@ -35,6 +35,9 @@ describe('entities store', () => {
     vi.mocked(fetchEntities).mockResolvedValue({
       items: [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person',
           canonical_name: 'Ritsya',
@@ -95,6 +98,9 @@ describe('entities store', () => {
       fetchSpy.mockResolvedValueOnce({
         items: [
           {
+            is_quarantined: false,
+            quarantine_reason: '',
+            quarantined_at: '',
             id: 1,
             entity_type: 'person',
             canonical_name: 'Alpha',
@@ -115,6 +121,9 @@ describe('entities store', () => {
       fetchSpy.mockResolvedValueOnce({
         items: [
           {
+            is_quarantined: false,
+            quarantine_reason: '',
+            quarantined_at: '',
             id: 2,
             entity_type: 'person',
             canonical_name: 'Beta',
@@ -148,6 +157,9 @@ describe('entities store', () => {
       fetchSpy.mockResolvedValueOnce({
         items: [
           {
+            is_quarantined: false,
+            quarantine_reason: '',
+            quarantined_at: '',
             id: 1,
             entity_type: 'person',
             canonical_name: 'Only',
@@ -181,6 +193,9 @@ describe('entities store', () => {
       // Seed a state where more pages exist.
       store.entities = [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person',
           canonical_name: 'A',
@@ -204,6 +219,9 @@ describe('entities store', () => {
       const store = useEntitiesStore()
       store.entities = [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person',
           canonical_name: 'A',
@@ -229,6 +247,9 @@ describe('entities store', () => {
       const store = useEntitiesStore()
       store.entities = [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person',
           canonical_name: 'A',
@@ -252,6 +273,9 @@ describe('entities store', () => {
       const store = useEntitiesStore()
       store.entities = [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person',
           canonical_name: 'A',
@@ -269,6 +293,9 @@ describe('entities store', () => {
       const store = useEntitiesStore()
       store.entities = [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person',
           canonical_name: 'A',
@@ -278,6 +305,9 @@ describe('entities store', () => {
           last_seen: '',
         },
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 2,
           entity_type: 'person',
           canonical_name: 'B',
@@ -297,6 +327,9 @@ describe('entities store', () => {
       await import('@/api/entities')
 
     vi.mocked(fetchEntity).mockResolvedValue({
+      is_quarantined: false,
+      quarantine_reason: '',
+      quarantined_at: '',
       id: 10,
       entity_type: 'person',
       canonical_name: 'Ritsya',
@@ -394,6 +427,9 @@ describe('entities store', () => {
   it('clearCurrent resets current entity state', async () => {
     const store = useEntitiesStore()
     store.currentEntity = {
+      is_quarantined: false,
+      quarantine_reason: '',
+      quarantined_at: '',
       id: 1,
       entity_type: 'person',
       canonical_name: 'Test',
@@ -428,6 +464,9 @@ describe('entities store', () => {
     it('updates currentEntity and syncs the list cache on success', async () => {
       const { updateEntity } = await import('@/api/entities')
       const updatedEntity = {
+        is_quarantined: false,
+        quarantine_reason: '',
+        quarantined_at: '',
         id: 5,
         entity_type: 'place' as const,
         canonical_name: 'Updated Name',
@@ -441,6 +480,9 @@ describe('entities store', () => {
 
       const store = useEntitiesStore()
       store.currentEntity = {
+        is_quarantined: false,
+        quarantine_reason: '',
+        quarantined_at: '',
         id: 5,
         entity_type: 'person',
         canonical_name: 'Old Name',
@@ -452,6 +494,9 @@ describe('entities store', () => {
       }
       store.entities = [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 5,
           entity_type: 'person',
           canonical_name: 'Old Name',
@@ -494,6 +539,9 @@ describe('entities store', () => {
 
       const store = useEntitiesStore()
       store.currentEntity = {
+        is_quarantined: false,
+        quarantine_reason: '',
+        quarantined_at: '',
         id: 1,
         entity_type: 'person',
         canonical_name: 'A',
@@ -516,6 +564,9 @@ describe('entities store', () => {
 
       const store = useEntitiesStore()
       store.currentEntity = {
+        is_quarantined: false,
+        quarantine_reason: '',
+        quarantined_at: '',
         id: 1,
         entity_type: 'person',
         canonical_name: 'A',
@@ -541,6 +592,9 @@ describe('entities store', () => {
       const store = useEntitiesStore()
       store.entities = [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 7,
           entity_type: 'person',
           canonical_name: 'ToDelete',
@@ -550,6 +604,9 @@ describe('entities store', () => {
           last_seen: '2026-01-01',
         },
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 8,
           entity_type: 'place',
           canonical_name: 'Keep',
@@ -561,6 +618,9 @@ describe('entities store', () => {
       ]
       store.total = 2
       store.currentEntity = {
+        is_quarantined: false,
+        quarantine_reason: '',
+        quarantined_at: '',
         id: 7,
         entity_type: 'person',
         canonical_name: 'ToDelete',
@@ -587,6 +647,9 @@ describe('entities store', () => {
       const store = useEntitiesStore()
       store.entities = [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 9,
           entity_type: 'person',
           canonical_name: 'Gone',
@@ -598,6 +661,9 @@ describe('entities store', () => {
       ]
       store.total = 1
       store.currentEntity = {
+        is_quarantined: false,
+        quarantine_reason: '',
+        quarantined_at: '',
         id: 99,
         entity_type: 'place',
         canonical_name: 'Different',
@@ -676,6 +742,9 @@ describe('entities store', () => {
       const { mergeEntities: mergeEntitiesApi } = await import('@/api/entities')
       const mergeResponse = {
         survivor: {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person' as const,
           canonical_name: 'Merged Name',
@@ -695,6 +764,9 @@ describe('entities store', () => {
       const store = useEntitiesStore()
       store.entities = [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person',
           canonical_name: 'Original',
@@ -704,6 +776,9 @@ describe('entities store', () => {
           last_seen: '2026-03-01',
         },
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 2,
           entity_type: 'person',
           canonical_name: 'Absorbed1',
@@ -713,6 +788,9 @@ describe('entities store', () => {
           last_seen: '2026-02-01',
         },
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 3,
           entity_type: 'person',
           canonical_name: 'Absorbed2',
@@ -742,6 +820,9 @@ describe('entities store', () => {
       const { mergeEntities: mergeEntitiesApi } = await import('@/api/entities')
       vi.mocked(mergeEntitiesApi).mockResolvedValue({
         survivor: {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 100,
           entity_type: 'person',
           canonical_name: 'Survivor',
@@ -760,6 +841,9 @@ describe('entities store', () => {
       const store = useEntitiesStore()
       store.entities = [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 2,
           entity_type: 'person',
           canonical_name: 'Absorbed',
@@ -811,6 +895,9 @@ describe('entities store', () => {
       const store = useEntitiesStore()
       store.entities = [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person',
           canonical_name: 'Survivor',
@@ -820,6 +907,9 @@ describe('entities store', () => {
           last_seen: '',
         },
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 2,
           entity_type: 'person',
           canonical_name: 'Absorbed',
@@ -846,6 +936,9 @@ describe('entities store', () => {
       const candidate = {
         id: 10,
         entity_a: {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 1,
           entity_type: 'person' as const,
           canonical_name: 'A',
@@ -855,6 +948,9 @@ describe('entities store', () => {
           last_seen: '2026-02-01',
         },
         entity_b: {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 2,
           entity_type: 'person' as const,
           canonical_name: 'B',
@@ -919,6 +1015,9 @@ describe('entities store', () => {
         {
           id: 5,
           entity_a: {
+            is_quarantined: false,
+            quarantine_reason: '',
+            quarantined_at: '',
             id: 1,
             entity_type: 'person',
             canonical_name: 'A',
@@ -928,6 +1027,9 @@ describe('entities store', () => {
             last_seen: '',
           },
           entity_b: {
+            is_quarantined: false,
+            quarantine_reason: '',
+            quarantined_at: '',
             id: 2,
             entity_type: 'person',
             canonical_name: 'B',
@@ -965,6 +1067,9 @@ describe('entities store', () => {
         {
           id: 6,
           entity_a: {
+            is_quarantined: false,
+            quarantine_reason: '',
+            quarantined_at: '',
             id: 10,
             entity_type: 'place',
             canonical_name: 'X',
@@ -974,6 +1079,9 @@ describe('entities store', () => {
             last_seen: '',
           },
           entity_b: {
+            is_quarantined: false,
+            quarantine_reason: '',
+            quarantined_at: '',
             id: 11,
             entity_type: 'place',
             canonical_name: 'Y',
@@ -990,6 +1098,9 @@ describe('entities store', () => {
         {
           id: 7,
           entity_a: {
+            is_quarantined: false,
+            quarantine_reason: '',
+            quarantined_at: '',
             id: 12,
             entity_type: 'person',
             canonical_name: 'Z',
@@ -999,6 +1110,9 @@ describe('entities store', () => {
             last_seen: '',
           },
           entity_b: {
+            is_quarantined: false,
+            quarantine_reason: '',
+            quarantined_at: '',
             id: 13,
             entity_type: 'person',
             canonical_name: 'W',
@@ -1028,6 +1142,9 @@ describe('entities store', () => {
     const sampleDecision = {
       id: 42,
       entity_a: {
+        is_quarantined: false,
+        quarantine_reason: '',
+        quarantined_at: '',
         id: 1,
         entity_type: 'person' as const,
         canonical_name: 'John Mathews',
@@ -1037,6 +1154,9 @@ describe('entities store', () => {
         last_seen: '',
       },
       entity_b: {
+        is_quarantined: false,
+        quarantine_reason: '',
+        quarantined_at: '',
         id: 2,
         entity_type: 'person' as const,
         canonical_name: "John Mathews' mother",
@@ -1235,6 +1355,9 @@ describe('entities store', () => {
   describe('alias actions', () => {
     function entity(aliases: string[]): Entity {
       return {
+        is_quarantined: false,
+        quarantine_reason: '',
+        quarantined_at: '',
         id: 7,
         entity_type: 'person',
         canonical_name: 'Sarah',
@@ -1271,6 +1394,9 @@ describe('entities store', () => {
       // Seed the entities list so the index update path runs.
       store.entities = [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 7,
           entity_type: 'person',
           canonical_name: 'Sarah',
@@ -1342,6 +1468,9 @@ describe('entities store', () => {
       await store.loadEntity(7)
       store.entities = [
         {
+          is_quarantined: false,
+          quarantine_reason: '',
+          quarantined_at: '',
           id: 7,
           entity_type: 'person',
           canonical_name: 'Sarah',
@@ -1367,6 +1496,9 @@ describe('entities store', () => {
   describe('updateCurrentEntity reembed job tracking', () => {
     function entity(): Entity {
       return {
+        is_quarantined: false,
+        quarantine_reason: '',
+        quarantined_at: '',
         id: 7,
         entity_type: 'person',
         canonical_name: 'Sarah',

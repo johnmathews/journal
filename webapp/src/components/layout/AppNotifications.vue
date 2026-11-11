@@ -91,25 +91,29 @@ const visibleJobs = computed<Job[]>(() =>
 
 const badgeCount = computed(() => jobsStore.activeJobs.length)
 
+// Exhaustive over JobType, so a job type the server adds (and the contract
+// regenerates) fails the type check until it has a label here.
+const JOB_LABELS: Record<JobType, string> = {
+  entity_extraction: 'Entity extraction',
+  entity_reembed: 'Entity recognition refresh',
+  fitness_backfill_garmin: 'Garmin backfill',
+  fitness_backfill_strava: 'Strava backfill',
+  fitness_sync_garmin: 'Garmin sync',
+  fitness_sync_strava: 'Strava sync',
+  ingest_audio: 'Audio ingestion',
+  ingest_images: 'Image ingestion',
+  mood_backfill: 'Mood backfill',
+  mood_score_entry: 'Mood scoring',
+  reprocess_embeddings: 'Re-embedding',
+  save_entry_pipeline: 'Entry pipeline',
+  storyline_extension_check: 'Storyline extension check',
+  storyline_generation: 'Storyline generation (legacy)',
+  storyline_update: 'Storyline update',
+}
+
+/** Label for a job type; an unknown type (newer server) shows as-is. */
 function jobLabel(type: JobType): string {
-  switch (type) {
-    case 'entity_extraction':
-      return 'Entity extraction'
-    case 'mood_backfill':
-      return 'Mood backfill'
-    case 'ingest_images':
-      return 'Image ingestion'
-    case 'ingest_audio':
-      return 'Audio ingestion'
-    case 'mood_score_entry':
-      return 'Mood scoring'
-    case 'reprocess_embeddings':
-      return 'Re-embedding'
-    case 'entity_reembed':
-      return 'Entity recognition refresh'
-    default:
-      return type
-  }
+  return JOB_LABELS[type] ?? type
 }
 
 function statusIcon(job: Job): string {

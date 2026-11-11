@@ -80,6 +80,7 @@ describe('TextEntryPanel', () => {
     const store = useEntriesStore()
     const spy = vi.spyOn(store, 'createTextEntry').mockResolvedValue({
       entry: {
+        date_confirmed: true,
         id: 42,
         entry_date: '2026-04-12',
         source_type: 'text_entry',
@@ -113,6 +114,7 @@ describe('TextEntryPanel', () => {
     const store = useEntriesStore()
     vi.spyOn(store, 'createTextEntry').mockResolvedValue({
       entry: {
+        date_confirmed: true,
         id: 99,
         entry_date: '2026-04-12',
         source_type: 'text_entry',
@@ -147,6 +149,7 @@ describe('TextEntryPanel', () => {
     const jobsStore = useJobsStore()
     vi.spyOn(store, 'createTextEntry').mockResolvedValue({
       entry: {
+        date_confirmed: true,
         id: 50,
         entry_date: '2026-04-12',
         source_type: 'text_entry',
@@ -202,6 +205,7 @@ describe('TextEntryPanel', () => {
     const jobsStore = useJobsStore()
     vi.spyOn(store, 'createTextEntry').mockResolvedValue({
       entry: {
+        date_confirmed: true,
         id: 51,
         entry_date: '2026-04-12',
         source_type: 'text_entry',

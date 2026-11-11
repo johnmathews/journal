@@ -10,9 +10,8 @@
 # Format: `#` comments, one `ceiling: N` line, then one route name per line,
 # sorted, no duplicates.
 
-ceiling: 107
+ceiling: 90
 
-api_add_entity_alias
 api_admin_reload_entity_casing
 api_admin_reload_mood_dimensions
 api_admin_reload_ocr_context
@@ -47,19 +46,10 @@ api_dashboard_mood_entity_correlation
 api_dashboard_mood_trends
 api_dashboard_word_count_distribution
 api_dashboard_writing_stats
-api_delete_entity
-api_delete_entity_alias
 api_delete_pair_decision
 api_delete_storyline
 api_entities_extract
-api_entity_detail
-api_entity_mentions
 api_entity_merge_history
-api_entity_relationships
-api_entry_chunks
-api_entry_detail
-api_entry_entities
-api_entry_tokens
 api_fitness_backfill
 api_fitness_divergence
 api_fitness_garmin_connect
@@ -80,14 +70,9 @@ api_ingest_audio
 api_ingest_file
 api_ingest_images
 api_ingest_text
-api_job_detail
-api_list_entities
-api_list_entries
-api_list_jobs
 api_list_pair_decisions
 api_list_quarantined_entities
 api_list_storylines
-api_lookup_alias
 api_merge_candidates
 api_merge_entities
 api_mood_backfill
@@ -116,6 +101,4 @@ api_storyline_chapter_detail
 api_storyline_detail
 api_unpublish_storyline_chapter
 api_unread_storyline_chapter
-api_update_entity
 api_update_storyline
-api_verify_doubts

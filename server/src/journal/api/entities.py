@@ -188,7 +188,9 @@ def register_entities_routes(
         if entity is None:
             return JSONResponse({"error": f"Entity {entity_id} not found"}, status_code=404)
 
-        outgoing, incoming = entity_store.get_relationships_for_entity(
+        # Joined with both entities and the entry, so each edge carries the
+        # names, types and entry date the entity page renders (F7).
+        outgoing, incoming = entity_store.get_relationship_details_for_entity(
             entity_id,
             user_id=user_id,
         )

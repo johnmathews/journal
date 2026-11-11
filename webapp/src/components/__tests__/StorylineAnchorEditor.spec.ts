@@ -26,6 +26,9 @@ const mockSetAnchors = vi.mocked(setStorylineAnchors)
 
 function makeEntity(overrides: Partial<EntitySummary> = {}): EntitySummary {
   return {
+    is_quarantined: false,
+    quarantine_reason: '',
+    quarantined_at: '',
     id: 700,
     entity_type: 'person',
     canonical_name: 'Sara',
