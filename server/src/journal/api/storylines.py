@@ -22,7 +22,7 @@ carries the serializers (``_storyline_to_dict`` / ``_chapter_*_to_dict``
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from starlette.responses import JSONResponse
 
@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
     from starlette.requests import Request
 
+    from journal.api.contract import schemas as contract
     from journal.db.storyline_repository import SQLiteStorylineRepository
     from journal.models import Storyline, StorylineChapter
     from journal.service_registry import ServicesDict
@@ -166,7 +167,7 @@ def _anchors_for(
     repo: SQLiteStorylineRepository,
     entity_store: Any,
     storyline_id: int,
-) -> list[dict[str, Any]]:
+) -> list[contract.StorylineAnchor]:
     """Build the ``anchors`` field for an API response.
 
     Returns ``[{entity_id, canonical_name}, ...]`` sorted by entity id
@@ -175,7 +176,7 @@ def _anchors_for(
     stable.
     """
     anchor_ids = repo.list_anchors(storyline_id)
-    out: list[dict[str, Any]] = []
+    out: list[contract.StorylineAnchor] = []
     for entity_id in anchor_ids:
         if entity_store is not None:
             entity = entity_store.get_entity(entity_id)
@@ -188,15 +189,15 @@ def _anchors_for(
 
 def _storyline_to_dict(
     s: Storyline,
-    anchors: list[dict[str, Any]],
+    anchors: list[contract.StorylineAnchor],
     unread_count: int,
     chapter_count: int,
-) -> dict[str, Any]:
+) -> contract.StorylineSummary:
     return {
         "id": s.id,
         "name": s.name,
         "description": s.description,
-        "status": s.status,
+        "status": cast("contract.StorylineStatus", s.status),
         "anchors": anchors,
         "unread_count": unread_count,
         "chapter_count": chapter_count,
@@ -205,12 +206,12 @@ def _storyline_to_dict(
     }
 
 
-def _chapter_meta_to_dict(c: StorylineChapter) -> dict[str, Any]:
+def _chapter_meta_to_dict(c: StorylineChapter) -> contract.ChapterMeta:
     return {
         "id": c.id,
         "seq": c.seq,
         "title": c.title,
-        "state": c.state,
+        "state": cast("contract.ChapterState", c.state),
         "entry_count": c.entry_count,
         "first_entry_date": c.first_entry_date,
         "last_entry_date": c.last_entry_date,
@@ -220,11 +221,12 @@ def _chapter_meta_to_dict(c: StorylineChapter) -> dict[str, Any]:
     }
 
 
-def _chapter_detail_to_dict(c: StorylineChapter) -> dict[str, Any]:
+def _chapter_detail_to_dict(c: StorylineChapter) -> contract.ChapterDetail:
     return {
         **_chapter_meta_to_dict(c),
-        "segments": c.segments,
-        "addenda": c.addenda,
+        # Stored as JSON the narrator built with services/storylines/segments.py.
+        "segments": cast("list[contract.Segment]", c.segments),
+        "addenda": cast("list[contract.Addendum]", c.addenda),
         "model_used": c.model_used,
         "generated_at": c.generated_at,
     }

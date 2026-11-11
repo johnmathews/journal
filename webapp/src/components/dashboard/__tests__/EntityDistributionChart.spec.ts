@@ -26,6 +26,7 @@ vi.mock('@/api/insights', () => ({
 
 import { chartConstructorSpy, destroySpy } from './chart-test-utils'
 import { fetchEntityDistribution } from '@/api/insights'
+import type { EntityDistributionItem } from '@/types/insights'
 const mockEntityDist = vi.mocked(fetchEntityDistribution)
 
 // Harness mirrors the prop/event wiring `DashboardView.vue` gives the
@@ -97,11 +98,15 @@ describe('EntityDistributionChart', () => {
   })
 
   it('renders entity legend capped at 8 items', async () => {
-    const items = Array.from({ length: 12 }, (_, i) => ({
-      canonical_name: `entity-${i}`,
-      entity_type: 'topic',
-      mention_count: 20 - i,
-    }))
+    const items = Array.from(
+      { length: 12 },
+      (_, i) =>
+        ({
+          canonical_name: `entity-${i}`,
+          entity_type: 'topic',
+          mention_count: 20 - i,
+        }) satisfies EntityDistributionItem,
+    )
     mockEntityDist.mockResolvedValue({
       type: 'topic',
       from: null,
@@ -124,11 +129,15 @@ describe('EntityDistributionChart', () => {
   })
 
   it('expands and collapses the entity legend', async () => {
-    const items = Array.from({ length: 12 }, (_, i) => ({
-      canonical_name: `entity-${i}`,
-      entity_type: 'topic',
-      mention_count: 20 - i,
-    }))
+    const items = Array.from(
+      { length: 12 },
+      (_, i) =>
+        ({
+          canonical_name: `entity-${i}`,
+          entity_type: 'topic',
+          mention_count: 20 - i,
+        }) satisfies EntityDistributionItem,
+    )
     mockEntityDist.mockResolvedValue({
       type: 'topic',
       from: null,

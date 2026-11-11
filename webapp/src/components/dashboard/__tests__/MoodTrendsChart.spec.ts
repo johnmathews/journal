@@ -102,6 +102,7 @@ describe('MoodTrendsChart', () => {
   async function setupWithMoodData() {
     vi.mocked(fetchMoodDimensions).mockResolvedValue({
       dimensions: fakeDimensions,
+      meta: { version: '', description: '' },
     })
     vi.mocked(fetchMoodTrends).mockResolvedValue({
       from: null,
@@ -285,6 +286,7 @@ describe('MoodTrendsChart', () => {
   it('shows the empty state when mood_trends returns no bins', async () => {
     vi.mocked(fetchMoodDimensions).mockResolvedValue({
       dimensions: fakeDimensions,
+      meta: { version: '', description: '' },
     })
     vi.mocked(fetchMoodTrends).mockResolvedValue({
       from: null,
@@ -309,6 +311,7 @@ describe('MoodTrendsChart', () => {
   it('shows the mood error banner on mood_trends failure', async () => {
     vi.mocked(fetchMoodDimensions).mockResolvedValue({
       dimensions: fakeDimensions,
+      meta: { version: '', description: '' },
     })
     vi.mocked(fetchMoodTrends).mockRejectedValue(
       new Error('mood upstream down'),
@@ -455,6 +458,7 @@ describe('MoodTrendsChart', () => {
   it('tooltip label uses singular "entry" for a 1-entry bucket', async () => {
     vi.mocked(fetchMoodDimensions).mockResolvedValue({
       dimensions: fakeDimensions,
+      meta: { version: '', description: '' },
     })
     vi.mocked(fetchMoodTrends).mockResolvedValue({
       from: null,

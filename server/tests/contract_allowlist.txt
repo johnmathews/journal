@@ -10,7 +10,7 @@
 # Format: `#` comments, one `ceiling: N` line, then one route name per line,
 # sorted, no duplicates.
 
-ceiling: 90
+ceiling: 67
 
 api_admin_reload_entity_casing
 api_admin_reload_mood_dimensions
@@ -36,18 +36,7 @@ api_conversations_delete
 api_conversations_detail
 api_conversations_list
 api_conversations_reply
-api_create_storyline
-api_dashboard_calendar_heatmap
-api_dashboard_entity_distribution
-api_dashboard_entity_trends
-api_dashboard_mood_dimensions
-api_dashboard_mood_drilldown
-api_dashboard_mood_entity_correlation
-api_dashboard_mood_trends
-api_dashboard_word_count_distribution
-api_dashboard_writing_stats
 api_delete_pair_decision
-api_delete_storyline
 api_entities_extract
 api_entity_merge_history
 api_fitness_backfill
@@ -72,7 +61,6 @@ api_ingest_images
 api_ingest_text
 api_list_pair_decisions
 api_list_quarantined_entities
-api_list_storylines
 api_merge_candidates
 api_merge_entities
 api_mood_backfill
@@ -85,20 +73,9 @@ api_preferences_patch
 api_pricing_get
 api_pricing_patch
 api_quarantine_entity
-api_read_storyline_chapter
-api_refresh_storyline
 api_release_quarantine_entity
-api_rename_storyline_chapter
 api_resolve_merge_candidate
 api_runtime_settings_get
 api_runtime_settings_patch
-api_search
-api_search_answer
-api_set_storyline_anchors
 api_settings
 api_stats
-api_storyline_chapter_detail
-api_storyline_detail
-api_unpublish_storyline_chapter
-api_unread_storyline_chapter
-api_update_storyline

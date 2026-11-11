@@ -97,6 +97,7 @@ describe('MoodCorrelationChart', () => {
     destroySpy.mockClear()
     vi.mocked(fetchMoodDimensions).mockResolvedValue({
       dimensions: fakeDimensions,
+      meta: { version: '', description: '' },
     })
     mockCorrelation.mockResolvedValue({
       dimension: 'agency',
