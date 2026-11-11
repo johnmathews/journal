@@ -72,6 +72,18 @@ reproduces the issue, then fix the code to make it pass.
 - The active `docs/` listing should only contain currently-load-bearing material. Closed and superseded plans live in
   `docs/archive/` so the rationale is preserved without cluttering the index.
 
+## Shipping
+
+- **Lands by:** pull request (squash-merged; the `main` ruleset blocks force-push and deletion)
+- **Environments:**
+  - image: CI (`.github/workflows/ci.yml`, `docker` job) builds and pushes
+    `ghcr.io/johnmathews/journal-webapp:latest` on every push to `main`. CI does not deploy.
+    Check: `gh run list --workflow ci.yml --branch main --limit 1`
+  - production (`media` VM, https://journal.itsa-pizza.com): deployed by pulling the new image,
+    `ssh media 'cd /srv/media && docker compose pull journal-webapp && docker compose up -d journal-webapp'`.
+    Check: `ssh media 'cd /srv/media && docker inspect -f "{{.Image}} {{.State.StartedAt}}" $(docker compose ps -q journal-webapp)'`
+    (compare the image ID and start time with the latest `main` CI run).
+
 ## Backend
 
 The webapp connects to journal-server's REST API at /api/*. During development, Vite proxies these requests to localhost:8400 where the journal-server runs.

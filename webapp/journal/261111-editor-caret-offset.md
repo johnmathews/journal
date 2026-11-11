@@ -56,3 +56,32 @@ project does not have.
 - Side finding: the unit suite fails 62 tests under Node 26 (the local
   default) because Node's built-in `localStorage` shadows happy-dom's. CI uses
   Node 22. Filed as #54.
+
+## 5. Wrap-up (same day)
+
+- Prod check, confirmed: the `journal-webapp` container on the `media` VM
+  restarted at 13:49:47Z on the image the `main` CI run for `9b4ab98` built
+  (run finished 13:49:15Z). Its served `EntryDetailView-*.js` contains the new
+  `w-full overflow-hidden border-0 …` class string. This session did not run
+  the deploy, and no watchtower container, cron entry or systemd unit for it
+  was found on the VM. What triggered the pull is unknown.
+- `docs/architecture.md`: corrected three stale claims in the EntryDetailView
+  paragraph, checked against `EntryDetailView.vue` and `useDiffHighlight.ts`.
+  The view always opens in reading mode. Review highlights both panels, turns
+  on automatically in edit mode, and is never disabled (it shows an info banner
+  when there are no spans).
+- `CLAUDE.md`: added a `## Shipping` section (lands by pull request; CI
+  publishes the image; prod is a manual pull on the VM). Confirmed with the
+  user.
+- #54 relabelled to the issue scheme: one type label (`maintenance`) and an
+  Evidence/Judgement body.
+
+## 6. What is deliberately not done
+
+- No browser-level layout test. The regression test pins the class only. A real
+  width check needs Playwright with `--hide-scrollbars` disabled, and the
+  project has no browser test runner. Adding one is a bigger decision than
+  this fix.
+- The Node 26 test failures (#54) are left for their own change.
+- Safari and Firefox were not measured. The fix removes the scrollbar in any
+  engine, but only Chrome was observed.
