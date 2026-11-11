@@ -45,6 +45,14 @@ function makeSettings(): ServerSettings {
       model: 'claude-opus-4-6',
       dedup_similarity_threshold: 0.88,
     },
+    search: {
+      reranker: 'anthropic',
+      reranker_model: 'claude-haiku-4-5',
+      bm25_candidates: 50,
+      dense_candidates: 50,
+      fusion_top_m: 30,
+      rrf_k: 60,
+    },
     features: {
       mood_scoring: false,
       mood_scorer_model: 'claude-sonnet-4-5',
@@ -67,20 +75,20 @@ function makeSettings(): ServerSettings {
         value: false,
       },
     ],
+    pricing: [],
   }
 }
 
 function makeHealth(): HealthResponse {
   return {
     status: 'ok',
-    checks: [{ name: 'sqlite', status: 'ok', detail: '' }],
+    checks: [{ name: 'sqlite', status: 'ok', detail: '', error: null }],
     ingestion: {
       total_entries: 10,
-      total_words: 5000,
       total_chunks: 50,
       avg_words_per_entry: 500,
       avg_chunks_per_entry: 5,
-      last_ingested_at: null,
+      last_ingestion_at: null,
       entries_last_7d: 2,
       entries_last_30d: 8,
       by_source_type: {},

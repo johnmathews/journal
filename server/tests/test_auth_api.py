@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -336,6 +337,50 @@ class TestMe:
         assert resp.status_code == 200
         data = resp.json()
         assert data["user"]["email"] == "alice@example.com"
+
+    def test_me_returns_the_stored_timestamps(
+        self,
+        client: TestClient,
+        auth_service: AuthService,
+        user_repo: SQLiteUserRepository,
+    ) -> None:
+        """F20: `created_at`/`updated_at` are the user row's, not empty strings.
+
+        The session middleware's `AuthenticatedUser` has no timestamps, so
+        serializing it gave `""` for both.
+        """
+        user, session_id = _register_user(auth_service)
+        user_repo.update_user(user.id, display_name="Alice Renamed")
+        stored = user_repo.get_user_by_id(user.id)
+        assert stored is not None
+
+        resp = client.get("/api/auth/me", cookies={"session_id": session_id})
+
+        assert resp.status_code == 200
+        body = resp.json()["user"]
+        assert body["created_at"], "created_at must not be empty"
+        assert body["updated_at"], "updated_at must not be empty"
+        datetime.fromisoformat(body["created_at"])
+        datetime.fromisoformat(body["updated_at"])
+        assert body["created_at"] == stored.created_at
+        assert body["updated_at"] == stored.updated_at
+        assert body["display_name"] == "Alice Renamed"
+
+    def test_me_404_when_the_user_row_is_gone(
+        self,
+        client: TestClient,
+        auth_service: AuthService,
+        user_repo: SQLiteUserRepository,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The session validated, but the row vanished before the lookup."""
+        _user, session_id = _register_user(auth_service)
+        monkeypatch.setattr(user_repo, "get_user_by_id", lambda _user_id: None)
+
+        resp = client.get("/api/auth/me", cookies={"session_id": session_id})
+
+        assert resp.status_code == 404
+        assert resp.json() == {"error": "not_found", "message": "User not found"}
 
     def test_me_unauthenticated(self, client: TestClient) -> None:
         resp = client.get("/api/auth/me")
@@ -1166,22 +1211,32 @@ class TestUserSerialization:
         assert d["is_admin"] is True
         assert d["created_at"] == "2026-01-01T00:00:00Z"
 
-    def test_user_to_dict_with_authenticated_user(self) -> None:
-        from journal.auth import AuthenticatedUser
+    def test_user_to_dict_sends_every_field(self) -> None:
+        """Takes a stored ``User`` only. The session's ``AuthenticatedUser``
+        has no timestamps (F20), so ``GET /api/auth/me`` loads the row."""
         from journal.auth_api import _user_to_dict
+        from journal.models import User
 
-        user = AuthenticatedUser(
-            user_id=2,
+        user = User(
+            id=2,
             email="auth@example.com",
             display_name="Auth",
             is_admin=False,
             is_active=True,
             email_verified=False,
+            created_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-02T00:00:00Z",
         )
-        d = _user_to_dict(user)
-        assert d["id"] == 2
-        assert d["email"] == "auth@example.com"
-        assert d["is_admin"] is False
+        assert _user_to_dict(user) == {
+            "id": 2,
+            "email": "auth@example.com",
+            "display_name": "Auth",
+            "is_admin": False,
+            "is_active": True,
+            "email_verified": False,
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-02T00:00:00Z",
+        }
 
     def test_api_key_info_to_dict(self) -> None:
         from journal.auth_api import _api_key_info_to_dict
@@ -1224,6 +1279,20 @@ class TestServicesUnavailable:
                 json={"email": "a@b.com", "password": "test"},
             )
             assert resp.status_code == 503
+
+    def test_me_503_when_services_not_initialized(self) -> None:
+        from mcp.server.fastmcp import FastMCP
+
+        from journal.auth_api import register_auth_routes
+
+        test_mcp = FastMCP("test-503")
+        register_auth_routes(test_mcp, lambda: None)
+        app = test_mcp.streamable_http_app()
+
+        with ContractTestClient(app, raise_server_exceptions=False) as tc:
+            resp = tc.get("/api/auth/me")
+            assert resp.status_code == 503
+            assert resp.json()["error"] == "server_not_ready"
 
 
 # ---------------------------------------------------------------------------
@@ -1373,3 +1442,49 @@ class TestAdminReloadMoodDimensions:
         resp = client.post(self.PATH, cookies={"session_id": session_id})
         assert resp.status_code == 409
         assert resp.json()["error"] == "reload_unavailable"
+
+
+class TestAdminReloadEntityCasing:
+    PATH = "/api/admin/reload/entity-casing"
+
+    def test_non_admin_403(
+        self,
+        client: TestClient,
+        auth_service: AuthService,
+    ) -> None:
+        _user, session_id = _register_user(auth_service)
+        resp = client.post(self.PATH, cookies={"session_id": session_id})
+        assert resp.status_code == 403
+        assert resp.json()["error"] == "forbidden"
+
+    def test_admin_200_rebinds_the_exceptions(
+        self,
+        client: TestClient,
+        auth_service: AuthService,
+        user_repo: SQLiteUserRepository,
+        services: dict[str, Any],
+        tmp_path: Path,
+    ) -> None:
+        from dataclasses import replace
+
+        casing = tmp_path / "entity-casing.toml"
+        casing.write_text(
+            '[exceptions]\nmcdonald = "McDonald"\niphone = "iPhone"\n',
+            encoding="utf-8",
+        )
+        services["config"] = replace(
+            services["config"], entity_casing_exceptions_path=casing,
+        )
+        services["entity_store"] = MagicMock()
+        _admin, session_id = _register_admin(auth_service, user_repo)
+
+        resp = client.post(self.PATH, cookies={"session_id": session_id})
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["reloaded"] == "entity-casing"
+        assert body["exception_count"] == 2
+        assert body["path"] == str(casing)
+        expected = {"mcdonald": "McDonald", "iphone": "iPhone"}
+        services["entity_store"].set_casing_exceptions.assert_called_once_with(expected)
+        assert services["entity_casing_exceptions"] == expected

@@ -81,13 +81,23 @@ def _make_client(
     return ContractTestClient(app, raise_server_exceptions=False)
 
 
+# One entry of `NotificationService.get_topics_for_user`: a `TOPICS` row
+# plus the user's `enabled` state.
+_TOPIC: dict[str, Any] = {
+    "key": "notif_job_failed",
+    "label": "Job failed permanently",
+    "group": "failure",
+    "admin_only": False,
+    "default": True,
+    "enabled": True,
+}
+
+
 @pytest.fixture
 def notif() -> MagicMock:
     """Notification service double with realistic return values."""
     service = MagicMock()
-    service.get_topics_for_user.return_value = [
-        {"key": "notif_job_complete", "enabled": True},
-    ]
+    service.get_topics_for_user.return_value = [_TOPIC]
     service.has_credentials.return_value = False
     service.validate_credentials.return_value = NotificationResult(sent=True)
     service.send_test_notification.return_value = NotificationResult(sent=True)
@@ -116,7 +126,7 @@ class TestGetTopics:
         resp = client.get("/api/notifications/topics")
         assert resp.status_code == 200
         assert resp.json() == {
-            "topics": [{"key": "notif_job_complete", "enabled": True}],
+            "topics": [_TOPIC],
         }
         notif.get_topics_for_user.assert_called_once_with(_TEST_USER_ID, False)
 

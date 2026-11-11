@@ -1,28 +1,14 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { apiFetch, ApiRequestError } from '@/api/client'
+import type {
+  AuthUser,
+  AuthUserResponse,
+  LoginCredentials,
+  RegisterData,
+} from '@/types/auth'
 
-export interface AuthUser {
-  id: number
-  email: string
-  display_name: string
-  is_admin: boolean
-  is_active: boolean
-  email_verified: boolean
-  created_at: string
-  updated_at: string
-}
-
-export interface LoginCredentials {
-  email: string
-  password: string
-}
-
-export interface RegisterData {
-  email: string
-  password: string
-  display_name: string
-}
+export type { AuthUser, LoginCredentials, RegisterData } from '@/types/auth'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<AuthUser | null>(null)
@@ -38,7 +24,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function initialize(): Promise<void> {
     if (initialized.value) return
     try {
-      const resp = await apiFetch<{ user: AuthUser }>('/api/auth/me')
+      const resp = await apiFetch<AuthUserResponse>('/api/auth/me')
       user.value = resp.user
     } catch {
       user.value = null
@@ -51,7 +37,7 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     error.value = null
     try {
-      const resp = await apiFetch<{ user: AuthUser }>('/api/auth/login', {
+      const resp = await apiFetch<AuthUserResponse>('/api/auth/login', {
         method: 'POST',
         body: JSON.stringify(credentials),
       })
@@ -81,7 +67,7 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     error.value = null
     try {
-      const resp = await apiFetch<{ user: AuthUser }>('/api/auth/register', {
+      const resp = await apiFetch<AuthUserResponse>('/api/auth/register', {
         method: 'POST',
         body: JSON.stringify(data),
       })
@@ -99,7 +85,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function updateDisplayName(displayName: string): Promise<void> {
-    const resp = await apiFetch<{ user: AuthUser }>('/api/auth/me', {
+    const resp = await apiFetch<AuthUserResponse>('/api/auth/me', {
       method: 'PATCH',
       body: JSON.stringify({ display_name: displayName }),
     })

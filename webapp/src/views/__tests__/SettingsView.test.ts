@@ -115,6 +115,14 @@ function makeSettings(overrides: Partial<ServerSettings> = {}): ServerSettings {
       model: 'claude-opus-4-6',
       dedup_similarity_threshold: 0.88,
     },
+    search: {
+      reranker: 'anthropic',
+      reranker_model: 'claude-haiku-4-5',
+      bm25_candidates: 50,
+      dense_candidates: 50,
+      fusion_top_m: 30,
+      rrf_k: 60,
+    },
     features: {
       mood_scoring: true,
       mood_scorer_model: 'claude-sonnet-4-5',
@@ -124,6 +132,7 @@ function makeSettings(overrides: Partial<ServerSettings> = {}): ServerSettings {
       strava_enabled: false,
     },
     runtime: [],
+    pricing: [],
     ...overrides,
   }
 }
@@ -148,11 +157,10 @@ describe('SettingsView', () => {
       checks: [],
       ingestion: {
         total_entries: 0,
-        total_words: 0,
         total_chunks: 0,
         avg_words_per_entry: 0,
         avg_chunks_per_entry: 0,
-        last_ingested_at: null,
+        last_ingestion_at: null,
         entries_last_7d: 0,
         entries_last_30d: 0,
         by_source_type: {},
@@ -541,11 +549,10 @@ describe('SettingsView', () => {
       checks: [],
       ingestion: {
         total_entries: 0,
-        total_words: 0,
         total_chunks: 0,
         avg_words_per_entry: 0,
         avg_chunks_per_entry: 0,
-        last_ingested_at: null,
+        last_ingestion_at: null,
         entries_last_7d: 0,
         entries_last_30d: 0,
         by_source_type: {},
@@ -594,11 +601,10 @@ describe('SettingsView', () => {
       checks: [],
       ingestion: {
         total_entries: 0,
-        total_words: 0,
         total_chunks: 0,
         avg_words_per_entry: 0,
         avg_chunks_per_entry: 0,
-        last_ingested_at: null,
+        last_ingestion_at: null,
         entries_last_7d: 0,
         entries_last_30d: 0,
         by_source_type: {},

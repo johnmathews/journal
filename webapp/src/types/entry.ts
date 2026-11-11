@@ -13,18 +13,10 @@ export type {
   EntryTokensResponse,
   EntryUpdateResponse,
   SourceType,
+  Statistics,
   TokenSpan,
   UncertainSpan,
 } from './generated/api'
-
-export interface Statistics {
-  total_entries: number
-  date_range_start: string | null
-  date_range_end: string | null
-  total_words: number
-  avg_words_per_entry: number
-  entries_per_month: number
-}
 
 export interface PaginationParams {
   limit?: number

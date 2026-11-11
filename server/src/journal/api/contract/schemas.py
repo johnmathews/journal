@@ -894,6 +894,532 @@ class StorylineDeleteResponse(TypedDict):
     deleted: bool
 
 
+# --- authenticated health and stats (api/health.py) ------------------------
+
+
+@with_config(CONTRACT_CONFIG)
+class IngestionStats(TypedDict):
+    """Corpus statistics: `asdict(journal.models.IngestionStats)`."""
+
+    total_entries: int
+    entries_last_7d: int
+    entries_last_30d: int
+    by_source_type: dict[str, int]
+    """Entry count per `source_type`."""
+    avg_words_per_entry: float
+    avg_chunks_per_entry: float
+    last_ingestion_at: str | None
+    total_chunks: int
+    row_counts: dict[str, int]
+    """Row count per SQLite table."""
+
+
+@with_config(CONTRACT_CONFIG)
+class IngestionStatsError(TypedDict):
+    """Sent in place of `IngestionStats` when the stats query fails."""
+
+    error: str
+
+
+@with_config(CONTRACT_CONFIG)
+class LatencyPercentiles(TypedDict):
+    """Per-query-type latency in ms; all null before the first sample."""
+
+    p50_ms: float | None
+    p95_ms: float | None
+    p99_ms: float | None
+
+
+@with_config(CONTRACT_CONFIG)
+class QueryTypeStats(TypedDict):
+    """Counter and latency for one query type."""
+
+    count: int
+    latency: LatencyPercentiles
+
+
+@with_config(CONTRACT_CONFIG)
+class QueryStats(TypedDict):
+    """Query counters since server start (`journal.services.stats`)."""
+
+    total_queries: int
+    uptime_seconds: float
+    started_at: str | None
+    """Null only when the server runs without a stats collector."""
+    by_type: dict[str, QueryTypeStats]
+
+
+type FitnessAuthStatus = Literal["unknown", "ok", "broken"]
+"""`fitness_auth_state.auth_status` (migration 0023)."""
+
+
+@with_config(CONTRACT_CONFIG)
+class FitnessSourceHealth(TypedDict):
+    """One fitness source in the `/api/health` `fitness` block.
+
+    `auth_status` and `auth_broken_since` are null for a source with sync
+    runs but no auth-state row."""
+
+    auth_status: FitnessAuthStatus | None
+    last_success_at: str | None
+    auth_broken_since: str | None
+
+
+@with_config(CONTRACT_CONFIG)
+class HealthResponse(TypedDict):
+    """Body of the authenticated `GET /api/health`: liveness plus usage stats."""
+
+    status: HealthStatus
+    checks: list[ComponentCheck]
+    ingestion: IngestionStats | IngestionStatsError
+    queries: QueryStats
+    fitness: NotRequired[dict[str, FitnessSourceHealth]]
+    """Keyed by source (`strava`, `garmin`). Absent when the user has no
+    fitness source configured or synced."""
+
+
+@with_config(CONTRACT_CONFIG)
+class Statistics(TypedDict):
+    """Body of `GET /api/stats`: `asdict(journal.models.Statistics)`."""
+
+    total_entries: int
+    date_range_start: str | None
+    date_range_end: str | None
+    total_words: int
+    avg_words_per_entry: float
+    entries_per_month: float
+
+
+# --- settings (api/settings.py) --------------------------------------------
+
+type PricingCategory = Literal["llm", "embedding", "transcription"]
+"""`pricing.category` (migration 0017)."""
+
+
+@with_config(CONTRACT_CONFIG)
+class PricingEntry(TypedDict):
+    """One model's price: `api._shared._pricing_to_dict`."""
+
+    model: str
+    category: PricingCategory
+    input_cost_per_mtok: float | None
+    output_cost_per_mtok: float | None
+    cost_per_minute: float | None
+    last_verified: str
+
+
+@with_config(CONTRACT_CONFIG)
+class RuntimeSetting(TypedDict):
+    """One runtime-editable setting (`RuntimeSettings.get_all`)."""
+
+    key: str
+    type: Literal["bool", "string"]
+    label: str
+    description: str
+    value: bool | str
+    """A boolean when `type` is `bool`, else a string."""
+    choices: NotRequired[list[str]]
+    """Allowed values of a `string` setting that has a fixed set."""
+
+
+@with_config(CONTRACT_CONFIG)
+class OcrSettings(TypedDict):
+    """`ocr` block of `GET /api/settings`."""
+
+    provider: str
+    model: str
+
+
+@with_config(CONTRACT_CONFIG)
+class TranscriptionFallbackSettings(TypedDict):
+    """`transcription.fallback` block of `GET /api/settings`."""
+
+    enabled: bool
+    model: str
+
+
+@with_config(CONTRACT_CONFIG)
+class TranscriptionShadowSettings(TypedDict):
+    """`transcription.shadow` block; provider and model are null when disabled."""
+
+    enabled: bool
+    provider: str | None
+    model: str | None
+
+
+@with_config(CONTRACT_CONFIG)
+class TranscriptionRetrySettings(TypedDict):
+    """`transcription.retry` block of `GET /api/settings`."""
+
+    max_attempts: int
+    base_delay_seconds: float
+    max_delay_seconds: float
+
+
+@with_config(CONTRACT_CONFIG)
+class TranscriptionSettings(TypedDict):
+    """`transcription` block of `GET /api/settings`."""
+
+    provider: str
+    model: str
+    fallback: TranscriptionFallbackSettings
+    shadow: TranscriptionShadowSettings
+    retry: TranscriptionRetrySettings
+
+
+@with_config(CONTRACT_CONFIG)
+class TranscriptFormattingSettings(TypedDict):
+    """`transcript_formatting` block of `GET /api/settings`."""
+
+    model: str
+
+
+@with_config(CONTRACT_CONFIG)
+class EmbeddingSettings(TypedDict):
+    """`embedding` block of `GET /api/settings`."""
+
+    model: str
+    dimensions: int
+
+
+@with_config(CONTRACT_CONFIG)
+class ChunkingSettings(TypedDict):
+    """`chunking` block of `GET /api/settings`."""
+
+    strategy: str
+    max_tokens: int
+    min_tokens: int
+    overlap_tokens: int
+    boundary_percentile: int
+    decisive_percentile: int
+    embed_metadata_prefix: bool
+
+
+@with_config(CONTRACT_CONFIG)
+class EntityExtractionSettings(TypedDict):
+    """`entity_extraction` block of `GET /api/settings`."""
+
+    model: str
+    dedup_similarity_threshold: float
+
+
+@with_config(CONTRACT_CONFIG)
+class SearchSettings(TypedDict):
+    """`search` block of `GET /api/settings`: the hybrid-search knobs (F17)."""
+
+    reranker: str
+    """`anthropic`, or `none` for RRF-only ranking."""
+    reranker_model: str | None
+    """Null when `reranker` is `none`."""
+    bm25_candidates: int
+    dense_candidates: int
+    fusion_top_m: int
+    rrf_k: int
+
+
+@with_config(CONTRACT_CONFIG)
+class FeatureSettings(TypedDict):
+    """`features` block of `GET /api/settings`."""
+
+    mood_scoring: bool
+    """The runtime `enable_mood_scoring` setting."""
+    mood_scorer_model: str
+    journal_author_name: str
+    strava_enabled: bool
+    """False hides all Strava UI (Strava is mothballed, `STRAVA_ENABLED`)."""
+
+
+@with_config(CONTRACT_CONFIG)
+class ServerSettings(TypedDict):
+    """Body of `GET /api/settings`: non-secret config. Secrets are never sent."""
+
+    ocr: OcrSettings
+    transcription: TranscriptionSettings
+    transcript_formatting: TranscriptFormattingSettings
+    embedding: EmbeddingSettings
+    chunking: ChunkingSettings
+    entity_extraction: EntityExtractionSettings
+    search: SearchSettings
+    features: FeatureSettings
+    runtime: list[RuntimeSetting]
+    """Empty when runtime settings are unavailable."""
+    pricing: list[PricingEntry]
+
+
+@with_config(CONTRACT_CONFIG)
+class RuntimeSettingsListResponse(TypedDict):
+    """Body of `GET /api/settings/runtime`."""
+
+    settings: list[RuntimeSetting]
+
+
+@with_config(CONTRACT_CONFIG)
+class RuntimeSettingsUpdateResponse(TypedDict):
+    """Body of `PATCH /api/settings/runtime` (admin only).
+
+    `warnings` lists the keys that failed when at least one other key was
+    updated; if every key fails the route answers 400 instead."""
+
+    updated: list[str]
+    settings: list[RuntimeSetting]
+    warnings: NotRequired[list[str]]
+
+
+@with_config(CONTRACT_CONFIG)
+class PricingListResponse(TypedDict):
+    """Body of `GET /api/settings/pricing`."""
+
+    pricing: list[PricingEntry]
+
+
+@with_config(CONTRACT_CONFIG)
+class PricingUpdateResponse(TypedDict):
+    """Body of `PATCH /api/settings/pricing` (admin only).
+
+    200 when every model updated; 207 with `errors` when some failed. (When
+    all fail it is a 400 with the same shape.)"""
+
+    updated: list[str]
+    pricing: list[PricingEntry]
+    errors: NotRequired[list[str]]
+
+
+# --- user preferences (api/users.py) ---------------------------------------
+
+
+@with_config(CONTRACT_CONFIG)
+class PreferencesResponse(TypedDict):
+    """Body of `GET` and `PATCH /api/users/me/preferences`.
+
+    Maps each preference key to its stored JSON value."""
+
+    preferences: dict[str, Any]
+
+
+# --- notifications (api/notifications.py) ----------------------------------
+
+type NotificationTopicGroup = Literal["success", "failure", "admin"]
+"""Section a topic is listed under (`journal.services.notifications.TOPICS`)."""
+
+
+@with_config(CONTRACT_CONFIG)
+class NotificationTopic(TypedDict):
+    """One notification topic with the user's toggle state."""
+
+    key: str
+    label: str
+    group: NotificationTopicGroup
+    admin_only: bool
+    default: bool
+    enabled: bool
+    """The user's preference, or `default` when unset."""
+
+
+@with_config(CONTRACT_CONFIG)
+class NotificationTopicsResponse(TypedDict):
+    """Body of `GET /api/notifications/topics`. Admin-only topics are
+    listed for admins only."""
+
+    topics: list[NotificationTopic]
+
+
+@with_config(CONTRACT_CONFIG)
+class NotificationStatusResponse(TypedDict):
+    """Body of `GET /api/notifications/status`."""
+
+    configured: bool
+
+
+@with_config(CONTRACT_CONFIG)
+class NotificationValidateResponse(TypedDict):
+    """Body of `POST /api/notifications/validate`: valid credentials are saved."""
+
+    valid: bool
+    error: str | None
+
+
+@with_config(CONTRACT_CONFIG)
+class NotificationTestResponse(TypedDict):
+    """Body of `POST /api/notifications/test`."""
+
+    sent: bool
+    error: str | None
+
+
+# --- auth (auth_api/core.py, account.py, profile.py, api_keys.py) ----------
+
+
+@with_config(CONTRACT_CONFIG)
+class AuthUser(TypedDict):
+    """A user account: `auth_api._shared._user_to_dict` of a stored `User`."""
+
+    id: int
+    email: str
+    display_name: str
+    is_admin: bool
+    is_active: bool
+    email_verified: bool
+    created_at: str
+    updated_at: str
+
+
+@with_config(CONTRACT_CONFIG)
+class AuthUserResponse(TypedDict):
+    """Body of login, register, `GET`/`PATCH /api/auth/me` and the admin
+    user update."""
+
+    user: AuthUser
+
+
+@with_config(CONTRACT_CONFIG)
+class AuthConfigResponse(TypedDict):
+    """Body of `GET /api/auth/config` (no auth required)."""
+
+    registration_enabled: bool
+
+
+@with_config(CONTRACT_CONFIG)
+class OkResponse(TypedDict):
+    """Body of logout and API-key revoke."""
+
+    ok: Literal[True]
+
+
+@with_config(CONTRACT_CONFIG)
+class MessageResponse(TypedDict):
+    """A human-readable confirmation: forgot-password, reset-password,
+    verify-email and resend-verification."""
+
+    message: str
+
+
+@with_config(CONTRACT_CONFIG)
+class ResetTokenValidResponse(TypedDict):
+    """Body of `GET /api/auth/verify-reset-token`; an invalid token is a 400."""
+
+    valid: Literal[True]
+
+
+@with_config(CONTRACT_CONFIG)
+class ApiKey(TypedDict):
+    """API key metadata (`journal.models.ApiKeyInfo`); never the secret.
+
+    Revoked keys are listed too, with `revoked_at` set."""
+
+    id: int
+    user_id: int
+    key_prefix: str
+    """The first characters of the key, for recognising it."""
+    name: str
+    created_at: str
+    expires_at: str | None
+    last_used_at: str | None
+    revoked_at: str | None
+
+
+@with_config(CONTRACT_CONFIG)
+class ApiKeyListResponse(TypedDict):
+    """Body of `GET /api/auth/api-keys`, newest first."""
+
+    items: list[ApiKey]
+
+
+@with_config(CONTRACT_CONFIG)
+class ApiKeyCreatedResponse(ApiKey):
+    """Body of `POST /api/auth/api-keys` (201): the new key's metadata plus
+    the full secret, which is shown this once only."""
+
+    key: str
+
+
+type ApiKeysResponse = ApiKeyListResponse | ApiKeyCreatedResponse
+"""`/api/auth/api-keys`: `GET` lists keys, `POST` creates one."""
+
+
+# --- admin (auth_api/admin.py) ---------------------------------------------
+
+type SqliteBool = Literal[0, 1]
+"""A flag sent as SQLite stores it: 0 or 1, not a JSON boolean."""
+
+
+@with_config(CONTRACT_CONFIG)
+class AdminUserStats(TypedDict):
+    """One user in `GET /api/admin/users` (`get_user_stats`).
+
+    The three flags are raw SQLite integers here, unlike `AuthUser`."""
+
+    id: int
+    email: str
+    display_name: str
+    is_admin: SqliteBool
+    is_active: SqliteBool
+    email_verified: SqliteBool
+    created_at: str
+    entry_count: int
+    total_words: int
+    last_entry_at: str | None
+    job_count: int
+    cost_estimate: float
+    """Rough lifetime USD cost from job counts."""
+    cost_this_week: float
+
+
+@with_config(CONTRACT_CONFIG)
+class AdminUserListResponse(TypedDict):
+    """Body of `GET /api/admin/users`, newest account first."""
+
+    items: list[AdminUserStats]
+
+
+@with_config(CONTRACT_CONFIG)
+class OcrContextReloadSummary(TypedDict):
+    """Body of `POST /api/admin/reload/ocr-context`."""
+
+    reloaded: Literal["ocr-context"]
+    provider: str
+    model: str
+    """The configured model, or `default` for the provider's built-in one."""
+    dual_pass: bool
+    context_files: int
+    context_chars: int
+    reloaded_at: str
+
+
+@with_config(CONTRACT_CONFIG)
+class TranscriptionContextReloadSummary(TypedDict):
+    """Body of `POST /api/admin/reload/transcription-context`."""
+
+    reloaded: Literal["transcription-context"]
+    stack: str
+    """The provider chain, e.g. `retrying(openai/gpt-4o-transcribe, fb=whisper-1)`."""
+    context_files: int
+    context_chars: int
+    reloaded_at: str
+
+
+@with_config(CONTRACT_CONFIG)
+class MoodDimensionsReloadSummary(TypedDict):
+    """Body of `POST /api/admin/reload/mood-dimensions` (409 when mood
+    scoring is disabled)."""
+
+    reloaded: Literal["mood-dimensions"]
+    dimension_count: int
+    dimensions: list[str]
+    """Dimension names, in file order."""
+    version: str
+    reloaded_at: str
+
+
+@with_config(CONTRACT_CONFIG)
+class EntityCasingReloadSummary(TypedDict):
+    """Body of `POST /api/admin/reload/entity-casing`."""
+
+    reloaded: Literal["entity-casing"]
+    exception_count: int
+    path: str
+    reloaded_at: str
+
+
 # --- registry ---------------------------------------------------------------
 
 RESPONSE_SCHEMAS: Final[dict[str, type | TypeAliasType]] = {
@@ -944,4 +1470,42 @@ RESPONSE_SCHEMAS: Final[dict[str, type | TypeAliasType]] = {
     "api_update_storyline": StorylineSummary,
     "api_delete_storyline": StorylineDeleteResponse,
     "api_set_storyline_anchors": SetStorylineAnchorsResponse,
+    # authenticated health and stats
+    "api_health_authed": HealthResponse,
+    "api_stats": Statistics,
+    # settings
+    "api_settings": ServerSettings,
+    "api_runtime_settings_get": RuntimeSettingsListResponse,
+    "api_runtime_settings_patch": RuntimeSettingsUpdateResponse,
+    "api_pricing_get": PricingListResponse,
+    "api_pricing_patch": PricingUpdateResponse,
+    # user preferences
+    "api_preferences_get": PreferencesResponse,
+    "api_preferences_patch": PreferencesResponse,
+    # notifications
+    "api_notif_topics": NotificationTopicsResponse,
+    "api_notif_status": NotificationStatusResponse,
+    "api_notif_validate": NotificationValidateResponse,
+    "api_notif_test": NotificationTestResponse,
+    # auth
+    "api_auth_login": AuthUserResponse,
+    "api_auth_logout": OkResponse,
+    "api_auth_me": AuthUserResponse,
+    "api_auth_me_update": AuthUserResponse,
+    "api_auth_config": AuthConfigResponse,
+    "api_auth_register": AuthUserResponse,
+    "api_auth_forgot_password": MessageResponse,
+    "api_auth_verify_reset_token": ResetTokenValidResponse,
+    "api_auth_reset_password": MessageResponse,
+    "api_auth_verify_email": MessageResponse,
+    "api_auth_resend_verification": MessageResponse,
+    "api_auth_api_keys": ApiKeysResponse,
+    "api_auth_api_key_revoke": OkResponse,
+    # admin
+    "api_admin_users_list": AdminUserListResponse,
+    "api_admin_user_update": AuthUserResponse,
+    "api_admin_reload_ocr_context": OcrContextReloadSummary,
+    "api_admin_reload_transcription_context": TranscriptionContextReloadSummary,
+    "api_admin_reload_mood_dimensions": MoodDimensionsReloadSummary,
+    "api_admin_reload_entity_casing": EntityCasingReloadSummary,
 }

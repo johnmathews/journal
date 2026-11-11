@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from mcp.server.fastmcp import FastMCP
     from starlette.requests import Request
 
+    from journal.api.contract import schemas as contract
     from journal.services.auth import AuthService
 
 log = logging.getLogger(__name__)
@@ -100,8 +101,11 @@ def register_api_keys_routes(
 
         full_key, key_info = auth_service.create_api_key(user_id, name, expires_days)
 
-        response_data = _api_key_info_to_dict(key_info)
-        response_data["key"] = full_key  # Full key shown exactly once
+        # The full key is shown exactly once.
+        response_data: contract.ApiKeyCreatedResponse = {
+            **_api_key_info_to_dict(key_info),
+            "key": full_key,
+        }
 
         log.info("Created API key '%s' for user %d", name, user_id)
         return JSONResponse(response_data, status_code=201)
@@ -109,7 +113,10 @@ def register_api_keys_routes(
     def _list_api_keys(auth_service: AuthService, user_id: int) -> JSONResponse:
         """Handle GET /api/auth/api-keys — list all API keys for the user."""
         keys = auth_service.list_api_keys(user_id)
-        return JSONResponse({"items": [_api_key_info_to_dict(k) for k in keys]})
+        body: contract.ApiKeyListResponse = {
+            "items": [_api_key_info_to_dict(k) for k in keys],
+        }
+        return JSONResponse(body)
 
     # ── DELETE /api/auth/api-keys/{id} ─────────────────────────────────
 

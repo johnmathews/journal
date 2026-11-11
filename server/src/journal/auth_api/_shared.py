@@ -4,9 +4,10 @@ Three helpers, each used by ≥2 cluster modules:
 
 - ``_services_or_503`` — service-availability guard called at the top of
   every route in the package.
-- ``_user_to_dict`` — JSON-safe serialiser for ``User`` and the
-  ``AuthenticatedUser`` middleware object. Used by core, account, profile,
-  and admin clusters.
+- ``_user_to_dict`` — JSON-safe serialiser for a stored ``User``. Used by
+  core, account, profile, and admin clusters. (Not for the session's
+  ``AuthenticatedUser``, which has no timestamps: ``GET /api/auth/me`` loads
+  the ``User`` row first.)
 - ``_api_key_info_to_dict`` — JSON-safe serialiser for ``ApiKeyInfo``.
   Used only by api_keys, but lives here for symmetry and so the package
   facade can re-export both serialisers from a single source.
@@ -21,24 +22,25 @@ from starlette.responses import JSONResponse
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from journal.api.contract import schemas as contract
     from journal.models import ApiKeyInfo, User
 
 
-def _user_to_dict(user: User | object) -> dict:
-    """Serialize a User model or AuthenticatedUser middleware object to JSON-safe dict."""
+def _user_to_dict(user: User) -> contract.AuthUser:
+    """Serialize a stored ``User`` to its JSON body."""
     return {
-        "id": getattr(user, "id", None) or getattr(user, "user_id", None),
-        "email": getattr(user, "email", ""),
-        "display_name": getattr(user, "display_name", ""),
-        "is_admin": getattr(user, "is_admin", False),
-        "is_active": getattr(user, "is_active", True),
-        "email_verified": getattr(user, "email_verified", False),
-        "created_at": getattr(user, "created_at", ""),
-        "updated_at": getattr(user, "updated_at", ""),
+        "id": user.id,
+        "email": user.email,
+        "display_name": user.display_name,
+        "is_admin": user.is_admin,
+        "is_active": user.is_active,
+        "email_verified": user.email_verified,
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
     }
 
 
-def _api_key_info_to_dict(info: ApiKeyInfo) -> dict:
+def _api_key_info_to_dict(info: ApiKeyInfo) -> contract.ApiKey:
     """Serialize an ApiKeyInfo to a JSON-safe dict."""
     return {
         "id": info.id,

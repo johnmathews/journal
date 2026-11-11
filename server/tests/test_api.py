@@ -1684,6 +1684,22 @@ class TestHealth:
         assert data["ingestion"]["by_source_type"] == {"photo": 1, "voice": 1}
         assert data["ingestion"]["row_counts"]["entries"] == 2
 
+    def test_api_health_reports_an_ingestion_stats_failure(
+        self,
+        health_client: tuple[TestClient, dict],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A failing stats query degrades `ingestion` to `{error}`, not a 500."""
+        client, services = health_client
+
+        def boom(**_kwargs: object) -> None:
+            raise sqlite3.OperationalError("database is locked")
+
+        monkeypatch.setattr(services["query"], "get_ingestion_stats", boom)
+        resp = client.get("/api/health")
+        assert resp.status_code == 200
+        assert resp.json()["ingestion"] == {"error": "database is locked"}
+
     def test_api_health_reflects_query_stats_after_searches(
         self,
         health_client: tuple[TestClient, dict],
@@ -2092,6 +2108,37 @@ class TestSettings:
         assert "sk-ant-" not in dumped
         assert "sk-" not in dumped
         assert "xoxb-" not in dumped
+
+    def test_settings_search_block(
+        self, client: TestClient, services: dict,
+    ) -> None:
+        """F17: the hybrid-search knobs are part of the declared body."""
+        from dataclasses import replace
+
+        services["config"] = replace(services["config"], hybrid_reranker="anthropic")
+        config = services["config"]
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        assert resp.json()["search"] == {
+            "reranker": "anthropic",
+            "reranker_model": config.reranker_model,
+            "bm25_candidates": config.hybrid_bm25_candidates,
+            "dense_candidates": config.hybrid_dense_candidates,
+            "fusion_top_m": config.hybrid_fusion_top_m,
+            "rrf_k": config.hybrid_rrf_k,
+        }
+
+    def test_settings_search_block_without_reranker(
+        self, client: TestClient, services: dict,
+    ) -> None:
+        from dataclasses import replace
+
+        services["config"] = replace(services["config"], hybrid_reranker="none")
+        resp = client.get("/api/settings")
+        assert resp.status_code == 200
+        search = resp.json()["search"]
+        assert search["reranker"] == "none"
+        assert search["reranker_model"] is None
 
     def test_settings_transcription_block_full_shape(
         self, client: TestClient,
@@ -3204,6 +3251,20 @@ class TestRuntimeSettings:
             json={"ocr_provider": "openai"},
         )
         assert resp.status_code == 400
+
+    def test_patch_partial_success_returns_warnings(
+        self, client: TestClient,
+    ) -> None:
+        """One good key and one bad: 200, with the failure under `warnings`."""
+        resp = client.patch(
+            "/api/settings/runtime",
+            json={"ocr_dual_pass": True, "nonexistent": True},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["updated"] == ["ocr_dual_pass"]
+        assert len(data["warnings"]) == 1
+        assert "nonexistent" in data["warnings"][0]
 
     def test_patch_multiple_settings(self, client: TestClient) -> None:
         resp = client.patch(

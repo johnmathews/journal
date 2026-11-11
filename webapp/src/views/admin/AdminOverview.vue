@@ -26,6 +26,16 @@ function formatUptime(seconds: number): string {
 
 const overallStatus = computed(() => store.health?.status ?? 'unknown')
 
+// `/api/health` sends `ingestion: { error }` when its stats query fails.
+const ingestion = computed(() => {
+  const block = store.health?.ingestion
+  return block && !('error' in block) ? block : null
+})
+const ingestionError = computed(() => {
+  const block = store.health?.ingestion
+  return block && 'error' in block ? block.error : null
+})
+
 const statusColor = computed(() => {
   switch (overallStatus.value) {
     case 'ok':
@@ -153,15 +163,21 @@ const audioGrandTotal = computed(() => {
             <span class="text-sm text-gray-600 dark:text-gray-300"
               >Entries</span
             >
-            <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              {{ store.health.ingestion.total_entries.toLocaleString() }}
+            <p
+              class="text-lg font-semibold text-gray-900 dark:text-gray-100"
+              data-testid="health-entries"
+            >
+              {{ ingestion ? ingestion.total_entries.toLocaleString() : '—' }}
             </p>
           </div>
           <div class="h-8 w-px bg-gray-200 dark:bg-gray-700" />
           <div>
             <span class="text-sm text-gray-600 dark:text-gray-300">Chunks</span>
-            <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              {{ store.health.ingestion.total_chunks.toLocaleString() }}
+            <p
+              class="text-lg font-semibold text-gray-900 dark:text-gray-100"
+              data-testid="health-chunks"
+            >
+              {{ ingestion ? ingestion.total_chunks.toLocaleString() : '—' }}
             </p>
           </div>
         </div>
@@ -202,7 +218,15 @@ const audioGrandTotal = computed(() => {
           </div>
         </div>
 
+        <p
+          v-if="ingestionError !== null"
+          class="mt-4 text-sm text-red-600 dark:text-red-400"
+          data-testid="ingestion-stats-error"
+        >
+          Ingestion stats unavailable: {{ ingestionError }}
+        </p>
         <div
+          v-if="ingestion"
           class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3"
           data-testid="ingestion-stats"
         >
@@ -215,7 +239,7 @@ const audioGrandTotal = computed(() => {
               Last 7 days
             </p>
             <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              {{ store.health.ingestion.entries_last_7d }} entries
+              {{ ingestion.entries_last_7d }} entries
             </p>
           </div>
           <div
@@ -227,7 +251,7 @@ const audioGrandTotal = computed(() => {
               Last 30 days
             </p>
             <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              {{ store.health.ingestion.entries_last_30d }} entries
+              {{ ingestion.entries_last_30d }} entries
             </p>
           </div>
           <div
@@ -239,7 +263,7 @@ const audioGrandTotal = computed(() => {
               Avg words/entry
             </p>
             <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              {{ Math.round(store.health.ingestion.avg_words_per_entry) }}
+              {{ Math.round(ingestion.avg_words_per_entry) }}
             </p>
           </div>
           <div
@@ -251,7 +275,7 @@ const audioGrandTotal = computed(() => {
               Avg chunks/entry
             </p>
             <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              {{ store.health.ingestion.avg_chunks_per_entry.toFixed(1) }}
+              {{ ingestion.avg_chunks_per_entry.toFixed(1) }}
             </p>
           </div>
         </div>
