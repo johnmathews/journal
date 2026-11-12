@@ -594,6 +594,35 @@ def test_mood_recovery_returns_date_aligned_rows(
     assert by_date["2026-06-02"]["physical_fatigue"] == 0.5
 
 
+def test_mood_recovery_averages_are_floats(
+    client: TestClient,
+    fitness_db: sqlite3.Connection,
+    fitness_repo: FitnessRepository,
+) -> None:
+    """Every overlay value is an SQL ``AVG``, so a float even when the
+    column is INTEGER (``training_readiness``). The contract types them
+    ``float | None``; strict validation accepts an int for a float, so the
+    float itself is asserted here."""
+    raw_id = _seed_raw_garmin(fitness_repo, endpoint="sleep", source_id="mr-1")
+    fitness_repo.upsert_daily(
+        FitnessDaily(
+            user_id=_TEST_USER_ID, source="garmin", local_date="2026-06-01",
+            training_readiness=70, training_load_acute=300.0,
+            hrv_overnight_ms=55.0, raw_ref_ids=[raw_id],
+        ),
+    )
+    _seed_div_mood(
+        fitness_db, entry_date="2026-06-01", physical_fatigue=0.5, mental_fatigue=0.3,
+    )
+    resp = client.get("/api/fitness/mood-recovery?from=2026-06-01&to=2026-06-01")
+    assert resp.status_code == 200
+    (row,) = resp.json()["rows"]
+    assert row["training_readiness"] == 70.0
+    assert isinstance(row["training_readiness"], float)
+    assert row["training_load_acute"] == 300.0
+    assert row["physical_fatigue"] == 0.5
+
+
 def test_mood_recovery_missing_params_returns_400(client: TestClient) -> None:
     resp = client.get("/api/fitness/mood-recovery?from=2026-06-01")
     assert resp.status_code == 400

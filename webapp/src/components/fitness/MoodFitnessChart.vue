@@ -116,6 +116,8 @@ interface SummaryChip {
   count: number
 }
 
+// The server's summary omits a quadrant that has no days, so a missing
+// count is 0.
 const summaryChips = computed<SummaryChip[]>(() => {
   const s = divergenceSummary.value
   if (!s) return []
@@ -123,19 +125,19 @@ const summaryChips = computed<SummaryChip[]>(() => {
     {
       key: 'likely_mental_fatigue',
       label: 'Likely mental',
-      count: s.likely_mental_fatigue,
+      count: s.likely_mental_fatigue ?? 0,
     },
     {
       key: 'hidden_physical_under_recovery',
       label: 'Hidden physical',
-      count: s.hidden_physical_under_recovery,
+      count: s.hidden_physical_under_recovery ?? 0,
     },
     {
       key: 'congruent_fatigue',
       label: 'Congruent tired',
-      count: s.congruent_fatigue,
+      count: s.congruent_fatigue ?? 0,
     },
-    { key: 'congruent_ok', label: 'Congruent OK', count: s.congruent_ok },
+    { key: 'congruent_ok', label: 'Congruent OK', count: s.congruent_ok ?? 0 },
   ]
 })
 

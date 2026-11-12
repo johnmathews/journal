@@ -1420,6 +1420,298 @@ class EntityCasingReloadSummary(TypedDict):
     reloaded_at: str
 
 
+# --- fitness reads (api/fitness.py) ----------------------------------------
+#
+# Numeric types follow the SQLite columns (migrations 0025/0029): an INTEGER
+# column comes back as `int`, a REAL column as `float` (REAL affinity stores
+# an inserted integer as a float). Every value computed with SQL `AVG` or by
+# division is a `float`. (Strict validation still accepts an `int` for a
+# `float` field, but rejects a `float` for an `int` one.)
+
+type FitnessSource = Literal["strava", "garmin"]
+"""`fitness_*.source` (CHECK constraint in migrations 0023/0025)."""
+
+type FitnessActivityType = Literal[
+    "run", "ride", "swim", "walk", "hike", "row", "strength", "other"
+]
+"""`fitness_activities.activity_type` (migration 0029 added `row`)."""
+
+type FitnessSyncRunStatus = Literal[
+    "running", "success", "auth_broken", "transient_failure", "normalize_drift"
+]
+"""`fitness_sync_runs.status` (migration 0023)."""
+
+
+@with_config(CONTRACT_CONFIG)
+class FitnessActivity(TypedDict):
+    """One row of `fitness_activities` (`api/fitness.py::_activity_to_dict`)."""
+
+    id: int
+    user_id: int
+    source: FitnessSource
+    source_id: str
+    activity_type: FitnessActivityType
+    source_subtype: str
+    """The upstream's own activity type (`Run`, `indoor_rowing`, ...)."""
+    start_time: str
+    local_date: str
+    duration_s: int
+    moving_time_s: int | None
+    distance_m: float | None
+    elevation_gain_m: float | None
+    avg_hr_bpm: int | None
+    max_hr_bpm: int | None
+    avg_pace_s_per_km: float | None
+    calories_kcal: int | None
+    perceived_exertion: int | None
+    extras: dict[str, Any]
+    raw_ref_id: int
+    normalized_at: str
+
+
+@with_config(CONTRACT_CONFIG)
+class FitnessActivitiesResponse(TypedDict):
+    """Body of `GET /api/fitness/activities`."""
+
+    items: list[FitnessActivity]
+
+
+@with_config(CONTRACT_CONFIG)
+class FitnessDaily(TypedDict):
+    """One row of `fitness_daily` (`api/fitness.py::_daily_to_dict`).
+    Garmin is the only source of daily rows today."""
+
+    id: int
+    user_id: int
+    source: FitnessSource
+    local_date: str
+    sleep_score: int | None
+    sleep_duration_s: int | None
+    sleep_efficiency_pct: float | None
+    hrv_overnight_ms: float | None
+    resting_hr_bpm: int | None
+    body_battery_high: int | None
+    body_battery_low: int | None
+    stress_avg: int | None
+    training_load_acute: float | None
+    training_load_chronic: float | None
+    training_readiness: int | None
+    extras: dict[str, Any]
+    raw_ref_ids: list[int]
+    normalized_at: str
+
+
+@with_config(CONTRACT_CONFIG)
+class FitnessDailyResponse(TypedDict):
+    """Body of `GET /api/fitness/daily`."""
+
+    items: list[FitnessDaily]
+
+
+@with_config(CONTRACT_CONFIG)
+class FitnessSyncRun(TypedDict):
+    """One element of `last_runs` in the sync-status response."""
+
+    id: int
+    started_at: str
+    finished_at: str | None
+    status: FitnessSyncRunStatus
+    rows_fetched: int
+    """Legacy total (workouts + wellness)."""
+    rows_normalized: int
+    workouts_fetched: int
+    """Per-bucket counts (2026-05-11). Strava is workouts-only, so its
+    `wellness_*` are 0; rows older than the split have 0 in all four."""
+    wellness_fetched: int
+    workouts_normalized: int
+    wellness_normalized: int
+    error_class: str | None
+    error_message: str | None
+
+
+@with_config(CONTRACT_CONFIG)
+class FitnessSourceStatus(TypedDict):
+    """One source in `GET /api/fitness/sync/status`."""
+
+    auth_status: FitnessAuthStatus
+    """`unknown` when the source has sync runs but no auth-state row."""
+    auth_broken_since: str | None
+    last_success_at: str | None
+    last_runs: list[FitnessSyncRun]
+    """Up to 10 most recent runs, newest first."""
+    credentials_saved: NotRequired[bool]
+    """Garmin only (always present there): an encrypted password is saved
+    and the configured `FITNESS_CREDENTIAL_KEY` can decrypt it."""
+
+
+@with_config(CONTRACT_CONFIG)
+class FitnessSyncStatus(TypedDict):
+    """Body of `GET /api/fitness/sync/status`. A source is null when the
+    user has neither an auth-state row nor a sync run for it."""
+
+    strava: FitnessSourceStatus | None
+    garmin: FitnessSourceStatus | None
+
+
+@with_config(CONTRACT_CONFIG)
+class FitnessActivityOrphan(TypedDict):
+    """An activity whose `raw_ref_id` has no row in its source's raw table."""
+
+    activity_id: int
+    source: FitnessSource
+    raw_ref_id: int
+    issue: Literal["raw_row_missing"]
+
+
+@with_config(CONTRACT_CONFIG)
+class FitnessDailyOrphan(TypedDict):
+    """A daily row with raw ids missing from `fitness_raw_garmin`."""
+
+    daily_id: int
+    source: FitnessSource
+    missing_raw_ids: list[int]
+
+
+@with_config(CONTRACT_CONFIG)
+class FitnessIntegrityReport(TypedDict):
+    """Body of `GET /api/fitness/integrity`: the caller's soft-pointer
+    orphans (`journal.db.fitness_integrity`). Empty lists mean a clean DB."""
+
+    activities: list[FitnessActivityOrphan]
+    daily: list[FitnessDailyOrphan]
+
+
+type DivergenceQuadrant = Literal[
+    "likely_mental_fatigue",
+    "hidden_physical_under_recovery",
+    "congruent_fatigue",
+    "congruent_ok",
+]
+"""How a day's felt tiredness compares with its objective recovery."""
+
+
+@with_config(CONTRACT_CONFIG)
+class DivergenceRow(TypedDict):
+    """One day of `GET /api/fitness/divergence`: `asdict(DivergenceDay)`.
+
+    Every `*_z` is a rolling per-person z-score over the request's `window`
+    (default 28 days), null without a baseline or a value that day.
+    `quadrant` is null unless `sufficient`."""
+
+    local_date: str
+    subjective_tired_z: float | None
+    physical_fatigue: float | None
+    mental_fatigue: float | None
+    recovery_z: float | None
+    hrv_z: float | None
+    resting_hr_z: float | None
+    sleep_z: float | None
+    readiness_z: float | None
+    acwr: float | None
+    """Raw acute:chronic training-load ratio (not a z-score)."""
+    acwr_z: float | None
+    quadrant: DivergenceQuadrant | None
+    n_signals: int
+    sufficient: bool
+
+
+@with_config(CONTRACT_CONFIG)
+class DivergenceSummary(TypedDict):
+    """Classified days per quadrant. A quadrant with no days is absent."""
+
+    likely_mental_fatigue: NotRequired[int]
+    hidden_physical_under_recovery: NotRequired[int]
+    congruent_fatigue: NotRequired[int]
+    congruent_ok: NotRequired[int]
+
+
+@with_config(CONTRACT_CONFIG)
+class DivergenceResponse(TypedDict):
+    """Body of `GET /api/fitness/divergence`."""
+
+    rows: list[DivergenceRow]
+    summary: DivergenceSummary
+
+
+@with_config(CONTRACT_CONFIG)
+class MoodRecoveryRow(TypedDict):
+    """One date of `GET /api/fitness/mood-recovery`: per-date averages of
+    the raw daily wellness values and the fatigue mood facets. Any value is
+    null when that side has no data for the date."""
+
+    local_date: str
+    training_load_acute: float | None
+    training_readiness: float | None
+    """An `AVG` across sources, so a float even though the column is INTEGER."""
+    hrv_overnight_ms: float | None
+    physical_fatigue: float | None
+    mental_fatigue: float | None
+
+
+@with_config(CONTRACT_CONFIG)
+class MoodRecoveryResponse(TypedDict):
+    """Body of `GET /api/fitness/mood-recovery`."""
+
+    rows: list[MoodRecoveryRow]
+
+
+# --- fitness jobs and connections (api/fitness_{jobs,garmin,strava}.py) -----
+
+
+@with_config(CONTRACT_CONFIG)
+class FitnessSyncJobResponse(TypedDict):
+    """Body of `POST /api/fitness/sync/{source}` and
+    `POST /api/fitness/backfill/{source}` (202)."""
+
+    job_id: str
+    status: JobStatus
+    already_running: NotRequired[Literal[True]]
+    """Present when a sync or backfill for this user and source was already
+    queued or running; `job_id` is then that job's id."""
+
+
+@with_config(CONTRACT_CONFIG)
+class ConnectedAccountResponse(TypedDict):
+    """A completed Garmin login (connect, reconnect, MFA) or Strava exchange."""
+
+    connected: Literal[True]
+    upstream_user_id: str
+    """Garmin `displayName`, or the Strava athlete id as a string."""
+
+
+@with_config(CONTRACT_CONFIG)
+class GarminMfaPendingResponse(TypedDict):
+    """Garmin wants an MFA code: send it with `pending_session` to
+    `POST /api/fitness/garmin/connect/mfa`."""
+
+    mfa_required: Literal[True]
+    pending_session: str
+    expires_at: str
+
+
+type GarminConnectResponse = ConnectedAccountResponse | GarminMfaPendingResponse
+"""`POST /api/fitness/garmin/connect` and `/reconnect`: logged in, or an MFA
+challenge."""
+
+
+@with_config(CONTRACT_CONFIG)
+class DisconnectResponse(TypedDict):
+    """Body of the Garmin and Strava disconnect routes. `disconnected` is
+    false when there was no auth row to delete."""
+
+    disconnected: bool
+
+
+@with_config(CONTRACT_CONFIG)
+class StravaAuthorizeUrlResponse(TypedDict):
+    """Body of `GET /api/fitness/strava/authorize_url`."""
+
+    authorize_url: str
+    state: str
+    """One-shot CSRF token for the exchange call."""
+    expires_at: str
+
+
 # --- registry ---------------------------------------------------------------
 
 RESPONSE_SCHEMAS: Final[dict[str, type | TypeAliasType]] = {
@@ -1508,4 +1800,22 @@ RESPONSE_SCHEMAS: Final[dict[str, type | TypeAliasType]] = {
     "api_admin_reload_transcription_context": TranscriptionContextReloadSummary,
     "api_admin_reload_mood_dimensions": MoodDimensionsReloadSummary,
     "api_admin_reload_entity_casing": EntityCasingReloadSummary,
+    # fitness reads
+    "api_fitness_list_activities": FitnessActivitiesResponse,
+    "api_fitness_list_daily": FitnessDailyResponse,
+    "api_fitness_sync_status": FitnessSyncStatus,
+    "api_fitness_integrity": FitnessIntegrityReport,
+    "api_fitness_divergence": DivergenceResponse,
+    "api_fitness_mood_recovery": MoodRecoveryResponse,
+    # fitness jobs
+    "api_fitness_sync": FitnessSyncJobResponse,
+    "api_fitness_backfill": FitnessSyncJobResponse,
+    # fitness connections
+    "api_fitness_garmin_connect": GarminConnectResponse,
+    "api_fitness_garmin_reconnect": GarminConnectResponse,
+    "api_fitness_garmin_connect_mfa": ConnectedAccountResponse,
+    "api_fitness_garmin_disconnect": DisconnectResponse,
+    "api_fitness_strava_authorize_url": StravaAuthorizeUrlResponse,
+    "api_fitness_strava_exchange": ConnectedAccountResponse,
+    "api_fitness_strava_disconnect": DisconnectResponse,
 }
