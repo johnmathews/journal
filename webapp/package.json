@@ -31,7 +31,7 @@
   "homepage": "https://github.com/johnmathews/journal/tree/main/webapp#readme",
   "dependencies": {
     "@types/diff-match-patch": "^1.0.36",
-    "@vueuse/core": "^12.5.0",
+    "@vueuse/core": "^15.0.0",
     "chart.js": "^4.5.1",
     "diff-match-patch": "^1.0.5",
     "pinia": "^3.0.4",
