@@ -209,10 +209,60 @@ describe('ApiKeysView', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
+    // #40: the server needs an instant with a time zone, not a bare date.
+    // The key expires at the end of the chosen day in the browser's zone.
+    const endOfDay = new Date(2026, 11, 31, 23, 59, 59).toISOString()
     expect(mockApiFetch).toHaveBeenCalledWith('/api/auth/api-keys', {
       method: 'POST',
-      body: JSON.stringify({ name: 'Expiring Key', expires_at: '2026-12-31' }),
+      body: JSON.stringify({ name: 'Expiring Key', expires_at: endOfDay }),
     })
+    const sent = JSON.parse(
+      (mockApiFetch.mock.calls[1][1] as { body: string }).body,
+    )
+    expect(sent.expires_at).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+    )
+    expect(sent).not.toHaveProperty('expires_days')
+  })
+
+  it('sends no expiry field when no date is chosen', async () => {
+    mockApiFetch
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ ...fakeKeys[0], key: 'jrn_x' })
+      .mockResolvedValueOnce({ items: [] })
+
+    const wrapper = mountComponent()
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Generate New Key')!
+      .trigger('click')
+    await wrapper.find('#key-name').setValue('No Expiry')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/auth/api-keys', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'No Expiry' }),
+    })
+  })
+
+  it('does not offer expiry dates before today', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 10, 12, 9, 30))
+    try {
+      mockApiFetch.mockResolvedValue({ items: [] })
+      const wrapper = mountComponent()
+      await flushPromises()
+      await wrapper
+        .findAll('button')
+        .find((b) => b.text() === 'Generate New Key')!
+        .trigger('click')
+
+      expect(wrapper.find('#key-expiry').attributes('min')).toBe('2026-11-12')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('shows error when creating key fails', async () => {

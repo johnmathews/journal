@@ -189,13 +189,13 @@ sessions, API keys). Admin can already disable users (`PATCH /api/admin/users/{i
 delete is the missing piece. ChromaDB needs a separate deletion call keyed on `user_id`
 metadata. Two-user home server makes this lower-priority but still good hygiene.
 
-### 13. Periodic session cleanup — OPEN
+### 13. Periodic session cleanup — PARTLY DONE
 
-`UserRepository.cleanup_expired_sessions()` is implemented (line ~318) and tested
-(`tests/test_db/test_user_repository.py:272`) but never called outside tests
-(`grep` confirms no call sites in `src/`). Add a periodic task (server startup +
-hourly thereafter) to purge expired sessions from the database. Cheapest fix: schedule it in
-the existing job runner alongside `cleanup_old_jobs`.
+`AuthService.create_session` calls `UserRepository.cleanup_expired_sessions()` on every
+login, so expired rows are purged then. An expired session is never accepted in the
+meantime: `get_session` filters on `datetime(expires_at) > datetime('now')`. Remaining gap:
+a server nobody logs in to keeps its expired rows. Cheapest fix: schedule the cleanup in the
+existing job runner alongside `cleanup_old_jobs`.
 
 ### 14. Security headers middleware — OPEN
 

@@ -1850,9 +1850,18 @@ otherwise unrecoverable — the server only stores a hash.
 
 ```json
 { "name": "nanoclaw bot", "expires_days": 90 }
+{ "name": "nanoclaw bot", "expires_at": "2026-12-31T22:59:59Z" }
 ```
 
-`name` is required. `expires_days` is optional; when set, must be a positive integer.
+- `name` is required.
+- Expiry is optional. Send **at most one** of:
+  - `expires_days`: an integer from 1 to 36500, counted from now.
+  - `expires_at`: an ISO 8601 date-time with a time zone (`Z` or an offset), in the future. A bare date or a naive
+    date-time is rejected, because its instant is ambiguous. The webapp sends the end of the chosen day in the
+    browser's time zone.
+- The stored expiry is UTC, to the second. A key stops authenticating the second it passes `expires_at`.
+- Any other field is rejected with `400 invalid_field`. Request bodies are outside the response contract, so this rule
+  is pinned by `TestApiKeys` in `tests/test_auth_api.py`.
 
 **Response (201):**
 
@@ -1860,19 +1869,19 @@ otherwise unrecoverable — the server only stores a hash.
 {
  "id": 7,
  "user_id": 1,
- "key_prefix": "jrnl_a1b2",
+ "key_prefix": "jnl_a1b2c3d4",
  "name": "nanoclaw bot",
  "created_at": "2026-04-12T10:00:00+00:00",
- "expires_at": "2026-07-11T10:00:00+00:00",
+ "expires_at": "2026-07-11T10:00:00Z",
  "last_used_at": null,
  "revoked_at": null,
- "key": "jrnl_a1b2c3d4e5f6..."
+ "key": "jnl_a1b2c3d4e5f6..."
 }
 ```
 
 `key` is the full Bearer token; persist it client-side. Subsequent reads (GET) will not include it.
 
-**Errors:** `400 invalid_body`, `400 missing_fields`, `400 invalid_field`.
+**Errors:** `400 invalid_body` (not JSON, or not a JSON object), `400 missing_fields`, `400 invalid_field`.
 
 ---
 
@@ -1888,7 +1897,7 @@ List the authenticated user's API keys. Secret material is never returned.
   {
    "id": 7,
    "user_id": 1,
-   "key_prefix": "jrnl_a1b2",
+   "key_prefix": "jnl_a1b2c3d4",
    "name": "nanoclaw bot",
    "created_at": "...",
    "expires_at": "...",

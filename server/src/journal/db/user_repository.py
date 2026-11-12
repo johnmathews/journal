@@ -284,14 +284,21 @@ class SQLiteUserRepository:
         log.info("Created session for user %d", user_id)
 
     def get_session(self, session_id: str) -> dict | None:
-        """Return session data joined with user info, or None if expired/missing."""
+        """Return session data joined with user info, or None if expired/missing.
+
+        ``expires_at`` is stored as ``YYYY-MM-DDTHH:MM:SSZ``. It is wrapped in
+        ``datetime()`` before comparing: a raw string comparison against
+        ``datetime('now')`` (``YYYY-MM-DD HH:MM:SS``) treats ``'T' > ' '`` and
+        keeps a credential alive until the end of its expiry date (#40). The
+        API key lookup below does the same.
+        """
         conn = self._conn()
         row = conn.execute(
             "SELECT s.*, u.email, u.display_name, u.is_admin, u.is_active, "
             "u.email_verified "
             "FROM user_sessions s "
             "JOIN users u ON u.id = s.user_id "
-            "WHERE s.id = ? AND s.expires_at > datetime('now')",
+            "WHERE s.id = ? AND datetime(s.expires_at) > datetime('now')",
             (session_id,),
         ).fetchone()
         if row is None:
@@ -328,7 +335,7 @@ class SQLiteUserRepository:
     def cleanup_expired_sessions(self) -> int:
         conn = self._conn()
         cursor = conn.execute(
-            "DELETE FROM user_sessions WHERE expires_at <= datetime('now')"
+            "DELETE FROM user_sessions WHERE datetime(expires_at) <= datetime('now')"
         )
         conn.commit()
         count = cursor.rowcount
@@ -368,7 +375,7 @@ class SQLiteUserRepository:
             "JOIN users u ON u.id = k.user_id "
             "WHERE k.key_hash = ? "
             "AND k.revoked_at IS NULL "
-            "AND (k.expires_at IS NULL OR k.expires_at > datetime('now'))",
+            "AND (k.expires_at IS NULL OR datetime(k.expires_at) > datetime('now'))",
             (key_hash,),
         ).fetchone()
         if row is None:

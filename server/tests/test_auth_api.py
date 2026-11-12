@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -946,6 +946,188 @@ class TestApiKeys:
         assert resp.status_code == 201
         data = resp.json()
         assert data["expires_at"] is not None
+
+    # -- Request shape (#40). The response contract can't see request bodies,
+    # so these pin what the POST accepts and rejects.
+
+    def _verified_session(
+        self, auth_service: AuthService, user_repo: SQLiteUserRepository
+    ) -> str:
+        user, _ = _register_user(auth_service)
+        user_repo.update_user(user.id, email_verified=True)
+        return auth_service.create_session(user.id)
+
+    def test_create_api_key_with_expires_at_round_trips(
+        self,
+        client: TestClient,
+        auth_service: AuthService,
+        user_repo: SQLiteUserRepository,
+    ) -> None:
+        """The webapp's shape: an ISO instant in ``expires_at`` is stored as given."""
+        session_id = self._verified_session(auth_service, user_repo)
+        expires = (datetime.now(UTC) + timedelta(days=10)).replace(microsecond=0)
+        sent = expires.isoformat().replace("+00:00", "Z")
+        resp = client.post(
+            "/api/auth/api-keys",
+            json={"name": "Dated Key", "expires_at": sent},
+            cookies={"session_id": session_id},
+        )
+        assert resp.status_code == 201
+        expected = expires.strftime("%Y-%m-%dT%H:%M:%SZ")
+        assert resp.json()["expires_at"] == expected
+
+        listed = client.get("/api/auth/api-keys", cookies={"session_id": session_id})
+        assert listed.json()["items"][0]["expires_at"] == expected
+
+    def test_create_api_key_expires_at_with_offset_is_stored_as_utc(
+        self,
+        client: TestClient,
+        auth_service: AuthService,
+        user_repo: SQLiteUserRepository,
+    ) -> None:
+        session_id = self._verified_session(auth_service, user_repo)
+        resp = client.post(
+            "/api/auth/api-keys",
+            json={"name": "Offset Key", "expires_at": "2099-06-30T23:59:59+02:00"},
+            cookies={"session_id": session_id},
+        )
+        assert resp.status_code == 201
+        assert resp.json()["expires_at"] == "2099-06-30T21:59:59Z"
+
+    @pytest.mark.parametrize(
+        "expires_at",
+        [
+            "2099-06-30",  # date only: no time zone, ambiguous
+            "2099-06-30T12:00:00",  # naive datetime
+            "2000-01-01T00:00:00Z",  # in the past
+            "not a date",
+            "9999-12-31T23:59:59-05:00",  # past year 9999 once converted to UTC
+            12345,
+        ],
+    )
+    def test_create_api_key_rejects_bad_expires_at(
+        self,
+        client: TestClient,
+        auth_service: AuthService,
+        user_repo: SQLiteUserRepository,
+        expires_at: object,
+    ) -> None:
+        session_id = self._verified_session(auth_service, user_repo)
+        resp = client.post(
+            "/api/auth/api-keys",
+            json={"name": "Bad", "expires_at": expires_at},
+            cookies={"session_id": session_id},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["error"] == "invalid_field"
+        assert auth_service.list_api_keys(1) == []
+
+    @pytest.mark.parametrize("expires_days", [0, -3, "soon", 100_000_000, 36_501])
+    def test_create_api_key_rejects_bad_expires_days(
+        self,
+        client: TestClient,
+        auth_service: AuthService,
+        user_repo: SQLiteUserRepository,
+        expires_days: object,
+    ) -> None:
+        """Out-of-range days are a 400, not an OverflowError 500."""
+        session_id = self._verified_session(auth_service, user_repo)
+        resp = client.post(
+            "/api/auth/api-keys",
+            json={"name": "Days", "expires_days": expires_days},
+            cookies={"session_id": session_id},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["error"] == "invalid_field"
+
+    def test_create_api_key_rejects_infinite_expires_days(
+        self,
+        client: TestClient,
+        auth_service: AuthService,
+        user_repo: SQLiteUserRepository,
+    ) -> None:
+        session_id = self._verified_session(auth_service, user_repo)
+        resp = client.post(
+            "/api/auth/api-keys",
+            content='{"name": "Inf", "expires_days": Infinity}',
+            headers={"Content-Type": "application/json"},
+            cookies={"session_id": session_id},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["error"] == "invalid_field"
+
+    def test_create_api_key_rejects_both_expiry_fields(
+        self,
+        client: TestClient,
+        auth_service: AuthService,
+        user_repo: SQLiteUserRepository,
+    ) -> None:
+        session_id = self._verified_session(auth_service, user_repo)
+        resp = client.post(
+            "/api/auth/api-keys",
+            json={
+                "name": "Both",
+                "expires_days": 5,
+                "expires_at": "2099-01-01T00:00:00Z",
+            },
+            cookies={"session_id": session_id},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["error"] == "invalid_field"
+
+    def test_create_api_key_rejects_unknown_fields(
+        self,
+        client: TestClient,
+        auth_service: AuthService,
+        user_repo: SQLiteUserRepository,
+    ) -> None:
+        """An unrecognised key is an error, never silently dropped (the #40 bug)."""
+        session_id = self._verified_session(auth_service, user_repo)
+        resp = client.post(
+            "/api/auth/api-keys",
+            json={"name": "Typo", "expires_in": 30},
+            cookies={"session_id": session_id},
+        )
+        assert resp.status_code == 400
+        body = resp.json()
+        assert body["error"] == "invalid_field"
+        assert "expires_in" in body["message"]
+
+    def test_create_api_key_rejects_non_object_body(
+        self,
+        client: TestClient,
+        auth_service: AuthService,
+        user_repo: SQLiteUserRepository,
+    ) -> None:
+        session_id = self._verified_session(auth_service, user_repo)
+        resp = client.post(
+            "/api/auth/api-keys",
+            json=["name", "x"],
+            cookies={"session_id": session_id},
+        )
+        assert resp.status_code == 400
+        assert resp.json()["error"] == "invalid_body"
+
+    def test_expired_api_key_is_rejected_by_middleware(
+        self,
+        client: TestClient,
+        auth_service: AuthService,
+        user_repo: SQLiteUserRepository,
+    ) -> None:
+        """End to end: a bearer key one second past expiry gets 401."""
+        user, _ = _register_user(auth_service)
+        user_repo.update_user(user.id, email_verified=True)
+        full_key, info = auth_service.create_api_key(user.id, "Short-lived")
+        just_past = (
+            datetime.now(UTC).replace(microsecond=0) - timedelta(seconds=1)
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        conn = user_repo._conn()
+        conn.execute("UPDATE api_keys SET expires_at = ? WHERE id = ?", (just_past, info.id))
+        conn.commit()
+        resp = client.get(
+            "/api/auth/api-keys", headers={"Authorization": f"Bearer {full_key}"}
+        )
+        assert resp.status_code == 401
 
     def test_create_api_key_missing_name(
         self,

@@ -245,6 +245,24 @@ class TestSessions:
         user_repo.create_session("tok-expired", user.id, past)
         assert user_repo.get_session("tok-expired") is None
 
+    def test_session_expired_earlier_today_returns_none(
+        self, user_repo: SQLiteUserRepository
+    ) -> None:
+        """#40: expiry must hold to the second, not until the end of the UTC day.
+
+        ``expires_at`` is stored as ``YYYY-MM-DDTHH:MM:SSZ`` and SQLite's
+        ``datetime('now')`` renders as ``YYYY-MM-DD HH:MM:SS``. Compared as raw
+        strings, ``'T' > ' '`` keeps a credential alive for the rest of its
+        expiry date.
+        """
+        user = user_repo.create_user("today@example.com", "Today")
+        just_past = (
+            datetime.now(UTC).replace(microsecond=0) - timedelta(seconds=1)
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        user_repo.create_session("tok-today", user.id, just_past)
+        assert user_repo.get_session("tok-today") is None
+        assert user_repo.cleanup_expired_sessions() == 1
+
     def test_get_missing_session_returns_none(
         self, user_repo: SQLiteUserRepository
     ) -> None:
@@ -344,6 +362,31 @@ class TestApiKeys:
         )
         user_repo.create_api_key(user.id, "jnl_expir", key_hash, "Expired", expires_at=past)
         assert user_repo.get_api_key_by_hash(key_hash) is None
+
+    def test_key_expired_earlier_today_returns_none(
+        self, user_repo: SQLiteUserRepository
+    ) -> None:
+        """#40: an API key one second past ``expires_at`` is rejected."""
+        user = user_repo.create_user("keytoday@example.com", "KeyToday")
+        key_hash = hashlib.sha256(b"jnl_expired_today").hexdigest()
+        just_past = (
+            datetime.now(UTC).replace(microsecond=0) - timedelta(seconds=1)
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        user_repo.create_api_key(
+            user.id, "jnl_today", key_hash, "Expired today", expires_at=just_past
+        )
+        assert user_repo.get_api_key_by_hash(key_hash) is None
+
+    def test_key_expiring_soon_is_still_valid(
+        self, user_repo: SQLiteUserRepository
+    ) -> None:
+        user = user_repo.create_user("keysoon@example.com", "KeySoon")
+        key_hash = hashlib.sha256(b"jnl_expiring_soon").hexdigest()
+        soon = (datetime.now(UTC) + timedelta(minutes=5)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        user_repo.create_api_key(user.id, "jnl_soon_", key_hash, "Soon", expires_at=soon)
+        assert user_repo.get_api_key_by_hash(key_hash) is not None
 
     def test_get_missing_key_returns_none(
         self, user_repo: SQLiteUserRepository

@@ -120,8 +120,10 @@ E       AssertionError: Routes with no response contract: ['api_example']. Add a
 
 ## 5. What the contract does not cover
 
-- **Request bodies.** Only responses are described. A request mismatch passes every gate. Known example: the API keys
-  page sends `expires_at`, the server reads `expires_days`, and keys created with an expiry never expire.
+- **Request bodies.** Only responses are described. A request mismatch passes every gate. Known example (fixed in
+  #40): the API keys page sent `expires_at` while the server read only `expires_days`, so keys created with an expiry
+  never expired. Pin a request shape with an endpoint test instead, as `TestApiKeys` in
+  `server/tests/test_auth_api.py` does.
 - **Values that type-check but are wrong.** The check validates types and keys only. `/api/auth/me` once returned empty
   strings for `created_at` and `updated_at`, which matched `str`. Only a test that asserts values catches this.
 - **Non-2xx bodies.** Error bodies are not validated at runtime. `ErrorResponse` is exported for the webapp's use only.

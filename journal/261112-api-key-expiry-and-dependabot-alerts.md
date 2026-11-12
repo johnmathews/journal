@@ -1,0 +1,52 @@
+# API key expiry (#40) and webapp Dependabot alerts (#41)
+
+**Date:** 2026-11-12
+
+## 1. #40: API key expiry was silently dropped
+
+### 1.1 What was wrong
+
+- **Confirmed (read and tested):** the API Keys page sent `expires_at: "YYYY-MM-DD"`. `POST /api/auth/api-keys` read
+  only `expires_days` and ignored unknown fields, so every key created with an expiry was stored with none.
+- **Confirmed (red test):** expiry enforcement was a string comparison, `expires_at > datetime('now')`. Stored values
+  look like `2026-11-12T01:00:00Z` and `datetime('now')` like `2026-11-12 08:50:00`. On the expiry date `'T' > ' '`,
+  so an API key or a session stayed valid until the end of that UTC day. `test_expired_api_key_is_rejected_by_middleware`
+  got 200 for a bearer key one second past expiry.
+
+### 1.2 What changed
+
+- The server accepts `expires_at`: an ISO 8601 date-time with a time zone, in the future, stored in UTC to the second.
+  `expires_days` still works. Both together, any unknown field, or a non-object body is a 400.
+- The webapp sends the end of the chosen day in the browser's time zone (`23:59:59` local, as UTC), and the date
+  picker no longer offers past dates.
+- The three expiry comparisons (API key lookup, session lookup, session cleanup) wrap the stored value in `datetime()`.
+- `expires_days` is capped at 36500. An out-of-range or infinite value used to raise `OverflowError` and return a 500
+  (found by the independent review; red test `assert 500 == 400`).
+- `server/docs/api.md` documents the request body. The docs audit also fixed stale claims next to it: the response
+  example's `expires_at` format and `jrnl_` prefix, `docs/api-contract.md` citing #40 as still open, and
+  `security-roadmap.md` §13 and `configuration.md` saying session cleanup never runs (it runs on every login).
+
+### 1.3 Decisions
+
+- **The server changed, not only the webapp.** Converting the date to `expires_days` in the browser would have kept
+  the server API as it was, but it rounds to whole days counted from creation time, and every API or MCP caller would
+  have had to do the same arithmetic. An absolute instant is what a user means by "expires on".
+- **Unknown fields are rejected.** Silently ignoring one is the root cause of #40. The only known caller is the webapp.
+- **A bare date is rejected.** Without a zone the instant is ambiguous; the browser knows the user's zone, the server
+  does not.
+- **Sessions got the same SQL fix.** Same root cause, same file, a one-word change each.
+
+### 1.4 Evidence
+
+- Red before the fix: the round-trip test (`assert None == '2026-11-22T08:53:51Z'`), the middleware test
+  (`assert 200 == 401`), the same-day repository tests for keys and sessions, the non-object body (500), and the
+  webapp body and `min` tests.
+- Local stack on a copy of the dev DB: a key set in the UI to expire on 2026-11-30 came back from
+  `GET /api/auth/api-keys` as `2026-11-30T22:59:59Z` (23:59:59 CET).
+- Prod probe (read-only, counts only): 3 sessions, all `expires_at` in `YYYY-MM-DDTHH:MM:SSZ`, none unparsable by
+  `datetime()`, so the SQL change fails no existing session closed. 4 API keys, all active, none with an expiry.
+
+## 2. What is deliberately not done
+
+- Expiry dates for keys already created in prod can't be recovered: the page dropped them before they reached the
+  server. Whether to list or revoke those keys is John's call.
