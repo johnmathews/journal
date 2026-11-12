@@ -122,7 +122,25 @@
   turn "expired" and redden the tests in January.
 - **Not done:** no design system or brand work; the repo has none, and this stayed inside the existing Mosaic styles.
 
-## 5. What is deliberately not done
+## 5. Wrap-up: element names and docs
+
+- **Confirmed by the docs audit:** W3 and W4 named the API Keys elements with plain `id`s. The webapp's convention
+  (`webapp/docs/element-naming.md`) is `data-testid` only, with `id` kept for form fields a `<label for>` needs. The
+  convention was not linked from `webapp/CLAUDE.md`, and I didn't read it.
+- **Fixed:**
+  - All ten names are now `data-testid`, and the tests select on them. The tests were seen red against the old view,
+    then green after it was converted.
+  - `element-naming.md` gains a §1.3 key-name map for the view.
+  - `webapp/CLAUDE.md` points at the convention.
+- **Docs:**
+  - `server/docs/api.md` now says `GET /api/auth/api-keys` returns all keys, revoked and expired included. That gap
+    in the docs is what let W3's bug happen.
+  - `webapp/docs/development.md` records the frozen-clock rule for views that compare dates with now.
+  - `webapp/docs/auth.md` covers the width, the intro line, the empty line and the "Ended" column.
+- **Follow-up filed:** #52 (dependencies, severity: low, security): the dev-only glob advisory and the deferred joint
+  vitest 5 / coverage-v8 5 upgrade.
+
+## 6. What is deliberately not done
 
 - Expiry dates for keys already created in prod can't be recovered: the page dropped them before they reached the
   server. Whether to list or revoke those keys is John's call.

@@ -145,7 +145,7 @@ function formatDate(dateStr: string | null): string {
 </script>
 
 <template>
-  <div id="api-keys-page" class="max-w-6xl mx-auto">
+  <div data-testid="api-keys-page" class="max-w-6xl mx-auto">
     <div class="sm:flex sm:justify-between sm:items-start gap-6 mb-8">
       <div>
         <h1
@@ -154,7 +154,7 @@ function formatDate(dateStr: string | null): string {
           API Keys
         </h1>
         <p
-          id="api-keys-intro"
+          data-testid="api-keys-intro"
           class="mt-2 max-w-xl text-sm text-gray-600 dark:text-gray-300"
         >
           Keys let MCP clients and scripts use your journal on your behalf. A
@@ -343,14 +343,14 @@ function formatDate(dateStr: string | null): string {
 
       <p
         v-else-if="activeKeys.length === 0"
-        id="api-keys-active-empty"
+        data-testid="api-keys-active-empty"
         class="p-8 text-center text-sm text-gray-600 dark:text-gray-300"
       >
         No working keys. Generate one to connect a client.
       </p>
 
       <div v-else class="overflow-x-auto">
-        <table id="api-keys-active" class="w-full table-auto">
+        <table data-testid="api-keys-active" class="w-full table-auto">
           <thead>
             <tr
               class="text-xs uppercase text-gray-600 dark:text-gray-300 border-b border-gray-100 dark:border-gray-700/60"
@@ -366,8 +366,8 @@ function formatDate(dateStr: string | null): string {
           <tbody class="text-sm">
             <tr
               v-for="key in activeKeys"
-              :id="`api-key-row-${key.id}`"
               :key="key.id"
+              :data-testid="`api-key-row-${key.id}`"
               class="border-b border-gray-100 dark:border-gray-700/60 last:border-0"
             >
               <td
@@ -399,7 +399,7 @@ function formatDate(dateStr: string | null): string {
               </td>
               <td class="px-5 py-3 text-right whitespace-nowrap">
                 <button
-                  :id="`api-key-revoke-${key.id}`"
+                  :data-testid="`api-key-revoke-${key.id}`"
                   class="btn-xs bg-red-500 hover:bg-red-600 text-white"
                   @click="revokeKey(key.id)"
                 >
@@ -415,11 +415,11 @@ function formatDate(dateStr: string | null): string {
     <!-- Keys that no longer work: folded away, kept as a record. -->
     <details
       v-if="!loading && inactiveKeys.length"
-      id="api-keys-inactive"
+      data-testid="api-keys-inactive"
       class="mt-6"
     >
       <summary
-        id="api-keys-inactive-summary"
+        data-testid="api-keys-inactive-summary"
         class="cursor-pointer text-sm font-semibold text-gray-600 dark:text-gray-300 mb-3"
       >
         Revoked and expired ({{ inactiveKeys.length }})
@@ -442,8 +442,8 @@ function formatDate(dateStr: string | null): string {
           <tbody class="text-sm">
             <tr
               v-for="key in inactiveKeys"
-              :id="`api-key-row-${key.id}`"
               :key="key.id"
+              :data-testid="`api-key-row-${key.id}`"
               class="border-b border-gray-100 dark:border-gray-700/60 last:border-0"
             >
               <td
@@ -471,10 +471,13 @@ function formatDate(dateStr: string | null): string {
               <td
                 class="px-5 py-3 text-right whitespace-nowrap tabular-nums text-gray-600 dark:text-gray-300"
               >
-                <span v-if="key.revoked_at" :id="`api-key-revoked-${key.id}`">
+                <span
+                  v-if="key.revoked_at"
+                  :data-testid="`api-key-revoked-${key.id}`"
+                >
                   Revoked {{ formatDate(key.revoked_at) }}
                 </span>
-                <span v-else :id="`api-key-expired-${key.id}`">
+                <span v-else :data-testid="`api-key-expired-${key.id}`">
                   Expired {{ formatDate(key.expires_at) }}
                 </span>
               </td>

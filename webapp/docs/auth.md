@@ -44,8 +44,10 @@ There is no `src/api/auth.ts` module — auth-related endpoints are called via
 - `src/views/ApiKeysView.vue` — `/api/auth/api-keys` (GET / POST / DELETE). The create form sends the end of the chosen
   day in the browser's time zone as an ISO instant in `expires_at`; the date picker's `min` is today. The main table lists
   only keys that still work (not revoked, not past `expires_at`), each with a Revoke button. Revoked and expired keys
-  (the server returns them too) sit in a folded "Revoked and expired (N)" section with "Revoked <date>" or
-  "Expired <date>". After a revoke the page re-reads the list, so the key moves there.
+  (the server returns them too) sit in a closed "Revoked and expired (N)" section whose "Ended" column shows
+  "Revoked <date>" or "Expired <date>". After a revoke the page re-reads the list, so the key moves there. The page is
+  `max-w-6xl` with a one-line explanation under the heading; with no working key the main table reads "No working
+  keys. Generate one to connect a client." Element names: [element-naming.md §1.3](element-naming.md).
 
 ### Conditional Layout (`src/App.vue`)
 

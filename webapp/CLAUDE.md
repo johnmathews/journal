@@ -43,6 +43,12 @@ src/
 - Vitest + Vue Test Utils + happy-dom — testing
 - Chart.js 4 — charts via `src/utils/chartjs-config.ts` (direct, no wrapper). When adding a new chart, read [`docs/chart-style-guide.md`](docs/chart-style-guide.md) first — it documents the shared `buildLineChartOptions` helper and the bold-MA-over-faded-daily pattern.
 
+## Element names
+
+Name significant elements with `data-testid` (kebab-case), never a plain `id`: tests and conversation refer to them that
+way. Plain `id`s are only for form fields a `<label for>` points at. Rules and per-view maps:
+[`docs/element-naming.md`](docs/element-naming.md).
+
 ## Git Hooks
 
 The repo's tracked pre-push hook lives at the monorepo root (`../.githooks/pre-push`); `npm install` enables it via the `prepare` script. When a push touches `webapp/` or `contract/` code, it runs `contract:check` (generated API types up to date) + `format:check` (Prettier) + lint + `test:coverage` + build.

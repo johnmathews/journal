@@ -248,6 +248,10 @@ npm run test:coverage    # Run once + generate HTML coverage report in coverage/
 
 Component tests mount Vue components with Pinia and Router plugins. Composable tests run in isolation with reactive refs. View tests assert against `data-testid` attributes rather than CSS classes for stability across styling changes.
 
+A view that compares stored dates with "now" freezes the clock in its tests, with
+`vi.useFakeTimers({ toFake: ['Date'] })` and `vi.setSystemTime(...)` (see `ApiKeysView.test.ts`, whose expired-key
+split depends on today). Hard-coded fixture dates checked against the real clock stop passing once those dates are past.
+
 ### Coverage
 
 Coverage is collected by `@vitest/coverage-v8` using V8's native coverage instrumentation (configured in `vitest.config.ts`). After running `npm run test:coverage`:

@@ -46,3 +46,22 @@ anchors row, so the two-panel reader uses the full width):
 | `chapter-toc` / `toc-item-<id>` | Chapter table of contents                          |
 | `draft-block` / `draft-refresh-button` | The in-progress draft chapter               |
 | `delete-button`                | Header delete action                                |
+
+## 1.3 API keys view (`/api-keys`) — key names
+
+Reference map for `ApiKeysView.vue` after the 2026-11-12 layout change (working keys in the main table, revoked and
+expired keys in a closed section below). The form fields keep plain `id`s (`key-name`, `key-expiry`) because their
+`<label for>` needs them.
+
+| `data-testid`               | Element                                                   |
+| --------------------------- | --------------------------------------------------------- |
+| `api-keys-page`             | Page root                                                 |
+| `api-keys-intro`            | One-line explanation under the heading                    |
+| `api-keys-active`           | Table of working keys                                     |
+| `api-keys-active-empty`     | "No working keys" line, when every key is revoked/expired |
+| `api-keys-inactive`         | The closed "Revoked and expired (N)" `<details>`          |
+| `api-keys-inactive-summary` | Its summary line                                          |
+| `api-key-row-<id>`          | One key's row (in either table)                           |
+| `api-key-revoke-<id>`       | A working key's Revoke button                             |
+| `api-key-revoked-<id>`      | "Revoked <date>" in the Ended column                      |
+| `api-key-expired-<id>`      | "Expired <date>" in the Ended column                      |
