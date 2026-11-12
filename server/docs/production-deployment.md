@@ -185,7 +185,9 @@ rest. Migrations run during `journal-server` startup, inside this step.
    migrations did **not** run — check the startup logs.
 3. **No startup errors:** `ssh media 'docker logs --since 5m journal-server 2>&1 | grep -iE "error|traceback|migrat"'` —
    expect the `SQLite connected and migrated` line and no tracebacks.
-4. **API up:** `ssh media 'curl -fsS localhost:8400/api/health'` (or the app's health route).
+4. **API up:** `ssh media 'curl -fsS localhost:8400/health'` returns 200 without a session. The
+   detailed `/api/health` needs a login and returns 401 here, so `curl -f` on it fails even when
+   the server is healthy.
 5. **Smoke-test the shipped change** end-to-end, not just the process being up. (E.g. for the
    jobs throughput/observability release: load `/jobs`, confirm running jobs show the live
    spinner + counting duration and that In/Out/Cost columns render.)

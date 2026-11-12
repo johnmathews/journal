@@ -171,6 +171,8 @@ npm run test:unit      # Run tests
 npm run test:coverage  # Tests + coverage report
 npm run lint           # ESLint
 npm run format         # Prettier
+npm run contract:gen   # Regenerate API types from ../contract/api.schema.json
+npm run contract:check # Fail if the generated API types are stale
 ```
 
 See [docs/development.md](docs/development.md) for detailed development guide.

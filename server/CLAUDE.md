@@ -77,12 +77,13 @@ src/journal/
                           ingestion, jobs, notifications, search, settings,
                           storylines, storylines_write, users, health — see
                           api/__init__.py for the authoritative list; auth routes
-                          live in auth_api/); api/contract/ holds the response
-                          TypedDicts and `journal contract export` (see
-                          ../docs/api-contract.md)
+                          live in auth_api/)
+  api/contract/         — Response contract: one strict TypedDict per 2xx body
+                          (schemas.py), the route → schema registry and the
+                          JSON Schema export. See ../docs/api-contract.md
   auth_api/             — Auth REST endpoints carved into core/account/profile/
                           api_keys/admin
-  cli/                  — Typer CLI: __init__ (entry), entities, fitness, mood,
+  cli/                  — argparse CLI: __init__ (entry), entities, fitness, mood,
                           _services, _seed_samples
 tests/                  — pytest tests mirroring src structure
 docs/                   — Project documentation
@@ -97,6 +98,7 @@ journal/                — Development journal entries (YYMMDD-name.md)
 - `uv run pytest --cov` — Run tests with coverage
 - `uv run ruff check src/ tests/` — Lint
 - `uv run journal` — Run CLI
+- `uv run journal contract export` — Regenerate `../contract/api.schema.json` after changing a response TypedDict
 - `docker compose up` — Run full stack (app + ChromaDB)
 
 ## Running tests locally

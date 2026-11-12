@@ -26,9 +26,9 @@ dev journals in `server/journal/`, `webapp/journal/` and `journal/` (cross-cutti
 Run each part's tooling from inside its folder — `uv` and `npm` do not find the project from the root:
 
 - `server/`: `uv sync`, `uv run pytest`, `uv run pytest --cov`, `uv run ruff check src/ tests/`, `uv run journal`,
-  `docker compose up`
+  `uv run journal contract export`, `docker compose up`
 - `webapp/`: `npm run dev`, `npm run build`, `npm run test:unit`, `npm run test:coverage`, `npm run lint`,
-  `npm run format`
+  `npm run format`, `npm run contract:gen`, `npm run contract:check`
 
 Use `cd` or a subshell: `(cd server && uv run pytest)`.
 

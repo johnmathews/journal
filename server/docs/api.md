@@ -1682,8 +1682,17 @@ Return the currently authenticated user.
 **Response (200):**
 
 ```json
-{ "user": { "id": 1, "email": "alice@example.com", "display_name": "Alice", "is_admin": false, "is_active": true, "email_verified": true, "created_at": "...", "updated_at": "..." } }
+{ "user": { "id": 1, "email": "alice@example.com", "display_name": "Alice", "is_admin": false, "is_active": true, "email_verified": true, "created_at": "2026-05-03T21:52:44Z", "updated_at": "2026-05-03T21:52:44Z" } }
 ```
+
+The body comes from the stored user row, so `created_at` and `updated_at` are the row's real timestamps. It has the
+same shape as the login, register and `PATCH /api/auth/me` responses.
+
+**Errors:**
+
+- `404` `{"error": "not_found", "message": "User not found"}` when the user row was deleted after the session was
+  validated.
+- `503` `{"error": "server_not_ready", "message": "Server not initialized"}` while services are starting.
 
 `/api/auth/me` is in `VERIFICATION_EXEMPT_PATHS`, so it is reachable while `email_verified` is still `false` (unlike
 most other authenticated routes).
