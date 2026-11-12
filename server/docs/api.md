@@ -1887,7 +1887,9 @@ otherwise unrecoverable — the server only stores a hash.
 
 ### GET /api/auth/api-keys
 
-List the authenticated user's API keys. Secret material is never returned.
+List **all** of the authenticated user's API keys, newest first. Revoked keys (`revoked_at` set) and keys past
+`expires_at` are included, so a client decides what is still usable; authentication rejects both. Secret material is
+never returned.
 
 **Response (200):**
 

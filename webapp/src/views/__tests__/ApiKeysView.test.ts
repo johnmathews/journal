@@ -348,12 +348,18 @@ describe('ApiKeysView', () => {
     // The page re-reads the list, so it shows what the server now holds:
     // the key stays listed, marked revoked, with no Revoke button.
     expect(mockApiFetch).toHaveBeenLastCalledWith('/api/auth/api-keys')
-    expect(wrapper.find('#api-keys-inactive #api-key-row-1').text()).toContain(
-      'MCP Server',
+    expect(
+      wrapper
+        .find('[data-testid="api-keys-inactive"] [data-testid="api-key-row-1"]')
+        .text(),
+    ).toContain('MCP Server')
+    expect(wrapper.find('[data-testid="api-key-revoked-1"]').text()).toContain(
+      'Revoked',
     )
-    expect(wrapper.find('#api-key-revoked-1').text()).toContain('Revoked')
-    expect(wrapper.find('#api-key-revoke-1').exists()).toBe(false)
-    expect(wrapper.find('#api-key-revoke-2').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="api-key-revoke-1"]').exists()).toBe(
+      false,
+    )
+    expect(wrapper.find('[data-testid="api-key-revoke-2"]').exists()).toBe(true)
   })
 
   it('shows a revoked key as revoked, without a Revoke button', async () => {
@@ -368,17 +374,23 @@ describe('ApiKeysView', () => {
     const wrapper = mountComponent()
     await flushPromises()
 
-    const revoked = wrapper.find('#api-key-revoked-1')
+    const revoked = wrapper.find('[data-testid="api-key-revoked-1"]')
     expect(revoked.exists()).toBe(true)
     expect(revoked.text()).toContain('Revoked')
     expect(revoked.text()).toContain('12 Nov 2026')
-    expect(wrapper.find('#api-key-revoke-1').exists()).toBe(false)
-    expect(wrapper.find('#api-keys-inactive #api-key-row-1').exists()).toBe(
-      true,
+    expect(wrapper.find('[data-testid="api-key-revoke-1"]').exists()).toBe(
+      false,
     )
+    expect(
+      wrapper
+        .find('[data-testid="api-keys-inactive"] [data-testid="api-key-row-1"]')
+        .exists(),
+    ).toBe(true)
 
-    expect(wrapper.find('#api-key-revoke-2').exists()).toBe(true)
-    expect(wrapper.find('#api-key-revoked-2').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="api-key-revoke-2"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="api-key-revoked-2"]').exists()).toBe(
+      false,
+    )
   })
 
   it('lists working keys first and folds revoked and expired ones away', async () => {
@@ -398,23 +410,23 @@ describe('ApiKeysView', () => {
     await flushPromises()
 
     // The main table holds only the key that still works.
-    const active = wrapper.find('#api-keys-active')
-    expect(active.find('#api-key-row-1').exists()).toBe(true)
-    expect(active.find('#api-key-row-2').exists()).toBe(false)
-    expect(active.find('#api-key-row-3').exists()).toBe(false)
-    expect(wrapper.find('#api-key-revoke-1').exists()).toBe(true)
+    const active = wrapper.find('[data-testid="api-keys-active"]')
+    expect(active.find('[data-testid="api-key-row-1"]').exists()).toBe(true)
+    expect(active.find('[data-testid="api-key-row-2"]').exists()).toBe(false)
+    expect(active.find('[data-testid="api-key-row-3"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="api-key-revoke-1"]').exists()).toBe(true)
 
     // The rest sit in a folded section, closed by default, with no buttons.
-    const inactive = wrapper.find('#api-keys-inactive')
+    const inactive = wrapper.find('[data-testid="api-keys-inactive"]')
     expect(inactive.element.tagName).toBe('DETAILS')
     expect(inactive.attributes('open')).toBeUndefined()
-    expect(wrapper.find('#api-keys-inactive-summary').text()).toBe(
-      'Revoked and expired (2)',
-    )
-    expect(wrapper.find('#api-key-revoked-2').text()).toContain(
+    expect(
+      wrapper.find('[data-testid="api-keys-inactive-summary"]').text(),
+    ).toBe('Revoked and expired (2)')
+    expect(wrapper.find('[data-testid="api-key-revoked-2"]').text()).toContain(
       'Revoked 12 Nov 2026',
     )
-    expect(wrapper.find('#api-key-expired-3').text()).toContain(
+    expect(wrapper.find('[data-testid="api-key-expired-3"]').text()).toContain(
       'Expired 1 Nov 2026',
     )
     expect(inactive.findAll('button')).toHaveLength(0)
@@ -425,8 +437,12 @@ describe('ApiKeysView', () => {
     const wrapper = mountComponent()
     await flushPromises()
 
-    expect(wrapper.find('#api-keys-inactive').exists()).toBe(false)
-    expect(wrapper.findAll('#api-keys-active tbody tr')).toHaveLength(2)
+    expect(wrapper.find('[data-testid="api-keys-inactive"]').exists()).toBe(
+      false,
+    )
+    expect(
+      wrapper.findAll('[data-testid="api-keys-active"] tbody tr'),
+    ).toHaveLength(2)
   })
 
   it('says so when no key works any more', async () => {
@@ -436,12 +452,12 @@ describe('ApiKeysView', () => {
     const wrapper = mountComponent()
     await flushPromises()
 
-    expect(wrapper.find('#api-keys-active-empty').text()).toContain(
-      'No working keys',
-    )
-    expect(wrapper.find('#api-keys-inactive-summary').text()).toBe(
-      'Revoked and expired (1)',
-    )
+    expect(
+      wrapper.find('[data-testid="api-keys-active-empty"]').text(),
+    ).toContain('No working keys')
+    expect(
+      wrapper.find('[data-testid="api-keys-inactive-summary"]').text(),
+    ).toBe('Revoked and expired (1)')
   })
 
   it('explains what keys are for and uses the wider layout', async () => {
@@ -449,10 +465,12 @@ describe('ApiKeysView', () => {
     const wrapper = mountComponent()
     await flushPromises()
 
-    expect(wrapper.find('#api-keys-intro').text()).toContain(
+    expect(wrapper.find('[data-testid="api-keys-intro"]').text()).toContain(
       'MCP clients and scripts',
     )
-    expect(wrapper.find('#api-keys-page').classes()).toContain('max-w-6xl')
+    expect(wrapper.find('[data-testid="api-keys-page"]').classes()).toContain(
+      'max-w-6xl',
+    )
   })
 
   it('does not revoke when confirm is cancelled', async () => {
