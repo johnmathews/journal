@@ -45,7 +45,8 @@ root's `x-shared-definitions` so the webapp generator emits it too.
 4. **`contract:check`.** `npm run contract:check` regenerates the TypeScript in memory and fails when
    `webapp/src/types/generated/api.ts` differs. The webapp CI workflow runs it before the build.
 
-The tracked pre-push hook (`.githooks/pre-push`) runs gates 1 to 3 when a push touches `server/` or `contract/`, and
+Gates 1 to 3 are server tests, so they run inside the server unit-test run. The tracked pre-push hook
+(`.githooks/pre-push`) runs that suite when a push touches `server/` or `contract/`, and
 gate 4 (with lint, tests and the build) when it touches `webapp/` or `contract/`. CI runs the same checks: `server.yml`
 and `webapp.yml` both trigger on `contract/**`.
 

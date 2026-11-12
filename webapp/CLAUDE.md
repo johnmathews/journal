@@ -27,6 +27,8 @@ src/
 - `npm run test:coverage` — Run tests once + generate HTML coverage report in `coverage/`
 - `npm run lint` — Lint and fix with ESLint
 - `npm run format` — Format with Prettier
+- `npm run contract:gen` — Regenerate `src/types/generated/api.ts` from `../contract/api.schema.json`
+- `npm run contract:check` — Fail if the generated API types are out of date (CI and the pre-push hook run it)
 
 ## Tech Stack
 

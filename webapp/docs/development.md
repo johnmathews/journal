@@ -154,6 +154,8 @@ The SQLite DB persists between runs at `server/journal.db`. Delete it to start c
 | `npm run lint`       | Lint and auto-fix with ESLint                    |
 | `npm run format`     | Format with Prettier (writes changes)            |
 | `npm run format:check` | Check Prettier formatting without writing (CI/pre-push) |
+| `npm run contract:gen` | Regenerate `src/types/generated/api.ts` from the API contract |
+| `npm run contract:check` | Fail if the generated API types are out of date (CI/pre-push) |
 
 ## Project Structure
 

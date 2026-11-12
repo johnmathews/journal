@@ -2,6 +2,13 @@
 # still govern their own folders; don't hoist their patterns here (server's
 # *.png would hide webapp assets).
 
+# Secrets, anywhere in the tree. Safe to hoist: no real asset matches these.
+.env
+.env.local
+*.pem
+*.key
+credentials.json
+
 # Engineering-team run artifacts and agent scratch state
 .engineering-team/
 .superpowers/
