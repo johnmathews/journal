@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { apiFetch, ApiRequestError } from '@/api/client'
 import type {
   ApiKey,
@@ -45,13 +45,30 @@ async function loadKeys() {
   }
 }
 
+// A `<input type="date">` value ("YYYY-MM-DD") for today, in the browser's zone.
+function localDateString(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+const minExpiryDate = computed(() =>
+  showCreateForm.value ? localDateString(new Date()) : '',
+)
+
+// The server wants an instant with a time zone (#40). A key set to expire on a
+// date stays valid until the end of that day in the user's own time zone.
+function endOfLocalDay(date: string): string {
+  const [y, m, d] = date.split('-').map(Number)
+  return new Date(y, m - 1, d, 23, 59, 59).toISOString()
+}
+
 async function createKey() {
   creating.value = true
   error.value = null
   try {
     const body: Record<string, string> = { name: newKeyName.value }
     if (newKeyExpiry.value) {
-      body.expires_at = newKeyExpiry.value
+      body.expires_at = endOfLocalDay(newKeyExpiry.value)
     }
     const result = await apiFetch<ApiKeyCreatedResponse>('/api/auth/api-keys', {
       method: 'POST',
@@ -226,6 +243,7 @@ function formatDate(dateStr: string | null): string {
             id="key-expiry"
             v-model="newKeyExpiry"
             type="date"
+            :min="minExpiryDate"
             class="form-input w-full sm:w-80"
           />
         </div>

@@ -44,11 +44,12 @@ this is set to `true`.
 3. Only the SHA-256 hash of the token is stored in `user_sessions.id` — the raw token is never persisted
 4. Response includes `Set-Cookie: session_id=<raw_token>; HttpOnly; Secure; SameSite=Lax`
 5. On each request, the middleware hashes the cookie value and looks up the hash in the DB
-6. Sessions expire after 7 days (configurable via `SESSION_EXPIRY_DAYS`)
+6. Sessions expire after 7 days (configurable via `SESSION_EXPIRY_DAYS`), to the second
 
 ## Login Flow (MCP / API)
 
-1. User generates an API key via the web UI (`POST /api/auth/api-keys`)
+1. User generates an API key via the web UI (`POST /api/auth/api-keys`), optionally with an expiry (`expires_days` or
+   `expires_at`, see [api.md](api.md#post-apiauthapi-keys))
 2. Key is shown once (format: `jnl_<random>`)
 3. User adds the key to their MCP client config:
    ```json

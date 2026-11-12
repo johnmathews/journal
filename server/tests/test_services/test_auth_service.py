@@ -2,6 +2,7 @@
 
 import sqlite3
 import time
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
@@ -214,6 +215,29 @@ class TestApiKeys:
         user = auth.register_user("expkey@example.com", "pw", "ExpKey")
         _, info = auth.create_api_key(user.id, "Expiring", expires_days=30)
         assert info.expires_at is not None
+
+    def test_create_key_with_expires_at_is_stored_in_utc(self, auth: AuthService) -> None:
+        user = auth.register_user("absexp@example.com", "pw", "AbsExp")
+        cet = timezone(timedelta(hours=1))
+        _, info = auth.create_api_key(
+            user.id, "Absolute", expires_at=datetime(2099, 3, 1, 0, 30, tzinfo=cet)
+        )
+        assert info.expires_at == "2099-02-28T23:30:00Z"
+
+    def test_create_key_rejects_both_expiry_forms(self, auth: AuthService) -> None:
+        user = auth.register_user("bothexp@example.com", "pw", "Both")
+        with pytest.raises(ValueError, match="not both"):
+            auth.create_api_key(
+                user.id,
+                "Both",
+                expires_days=1,
+                expires_at=datetime.now(UTC) + timedelta(days=1),
+            )
+
+    def test_create_key_rejects_naive_expires_at(self, auth: AuthService) -> None:
+        user = auth.register_user("naiveexp@example.com", "pw", "Naive")
+        with pytest.raises(ValueError, match="timezone-aware"):
+            auth.create_api_key(user.id, "Naive", expires_at=datetime(2099, 1, 1))
 
     def test_revoke_key(self, auth: AuthService) -> None:
         user = auth.register_user("revoke@example.com", "pw", "Revoke")

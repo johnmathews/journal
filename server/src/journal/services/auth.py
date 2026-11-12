@@ -199,27 +199,41 @@ class AuthService:
     # ── API Keys ────────────────────────────────────────────────────────
 
     def create_api_key(
-        self, user_id: int, name: str, expires_days: int | None = None
+        self,
+        user_id: int,
+        name: str,
+        expires_days: int | None = None,
+        expires_at: datetime | None = None,
     ) -> tuple[str, ApiKeyInfo]:
         """Generate a new API key.
+
+        Expiry is optional and given either as ``expires_days`` from now or as
+        an absolute, timezone-aware ``expires_at``; passing both raises
+        ``ValueError``. It is stored in UTC to the second.
 
         Returns ``(full_key, key_info)``. The full key is shown to the user
         exactly once — it is never stored or retrievable after creation.
         """
+        if expires_days is not None and expires_at is not None:
+            raise ValueError("pass expires_days or expires_at, not both")
+        if expires_at is not None and expires_at.tzinfo is None:
+            raise ValueError("expires_at must be timezone-aware")
         full_key = "jnl_" + secrets.token_urlsafe(32)
         prefix = full_key[:12]  # "jnl_" + 8 chars
         key_hash = hashlib.sha256(full_key.encode()).hexdigest()
-        expires_at: str | None = None
+        expires: datetime | None = None
         if expires_days:
             expires = datetime.now(UTC) + timedelta(days=expires_days)
-            expires_at = expires.strftime("%Y-%m-%dT%H:%M:%SZ")
-        key_id = self._repo.create_api_key(user_id, prefix, key_hash, name, expires_at)
+        elif expires_at is not None:
+            expires = expires_at.astimezone(UTC)
+        expires_str = expires.strftime("%Y-%m-%dT%H:%M:%SZ") if expires else None
+        key_id = self._repo.create_api_key(user_id, prefix, key_hash, name, expires_str)
         info = ApiKeyInfo(
             id=key_id,
             user_id=user_id,
             key_prefix=prefix,
             name=name,
-            expires_at=expires_at,
+            expires_at=expires_str,
         )
         return full_key, info
 
