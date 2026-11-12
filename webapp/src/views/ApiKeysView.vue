@@ -45,6 +45,18 @@ async function loadKeys() {
   }
 }
 
+// A key works until it is revoked or its expiry passes. The server lists
+// every key, so the page splits them.
+function hasExpired(key: ApiKey): boolean {
+  return key.expires_at !== null && new Date(key.expires_at) <= new Date()
+}
+const activeKeys = computed(() =>
+  keys.value.filter((k) => !k.revoked_at && !hasExpired(k)),
+)
+const inactiveKeys = computed(() =>
+  keys.value.filter((k) => k.revoked_at || hasExpired(k)),
+)
+
 // A `<input type="date">` value ("YYYY-MM-DD") for today, in the browser's zone.
 function localDateString(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -133,16 +145,25 @@ function formatDate(dateStr: string | null): string {
 </script>
 
 <template>
-  <div class="max-w-4xl mx-auto">
-    <div class="sm:flex sm:justify-between sm:items-center mb-8">
-      <h1
-        class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold"
-      >
-        API Keys
-      </h1>
+  <div id="api-keys-page" class="max-w-6xl mx-auto">
+    <div class="sm:flex sm:justify-between sm:items-start gap-6 mb-8">
+      <div>
+        <h1
+          class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold"
+        >
+          API Keys
+        </h1>
+        <p
+          id="api-keys-intro"
+          class="mt-2 max-w-xl text-sm text-gray-600 dark:text-gray-300"
+        >
+          Keys let MCP clients and scripts use your journal on your behalf. A
+          new key is shown once, so copy it when you create it.
+        </p>
+      </div>
       <button
         v-if="!showCreateForm"
-        class="btn bg-violet-500 hover:bg-violet-600 text-white mt-4 sm:mt-0"
+        class="btn shrink-0 bg-violet-500 hover:bg-violet-600 text-white mt-4 sm:mt-0"
         @click="showCreateForm = true"
       >
         Generate New Key
@@ -320,8 +341,16 @@ function formatDate(dateStr: string | null): string {
         </p>
       </div>
 
+      <p
+        v-else-if="activeKeys.length === 0"
+        id="api-keys-active-empty"
+        class="p-8 text-center text-sm text-gray-600 dark:text-gray-300"
+      >
+        No working keys. Generate one to connect a client.
+      </p>
+
       <div v-else class="overflow-x-auto">
-        <table class="w-full table-auto">
+        <table id="api-keys-active" class="w-full table-auto">
           <thead>
             <tr
               class="text-xs uppercase text-gray-600 dark:text-gray-300 border-b border-gray-100 dark:border-gray-700/60"
@@ -329,50 +358,47 @@ function formatDate(dateStr: string | null): string {
               <th class="px-5 py-3 text-left font-semibold">Name</th>
               <th class="px-5 py-3 text-left font-semibold">Prefix</th>
               <th class="px-5 py-3 text-left font-semibold">Created</th>
-              <th class="px-5 py-3 text-left font-semibold">Last Used</th>
+              <th class="px-5 py-3 text-left font-semibold">Last used</th>
               <th class="px-5 py-3 text-left font-semibold">Expires</th>
-              <th class="px-5 py-3 text-right font-semibold">Actions</th>
+              <th class="px-5 py-3"><span class="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody class="text-sm">
             <tr
-              v-for="key in keys"
+              v-for="key in activeKeys"
               :id="`api-key-row-${key.id}`"
               :key="key.id"
               class="border-b border-gray-100 dark:border-gray-700/60 last:border-0"
-              :class="{ 'opacity-60': key.revoked_at }"
             >
               <td
-                class="px-5 py-3 text-gray-800 dark:text-gray-100 font-medium"
+                class="px-5 py-3 whitespace-nowrap text-gray-800 dark:text-gray-100 font-medium"
               >
                 {{ key.name }}
               </td>
-              <td class="px-5 py-3">
+              <td class="px-5 py-3 whitespace-nowrap">
                 <code
                   class="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded font-mono text-gray-600 dark:text-gray-300"
                 >
                   {{ key.key_prefix }}...
                 </code>
               </td>
-              <td class="px-5 py-3 text-gray-600 dark:text-gray-300">
+              <td
+                class="px-5 py-3 whitespace-nowrap tabular-nums text-gray-600 dark:text-gray-300"
+              >
                 {{ formatDate(key.created_at) }}
               </td>
-              <td class="px-5 py-3 text-gray-600 dark:text-gray-300">
+              <td
+                class="px-5 py-3 whitespace-nowrap tabular-nums text-gray-600 dark:text-gray-300"
+              >
                 {{ formatDate(key.last_used_at) }}
               </td>
-              <td class="px-5 py-3 text-gray-600 dark:text-gray-300">
+              <td
+                class="px-5 py-3 whitespace-nowrap tabular-nums text-gray-600 dark:text-gray-300"
+              >
                 {{ key.expires_at ? formatDate(key.expires_at) : 'Never' }}
               </td>
-              <td class="px-5 py-3 text-right">
-                <span
-                  v-if="key.revoked_at"
-                  :id="`api-key-revoked-${key.id}`"
-                  class="text-xs text-gray-600 dark:text-gray-300"
-                >
-                  Revoked {{ formatDate(key.revoked_at) }}
-                </span>
+              <td class="px-5 py-3 text-right whitespace-nowrap">
                 <button
-                  v-else
                   :id="`api-key-revoke-${key.id}`"
                   class="btn-xs bg-red-500 hover:bg-red-600 text-white"
                   @click="revokeKey(key.id)"
@@ -385,5 +411,77 @@ function formatDate(dateStr: string | null): string {
         </table>
       </div>
     </div>
+
+    <!-- Keys that no longer work: folded away, kept as a record. -->
+    <details
+      v-if="!loading && inactiveKeys.length"
+      id="api-keys-inactive"
+      class="mt-6"
+    >
+      <summary
+        id="api-keys-inactive-summary"
+        class="cursor-pointer text-sm font-semibold text-gray-600 dark:text-gray-300 mb-3"
+      >
+        Revoked and expired ({{ inactiveKeys.length }})
+      </summary>
+      <div
+        class="rounded-2xl bg-white dark:bg-gray-800 shadow-sm overflow-x-auto"
+      >
+        <table class="w-full table-auto">
+          <thead>
+            <tr
+              class="text-xs uppercase text-gray-600 dark:text-gray-300 border-b border-gray-100 dark:border-gray-700/60"
+            >
+              <th class="px-5 py-3 text-left font-semibold">Name</th>
+              <th class="px-5 py-3 text-left font-semibold">Prefix</th>
+              <th class="px-5 py-3 text-left font-semibold">Created</th>
+              <th class="px-5 py-3 text-left font-semibold">Last used</th>
+              <th class="px-5 py-3 text-right font-semibold">Ended</th>
+            </tr>
+          </thead>
+          <tbody class="text-sm">
+            <tr
+              v-for="key in inactiveKeys"
+              :id="`api-key-row-${key.id}`"
+              :key="key.id"
+              class="border-b border-gray-100 dark:border-gray-700/60 last:border-0"
+            >
+              <td
+                class="px-5 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300 font-medium"
+              >
+                {{ key.name }}
+              </td>
+              <td class="px-5 py-3 whitespace-nowrap">
+                <code
+                  class="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded font-mono text-gray-600 dark:text-gray-300"
+                >
+                  {{ key.key_prefix }}...
+                </code>
+              </td>
+              <td
+                class="px-5 py-3 whitespace-nowrap tabular-nums text-gray-600 dark:text-gray-300"
+              >
+                {{ formatDate(key.created_at) }}
+              </td>
+              <td
+                class="px-5 py-3 whitespace-nowrap tabular-nums text-gray-600 dark:text-gray-300"
+              >
+                {{ formatDate(key.last_used_at) }}
+              </td>
+              <td
+                class="px-5 py-3 text-right whitespace-nowrap tabular-nums text-gray-600 dark:text-gray-300"
+              >
+                <span v-if="key.revoked_at" :id="`api-key-revoked-${key.id}`">
+                  Revoked {{ formatDate(key.revoked_at) }}
+                </span>
+                <span v-else :id="`api-key-expired-${key.id}`">
+                  Expired {{ formatDate(key.expires_at) }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
   </div>
 </template>

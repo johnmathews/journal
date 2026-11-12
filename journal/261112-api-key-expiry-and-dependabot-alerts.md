@@ -96,7 +96,33 @@
 - **Test hygiene:** `beforeEach` now calls `mockApiFetch.mockReset()`. `vi.clearAllMocks()` keeps queued
   `mockResolvedValueOnce` values, which leaked one failing test's responses into five others.
 
-## 4. What is deliberately not done
+## 4. API Keys page layout
+
+- **Asked:** the table tile was too narrow (896px), so Created, Last used and the revoked label wrapped.
+- **Decided by mockup:** three options (https://claude.ai/artifact/1bHyaY5R7Y2ZLJxJ434FLN):
+  - A: a Status column
+  - B: revoked keys folded away
+  - C: just wider
+
+  John picked **B**.
+- **Built:**
+  - The tile is `max-w-6xl` (1152px), with no wrapping in name, date or action cells.
+  - A one-line explanation of what keys are for sits under the heading.
+  - The main table lists only working keys (not revoked, not past `expires_at`).
+  - Revoked and expired keys sit in a closed `<details>` titled "Revoked and expired (N)", each with "Revoked <date>" or
+    "Expired <date>". It shows only when it has keys.
+- **Departures from the mockup:**
+  - The folded table is not faded, so its grey text keeps full contrast.
+  - Its last column is "Ended", because it holds both kinds.
+- **Evidence:**
+  - Four new tests, plus the two W3 tests updated for the folded section, were red before the change.
+  - Local stack at 1500px, seeded with a key in each state: tile 1152px, no cell taller than one line, no sideways
+    scroll, light and dark both checked by screenshot. John looked and said "lgtm".
+- **Test hygiene:** the test file freezes the clock at 2026-11-12. A fixture key expiring 2026-12-31 would otherwise
+  turn "expired" and redden the tests in January.
+- **Not done:** no design system or brand work; the repo has none, and this stayed inside the existing Mosaic styles.
+
+## 5. What is deliberately not done
 
 - Expiry dates for keys already created in prod can't be recovered: the page dropped them before they reached the
   server. Whether to list or revoke those keys is John's call.
