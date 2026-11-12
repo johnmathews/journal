@@ -99,7 +99,9 @@ async function revokeKey(id: number) {
   error.value = null
   try {
     await apiFetch(`/api/auth/api-keys/${id}`, { method: 'DELETE' })
-    keys.value = keys.value.filter((k) => k.id !== id)
+    // Re-read the list: the server keeps revoked keys, and the page should
+    // show what it holds rather than drop the row and have it reappear later.
+    await loadKeys()
   } catch (e) {
     error.value =
       e instanceof ApiRequestError ? e.message : 'Failed to revoke API key'
@@ -335,8 +337,10 @@ function formatDate(dateStr: string | null): string {
           <tbody class="text-sm">
             <tr
               v-for="key in keys"
+              :id="`api-key-row-${key.id}`"
               :key="key.id"
               class="border-b border-gray-100 dark:border-gray-700/60 last:border-0"
+              :class="{ 'opacity-60': key.revoked_at }"
             >
               <td
                 class="px-5 py-3 text-gray-800 dark:text-gray-100 font-medium"
@@ -360,7 +364,16 @@ function formatDate(dateStr: string | null): string {
                 {{ key.expires_at ? formatDate(key.expires_at) : 'Never' }}
               </td>
               <td class="px-5 py-3 text-right">
+                <span
+                  v-if="key.revoked_at"
+                  :id="`api-key-revoked-${key.id}`"
+                  class="text-xs text-gray-600 dark:text-gray-300"
+                >
+                  Revoked {{ formatDate(key.revoked_at) }}
+                </span>
                 <button
+                  v-else
+                  :id="`api-key-revoke-${key.id}`"
                   class="btn-xs bg-red-500 hover:bg-red-600 text-white"
                   @click="revokeKey(key.id)"
                 >

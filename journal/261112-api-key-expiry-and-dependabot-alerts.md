@@ -81,7 +81,22 @@
 - Older Dependabot PRs stay open: #10 (minor-and-patch, overlaps #33) and #18 (`@vitest/coverage-v8` 5, a major
   that would mismatch vitest 4). Both now need a rebase or closing, and neither is needed for the alerts.
 
-## 3. What is deliberately not done
+## 3. Revoked API keys reappeared on the API Keys page
+
+- **Confirmed:** after John revoked two prod keys (12:11 CET), they reappeared on reload looking active.
+  - `list_api_keys` returns revoked keys too.
+  - The page ignored `revoked_at`, and on revoke it only dropped the row locally.
+  - Read-only prod check: both keys had `revoked_at` set, and neither was used after it. The login check filters
+    `revoked_at IS NULL`, so they were dead.
+- **Fix (John chose "show as revoked"):** revoked rows stay listed, greyed out, with "Revoked <date>" instead of the
+  Revoke button. After a revoke the page re-reads the list from the server.
+- **Evidence:**
+  - Red before the fix: the revoke test failed (no reload) and the new revoked-row test found no marker.
+  - On the local stack, a key revoked via the API showed as "Revoked 12 Nov 2026, 13:08" after a reload.
+- **Test hygiene:** `beforeEach` now calls `mockApiFetch.mockReset()`. `vi.clearAllMocks()` keeps queued
+  `mockResolvedValueOnce` values, which leaked one failing test's responses into five others.
+
+## 4. What is deliberately not done
 
 - Expiry dates for keys already created in prod can't be recovered: the page dropped them before they reached the
   server. Whether to list or revoke those keys is John's call.
