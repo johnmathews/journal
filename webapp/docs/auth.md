@@ -42,7 +42,9 @@ There is no `src/api/auth.ts` module — auth-related endpoints are called via
 - `src/views/ForgotPasswordView.vue` — `/api/auth/forgot-password`
 - `src/views/ResetPasswordView.vue` — `/api/auth/reset-password`
 - `src/views/ApiKeysView.vue` — `/api/auth/api-keys` (GET / POST / DELETE). The create form sends the end of the chosen
-  day in the browser's time zone as an ISO instant in `expires_at`; the date picker's `min` is today.
+  day in the browser's time zone as an ISO instant in `expires_at`; the date picker's `min` is today. Revoked keys stay
+  listed (the server returns them), greyed out with "Revoked <date>" in place of the Revoke button; after a revoke the
+  page re-reads the list.
 
 ### Conditional Layout (`src/App.vue`)
 

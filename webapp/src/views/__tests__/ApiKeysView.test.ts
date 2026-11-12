@@ -65,6 +65,9 @@ describe('ApiKeysView', () => {
   beforeEach(async () => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    // clearAllMocks keeps queued mockResolvedValueOnce values; drop them so
+    // one test's unused responses can't leak into the next.
+    mockApiFetch.mockReset()
     router.push('/api-keys')
     await router.isReady()
   })
@@ -316,7 +319,12 @@ describe('ApiKeysView', () => {
     const wrapper = mountComponent()
     await flushPromises()
 
-    mockApiFetch.mockResolvedValueOnce(undefined)
+    mockApiFetch.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
+      items: [
+        { ...fakeKeys[0], revoked_at: '2026-11-12T11:11:13Z' },
+        fakeKeys[1],
+      ],
+    })
 
     const revokeButtons = wrapper
       .findAll('button')
@@ -329,9 +337,36 @@ describe('ApiKeysView', () => {
     expect(mockApiFetch).toHaveBeenCalledWith('/api/auth/api-keys/1', {
       method: 'DELETE',
     })
-    // Key should be removed from the list
-    expect(wrapper.text()).not.toContain('MCP Server')
-    expect(wrapper.text()).toContain('CI Pipeline')
+    // The page re-reads the list, so it shows what the server now holds:
+    // the key stays listed, marked revoked, with no Revoke button.
+    expect(mockApiFetch).toHaveBeenLastCalledWith('/api/auth/api-keys')
+    expect(wrapper.find('#api-key-row-1').text()).toContain('MCP Server')
+    expect(wrapper.find('#api-key-revoked-1').text()).toContain('Revoked')
+    expect(wrapper.find('#api-key-revoke-1').exists()).toBe(false)
+    expect(wrapper.find('#api-key-revoke-2').exists()).toBe(true)
+  })
+
+  it('shows a revoked key as revoked, without a Revoke button', async () => {
+    // The list endpoint returns revoked keys too. Before the fix they were
+    // shown as active after a reload, with a Revoke button.
+    mockApiFetch.mockResolvedValueOnce({
+      items: [
+        { ...fakeKeys[0], revoked_at: '2026-11-12T11:11:13Z' },
+        fakeKeys[1],
+      ],
+    })
+    const wrapper = mountComponent()
+    await flushPromises()
+
+    const revoked = wrapper.find('#api-key-revoked-1')
+    expect(revoked.exists()).toBe(true)
+    expect(revoked.text()).toContain('Revoked')
+    expect(revoked.text()).toContain('12 Nov 2026')
+    expect(wrapper.find('#api-key-revoke-1').exists()).toBe(false)
+    expect(wrapper.find('#api-key-row-1').classes()).toContain('opacity-60')
+
+    expect(wrapper.find('#api-key-revoke-2').exists()).toBe(true)
+    expect(wrapper.find('#api-key-revoked-2').exists()).toBe(false)
   })
 
   it('does not revoke when confirm is cancelled', async () => {
