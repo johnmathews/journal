@@ -46,7 +46,42 @@
 - Prod probe (read-only, counts only): 3 sessions, all `expires_at` in `YYYY-MM-DDTHH:MM:SSZ`, none unparsable by
   `datetime()`, so the SQL change fails no existing session closed. 4 API keys, all active, none with an expiry.
 
-## 2. What is deliberately not done
+## 2. #41: 16 Dependabot alerts in the webapp
+
+### 2.1 What reaches prod
+
+- **Confirmed:** none of the 16. The final image stage is `nginx:alpine` serving `dist/` only.
+  - `npm ls --omit=dev` found two of the packages in the production tree: `source-map-js`, used only at build time,
+    and `@vue/server-renderer`, which the app never imports (no SSR).
+  - A grep of `dist/` found neither.
+  - After this work, `npm audit --omit=dev` reports 0 vulnerabilities.
+- The rest is dev and CI tooling: vite, vitest, happy-dom, brace-expansion and minimatch.
+
+### 2.2 What was done
+
+- **Dependabot PR #33 merged** (`2be2fe7`, 10:34 CET): vue 3.5.45, vite 8.3.8, happy-dom 21.0.4 and transitive
+  patches. That resolved 12 alerts.
+  - happy-dom 20→21 is a major. Its only breaking change turns off CSS and iframe loading by default, and no test
+    uses either.
+  - Prod webapp confirmed on the ghcr image tagged `2be2fe7` by digest. Container-local `index.html` and the entry
+    bundle return 200.
+  - Open alerts measured after the merge: **16 → 4**.
+- **vitest and `@vitest/coverage-v8` ^4.1.4 → ^4.1.12** (same major) in this PR. That clears the remaining
+  vitest/`@vitest/mocker` advisories.
+  - npm 10, which CI uses, crashes on this install (`edgesOut`). The lockfile was written with npm 11 and normalised
+    with npm 10, and npm 10's `npm ci` then passed. `webapp/docs/development.md` records the recipe.
+- **minimatch alert dismissed as tolerable risk**, on John's call.
+  - The fix is minimatch 11, and even the latest eslint and typescript-eslint pin `^10`.
+  - The risk is a DoS through glob patterns, and the only patterns come from the repo's own lint config.
+
+### 2.3 Left as is
+
+- `glob` 10.5.0 (GHSA-3g3m-2fjr-6pw4, which Dependabot auto-dismissed) comes in through `@vue/test-utils` →
+  js-beautify. It is dev-only, and its fix is 14.0.2, a major.
+- Older Dependabot PRs stay open: #10 (minor-and-patch, overlaps #33) and #18 (`@vitest/coverage-v8` 5, a major
+  that would mismatch vitest 4). Both now need a rebase or closing, and neither is needed for the alerts.
+
+## 3. What is deliberately not done
 
 - Expiry dates for keys already created in prod can't be recovered: the page dropped them before they reached the
   server. Whether to list or revoke those keys is John's call.

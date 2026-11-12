@@ -14,6 +14,20 @@ cd journal/webapp
 npm install
 ```
 
+### Updating dependencies
+
+CI installs with `npm ci` on npm 10 (Node 22), so a committed lockfile must be one npm 10 accepts. Some changes crash
+npm 10's resolver (`Cannot read properties of null (reading 'edgesOut')`; seen bumping vitest to 4.1.12). When that
+happens, write the lockfile with npm 11, then let npm 10 normalise it, then check that `npm ci` passes:
+
+```bash
+npx -y npm@11.6.2 install --package-lock-only
+npm install --package-lock-only
+npm ci
+```
+
+A lockfile written by npm 11 alone fails npm 10's `npm ci` with `Missing: @emnapi/core@...`.
+
 ## Development Server
 
 ```bash
