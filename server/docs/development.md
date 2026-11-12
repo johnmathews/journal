@@ -79,6 +79,14 @@ that brings up a `chromadb/chroma:latest` service container, polls its
 heartbeat endpoint, and then runs `pytest -m integration`. Build/push
 is gated on both the unit and integration jobs being green.
 
+### API contract checks
+
+Every API test client is a `ContractTestClient` (`tests/contract_check.py`), so each 2xx JSON body from a route
+registered in `journal.api.contract.RESPONSE_SCHEMAS` is validated against its `TypedDict`. A new route needs a
+registered response shape (`tests/test_contract_coverage.py`), and the committed `contract/api.schema.json` must match a
+fresh `uv run journal contract export` (`tests/test_contract_export.py`). See
+[`docs/api-contract.md`](../../docs/api-contract.md) at the repo root.
+
 ## Linting
 
 ```bash

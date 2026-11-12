@@ -319,8 +319,8 @@ Three paths:
 
 ### Endpoints
 
-- `GET /api/entities/quarantined` — returns the authed user's quarantined entities (full detail shape, including
-  `is_quarantined`, `quarantine_reason`, and `quarantined_at`).
+- `GET /api/entities/quarantined` — returns the authed user's quarantined entities in the `GET /api/entities` list
+  shape (with `mention_count` and `last_seen`), including `is_quarantined`, `quarantine_reason`, and `quarantined_at`.
 - `POST /api/entities/{id}/quarantine` — body `{"reason": "<free text>"}`. Sets the flag, stamps the timestamp, and
   returns the updated detail. 404 if the entity is missing or not owned by the user; 400 if `reason` is non-string.
 - `POST /api/entities/{id}/release-quarantine` — clears the flag, reason, and timestamp. Returns the updated detail.

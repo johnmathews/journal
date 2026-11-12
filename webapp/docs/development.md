@@ -166,7 +166,7 @@ src/
   layouts/       — Page layouts (DefaultLayout with sidebar nav)
   router/        — Vue Router config (Option B routing — `/` is the dashboard)
   stores/        — Pinia stores (auth, entries, entities, dashboard, search, jobs, notifications, settings)
-  types/         — TypeScript interfaces (API response types)
+  types/         — TypeScript types (API response types re-exported from generated/api.ts)
   utils/         — Pure utility functions
   views/         — Page components (DashboardView, EntryListView, EntryDetailView, etc., plus admin/ subdir)
 ```
@@ -181,10 +181,12 @@ src/
 
 ## Adding a New API Endpoint
 
-1. Add the TypeScript response type to `src/types/`
-2. Add the fetch function to the appropriate file in `src/api/`
-3. If the endpoint serves a view, add a Pinia store action
-4. Write tests for the API function and store action
+1. Make sure the server registers the route's response `TypedDict` and the schema is exported (see
+   [`../../docs/api-contract.md`](../../docs/api-contract.md)), then run `npm run contract:gen`
+2. Re-export the generated response type from the matching file in `src/types/`. Don't write a response type by hand
+3. Add the fetch function to the appropriate file in `src/api/`
+4. If the endpoint serves a view, add a Pinia store action
+5. Write tests for the API function and store action
 
 ## Environment Variables
 
@@ -196,7 +198,7 @@ src/
 
 The pre-push hook is tracked at the monorepo root in `.githooks/pre-push`. `npm install` enables it: the `prepare` script runs `git config core.hooksPath .githooks`.
 
-When a push touches `webapp/` (or `contract/`) code, the hook runs `format:check`, `lint`, `test:coverage` and `build`. If any step fails — Prettier finds drift, ESLint finds errors, tests fail, coverage drops below the minimums defined in `vitest.config.ts`, or `vue-tsc` rejects the build — the push is aborted. Pushes that only change docs, journal entries or Markdown skip the checks. The same hook runs the server's checks when `server/` code changes.
+When a push touches `webapp/` (or `contract/`) code, the hook runs `contract:check`, `format:check`, `lint`, `test:coverage` and `build`. If any step fails — `src/types/generated/api.ts` is out of date with `contract/api.schema.json`, Prettier finds drift, ESLint finds errors, tests fail, coverage drops below the minimums defined in `vitest.config.ts`, or `vue-tsc` rejects the build — the push is aborted. Pushes that only change docs, journal entries or Markdown skip the checks. The same hook runs the server's checks when `server/` code changes.
 
 ## Docker
 

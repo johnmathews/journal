@@ -214,6 +214,7 @@ def test_delete_removes_conversation(client: TestClient) -> None:
     cid = _create(client)["id"]
     resp = client.delete(f"/api/conversations/{cid}")
     assert resp.status_code == 204
+    assert resp.content == b""  # the contract registers this route as NoContent
     assert client.get(f"/api/conversations/{cid}").status_code == 404
 
 
@@ -230,3 +231,18 @@ def test_service_unwired_is_503() -> None:
     client = ContractTestClient(app)
     resp = client.get("/api/conversations")
     assert resp.status_code == 503
+
+
+def test_error_bodies_match_the_shared_error_shape(client: TestClient) -> None:
+    """The contract's ErrorResponse is exported for the webapp but not checked
+    at runtime (only 2xx bodies are), so pin it against real error bodies."""
+    from pydantic import TypeAdapter
+
+    from journal.api.contract.schemas import ErrorResponse
+
+    adapter = TypeAdapter(ErrorResponse)
+    not_found = client.get("/api/conversations/99999")
+    bad_request = client.post("/api/conversations", json={"question": ""})
+    assert (not_found.status_code, bad_request.status_code) == (404, 400)
+    for resp in (not_found, bad_request):
+        adapter.validate_python(resp.json(), strict=True)

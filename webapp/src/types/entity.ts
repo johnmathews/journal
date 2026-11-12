@@ -1,9 +1,9 @@
 // Types for the entity-tracking feature. Response shapes the server
-// returns from the entities/entries routes are generated from its API
-// contract (server/src/journal/api/contract/schemas.py); request params,
-// error bodies and the not-yet-covered merge/quarantine routes stay
-// hand-written below.
-import type { Entity, EntitySummary, EntityType } from './generated/api'
+// returns from the entity, merge, candidate and quarantine routes are
+// generated from its API contract
+// (server/src/journal/api/contract/schemas.py); request params and the
+// alias-collision error body stay hand-written below.
+import type { EntitySummary, EntityType, ErrorResponse } from './generated/api'
 
 export type {
   AliasLookupResponse,
@@ -12,12 +12,23 @@ export type {
   EntityListResponse,
   EntityMention,
   EntityMentionsResponse,
+  EntityMergeResponse,
   EntityRelationship,
   EntityRelationshipsResponse,
   EntitySummary,
   EntityType,
   EntityUpdateResponse,
   EntryEntitiesResponse,
+  MergeCandidate,
+  MergeCandidatesResponse,
+  MergeCandidateStatus,
+  MergeHistoryEntry,
+  MergeHistoryResponse,
+  PairDecision,
+  PairDecisionDeleteResponse,
+  PairDecisionsResponse,
+  QuarantinedEntitiesResponse,
+  ResolveMergeCandidateResponse,
 } from './generated/api'
 
 export const ENTITY_TYPES: EntityType[] = [
@@ -28,11 +39,6 @@ export const ENTITY_TYPES: EntityType[] = [
   'topic',
   'other',
 ]
-
-export interface QuarantinedEntitiesResponse {
-  items: EntitySummary[]
-  total: number
-}
 
 // --- List / detail / params ---
 
@@ -77,69 +83,11 @@ export interface EntityMergeRequest {
 // mapped to a different entity for this user; the body has the
 // fields below so the webapp can offer the user a "merge into the
 // existing entity" flow.
-export interface AliasCollisionResponse {
-  error: string
+export interface AliasCollisionResponse extends ErrorResponse {
   alias: string
   existing_entity_id: number
   existing_canonical_name: string
   existing_entity_type: EntityType
-}
-
-export interface EntityMergeResponse {
-  survivor: Entity
-  absorbed_ids: number[]
-  mentions_reassigned: number
-  relationships_reassigned: number
-  aliases_added: number
-}
-
-// --- Merge candidates ---
-
-export interface MergeCandidate {
-  id: number
-  entity_a: EntitySummary
-  entity_b: EntitySummary
-  similarity: number
-  status: 'pending' | 'accepted' | 'dismissed'
-  extraction_run_id: string
-  created_at: string
-}
-
-export interface MergeCandidatesResponse {
-  items: MergeCandidate[]
-  total: number
-}
-
-export interface MergeHistoryEntry {
-  id: number
-  survivor_id: number
-  absorbed_id: number
-  absorbed_name: string
-  absorbed_type: EntityType
-  absorbed_desc: string
-  absorbed_aliases: string[]
-  merged_at: string
-  merged_by: string
-}
-
-export interface MergeHistoryResponse {
-  entity_id: number
-  history: MergeHistoryEntry[]
-}
-
-// --- Pair decisions ("not a duplicate" — persisted across sessions) ---
-
-export interface PairDecision {
-  id: number
-  entity_a: EntitySummary
-  entity_b: EntitySummary
-  decision: 'rejected'
-  decided_at: string
-}
-
-export interface PairDecisionsResponse {
-  items: PairDecision[]
-  total: number
 }
 
 // Extraction is triggered asynchronously: POST /api/entities/extract

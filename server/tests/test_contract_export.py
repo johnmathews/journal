@@ -65,6 +65,18 @@ def test_root_lists_every_registered_route_and_nothing_else() -> None:
     assert doc["additionalProperties"] is False
 
 
+def test_shared_shapes_are_defined_and_listed_but_not_routes() -> None:
+    """The error body is no route's 2xx body, so the root doesn't reach it.
+    `x-shared-definitions` names it so the webapp generator emits it."""
+    doc = build_schema_document()
+    assert doc["x-shared-definitions"] == ["ErrorResponse"]
+    assert doc["$defs"]["ErrorResponse"]["required"] == ["error"]
+    assert set(doc["$defs"]["ErrorResponse"]["properties"]) == {"error", "message"}
+    assert "ErrorResponse" not in {
+        ref["$ref"].removeprefix("#/$defs/") for ref in doc["properties"].values()
+    }
+
+
 def test_every_definition_is_titled_by_its_key() -> None:
     """The title names the generated TypeScript type."""
     doc = build_schema_document()

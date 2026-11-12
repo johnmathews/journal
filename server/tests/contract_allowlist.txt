@@ -1,34 +1,16 @@
-# Routes whose 2xx JSON response has no contract schema yet.
+# Routes whose 2xx JSON response has no contract schema.
 #
 # tests/test_contract_coverage.py requires every @mcp.custom_route name to be
 # either registered in journal.api.contract.RESPONSE_SCHEMAS or listed here.
-# This list may only shrink. To cover a route: add its TypedDict to
-# server/src/journal/api/contract/schemas.py, register it, run
-# `uv run journal contract export`, then delete its line below and lower the
-# ceiling to the new number of entries. The test names any stale line.
+# The list is empty and its ceiling is 0, so every route, new ones included,
+# must be registered: add its TypedDict to
+# server/src/journal/api/contract/schemas.py, register it, and run
+# `uv run journal contract export`. See docs/api-contract.md at the repo root.
+#
+# The test rejects any entry while the ceiling is 0. Adding one would mean
+# raising the ceiling, which a reviewer should refuse.
 #
 # Format: `#` comments, one `ceiling: N` line, then one route name per line,
 # sorted, no duplicates.
 
-ceiling: 20
-
-api_conversations_create
-api_conversations_delete
-api_conversations_detail
-api_conversations_list
-api_conversations_reply
-api_delete_pair_decision
-api_entities_extract
-api_entity_merge_history
-api_ingest_audio
-api_ingest_file
-api_ingest_images
-api_ingest_text
-api_list_pair_decisions
-api_list_quarantined_entities
-api_merge_candidates
-api_merge_entities
-api_mood_backfill
-api_quarantine_entity
-api_release_quarantine_entity
-api_resolve_merge_candidate
+ceiling: 0

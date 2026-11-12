@@ -64,7 +64,9 @@ packages during the 2026-05-07/08 refactor round; references below are to the pa
   The primary interface for LLM-based MCP clients.
 - **REST API** (`api/`) — many dozens of routes registered via `mcp.custom_route()`, split across
   `api/{entries,ingestion,settings,users,health,dashboard,search,jobs,entities,entity_merge,notifications}.py`. Same
-  port as the MCP server; used by the webapp frontend and direct API-key consumers.
+  port as the MCP server; used by the webapp frontend and direct API-key consumers. Every 2xx response body is a strict
+  `TypedDict` in `api/contract/schemas.py`, exported to `contract/api.schema.json` and checked in the API tests (see
+  [`docs/api-contract.md`](../../docs/api-contract.md) at the repo root).
 - **Auth REST surface** (`auth_api/`) — login/logout, registration, profile, API keys, admin reload endpoints.
   Split across `auth_api/{core,account,profile,api_keys,admin,_shared}.py`. See `docs/auth.md`.
 - **CLI** (`cli/`) — argparse-based command-line interface. All argparse setup and `cmd_*` handlers for the simple

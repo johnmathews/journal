@@ -18,6 +18,9 @@ To change a response:
 ``tests/test_contract_export.py`` fails if step 2 was skipped. Docstrings on
 the ``TypedDict`` classes are exported too (as ``description``, which becomes
 the TypeScript doc comment), so editing one also needs a re-export.
+
+The full workflow, the conventions and the limits are in
+``docs/api-contract.md`` at the repo root.
 """
 
 from __future__ import annotations

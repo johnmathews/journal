@@ -230,20 +230,33 @@ class _MergeMixin:
             entity_id, existing.canonical_name,
         )
 
-    def list_quarantined_entities(self, user_id: int) -> list[Entity]:
-        """Return only quarantined entities for the given user.
+    def list_quarantined_entities(
+        self, user_id: int,
+    ) -> list[tuple[Entity, int, str]]:
+        """Return the user's quarantined entities as ``(entity,
+        mention_count, last_seen)``, like ``list_entities_with_mention_counts``.
 
+        The webapp's Quarantined tab shows them in the same table as the
+        regular entity list, which needs the count and the last-seen date.
         Ordering matches ``list_entities`` (entity_type then
         canonical_name) so the operator UI is stable.
         """
         conn = self._conn()  # type: ignore[attr-defined]
         rows = conn.execute(
-            "SELECT * FROM entities"
-            " WHERE user_id = ? AND is_quarantined = 1"
-            " ORDER BY entity_type, canonical_name",
+            "SELECT e.*, COUNT(m.id) AS mention_count,"
+            " MAX(ent.entry_date) AS last_seen"
+            " FROM entities e"
+            " LEFT JOIN entity_mentions m ON m.entity_id = e.id"
+            " LEFT JOIN entries ent ON m.entry_id = ent.id"
+            " WHERE e.user_id = ? AND e.is_quarantined = 1"
+            " GROUP BY e.id"
+            " ORDER BY e.entity_type, e.canonical_name",
             (user_id,),
         ).fetchall()
-        return [self._hydrate(r) for r in rows]  # type: ignore[attr-defined]
+        return [
+            (self._hydrate(r), int(r["mention_count"]), r["last_seen"] or "")  # type: ignore[attr-defined]
+            for r in rows
+        ]
 
     # ---- merge candidates --------------------------------------------
 

@@ -95,6 +95,7 @@ Commit SHAs and PR numbers dated before 2026-11-11 refer to the archived repos `
 - [Fitness Schema](docs/fitness-schema.md) — Tables, columns, indexes, migration sequencing
 - [Development](docs/development.md) — Local setup and contributing
 - [API Reference](docs/api.md) — MCP tool documentation
+- [API Contract](../docs/api-contract.md) — Response `TypedDict`s, the generated schema and webapp types, and the tests that enforce them (repo root)
 - [Async Batch Jobs](docs/jobs.md) — Two-pool job runner, restart recovery, per-job token/cost capture
 - [Storylines](docs/storylines.md) — Cross-entry narratives: draft/published chapters, the judge-driven continue-or-break engine, extension classifier, and the `bootstrap-storylines` CLI
 - [Conversations](docs/conversations.md) — Multi-turn chat: intent routing (lookup/aggregate/temporal/trend) over journal retrieval

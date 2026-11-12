@@ -9,23 +9,20 @@
 // directly — mirroring the API contract is more important than local
 // consistency. See journal/260411-batch-job-ui.md.
 
-// Job, JobType and JobStatus are generated from the server's API contract
+// Job, JobType, JobStatus and JobSubmissionResponse (the 202 body of every
+// route that queues a job) are generated from the server's API contract
 // (server/src/journal/api/contract/schemas.py). JobType lists every job
 // type the server creates (a server test checks it against the code), plus
 // legacy types that only old job rows carry.
 import type { JobStatus } from './generated/api'
 
-export type { Job, JobListResponse, JobStatus, JobType } from './generated/api'
-
-/**
- * Response from the job-submission endpoints (POST /api/entities/extract,
- * POST /api/mood/backfill). Both return 202 Accepted with just enough to
- * start polling.
- */
-export interface JobSubmissionResponse {
-  job_id: string
-  status: JobStatus
-}
+export type {
+  Job,
+  JobListResponse,
+  JobStatus,
+  JobSubmissionResponse,
+  JobType,
+} from './generated/api'
 
 /**
  * Statuses that indicate the job will not change again. Polling loops
