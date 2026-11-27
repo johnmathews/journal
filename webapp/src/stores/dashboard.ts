@@ -29,7 +29,11 @@ import type {
   WordCountStats,
   WritingFrequencyBin,
 } from '@/types/dashboard'
-import { DEFAULT_TILE_ORDER, DASHBOARD_TILES } from '@/types/dashboard'
+import {
+  DASHBOARD_RANGES,
+  DEFAULT_TILE_ORDER,
+  DASHBOARD_TILES,
+} from '@/types/dashboard'
 import type {
   EntityDistributionItem,
   InsightsEntityType,
@@ -71,6 +75,9 @@ export function rangeToDates(
   }
   return { from: from.toISOString().slice(0, 10), to }
 }
+
+/** The fewest entries in a range for the dashboard to draw its charts. */
+export const MIN_ENTRIES_FOR_CHARTS = 5
 
 /**
  * Dashboard store. Holds the current filter state (range + bin)
@@ -190,15 +197,65 @@ export const useDashboardStore = defineStore('dashboard', () => {
     bins.value.reduce((sum, b) => sum + b.entry_count, 0),
   )
 
+  // Set when the first load moved off a range that had too few entries
+  // to chart (mockups/261127-dashboard-empty-state, option C): the range
+  // it left and how many entries that range held. The view shows a note
+  // with a link back. Cleared as soon as the reader picks a range.
+  const widenedFrom = ref<{ range: DashboardRange; count: number } | null>(null)
+  let initialRangeResolved = false
+
   const hasMoodData = computed(() => moodBins.value.length > 0)
   const moodScoringEnabled = computed(() => moodDimensions.value.length > 0)
 
   async function loadWritingStats(
     overrides: { range?: DashboardRange; bin?: DashboardBin } = {},
   ): Promise<void> {
-    if (overrides.range !== undefined) range.value = overrides.range
+    if (overrides.range !== undefined) {
+      range.value = overrides.range
+      widenedFrom.value = null
+    }
     if (overrides.bin !== undefined) bin.value = overrides.bin
+    await _fetchWritingStats()
+  }
 
+  /**
+   * The dashboard's first load. Loads the current range, and when that
+   * range has fewer than `MIN_ENTRIES_FOR_CHARTS` entries, steps out
+   * through the wider ranges and stays on the first one that has
+   * enough, recording the range it left in `widenedFrom`. When none has
+   * enough it returns to the range it started on. Runs once per store
+   * lifetime (re-armed by `reset`): later visits keep whatever range
+   * the reader is on.
+   */
+  async function loadInitialWritingStats(): Promise<void> {
+    if (initialRangeResolved) {
+      await _fetchWritingStats()
+      return
+    }
+    await _fetchWritingStats()
+    if (error.value) return
+    initialRangeResolved = true
+    if (totalEntriesInRange.value >= MIN_ENTRIES_FOR_CHARTS) return
+
+    const start = range.value
+    const startBins = bins.value
+    const startCount = totalEntriesInRange.value
+    const wider = DASHBOARD_RANGES.slice(DASHBOARD_RANGES.indexOf(start) + 1)
+    for (const candidate of wider) {
+      range.value = candidate
+      await _fetchWritingStats()
+      if (error.value) break
+      if (totalEntriesInRange.value >= MIN_ENTRIES_FOR_CHARTS) {
+        widenedFrom.value = { range: start, count: startCount }
+        return
+      }
+    }
+    range.value = start
+    bins.value = startBins
+    error.value = null
+  }
+
+  async function _fetchWritingStats(): Promise<void> {
     loading.value = true
     error.value = null
     try {
@@ -732,6 +789,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
     loading.value = false
     error.value = null
     hasLoaded.value = false
+    widenedFrom.value = null
+    initialRangeResolved = false
     moodDimensions.value = []
     moodDimensionsMeta.value = { version: '', description: '' }
     moodBins.value = []
@@ -784,6 +843,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
     error,
     hasLoaded,
     totalEntriesInRange,
+    widenedFrom,
+    loadInitialWritingStats,
     loadWritingStats,
     // Mood surface
     moodDimensions,

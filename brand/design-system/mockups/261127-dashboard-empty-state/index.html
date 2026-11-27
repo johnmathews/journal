@@ -1,0 +1,250 @@
+<title>Dashboard: when the range is too quiet</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="tokens.css">
+<!--
+  Mockup (design-system skill, references/mockups.md). The question: the dashboard opens on
+  "Last 3 months", and when that range holds fewer than 5 entries it shows "Not enough data yet",
+  even though the account has 77 entries. What should it do instead? The charts, the filter bar,
+  the 5-entry threshold and the tiles stay as they are. No new colours: every option uses the
+  system's existing roles (panel, line, ink, ink-secondary, accent, accent-tint, accent-tint-ink).
+  The counts are John's real ones on 27 Nov 2026: last month 0, last 3 months 2, last 6 months 32,
+  last year 77, all time 77. The chart bars are plausible, not real.
+-->
+<style>
+  body { margin: 0; background: var(--canvas); color: var(--ink); font-family: var(--font-sans); }
+  .mockup-page {
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: var(--space-8, 32px) var(--space-16, 64px);
+    max-width: 1200px; margin: 0 auto; display: grid; gap: var(--space-12, 48px);
+  }
+  .mockup-head { display: grid; gap: var(--space-2, 8px); max-width: 70ch; }
+  .mockup-head h1, .option h2 { margin: 0; text-wrap: balance; }
+  .mockup-head p, .option > p { margin: 0; max-width: 75ch; }
+  .mockup-meta { color: var(--ink-secondary); }
+  .option { display: grid; gap: var(--space-4, 16px); }
+  .option-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2, 8px) var(--space-3, 12px); }
+  .option-tag { color: var(--ink-secondary); }
+  .option[data-recommended] .option-tag::after { content: " · Recommended"; color: var(--ink); }
+  .panes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap: var(--space-4, 16px); }
+  .pane { min-width: 0; background: var(--canvas); color: var(--ink); border: 1px solid var(--line);
+          border-radius: var(--radius-lg, 10px); padding: var(--space-4, 16px); overflow-x: auto; }
+  .pane-label { color: var(--ink-secondary); margin: 0 0 var(--space-3, 12px); }
+  .measures { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-2, 8px); }
+  .measures li { border: 1px solid var(--line); border-radius: var(--radius-sm, 4px); padding: 2px var(--space-2, 8px); font-variant-numeric: tabular-nums; }
+  .measures li[data-pass="no"] { border-color: currentColor; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  /* ---- The stage: DashboardView.vue's header, RangeBinControls.vue's bar, then the body ---- */
+  .dash { font: 400 14px/1.5715 var(--font-sans); color: var(--ink); }
+  .dash-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 24px; }
+  .dash-head h3 { margin: 0; font: 700 24px/32px var(--font-sans); letter-spacing: -0.01em; }
+  .chip-btn { padding: 6px 12px; border-radius: 8px; font: 500 12px/16px var(--font-sans); border: 1px solid var(--line);
+              background: var(--panel); color: var(--ink-secondary); }
+  .filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 24px; background: var(--panel);
+             border: 1px solid var(--line); border-radius: 12px; padding: 12px 20px; margin-bottom: 24px;
+             box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); }
+  .filters .lbl { display: block; font: 600 12px/16px var(--font-sans); text-transform: uppercase; color: var(--ink-secondary); margin-bottom: 4px; }
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill { padding: 4px 12px; border-radius: 999px; font: 500 12px/16px var(--font-sans); border: 1px solid var(--line);
+          background: var(--panel); color: var(--ink-secondary); white-space: nowrap; }
+  .pill[aria-pressed="true"] { background: var(--accent); border-color: var(--accent-fg); color: var(--on-accent); }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); }
+  .empty { padding: 56px 24px; text-align: center; color: var(--ink-secondary); }
+  .empty .head { margin: 0 0 4px; font: 500 16px/24px var(--font-sans); color: var(--ink); }
+  .empty p { margin: 0 auto; max-width: 52ch; }
+  .empty .small { margin-top: 8px; font-size: 12px; line-height: 18px; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .actions { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; font: 500 14px/20px var(--font-sans); border: 1px solid transparent;
+         border-radius: 8px; padding: 8px 12px; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); }
+  .btn.primary { background: var(--accent); color: var(--on-accent); }
+  .btn.secondary { background: var(--panel); border-color: var(--line); color: var(--ink-secondary); }
+  .btn .n { font-weight: 400; opacity: 1; }
+
+  .note { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 24px; padding: 10px 16px;
+          border-radius: 8px; background: var(--accent-tint); color: var(--accent-tint-ink); }
+  .note a { color: inherit; font-weight: 500; text-decoration: underline; text-underline-offset: 2px; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 24px; }
+  .tile { padding: 16px 20px 12px; }
+  .tile h4 { margin: 0; font: 600 16px/24px var(--font-sans); letter-spacing: -0.01em; color: var(--ink); }
+  .tile .desc { margin: 2px 0 12px; font-size: 12px; line-height: 18px; color: var(--ink-secondary); }
+  .tile svg { display: block; width: 100%; height: 140px; }
+  .tile .axis { stroke: var(--line); }
+  .tile .bar { fill: var(--accent); }
+  .tile .line { fill: none; stroke: var(--accent); stroke-width: 2; }
+  .tile .ticks { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-secondary); margin-top: 4px; }
+</style>
+
+<main class="mockup-page">
+  <header class="mockup-head">
+    <p class="caption mockup-meta">Mockup · 2026-11-27 · Journal · from the “Not enough data yet” report</p>
+    <h1 class="title-1">Dashboard: when the range is too quiet</h1>
+    <p class="body">The dashboard opens on “Last 3 months”. Your last entry was on 16 Oct 2026, so that range holds 2 entries, below the 5 the charts need, and the home page says “Not enough data yet” while your account holds 77. With “All time” selected the charts draw as normal. What should the dashboard do when the selected range is this quiet?</p>
+    <p class="body mockup-meta">The charts, the filter bar, the 5-entry threshold and the tiles stay as they are. No new colours. Counts are your real ones: last month 0, last 3 months 2, last 6 months 32, last year 77, all time 77.</p>
+  </header>
+
+  <section class="option" id="a" aria-labelledby="a-h">
+    <div class="option-head"><h2 class="title-2" id="a-h">A. Today</h2><span class="label option-tag">Option A</span></div>
+    <p class="body">The empty card with the count and a hint to widen the range. You find the right range by trying the pills.</p>
+    <div class="panes" data-stage="screen-a"></div>
+    <ul class="measures caption">
+      <li data-fg="var(--ink-secondary)" data-bg="var(--panel)" data-min="4.5">Card text on the panel</li>
+    </ul>
+  </section>
+
+  <section class="option" id="b" aria-labelledby="b-h">
+    <div class="option-head"><h2 class="title-2" id="b-h">B. The empty card offers the ranges that have enough</h2><span class="label option-tag">Option B</span></div>
+    <p class="body">The range stays on “Last 3 months”, and the card names the shortest range with 5 or more entries and “All time”, with their counts, as buttons. One click draws the charts. The dashboard never changes the range on its own.</p>
+    <div class="panes" data-stage="screen-b"></div>
+    <ul class="measures caption">
+      <li data-fg="var(--ink-secondary)" data-bg="var(--panel)" data-min="4.5">Card text on the panel</li>
+      <li data-fg="var(--on-accent)" data-bg="var(--accent)" data-min="4.5">Button text on the accent (violet’s known miss)</li>
+    </ul>
+  </section>
+
+  <section class="option" id="c" data-recommended aria-labelledby="c-h">
+    <div class="option-head"><h2 class="title-2" id="c-h">C. Open on the shortest range that has enough</h2><span class="label option-tag">Option C</span></div>
+    <p class="body">When the dashboard first loads and “Last 3 months” has fewer than 5 entries, it opens on the shortest range that has 5 or more (here “Last 6 months”, 32 entries) and says so in a line above the charts, with a link back. A range you pick yourself is never changed. The home page shows your writing on arrival, which is what it’s for, and the note keeps the switch visible.</p>
+    <div class="panes" data-stage="screen-c"></div>
+    <ul class="measures caption">
+      <li data-fg="var(--accent-tint-ink)" data-bg="var(--accent-tint)" data-min="4.5">Note text on its tint</li>
+    </ul>
+  </section>
+
+  <section class="option" id="d" aria-labelledby="d-h">
+    <div class="option-head"><h2 class="title-2" id="d-h">D. Always draw the charts, with a note when they’re thin</h2><span class="label option-tag">Option D</span></div>
+    <p class="body">The 5-entry gate goes. The charts draw whatever the count, and below 5 entries a line above them says how few there are, with a link to “All time”. Honest about the range you picked, but 13 weeks with one bar says little.</p>
+    <div class="panes" data-stage="screen-d"></div>
+    <ul class="measures caption">
+      <li data-fg="var(--accent-tint-ink)" data-bg="var(--accent-tint)" data-min="4.5">Note text on its tint</li>
+    </ul>
+  </section>
+</main>
+
+<template id="dash-head">
+  <div class="dash-head"><h3>Dashboard</h3><button class="chip-btn" type="button">Edit layout</button></div>
+</template>
+
+<template id="screen-a">
+  <div class="card empty">
+    <p class="head">Not enough data yet</p>
+    <p>The dashboard needs at least <b>5</b> entries in the selected range to plot a meaningful trend. You currently have <span class="mono">2</span>.</p>
+    <p class="small">Try widening the range or ingesting more entries.</p>
+  </div>
+</template>
+
+<template id="screen-b">
+  <div class="card empty">
+    <p class="head">2 entries in the last 3 months</p>
+    <p>The charts need at least 5 entries in the range. Your last entry was on 16 Oct 2026.</p>
+    <div class="actions">
+      <button class="btn primary" type="button">Show last 6 months <span class="n">(32 entries)</span></button>
+      <button class="btn secondary" type="button">Show all time <span class="n">(77 entries)</span></button>
+    </div>
+  </div>
+</template>
+
+<template id="screen-c">
+  <div class="note body"><span>Showing the last 6 months. The last 3 months have 2 entries, and the charts need 5.</span><a href="#">Show the last 3 months</a></div>
+  <div data-tiles="6m"></div>
+</template>
+
+<template id="screen-d">
+  <div class="note body"><span>2 entries in the last 3 months, so these trends say little.</span><a href="#">Show all time (77 entries)</a></div>
+  <div data-tiles="3m"></div>
+</template>
+
+<script>
+  // Plausible weekly counts. 6 months: 26 weeks from 1 Jun 2026, summing to 32, nothing after 16 Oct.
+  const SERIES = {
+    '6m': { counts: [0,1,2,1,0,2,3,1,2,1,3,2,4,2,1,0,1,2,0,0,1,1,0,0,0,0], ticks: ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'] },
+    // 3 months: 13 weeks from 31 Aug 2026; the 2 entries land in the week of 12 Oct.
+    '3m': { counts: [0,0,0,0,0,0,2,0,0,0,0,0,0], ticks: ['Sep', 'Oct', 'Nov'] },
+  }
+  const ranges = [['Last month', '1m'], ['Last 3 months', '3m'], ['Last 6 months', '6m'], ['Last year', '1y'], ['All time', 'all']]
+  const binsList = ['Week', 'Month', 'Quarter', 'Year']
+  const selectedRange = { 'screen-a': '3m', 'screen-b': '3m', 'screen-c': '6m', 'screen-d': '3m' }
+
+  function filters(sel) {
+    const el = document.createElement('div')
+    el.className = 'filters'
+    const group = (label, items, on) => `<div><span class="lbl">${label}</span><div class="pills">${items
+      .map(([t, k]) => `<button class="pill" type="button" aria-pressed="${k === on}">${t}</button>`).join('')}</div></div>`
+    el.innerHTML = group('Range', ranges, sel) + group('Bin width', binsList.map((b) => [b, b]), 'Week')
+    return el
+  }
+
+  function bars(counts) {
+    const w = 300, h = 140, max = Math.max(4, ...counts), gap = 3, bw = (w - gap * (counts.length - 1)) / counts.length
+    return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">
+      <line class="axis" x1="0" y1="${h - 0.5}" x2="${w}" y2="${h - 0.5}"/>
+      ${counts.map((c, i) => c ? `<rect class="bar" x="${i * (bw + gap)}" y="${h - (c / max) * (h - 8)}" width="${bw}" height="${(c / max) * (h - 8)}" rx="1.5"/>` : '').join('')}
+    </svg>`
+  }
+  function line(counts) {
+    const w = 300, h = 140, words = counts.map((c) => c * 420), max = Math.max(1600, ...words), step = w / (counts.length - 1)
+    const pts = words.map((v, i) => `${(i * step).toFixed(1)},${(h - 4 - (v / max) * (h - 12)).toFixed(1)}`).join(' ')
+    return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">
+      <line class="axis" x1="0" y1="${h - 0.5}" x2="${w}" y2="${h - 0.5}"/><polyline class="line" points="${pts}" vector-effect="non-scaling-stroke"/></svg>`
+  }
+  function tiles(key) {
+    const s = SERIES[key], phrase = key === '6m' ? 'over the last 6 months' : 'over the last 3 months'
+    const ticks = `<div class="ticks">${s.ticks.map((t) => `<span>${t}</span>`).join('')}</div>`
+    const el = document.createElement('div')
+    el.className = 'tiles'
+    el.innerHTML = `
+      <div class="card tile"><h4>Writing frequency</h4><p class="desc">Entries per week ${phrase}</p>${bars(s.counts)}${ticks}</div>
+      <div class="card tile"><h4>Words written</h4><p class="desc">Total words per week ${phrase}</p>${line(s.counts)}${ticks}</div>`
+    return el
+  }
+
+  for (const panes of document.querySelectorAll('[data-stage]')) {
+    const id = panes.dataset.stage
+    for (const theme of ['light', 'dark']) {
+      const pane = document.createElement('div')
+      pane.className = 'pane'
+      pane.dataset.theme = theme
+      pane.innerHTML = `<p class="label pane-label">${theme === 'dark' ? 'Dark' : 'Light'}</p>`
+      const dash = document.createElement('div')
+      dash.className = 'dash'
+      dash.append(document.getElementById('dash-head').content.cloneNode(true), filters(selectedRange[id]),
+        document.getElementById(id).content.cloneNode(true))
+      for (const slot of dash.querySelectorAll('[data-tiles]')) slot.replaceWith(tiles(slot.dataset.tiles))
+      pane.append(dash)
+      panes.append(pane)
+    }
+  }
+</script>
+
+<script>
+  // Measures: for each <li data-fg data-bg data-min>, the WCAG contrast of the two colours in each
+  // theme, resolved inside the option (so --candidate-* values apply), written after the label.
+  (() => {
+    const rgb = (value, scope, theme) => {
+      const probe = document.createElement('span')
+      probe.dataset.theme = theme
+      probe.style.color = value
+      scope.append(probe)
+      const parts = getComputedStyle(probe).color.match(/[\d.]+/g).map(Number)
+      probe.remove()
+      return parts.slice(0, 3)
+    }
+    const lum = ([r, g, b]) => [r, g, b]
+      .map((c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 })
+      .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0)
+    const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05) }
+    for (const li of document.querySelectorAll('.measures li[data-fg]')) {
+      const scope = li.closest('.option') || document.body
+      const min = Number(li.dataset.min || 0)
+      const results = ['light', 'dark'].map((theme) => {
+        const r = ratio(rgb(li.dataset.fg, scope, theme), rgb(li.dataset.bg, scope, theme))
+        return { theme, r, ok: !min || r >= min }
+      })
+      li.dataset.pass = results.every((x) => x.ok) ? 'yes' : 'no'
+      li.append(`: ${results.map((x) => `${x.theme} ${x.r.toFixed(1)}:1${x.ok ? '' : ' (below ' + min + ':1)'}`).join(', ')}`)
+    }
+  })()
+</script>

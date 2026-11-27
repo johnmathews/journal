@@ -191,6 +191,140 @@ describe('useDashboardStore', () => {
   })
 })
 
+describe('useDashboardStore — first load opens on a range with enough entries', () => {
+  // Prod on 27 Nov 2026 (mockups/261127-dashboard-empty-state, option C):
+  // the last entry was 16 Oct, so the default "last 3 months" holds 2
+  // entries while the account holds 77.
+  const COUNTS_BY_FROM: Record<string, number> = {
+    '2026-08-27': 2, // last_3_months
+    '2026-05-27': 32, // last_6_months
+    '2025-11-27': 77, // last_1_year
+    all: 77,
+  }
+
+  function respondWith(counts: Record<string, number>): void {
+    mockFetch.mockImplementation(async (params) => {
+      const n = counts[params?.from ?? 'all'] ?? 0
+      return {
+        from: params?.from ?? null,
+        to: params?.to ?? null,
+        bin: 'week',
+        bins: n
+          ? [{ bin_start: '2026-10-12', entry_count: n, total_words: n * 400 }]
+          : [],
+      }
+    })
+  }
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-27T12:00:00Z'))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('widens to the shortest range with at least 5 entries', async () => {
+    respondWith(COUNTS_BY_FROM)
+    const store = useDashboardStore()
+    await store.loadInitialWritingStats()
+
+    expect(store.range).toBe('last_6_months')
+    expect(store.totalEntriesInRange).toBe(32)
+    expect(store.widenedFrom).toEqual({ range: 'last_3_months', count: 2 })
+    expect(mockFetch.mock.calls.map((c) => c[0]?.from)).toEqual([
+      '2026-08-27',
+      '2026-05-27',
+    ])
+  })
+
+  it('skips ranges still below the threshold', async () => {
+    respondWith({ ...COUNTS_BY_FROM, '2026-05-27': 4 })
+    const store = useDashboardStore()
+    await store.loadInitialWritingStats()
+
+    expect(store.range).toBe('last_1_year')
+    expect(store.widenedFrom).toEqual({ range: 'last_3_months', count: 2 })
+  })
+
+  it('keeps the default range when it already has enough', async () => {
+    respondWith({ ...COUNTS_BY_FROM, '2026-08-27': 5 })
+    const store = useDashboardStore()
+    await store.loadInitialWritingStats()
+
+    expect(store.range).toBe('last_3_months')
+    expect(store.widenedFrom).toBeNull()
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns to the default range when no range has enough', async () => {
+    respondWith({ '2026-08-27': 2, '2026-05-27': 3, '2025-11-27': 3, all: 4 })
+    const store = useDashboardStore()
+    await store.loadInitialWritingStats()
+
+    expect(store.range).toBe('last_3_months')
+    expect(store.totalEntriesInRange).toBe(2)
+    expect(store.widenedFrom).toBeNull()
+  })
+
+  it('does not widen after an error', async () => {
+    mockFetch.mockRejectedValue(new Error('boom'))
+    const store = useDashboardStore()
+    await store.loadInitialWritingStats()
+
+    expect(store.range).toBe('last_3_months')
+    expect(store.error).toBe('boom')
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('widens only once: a later visit keeps the range as it is', async () => {
+    respondWith(COUNTS_BY_FROM)
+    const store = useDashboardStore()
+    await store.loadInitialWritingStats()
+    await store.loadWritingStats({ range: 'last_3_months' })
+    mockFetch.mockClear()
+
+    await store.loadInitialWritingStats()
+
+    expect(store.range).toBe('last_3_months')
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('a range the reader picks clears the note', async () => {
+    respondWith(COUNTS_BY_FROM)
+    const store = useDashboardStore()
+    await store.loadInitialWritingStats()
+    expect(store.widenedFrom).not.toBeNull()
+
+    await store.loadWritingStats({ range: 'all' })
+    expect(store.widenedFrom).toBeNull()
+  })
+
+  it('a bin change keeps the note', async () => {
+    respondWith(COUNTS_BY_FROM)
+    const store = useDashboardStore()
+    await store.loadInitialWritingStats()
+
+    await store.loadWritingStats({ bin: 'month' })
+    expect(store.widenedFrom).toEqual({ range: 'last_3_months', count: 2 })
+  })
+
+  it('reset re-arms the first-load widening', async () => {
+    respondWith(COUNTS_BY_FROM)
+    const store = useDashboardStore()
+    await store.loadInitialWritingStats()
+    store.reset()
+    expect(store.widenedFrom).toBeNull()
+
+    store.range = 'last_3_months'
+    await store.loadInitialWritingStats()
+    expect(store.range).toBe('last_6_months')
+  })
+})
+
 describe('useDashboardStore — mood surface', () => {
   beforeEach(() => {
     setActivePinia(createPinia())

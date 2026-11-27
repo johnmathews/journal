@@ -38,6 +38,7 @@ Each visual change is decided on a mockup in `brand/design-system/mockups/` in t
 | 2026-11-26 | The app icon: pen and paper, white on a tile in the user's accent. |
 | 2026-11-26 | The accent is a per-user setting. Violet is the default and stays exactly as it was, its two contrast misses included. The other choices are green, emerald, blue, rose and graphite. |
 | 2026-11-27 | Form contrast: control edges in `control-border` (1B), light error text in `error-ink` (2B), a solid 2px focus ring in the accent on every element (3B). |
+| 2026-11-27 | Dashboard: when the default range has fewer than 5 entries, the first load opens on the shortest range that has 5 or more and says so in an `accent-tint` note with a link back (C). |
 
 ## Known gaps
 

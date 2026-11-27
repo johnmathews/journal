@@ -2,7 +2,11 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useElementSize } from '@vueuse/core'
 import { useRouter } from 'vue-router'
-import { useDashboardStore, rangeToDates } from '@/stores/dashboard'
+import {
+  MIN_ENTRIES_FOR_CHARTS,
+  useDashboardStore,
+  rangeToDates,
+} from '@/stores/dashboard'
 import {
   DASHBOARD_TILES,
   type DashboardBin,
@@ -38,7 +42,33 @@ const rangePhrase = computed<string>(() => {
   return 'across all time'
 })
 
-const MIN_ENTRIES_FOR_CHARTS = 5
+/** A range as a noun phrase: "the last 3 months", "all time". */
+function rangeNoun(r: DashboardRange): string {
+  if (r === 'last_1_month') return 'the last month'
+  if (r === 'last_3_months') return 'the last 3 months'
+  if (r === 'last_6_months') return 'the last 6 months'
+  if (r === 'last_1_year') return 'the last year'
+  return 'all time'
+}
+
+/**
+ * The note shown when the first load moved off a range with too few
+ * entries (mockups/261127-dashboard-empty-state, option C), e.g.
+ * "Showing the last 6 months. The last 3 months have 2 entries, and
+ * the charts need 5."
+ */
+const widenedNote = computed<string | null>(() => {
+  const w = store.widenedFrom
+  if (!w) return null
+  const from = rangeNoun(w.range)
+  const plural = w.range !== 'last_1_month'
+  const entries = w.count === 1 ? '1 entry' : `${w.count} entries`
+  return (
+    `Showing ${rangeNoun(store.range)}. ` +
+    `${from.charAt(0).toUpperCase()}${from.slice(1)} ${plural ? 'have' : 'has'} ${entries}, ` +
+    `and the charts need ${MIN_ENTRIES_FOR_CHARTS}.`
+  )
+})
 
 const showCharts = computed(
   () => store.totalEntriesInRange >= MIN_ENTRIES_FOR_CHARTS,
@@ -141,7 +171,7 @@ watch(
 
 onMounted(async () => {
   await Promise.all([
-    store.loadWritingStats(),
+    store.loadInitialWritingStats(),
     store.loadMoodDimensions(),
     store.loadLayout(),
   ])
@@ -263,12 +293,10 @@ async function onMoodCorrelationTypeChange(
 
     <div
       v-else-if="!showCharts"
-      class="py-16 text-center text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs"
+      class="py-16 text-center text-ink-secondary bg-panel border border-line rounded-xl shadow-xs"
       data-testid="dashboard-empty"
     >
-      <p class="text-base font-medium text-gray-700 dark:text-gray-200 mb-1">
-        Not enough data yet
-      </p>
+      <p class="text-base font-medium text-ink mb-1">Not enough data yet</p>
       <p class="text-sm">
         The dashboard needs at least
         <span class="font-semibold">{{ MIN_ENTRIES_FOR_CHARTS }}</span>
@@ -279,12 +307,27 @@ async function onMoodCorrelationTypeChange(
         }}</span
         >.
       </p>
-      <p class="text-xs mt-2 text-gray-600 dark:text-gray-300">
+      <p class="text-xs mt-2">
         Try widening the range or ingesting more entries.
       </p>
     </div>
 
     <div v-else>
+      <div
+        v-if="widenedNote && store.widenedFrom"
+        class="mb-6 flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg bg-accent-tint text-accent-tint-ink px-4 py-2.5 text-sm"
+        data-testid="dashboard-range-widened"
+      >
+        <span>{{ widenedNote }}</span>
+        <button
+          type="button"
+          class="font-medium underline underline-offset-2"
+          data-testid="dashboard-range-widened-undo"
+          @click="onRangeChange(store.widenedFrom.range)"
+        >
+          Show {{ rangeNoun(store.widenedFrom.range) }}
+        </button>
+      </div>
       <TileGrid
         ref="tileGridRef"
         :tiles="dashboardTiles"
