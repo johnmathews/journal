@@ -268,7 +268,7 @@ const moodResult = computed<MoodResultSummary | null>(() => {
             id="batch-modal-start-date"
             v-model="startDate"
             type="date"
-            class="form-input w-full text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+            class="form-input w-full text-sm bg-white dark:bg-gray-800 rounded-md"
             data-testid="batch-modal-start-date"
           />
         </div>
@@ -283,7 +283,7 @@ const moodResult = computed<MoodResultSummary | null>(() => {
             id="batch-modal-end-date"
             v-model="endDate"
             type="date"
-            class="form-input w-full text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+            class="form-input w-full text-sm bg-white dark:bg-gray-800 rounded-md"
             data-testid="batch-modal-end-date"
           />
         </div>
@@ -379,7 +379,7 @@ const moodResult = computed<MoodResultSummary | null>(() => {
       class="space-y-3"
     >
       <div
-        class="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+        class="bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
       >
         {{ errorMessage || 'Something went wrong.' }}
       </div>

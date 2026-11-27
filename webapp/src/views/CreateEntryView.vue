@@ -53,7 +53,7 @@ function switchTab(key: typeof activeTab.value) {
       <input
         v-model="entryDate"
         type="date"
-        class="form-input w-48 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+        class="form-input w-48 dark:bg-gray-700 dark:text-gray-100"
       />
     </div>
 
@@ -81,7 +81,7 @@ function switchTab(key: typeof activeTab.value) {
     <!-- Error display -->
     <div
       v-if="entriesStore.createError"
-      class="mb-4 flex items-start gap-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300"
+      class="mb-4 flex items-start gap-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-error-ink dark:text-red-300"
     >
       <p class="flex-1">{{ entriesStore.createError }}</p>
       <button

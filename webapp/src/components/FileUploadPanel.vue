@@ -282,7 +282,7 @@ watch(currentJob, (job) => {
 
     <!-- Submit error state -->
     <div v-else-if="submitError" class="text-center py-12">
-      <p class="text-red-600 dark:text-red-400 mb-4">{{ submitError }}</p>
+      <p class="text-error-ink mb-4">{{ submitError }}</p>
       <button
         class="btn bg-accent-500 hover:bg-accent-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
         @click="retry"

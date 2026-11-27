@@ -1,0 +1,75 @@
+{
+  "required_components": [
+    "Cover",
+    "AppLogo",
+    "Button",
+    "TextLink",
+    "TextField",
+    "Checkbox",
+    "Switch",
+    "Panel",
+    "Sidebar",
+    "Tabs",
+    "Alert",
+    "StatusBadge",
+    "Dialog",
+    "Toast",
+    "AccentPicker"
+  ],
+  "extra_contrast_pairs": [
+    [
+      "ink-secondary",
+      "panel",
+      7.0
+    ],
+    [
+      "ink-secondary",
+      "tile",
+      5.5
+    ],
+    [
+      "error-ink",
+      "error-surface",
+      4.5
+    ],
+    [
+      "success-ink",
+      "success-surface",
+      4.5
+    ],
+    [
+      "success-ink",
+      "panel",
+      4.5
+    ],
+    [
+      "accent-tint-ink",
+      "accent-tint",
+      4.5
+    ],
+    [
+      "on-accent",
+      "accent",
+      3.0
+    ],
+    [
+      "accent-fg",
+      "panel",
+      3.0
+    ],
+    [
+      "accent-fg",
+      "canvas",
+      3.0
+    ]
+  ],
+  "forbidden_words": [],
+  "group_order": [
+    "Brand",
+    "Actions",
+    "Forms",
+    "Layout",
+    "Feedback",
+    "Settings"
+  ]
+}

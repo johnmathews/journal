@@ -255,7 +255,7 @@ async function onMoodCorrelationTypeChange(
 
     <div
       v-else-if="store.error"
-      class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+      class="mb-4 bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
       data-testid="dashboard-error"
     >
       {{ store.error }}

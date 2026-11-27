@@ -60,7 +60,7 @@ describe('AppearanceSettings', () => {
     await flushPromises()
     const status = wrapper.find('[data-testid="appearance-status"]')
     expect(status.text()).toContain('Couldn’t save the colour')
-    expect(status.classes()).toContain('text-red-800')
+    expect(status.classes()).toContain('text-error-ink')
     expect(useAppearanceStore().accent).toBe('violet')
   })
 })

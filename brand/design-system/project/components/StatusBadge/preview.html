@@ -1,0 +1,35 @@
+<!-- @dsCard group="Feedback" height=150 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; padding: var(--space-4); background: var(--panel); color: var(--ink); font-family: var(--font-sans); }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+  /* inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize */
+  .badge { display: inline-block; padding: 2px var(--space-2); border-radius: var(--radius-full); font-weight: 500; }
+  .queued { background: var(--tile); color: var(--ink-secondary); }
+  .running { background: var(--accent-tint); color: var(--accent-tint-ink); }
+  .succeeded { background: var(--success-surface); color: var(--success-ink); }
+  /* Failed: ring-1 ring-red-400/60 (dark ring-red-500/40) makes failures stand out in the list.
+     Drawn with error-ink on error-surface per the 2B decision (2026-11-27); the ring is mixed from error-ink. */
+  .failed { background: var(--error-surface); color: var(--error-ink); box-shadow: 0 0 0 1px color-mix(in srgb, var(--error-ink) 45%, transparent); }
+  .job { margin-top: var(--space-4); display: grid; gap: var(--space-1); max-width: 360px; padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+  .job .head { display: flex; justify-content: space-between; gap: var(--space-3); align-items: center; }
+  .job .meta { color: var(--ink-secondary); }
+</style>
+</head>
+<body>
+  <div class="row caption">
+    <span class="badge queued">Queued</span>
+    <span class="badge running">Running</span>
+    <span class="badge succeeded">Succeeded</span>
+    <span class="badge failed">Failed</span>
+  </div>
+  <div class="job">
+    <div class="head"><span class="label">Mood backfill</span><span class="badge succeeded caption">Succeeded</span></div>
+    <span class="caption meta">27 Nov 2026, 09:14</span>
+  </div>
+</body>
+</html>

@@ -138,7 +138,7 @@ function statusClass(job: Job): string {
     case 'succeeded':
       return 'text-emerald-500 dark:text-emerald-400'
     case 'failed':
-      return 'text-red-500 dark:text-red-400'
+      return 'text-error-ink'
   }
 }
 
@@ -250,7 +250,7 @@ function closeDropdown() {
               </p>
               <p
                 v-else-if="job.status === 'failed' && job.error_message"
-                class="text-xs text-red-500 dark:text-red-400 truncate"
+                class="text-xs text-error-ink truncate"
               >
                 {{ job.error_message }}
               </p>

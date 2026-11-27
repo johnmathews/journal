@@ -232,7 +232,7 @@ watch(() => props.id, loadAll)
     <!-- Fatal error (no storyline loaded) -->
     <div
       v-else-if="store.error && !store.currentStoryline"
-      class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+      class="mb-4 bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
       data-testid="error-banner"
     >
       {{ store.error }}
@@ -318,7 +318,7 @@ watch(() => props.id, loadAll)
               Updating…
             </span>
             <button
-              class="btn bg-white dark:bg-gray-800 border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              class="btn bg-white dark:bg-gray-800 border-red-200 dark:border-red-800/60 text-error-ink hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
               :disabled="deleting"
               data-testid="delete-button"
               @click="confirmDelete"
@@ -372,21 +372,21 @@ watch(() => props.id, loadAll)
         <!-- Action / rename / delete errors -->
         <div
           v-if="store.actionError"
-          class="mt-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+          class="mt-3 bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
           data-testid="action-error-banner"
         >
           {{ store.actionError }}
         </div>
         <div
           v-if="store.nameError"
-          class="mt-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+          class="mt-3 bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
           data-testid="name-error-banner"
         >
           {{ store.nameError }}
         </div>
         <div
           v-if="deleteError"
-          class="mt-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+          class="mt-3 bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
           data-testid="delete-error-banner"
         >
           {{ deleteError }}

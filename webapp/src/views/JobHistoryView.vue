@@ -545,7 +545,7 @@ function statusBadgeClass(status: JobStatus): string {
     case 'failed':
       // Ring makes failures pop out of the list — this view is how the
       // user spots a failed job (and, in future, an out-of-credits state).
-      return 'bg-red-100 text-red-700 ring-1 ring-red-400/60 dark:bg-red-500/20 dark:text-red-300 dark:ring-red-500/40'
+      return 'bg-red-100 text-error-ink ring-1 ring-red-400/60 dark:bg-red-500/20 dark:text-red-300 dark:ring-red-500/40'
   }
 }
 
@@ -670,7 +670,7 @@ function isExpandable(job: Job): boolean {
     >
       <select
         v-model="filterStatus"
-        class="text-sm min-w-32 rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 px-3 py-1.5"
+        class="text-sm min-w-32 rounded-lg dark:bg-gray-800 dark:text-gray-200 px-3 py-1.5 border-control-border focus:ring-0 focus:border-accent-fg"
         data-testid="filter-status"
       >
         <option value="">All statuses</option>
@@ -682,7 +682,7 @@ function isExpandable(job: Job): boolean {
 
       <select
         v-model="filterType"
-        class="text-sm min-w-44 rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 px-3 py-1.5"
+        class="text-sm min-w-44 rounded-lg dark:bg-gray-800 dark:text-gray-200 px-3 py-1.5 border-control-border focus:ring-0 focus:border-accent-fg"
         data-testid="filter-type"
       >
         <option value="">All types</option>
@@ -700,7 +700,7 @@ function isExpandable(job: Job): boolean {
         type="search"
         placeholder="Search jobs…"
         data-testid="jobs-search-input"
-        class="text-sm w-56 rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 px-3 py-1.5"
+        class="text-sm w-56 rounded-lg dark:bg-gray-800 dark:text-gray-200 px-3 py-1.5 border-control-border focus:ring-0 focus:border-accent-fg"
       />
 
       <button
@@ -800,7 +800,7 @@ function isExpandable(job: Job): boolean {
     <!-- Error -->
     <div
       v-if="error"
-      class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
+      class="mb-4 bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
       data-testid="job-history-error"
     >
       {{ error }}
@@ -970,7 +970,7 @@ function isExpandable(job: Job): boolean {
                   <template v-if="job.status === 'failed' && job.error_message">
                     <div class="flex items-start gap-1.5">
                       <span
-                        class="text-red-500 dark:text-red-400 truncate"
+                        class="text-error-ink truncate"
                         :title="job.error_message"
                         >{{ job.error_message }}</span
                       >
@@ -979,7 +979,7 @@ function isExpandable(job: Job): boolean {
                         :content="job.error_message"
                         title="Full error"
                         trigger-label="full"
-                        trigger-class="!text-red-500 !border-red-200 dark:!border-red-800/40 hover:!bg-red-50 dark:hover:!bg-red-900/20"
+                        trigger-class="!text-error-ink !border-red-200 dark:!border-red-800/40 hover:!bg-red-50 dark:hover:!bg-red-900/20"
                         data-testid="job-error-full-popover"
                       />
                     </div>
@@ -1199,7 +1199,7 @@ function isExpandable(job: Job): boolean {
 
           <div v-if="isVisible('details')" class="mt-1 text-sm">
             <template v-if="job.status === 'failed' && job.error_message">
-              <span class="text-red-500 dark:text-red-400 break-words">{{
+              <span class="text-error-ink break-words">{{
                 job.error_message
               }}</span>
             </template>

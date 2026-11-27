@@ -612,7 +612,7 @@ describe('OCR Doubts column', () => {
     // Default sort is date descending, so order is: id=12, id=11, id=10
     // 5 = red (2026-04-03)
     expect(cells[0].text()).toBe('5')
-    expect(cells[0].classes().join(' ')).toContain('red')
+    expect(cells[0].classes().join(' ')).toContain('text-error-ink')
 
     // 2 = amber (2026-04-02)
     expect(cells[1].text()).toBe('2')

@@ -30,6 +30,7 @@ src/
 - `npm run contract:gen` — Regenerate `src/types/generated/api.ts` from `../contract/api.schema.json`
 - `npm run contract:check` — Fail if the generated API types are out of date (CI and the pre-push hook run it)
 - `npm run icon:gen` / `npm run icon:check` — Write / verify the favicon set and manifest from `src/brand/app-icon.json`
+- `npm run tokens:gen` / `npm run tokens:check` — Write / verify `src/assets/tokens.css` (colour roles) from `../brand/design-system/project/tokens.json`
 
 ## Tech Stack
 
@@ -43,6 +44,12 @@ src/
 - Vue Router — routing
 - Vitest + Vue Test Utils + happy-dom — testing
 - Chart.js 4 — charts via `src/utils/chartjs-config.ts` (direct, no wrapper). When adding a new chart, read [`docs/chart-style-guide.md`](docs/chart-style-guide.md) first — it documents the shared `buildLineChartOptions` helper and the bold-MA-over-faded-daily pattern.
+
+## Design system
+
+UI follows the design system in `../brand/design-system` ([`docs/brand.md`](docs/brand.md)). Build new UI from the
+role utilities (`bg-canvas`, `bg-panel`, `text-ink`, `text-ink-secondary`, `border-line`, `border-control-border`,
+`text-error-ink`), not `gray-N` or `red-N`. A visual change starts as a mockup.
 
 ## Accent colour
 

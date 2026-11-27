@@ -1,0 +1,57 @@
+<!-- @dsCard group="Actions" height=260 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; padding: 16px; background: var(--panel); color: var(--ink); font-family: var(--font-sans); }
+  .wrap { display: grid; gap: 16px; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  .note { color: var(--ink-secondary); margin: 0 0 6px; }
+  /* .btn from webapp/src/assets/utility-patterns.css */
+  .btn { display: inline-flex; align-items: center; justify-content: center; font: 500 14px/20px var(--font-sans);
+         border: 1px solid transparent; border-radius: var(--radius-md); padding: 8px 12px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); cursor: pointer; }
+  .btn-sm { padding: 4px 8px; }
+  .primary { background: var(--accent); color: var(--on-accent); }
+  .primary:hover, .primary.is-hover { background: var(--accent-hover); }
+  .secondary { background: var(--panel); border-color: var(--line); color: var(--ink-secondary); }
+  .secondary:hover, .secondary.is-hover { color: var(--ink); }
+  /* Danger has no token yet: red-500 #ff5656, the project's custom scale. White on it is 2.9:1, a known miss. */
+  .danger { background: #ff5656; color: #ffffff; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn:focus-visible, .btn.is-focus { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .spin { width: 16px; height: 16px; margin: 0 8px 0 -4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <p class="caption note">Primary: one per view, the main action</p>
+    <div class="row">
+      <button class="btn primary" type="button">Sign In</button>
+      <button class="btn primary is-hover" type="button">Hover</button>
+      <button class="btn primary is-focus" type="button">Focused</button>
+      <button class="btn primary" type="button" disabled aria-busy="true">
+        <svg class="spin" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" opacity=".25"/><path fill="currentColor" opacity=".75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Signing in...
+      </button>
+    </div>
+  </div>
+  <div>
+    <p class="caption note">Secondary and small</p>
+    <div class="row">
+      <button class="btn secondary" type="button">Cancel</button>
+      <button class="btn secondary is-focus" type="button">Focused</button>
+      <button class="btn btn-sm primary" type="button">Save</button>
+      <button class="btn btn-sm secondary" type="button">Edit</button>
+    </div>
+  </div>
+  <div>
+    <p class="caption note">Danger: deleting something for good</p>
+    <div class="row">
+      <button class="btn danger" type="button">Delete entry</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -3,12 +3,13 @@
 #
 # Runs the checks for each part the push touches:
 #   server/ or contract/  -> ruff + unit tests (integration tests need ChromaDB; CI runs them)
-#   webapp/, contract/ or brand/design-system/project/assets/AppIcon/
+#   brand/design-system/  -> the design-system gate (scripts/check_design_system.py --complete)
+#   webapp/, contract/, brand/design-system/project/assets/AppIcon/ or .../tokens.json
 #                         -> generated API types up to date (contract:check), app icon set up to
-#                            date (icon:check), prettier check, eslint, vitest with coverage
-#                            thresholds, build
-# The AppIcon folder holds master SVGs written by webapp's `npm run icon:gen`; webapp CI
-# (.github/workflows/webapp.yml) watches the same paths.
+#                            date (icon:check), tokens.css up to date (tokens:check), prettier
+#                            check, eslint, vitest with coverage thresholds, build
+# The AppIcon folder holds master SVGs written by webapp's `npm run icon:gen`, and tokens.json is
+# the source of webapp's tokens.css; webapp CI (.github/workflows/webapp.yml) watches the same paths.
 # Docs, journal entries, Markdown and root files (.github/, CLAUDE.md) run nothing locally;
 # CI covers workflows.
 #
@@ -45,8 +46,11 @@ code="$(grep -vE '^(server|webapp)/(docs|journal)/|\.md$' <<<"$changed" || true)
 
 run_server=false
 run_webapp=false
+run_design=false
 grep -qE '^(server|contract)/' <<<"$code" && run_server=true
-grep -qE '^(webapp|contract)/|^brand/design-system/project/assets/AppIcon/' <<<"$code" && run_webapp=true
+grep -qE '^(webapp|contract)/|^brand/design-system/project/(assets/AppIcon/|tokens\.json$)' <<<"$code" && run_webapp=true
+# The design system's READMEs are part of what the gate checks, so prose counts here.
+grep -qE '^brand/design-system/|^scripts/(check_design_system|design_preview)\.py$' <<<"$changed" && run_design=true
 
 if $run_server; then
   echo "pre-push: server changed, running ruff and unit tests..."
@@ -57,10 +61,17 @@ fi
 
 if $run_webapp; then
   echo "pre-push: webapp changed, running contract check, icon check, format check, lint, tests with coverage, build..."
-  (cd "$root/webapp" && npm run contract:check && npm run icon:check && npm run format:check && npm run lint \
+  (cd "$root/webapp" && npm run contract:check && npm run icon:check && npm run tokens:check && npm run format:check && npm run lint \
     && npm run test:coverage && npm run build)
 else
   echo "pre-push: no webapp/, contract/ or AppIcon changes, skipping webapp checks."
+fi
+
+if $run_design; then
+  echo "pre-push: design system changed, running its gate..."
+  python3 "$root/scripts/check_design_system.py" "$root/brand/design-system" --complete
+else
+  echo "pre-push: no brand/design-system/ changes, skipping the design-system gate."
 fi
 
 echo "pre-push: all checks passed."

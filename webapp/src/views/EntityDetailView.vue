@@ -254,7 +254,7 @@ async function confirmDelete() {
 
     <div
       v-else-if="store.error && !store.currentEntity"
-      class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+      class="mb-4 bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
       data-testid="error-banner"
     >
       {{ store.error }}
@@ -316,7 +316,7 @@ async function confirmDelete() {
                 Edit
               </button>
               <button
-                class="btn border-red-300 dark:border-red-700/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                class="btn border-red-300 dark:border-red-700/60 text-error-ink hover:bg-red-50 dark:hover:bg-red-900/20"
                 data-testid="delete-button"
                 :disabled="deleting"
                 @click="confirmDelete"
@@ -354,7 +354,7 @@ async function confirmDelete() {
               <input
                 v-model="editName"
                 type="text"
-                class="form-input w-full text-sm dark:bg-gray-900 dark:border-gray-700"
+                class="form-input w-full text-sm dark:bg-gray-900"
                 data-testid="edit-name-input"
               />
             </div>
@@ -366,7 +366,7 @@ async function confirmDelete() {
               </label>
               <select
                 v-model="editType"
-                class="form-select w-full text-sm dark:bg-gray-900 dark:border-gray-700"
+                class="form-select w-full text-sm dark:bg-gray-900"
                 data-testid="edit-type-select"
               >
                 <option
@@ -389,7 +389,7 @@ async function confirmDelete() {
             <textarea
               v-model="editDescription"
               rows="2"
-              class="form-textarea w-full text-sm dark:bg-gray-900 dark:border-gray-700"
+              class="form-textarea w-full text-sm dark:bg-gray-900"
               data-testid="edit-description-input"
             />
           </div>
@@ -517,7 +517,7 @@ async function confirmDelete() {
             </form>
             <div
               v-if="aliasError"
-              class="mt-2 p-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded text-xs"
+              class="mt-2 p-2 bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded text-xs"
               data-testid="entity-alias-error"
             >
               {{ aliasError }}

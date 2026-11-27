@@ -4,8 +4,14 @@ One git repo (`johnmathews/journal`) holding the Journal Insights and Analysis T
 
 - `server/` — Python backend (MCP server + REST API + CLI). Python 3.13, `uv`, pytest, SQLite + ChromaDB.
 - `webapp/` — Vue 3 + TypeScript frontend (Vite, Pinia, Tailwind CSS 4 / Cruip Mosaic shell).
-- `brand/design-system/` — the brand: colour tokens, the app icon's master SVGs, and the mockups each visual
-  change was decided on ([README](brand/design-system/README.md)). Visual changes start there as a mockup.
+- `brand/design-system/` — the brand: the design system's source (colour roles, components, voice, the app icon's
+  master SVGs), published as a claude.ai Design System artifact, and the mockups each visual change was decided on
+  ([README](brand/design-system/README.md)).
+
+UI work follows the design system in `brand/design-system` (see [`webapp/docs/brand.md`](webapp/docs/brand.md)); use
+the design-system skill. A visual change starts as a mockup in `brand/design-system/mockups/` and waits for the
+owner's pick before any code. Build new UI from the role utilities (`bg-panel`, `text-ink`, `text-ink-secondary`,
+`border-control-border`, `text-error-ink`), not `gray-N`/`red-N`.
 
 The webapp calls the backend's REST API. In dev, Vite (port 5173) proxies `/api/*` to the server on `localhost:8400`.
 
@@ -51,12 +57,14 @@ Skip noisy folders: `webapp/node_modules`, `webapp/dist`, `server/htmlcov`, `ser
 
 ## CI
 
-Two workflows, each triggered only by its own folder (plus `contract/` and the workflow file itself):
+Three workflows, each triggered only by its own folder (plus `contract/` and the workflow file itself):
 
 - `.github/workflows/server.yml` — ruff, unit tests with coverage, pip-audit, ChromaDB integration tests; on `main`
   pushes the server and chromadb images.
-- `.github/workflows/webapp.yml` — eslint, vitest with coverage thresholds, `contract:check`, build; on `main` pushes
-  the webapp image.
+- `.github/workflows/webapp.yml` — eslint, vitest with coverage thresholds, `contract:check`, `icon:check`,
+  `tokens:check`, build; on `main` pushes the webapp image.
+- `.github/workflows/design-system.yml` — the design-system gate (`scripts/check_design_system.py --complete`) on
+  `brand/design-system/**`. No image.
 
 After pushing, watch the run(s) for the parts you changed (`gh run list -R johnmathews/journal --limit 5`, then
 `gh run watch <id>`). Work is not done until CI is green. If CI fails: read the logs, fix, run the suite locally,

@@ -1,0 +1,51 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html, body { margin: 0; }
+  body { background: var(--canvas); width: 960px; height: 288px; position: relative; overflow: hidden; font-family: var(--font-sans); }
+  svg { position: absolute; inset: 0; }
+  .page { fill: var(--panel); }
+  .slab { fill: var(--accent); }
+  .tint { fill: var(--accent-tint); }
+  .ink { fill: var(--ink); }
+  .rule { stroke: var(--line); stroke-width: 1; }
+  .rule-on { stroke: var(--accent-tint); stroke-width: 1; }
+  .pen { stroke: var(--accent); stroke-width: 4; stroke-linecap: round; }
+  .r-lg { rx: var(--radius-lg); }
+  .r-xl { rx: var(--radius-xl); }
+  .text { position: absolute; left: 48px; bottom: 40px; max-width: 400px; }
+  .name { margin: 0; font-size: 112px; line-height: 0.95; font-weight: 700; letter-spacing: -0.03em; color: var(--ink); }
+  .tag { margin: 16px 0 0; font-size: 14px; line-height: 20px; color: var(--ink-secondary); }
+</style>
+</head>
+<body>
+  <!--
+    blocks: accent slab 168 x 240 (radius-xl) · panel page 232 x 240 (radius-xl) · ink block 96 x 96 (radius-lg) · accent-tint block 120 x 64 (radius-lg)
+    arrangement: a page and a slab standing side by side from x = 520, bleeding off the bottom, the ink block and the tint stacked against the right edge
+    pattern: ruled lines, the app icon's own motif (a ruled page, a pen writing its last line): four line rules 32px apart (space-8), the last one short and finished by a pen stroke in the accent
+    scales: space-8 pitch, space-5 inset, radius-xl and radius-lg corners
+  -->
+  <svg width="960" height="288" viewBox="0 0 960 288" aria-hidden="true">
+    <rect class="page r-xl" x="520" y="32" width="232" height="280"/>
+    <line class="rule" x1="540" y1="96" x2="732" y2="96"/>
+    <line class="rule" x1="540" y1="128" x2="732" y2="128"/>
+    <line class="rule" x1="540" y1="160" x2="732" y2="160"/>
+    <line class="rule" x1="540" y1="192" x2="652" y2="192"/>
+    <line class="pen" x1="540" y1="184" x2="652" y2="184"/>
+    <rect class="slab r-xl" x="768" y="0" width="168" height="200"/>
+    <line class="rule-on" x1="788" y1="64" x2="916" y2="64"/>
+    <line class="rule-on" x1="788" y1="96" x2="916" y2="96"/>
+    <line class="rule-on" x1="788" y1="128" x2="916" y2="128"/>
+    <rect class="ink r-lg" x="840" y="216" width="96" height="96"/>
+    <rect class="tint r-lg" x="768" y="216" width="56" height="96"/>
+  </svg>
+  <div class="text">
+    <p class="name">Journal</p>
+    <p class="tag">Handwritten pages and voice notes, read back as a journal you can search and chart.</p>
+  </div>
+</body>
+</html>

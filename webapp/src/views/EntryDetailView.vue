@@ -783,7 +783,7 @@ onBeforeUnmount(() => {
     <!-- Fatal error (no entry loaded) -->
     <div
       v-else-if="store.error && !store.currentEntry"
-      class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+      class="mb-4 bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
       data-testid="error-banner"
     >
       {{ store.error }}
@@ -820,7 +820,7 @@ onBeforeUnmount(() => {
               <input
                 v-model="editedDate"
                 type="date"
-                class="form-input text-lg font-bold dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                class="form-input text-lg font-bold dark:bg-gray-700 dark:text-gray-100"
                 data-testid="date-input"
                 @keydown.enter="saveDate"
                 @keydown.escape="cancelEditDate"
@@ -983,7 +983,7 @@ onBeforeUnmount(() => {
         <!-- Save error banner -->
         <div
           v-if="saveError"
-          class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+          class="mb-4 bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
           data-testid="save-error-banner"
         >
           {{ saveError }}
@@ -992,7 +992,7 @@ onBeforeUnmount(() => {
         <!-- Delete error banner -->
         <div
           v-if="deleteError"
-          class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+          class="mb-4 bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
           data-testid="delete-error-banner"
         >
           {{ deleteError }}
@@ -1032,7 +1032,7 @@ onBeforeUnmount(() => {
             Start paragraph:
             <select
               :value="effectiveStartBreakIdx"
-              class="form-select text-xs rounded border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 py-0.5 pl-1 pr-6"
+              class="form-select text-xs rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 py-0.5 pl-1 pr-6"
               data-testid="boundary-start-select"
               @change="onStartBreakChange"
             >
@@ -1047,7 +1047,7 @@ onBeforeUnmount(() => {
             End paragraph:
             <select
               :value="effectiveEndBreakIdx"
-              class="form-select text-xs rounded border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 py-0.5 pl-1 pr-6"
+              class="form-select text-xs rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 py-0.5 pl-1 pr-6"
               data-testid="boundary-end-select"
               @change="onEndBreakChange"
             >
@@ -1173,7 +1173,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="flex items-center gap-2">
             <button
-              class="btn bg-white dark:bg-gray-800 border-red-200 dark:border-red-800/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              class="btn bg-white dark:bg-gray-800 border-red-200 dark:border-red-800/60 text-error-ink hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
               :disabled="saving || deleting"
               data-testid="delete-button"
               @click="confirmDelete"
@@ -1313,7 +1313,7 @@ onBeforeUnmount(() => {
                 <textarea
                   v-model="editedText"
                   spellcheck="false"
-                  class="diff-surface [grid-area:1/1] w-full overflow-hidden border-0 bg-transparent text-transparent caret-gray-900 dark:caret-white resize-none focus:outline-none focus:ring-2 focus:ring-accent-fg/40 rounded-md px-3 py-2"
+                  class="diff-surface [grid-area:1/1] w-full overflow-hidden border-0 bg-transparent text-transparent caret-gray-900 dark:caret-white resize-none focus:outline-none focus:ring-2 focus:ring-accent-fg rounded-md px-3 py-2"
                   data-testid="corrected-textarea"
                 />
               </template>

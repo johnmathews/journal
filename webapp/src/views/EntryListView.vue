@@ -336,7 +336,7 @@ function formatDateTime(dateStr: string): string {
 function doubtsColor(count: number): string {
   if (count === 0) return 'text-emerald-600 dark:text-emerald-400'
   if (count <= 2) return 'text-amber-600 dark:text-amber-400'
-  return 'text-red-600 dark:text-red-400'
+  return 'text-error-ink'
 }
 
 // Cell rendering helpers
@@ -508,7 +508,7 @@ function cellTestId(col: ColumnDef): string | undefined {
     <!-- Error banner -->
     <div
       v-if="store.error"
-      class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+      class="mb-4 bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
       data-testid="error-banner"
     >
       {{ store.error }}

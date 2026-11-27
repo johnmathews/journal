@@ -8,6 +8,8 @@ on:
       - "contract/**"
       # Written by webapp's `npm run icon:gen`; icon:check fails on a hand edit.
       - "brand/design-system/project/assets/AppIcon/**"
+      # tokens:check fails when src/assets/tokens.css is stale against it.
+      - "brand/design-system/project/tokens.json"
       - ".github/workflows/webapp.yml"
       # Prose never reaches the image or the tests. Without these, a docs edit
       # rebuilds :latest and WUD redeploys prod for nothing.
@@ -21,6 +23,8 @@ on:
       - "contract/**"
       # Written by webapp's `npm run icon:gen`; icon:check fails on a hand edit.
       - "brand/design-system/project/assets/AppIcon/**"
+      # tokens:check fails when src/assets/tokens.css is stale against it.
+      - "brand/design-system/project/tokens.json"
       - ".github/workflows/webapp.yml"
       # Prose never reaches the image or the tests. Without these, a docs edit
       # rebuilds :latest and WUD redeploys prod for nothing.
@@ -54,6 +58,8 @@ jobs:
       - run: npm run contract:check
       # Fails when the committed favicon set or manifest is stale against src/brand/app-icon.json.
       - run: npm run icon:check
+      # Fails when src/assets/tokens.css is stale against brand/design-system/project/tokens.json.
+      - run: npm run tokens:check
       - run: npm run build
 
       - name: Upload coverage report

@@ -1,0 +1,30 @@
+<!-- @dsCard group="Feedback" height=220 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; padding: var(--space-4); background: var(--canvas); color: var(--ink); font-family: var(--font-sans); }
+  .stack { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); }
+  /* flex items-center gap-2 max-w-sm px-4 py-3 rounded-lg shadow-lg text-sm font-medium */
+  .toast { display: flex; align-items: center; gap: var(--space-2); max-width: 384px; box-sizing: border-box; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); }
+  .toast .msg { flex: 1; min-width: 0; }
+  .toast .mark { font-size: 16px; line-height: 1; }
+  .toast button { margin-left: var(--space-2); background: none; border: 0; padding: 0; color: inherit; font: inherit; opacity: 0.7; cursor: pointer; border-radius: var(--radius-sm); }
+  .toast button:hover { opacity: 1; }
+  .toast button:focus-visible { opacity: 1; outline: 2px solid var(--focus); outline-offset: 2px; }
+  /* Success and error fills are emerald-600 and red-600 with white text. No token holds them:
+     they are today's look and known misses (white on emerald-600 3.8:1, on red-600 3.4:1). */
+  .success { background: #059669; color: #ffffff; }
+  .error { background: #fa4949; color: #ffffff; }
+</style>
+</head>
+<body>
+  <div class="stack label">
+    <div class="toast success" role="status"><span class="mark" aria-hidden="true">&#10003;</span><span class="msg">Setting updated</span><button type="button" aria-label="Dismiss">&#10005;</button></div>
+    <div class="toast error" role="status"><span class="mark" aria-hidden="true">&#10007;</span><span class="msg">Deleted 2 of 3; 1 failed.</span><button type="button" aria-label="Dismiss">&#10005;</button></div>
+    <div class="toast success" role="status"><span class="mark" aria-hidden="true">&#10003;</span><span class="msg">Anchors updated. Refresh the draft to reflect the change.</span><button type="button" aria-label="Dismiss">&#10005;</button></div>
+  </div>
+</body>
+</html>

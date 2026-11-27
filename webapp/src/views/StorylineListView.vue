@@ -242,7 +242,7 @@ async function onBulkDelete(): Promise<void> {
           type="search"
           placeholder="Search storylines…"
           data-testid="storylines-search-input"
-          class="form-input w-64 text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          class="form-input w-64 text-sm bg-white dark:bg-gray-800 rounded-md"
         />
         <button
           type="button"
@@ -258,7 +258,7 @@ async function onBulkDelete(): Promise<void> {
     <!-- Error banner -->
     <div
       v-if="store.error"
-      class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+      class="mb-4 bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
       data-testid="error-banner"
     >
       {{ store.error }}
@@ -267,7 +267,7 @@ async function onBulkDelete(): Promise<void> {
     <!-- Delete error banner -->
     <div
       v-if="deleteError"
-      class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+      class="mb-4 bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
       data-testid="delete-error-banner"
     >
       {{ deleteError }}
@@ -357,7 +357,7 @@ async function onBulkDelete(): Promise<void> {
                   <input
                     type="checkbox"
                     :checked="allOnPageSelected"
-                    class="form-checkbox h-4 w-4 text-accent-500 rounded border-gray-300 dark:border-gray-600"
+                    class="form-checkbox h-4 w-4 text-accent-500 rounded"
                     data-testid="select-all-checkbox"
                     @change="toggleSelectAllOnPage"
                     @click.stop
@@ -418,7 +418,7 @@ async function onBulkDelete(): Promise<void> {
                   <input
                     type="checkbox"
                     :checked="isSelected(storyline.id)"
-                    class="form-checkbox h-4 w-4 text-accent-500 rounded border-gray-300 dark:border-gray-600"
+                    class="form-checkbox h-4 w-4 text-accent-500 rounded"
                     data-testid="storyline-checkbox"
                     @click.stop
                     @change="toggleSelect(storyline.id)"
@@ -475,7 +475,7 @@ async function onBulkDelete(): Promise<void> {
                 <td class="px-4 py-3 whitespace-nowrap text-right space-x-2">
                   <button
                     type="button"
-                    class="text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                    class="text-xs text-error-ink hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                     data-testid="row-delete-button"
                     :title="`Delete ${storyline.name}`"
                     @click.stop="onDeleteRow(storyline)"
@@ -504,7 +504,7 @@ async function onBulkDelete(): Promise<void> {
               <input
                 type="checkbox"
                 :checked="isSelected(storyline.id)"
-                class="form-checkbox h-4 w-4 mt-0.5 shrink-0 text-accent-fg rounded border-gray-300 dark:border-gray-600"
+                class="form-checkbox h-4 w-4 mt-0.5 shrink-0 text-accent-fg rounded"
                 data-testid="storyline-card-checkbox"
                 @click.stop
                 @change="toggleSelect(storyline.id)"
@@ -555,7 +555,7 @@ async function onBulkDelete(): Promise<void> {
                 <div class="mt-3 flex items-center gap-4">
                   <button
                     type="button"
-                    class="text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                    class="text-xs font-medium text-error-ink hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                     data-testid="card-delete-button"
                     :title="`Delete ${storyline.name}`"
                     @click.stop="onDeleteRow(storyline)"

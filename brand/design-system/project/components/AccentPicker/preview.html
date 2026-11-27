@@ -1,0 +1,43 @@
+<!-- @dsCard group="Settings" height=300 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; padding: 16px; background: var(--canvas); color: var(--ink); font-family: var(--font-sans); }
+  /* The Appearance card from AppearanceSettings.vue. */
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 20px; }
+  fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+  legend { padding: 0; }
+  .help { margin: 4px 0 0; color: var(--ink-secondary); max-width: 65ch; }
+  .swatches { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 16px 20px; }
+  .sw { position: relative; display: grid; justify-items: center; gap: 6px; cursor: pointer; font: 400 13px/18px var(--font-sans); color: var(--ink-secondary); }
+  .sw input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+  .dot { display: block; width: 36px; height: 36px; border-radius: var(--radius-full); background: var(--c); }
+  .sw input:checked + .dot { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--c); }
+  .sw:has(input:checked) { color: var(--ink); font-weight: 600; }
+  /* The swatch's focus ring is ink, 4px off, so it never blends into the colour it rings. */
+  .sw input:focus-visible + .dot, .sw.is-focus .dot { outline: 2px solid var(--ink); outline-offset: 4px; }
+  .status { margin: 16px 0 0; min-height: 20px; color: var(--ink-secondary); }
+</style>
+</head>
+<body>
+<div class="card">
+  <fieldset>
+    <legend class="title-3">Accent colour</legend>
+    <p class="body help">The app icon, buttons, links, the current page in the sidebar and selected items use this colour. It’s saved to your account, so it applies on every device.</p>
+    <div class="swatches">
+      <!-- The six accents' 500 steps (src/brand/accents.ts) are data here, not tokens. -->
+      <label class="sw" style="--c:#8470ff"><input type="radio" name="accent" value="violet" checked><span class="dot" aria-hidden="true"></span>Violet</label>
+      <label class="sw is-focus" style="--c:#15803d"><input type="radio" name="accent" value="green"><span class="dot" aria-hidden="true"></span>Green</label>
+      <label class="sw" style="--c:#047857"><input type="radio" name="accent" value="emerald"><span class="dot" aria-hidden="true"></span>Emerald</label>
+      <label class="sw" style="--c:#2563eb"><input type="radio" name="accent" value="blue"><span class="dot" aria-hidden="true"></span>Blue</label>
+      <label class="sw" style="--c:#e11d48"><input type="radio" name="accent" value="rose"><span class="dot" aria-hidden="true"></span>Rose</label>
+      <label class="sw" style="--c:#475569"><input type="radio" name="accent" value="graphite"><span class="dot" aria-hidden="true"></span>Graphite</label>
+    </div>
+  </fieldset>
+  <p class="caption status" aria-live="polite">Saved</p>
+</div>
+</body>
+</html>

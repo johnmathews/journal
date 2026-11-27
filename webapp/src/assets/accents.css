@@ -110,6 +110,23 @@
   --accent-heat-low: var(--accent-300);
 }
 
+/*
+ * The design system's accent roles (tokens.json), read from whichever scale is active. tokens.css
+ * leaves them out so these win. --focus is the keyboard focus ring.
+ */
+:root {
+  --accent: var(--accent-500);
+  --accent-hover: var(--accent-600);
+  --accent-tint: var(--accent-100);
+  --accent-tint-ink: var(--accent-700);
+  --focus: var(--accent-fg);
+}
+
+:root.dark {
+  --accent-tint: color-mix(in srgb, var(--accent-500) 20%, transparent);
+  --accent-tint-ink: var(--accent-300);
+}
+
 /* In dark mode the darker accents draw foregrounds one step lighter (see accent-fg above). */
 :root.dark[data-accent='green'],
 :root.dark[data-accent='emerald'],

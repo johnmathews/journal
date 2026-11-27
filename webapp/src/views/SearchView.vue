@@ -232,7 +232,7 @@ function matchExplanation(item: SearchResultItem): string {
           type="search"
           placeholder="Search your journal…"
           data-testid="search-query-input"
-          class="form-input w-full text-base sm:text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          class="form-input w-full text-base sm:text-sm bg-white dark:bg-gray-800 rounded-md"
         />
       </div>
       <div>
@@ -245,7 +245,7 @@ function matchExplanation(item: SearchResultItem): string {
           id="search-range"
           :value="rangePreset"
           data-testid="search-range-preset"
-          class="form-select text-base sm:text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          class="form-select text-base sm:text-sm bg-white dark:bg-gray-800 rounded-md"
           @change="
             applyPreset(
               ($event.target as HTMLSelectElement).value as SearchRangePreset,
@@ -272,7 +272,7 @@ function matchExplanation(item: SearchResultItem): string {
           v-model="startDateInput"
           type="date"
           data-testid="search-start-date"
-          class="form-input text-base sm:text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          class="form-input text-base sm:text-sm bg-white dark:bg-gray-800 rounded-md"
           @input="onDateInput"
         />
       </div>
@@ -287,7 +287,7 @@ function matchExplanation(item: SearchResultItem): string {
           v-model="endDateInput"
           type="date"
           data-testid="search-end-date"
-          class="form-input text-base sm:text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          class="form-input text-base sm:text-sm bg-white dark:bg-gray-800 rounded-md"
           @input="onDateInput"
         />
       </div>
@@ -301,7 +301,7 @@ function matchExplanation(item: SearchResultItem): string {
           id="search-sort"
           v-model="sortInput"
           data-testid="search-sort"
-          class="form-select text-base sm:text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          class="form-select text-base sm:text-sm bg-white dark:bg-gray-800 rounded-md"
         >
           <option value="relevance">Relevance</option>
           <option value="date_desc">Newest first</option>
@@ -362,7 +362,7 @@ function matchExplanation(item: SearchResultItem): string {
       </div>
       <div
         v-else-if="store.answerError"
-        class="text-sm text-red-600 dark:text-red-400"
+        class="text-sm text-error-ink"
         data-testid="answer-error"
       >
         {{ store.answerError }}
@@ -399,7 +399,7 @@ function matchExplanation(item: SearchResultItem): string {
           </button>
           <p
             v-if="conversationError"
-            class="mt-1 text-sm text-red-600 dark:text-red-400"
+            class="mt-1 text-sm text-error-ink"
             data-testid="continue-conversation-error"
           >
             {{ conversationError }}
@@ -439,7 +439,7 @@ function matchExplanation(item: SearchResultItem): string {
 
     <div
       v-else-if="store.error"
-      class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+      class="mb-4 bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
       data-testid="error-banner"
     >
       {{ store.error }}

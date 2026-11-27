@@ -204,7 +204,7 @@ async function savePricing(model: string, category: string) {
     <!-- Error -->
     <div
       v-else-if="store.error"
-      class="rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/60 p-4 text-red-800 dark:text-red-200"
+      class="rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/60 p-4 text-error-ink dark:text-red-200"
       data-testid="admin-pricing-error"
     >
       {{ store.error }}

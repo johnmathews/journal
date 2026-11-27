@@ -177,25 +177,42 @@ from the entries list to the dashboard — see the matching journal
 entry for the audit of every `RouterLink to="/"` and
 `router.push({ name: 'entries' })` call site.
 
-## Typography & Contrast
+## Colour roles, typography and contrast
 
-Text contrast follows a two-tier system targeting WCAG AAA (7:1) for all secondary
-text. Visual hierarchy comes from font size and weight, not barely-distinguishable
-shades of gray.
+The colours, type and contrast rules come from the design system in `brand/design-system/`
+([docs/brand.md](brand.md)). In code:
 
-| Level       | Light mode   | Dark mode    | Contrast | Use                                    |
-|-------------|-------------|--------------|----------|----------------------------------------|
-| **Primary** | gray-800/900 | gray-100/200 | ~13:1+   | Headings, values, data, model names    |
-| **Secondary** | gray-600   | gray-300     | ~7:1     | Labels, descriptions, metadata, dates  |
+- `src/assets/tokens.css` holds the colour roles as CSS variables (`--canvas`, `--panel`, `--tile`,
+  `--line`, `--control-border`, `--ink`, `--ink-secondary`, `--error-ink`, …), light on `:root` and
+  dark on `.dark`. It is generated from `brand/design-system/project/tokens.json` by
+  `npm run tokens:gen` (`src/brand/tokens.ts`); `npm run tokens:check`, CI and a test fail when it
+  is stale. Only colours: tokens.json's radius, spacing and type names would override Tailwind's.
+- `main.css` maps every role to a Tailwind colour with `@theme inline`: `bg-canvas`, `bg-panel`,
+  `text-ink`, `text-ink-secondary`, `border-line`, `border-control-border`, `text-error-ink`. New
+  code uses these rather than `gray-N` or `red-N`. About 2,400 older `gray-N` uses render the same
+  values and move over when their screen is touched.
+- The accent roles (`accent`, `accent-hover`, `accent-fg`, `accent-tint`, `accent-tint-ink`,
+  `focus`) are set in `accents.css` from the user's scale, not from tokens.css.
 
-### Rules
+**Contrast.** Text is 4.5:1 or better on every ground it sits on, and secondary text aims at about
+7:1 (WCAG AAA). Hierarchy comes from size and weight, not paler greys.
 
-- Never use `text-gray-400` or lighter for readable text in light mode.
-- Never use `dark:text-gray-500` or darker for readable text in dark mode.
-- The minimum text color in light mode is `text-gray-600` (`#4b5563`, ~7:1 on white).
-- The minimum text color in dark mode is `dark:text-gray-300` (`#bfc4cd`, ~6.7:1 on gray-800).
-- Heading hierarchy uses font size (`text-2xl` → `text-lg` → `text-sm` → `text-xs`)
-  and weight (`font-bold` → `font-semibold` → `font-medium`), not color variation.
+| Level | Role | Light | Dark | Use |
+| --- | --- | --- | --- | --- |
+| Primary | `ink` | gray-800 | gray-100 | Headings, values, data |
+| Secondary | `ink-secondary` | gray-600 | the custom gray-300 | Labels, descriptions, metadata, dates |
+
+- Never use `text-gray-400` or lighter for readable text in light mode, or `dark:text-gray-500`
+  or darker in dark mode.
+- Error text is `text-error-ink` (red-800 light, red-400 dark). A test fails on a light-mode
+  `text-red-500`…`800` anywhere in `src/`.
+- Form controls (`.form-input`, `.form-select`, `.form-textarea`, `.form-checkbox`, `.form-radio`
+  in `utility-patterns.css`) have a `control-border` (gray-500) edge, 3:1 or better. A test fails
+  on a `border-gray-N` utility on an `<input>`, `<select>` or `<textarea>`, since it would beat it.
+- Keyboard focus is a solid 2px ring in `--focus` (the user's `accent-fg`), 2px off the edge, from
+  one `:focus-visible` rule in `main.css`.
+
+These three were decided on 2026-11-27 (`brand/design-system/mockups/261127-form-contrast`).
 
 ### Custom gray scale
 

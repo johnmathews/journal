@@ -1,0 +1,24 @@
+<!-- @dsCard group="Feedback" height=200 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; padding: var(--space-4); background: var(--panel); color: var(--ink); font-family: var(--font-sans); }
+  .stack { display: grid; gap: var(--space-4); max-width: 448px; }
+  /* mb-4 rounded-lg border px-4 py-3 text-sm */
+  .alert { margin: 0; border-radius: var(--radius-md); border: 1px solid; padding: var(--space-3) var(--space-4); }
+  .error { background: var(--error-surface); border-color: var(--error-line); color: var(--error-ink); }
+  /* Warning: yellow-50 / yellow-900 at 20%, edge yellow-200 / yellow-700 at 60%. The edge has no
+     token, so it is mixed from warning-ink. Known miss: warning-ink on warning-surface is 2.6:1 in light. */
+  .warning { background: var(--warning-surface); border-color: color-mix(in srgb, var(--warning-ink) 35%, var(--warning-surface)); color: var(--warning-ink); }
+</style>
+</head>
+<body>
+  <div class="stack">
+    <p class="alert error body" role="alert">Invalid email or password</p>
+    <p class="alert warning body" role="status">Your session has expired. Please sign in again.</p>
+  </div>
+</body>
+</html>

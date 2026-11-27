@@ -220,7 +220,7 @@ const adminTopics = () => store.topics.filter((t) => t.group === 'admin')
           </span>
           <span
             v-else-if="store.validationStatus === 'invalid'"
-            class="text-red-600 dark:text-red-400"
+            class="text-error-ink"
           >
             {{ store.validationMessage || 'Invalid credentials' }}
           </span>
@@ -262,7 +262,7 @@ const adminTopics = () => store.topics.filter((t) => t.group === 'admin')
           >
             &#10003; Test notification sent successfully
           </span>
-          <span v-else class="text-red-600 dark:text-red-400">
+          <span v-else class="text-error-ink">
             {{ store.testResult.error || 'Failed to send' }}
           </span>
         </div>

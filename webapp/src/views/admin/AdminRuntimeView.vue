@@ -102,7 +102,7 @@ const entityCostPerK = computed(() => {
     <!-- Error -->
     <div
       v-else-if="store.error"
-      class="rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/60 p-4 text-red-800 dark:text-red-200"
+      class="rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/60 p-4 text-error-ink dark:text-red-200"
       data-testid="admin-runtime-error"
     >
       {{ store.error }}
@@ -162,7 +162,7 @@ const entityCostPerK = computed(() => {
             <select
               v-else-if="setting.type === 'string' && setting.choices"
               :value="setting.value"
-              class="form-select text-sm py-1 px-2 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+              class="form-select text-sm py-1 px-2 rounded-lg dark:bg-gray-700 dark:text-gray-200"
               :disabled="store.updating"
               :data-testid="`select-${setting.key}`"
               @change="

@@ -1,0 +1,53 @@
+<!-- @dsCard group="Feedback" height=400 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; font-family: var(--font-sans); color: var(--ink); background: var(--canvas); }
+  /* fixed inset-0 bg-black/50 p-4: a 50% black scrim. No token: it is the one overlay colour. */
+  .backdrop { min-height: 400px; box-sizing: border-box; padding: var(--space-4); display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5); }
+  /* max-w-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-lg */
+  .dialog { width: 100%; max-width: 448px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); color: var(--ink); display: flex; flex-direction: column; }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--line); }
+  .head h2 { margin: 0; }
+  .close { background: none; border: 0; padding: 0; cursor: pointer; color: var(--ink-secondary); line-height: 0; border-radius: var(--radius-sm); }
+  .close svg { width: 16px; height: 16px; fill: currentColor; }
+  .close:focus-visible, .close.is-focus { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .content { padding: var(--space-4) var(--space-5); color: var(--ink-secondary); }
+  .content p { margin: 0 0 var(--space-3); }
+  .content p:last-child { margin: 0; }
+  .content strong { font-weight: 700; }
+  code { padding: 2px 4px; background: var(--tile); border-radius: var(--radius-sm); color: var(--ink); font-size: 13px; }
+  .foot { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-3) var(--space-5); border-top: 1px solid var(--line); }
+  /* btn-sm: px-2 py-1 text-sm font-medium rounded-lg border */
+  .btn { font: 500 14px/20px var(--font-sans); border-radius: var(--radius-md); padding: 4px 8px; border: 1px solid transparent; cursor: pointer; }
+  .btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .secondary { background: transparent; border-color: var(--line); color: var(--ink-secondary); }
+  .secondary:hover { background: var(--tile); }
+  .primary { background: var(--accent); color: var(--on-accent); }
+  .primary:hover { background: var(--accent-hover); }
+</style>
+</head>
+<body>
+  <div class="backdrop">
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
+      <div class="head">
+        <h2 class="title-3" id="dlg-title">Alias already in use</h2>
+        <button class="close is-focus" type="button" aria-label="Close">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M7.95 6.536l4.242-4.243a1 1 0 1 1 1.415 1.414L9.364 7.95l4.243 4.242a1 1 0 1 1-1.415 1.415L7.95 9.364l-4.243 4.243a1 1 0 0 1-1.414-1.415L6.536 7.95 2.293 3.707a1 1 0 0 1 1.414-1.414L7.95 6.536z"/></svg>
+        </button>
+      </div>
+      <div class="content body">
+        <p>The alias <code>Sam</code> already maps to <strong>Sam Carter</strong> (person).</p>
+        <p>Do you want to merge <strong>Sammy</strong> into it? The combined entity will keep the name <strong>Sam Carter</strong>, and all mentions and relationships from <strong>Sammy</strong> will move across.</p>
+      </div>
+      <div class="foot">
+        <button class="btn secondary" type="button">Cancel</button>
+        <button class="btn primary" type="button">Merge entities</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

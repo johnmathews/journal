@@ -251,7 +251,7 @@ onUnmounted(() => {
 
     <!-- Submit error state -->
     <div v-else-if="submitError" class="text-center py-12">
-      <p class="text-red-600 dark:text-red-400 mb-4">{{ submitError }}</p>
+      <p class="text-error-ink mb-4">{{ submitError }}</p>
       <button
         class="btn bg-accent-500 hover:bg-accent-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
         @click="retry"
@@ -265,7 +265,7 @@ onUnmounted(() => {
       <!-- Mic error -->
       <div
         v-if="micError"
-        class="mb-4 flex items-start gap-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300"
+        class="mb-4 flex items-start gap-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-error-ink dark:text-red-300"
       >
         <p class="flex-1">{{ micError }}</p>
         <button

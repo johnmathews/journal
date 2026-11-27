@@ -50,7 +50,7 @@ async function onDelete(id: number) {
 
     <div
       v-else-if="store.error"
-      class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+      class="mb-4 bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
       data-testid="error-banner"
     >
       {{ store.error }}
@@ -87,7 +87,7 @@ async function onDelete(id: number) {
           </RouterLink>
           <button
             type="button"
-            class="ml-4 text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 shrink-0"
+            class="ml-4 text-xs text-error-ink hover:text-red-700 dark:hover:text-red-300 shrink-0"
             data-testid="delete-conversation"
             @click="onDelete(c.id)"
           >

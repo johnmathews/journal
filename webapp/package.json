@@ -17,7 +17,9 @@
     "contract:check": "node scripts/gen-api-types.mjs --check",
     "icon:gen": "node scripts/app-icon.mjs",
     "icon:check": "node scripts/app-icon.mjs --check",
-    "prepare": "git config core.hooksPath .githooks || true"
+    "prepare": "git config core.hooksPath .githooks || true",
+    "tokens:gen": "node scripts/tokens.mjs",
+    "tokens:check": "node scripts/tokens.mjs --check"
   },
   "repository": {
     "type": "git",
