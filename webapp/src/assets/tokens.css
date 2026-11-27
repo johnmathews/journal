@@ -1,0 +1,38 @@
+/* Generated from brand/design-system/project/tokens.json by `npm run tokens:gen`. Do not edit. */
+:root {
+  --canvas: #f3f4f6;
+  --panel: #ffffff;
+  --tile: #f9fafb;
+  --line: #e5e7eb;
+  --control-border: #6b7280;
+  --ink: #1f2937;
+  --on-ink: #ffffff;
+  --ink-secondary: #4b5563;
+  --error-ink: #c52727;
+  --error-surface: #ffe8e8;
+  --error-line: #ffb2b2;
+  --success-ink: #047857;
+  --success-surface: #d1fae5;
+  --warning-ink: #bc9021;
+  --warning-surface: #fff2c9;
+  --on-accent: #ffffff;
+}
+
+.dark {
+  --canvas: #111827;
+  --panel: #1f2937;
+  --tile: #374151;
+  --line: #374151;
+  --control-border: #6b7280;
+  --ink: #f3f4f6;
+  --on-ink: #111827;
+  --ink-secondary: #bfc4cd;
+  --error-ink: #ff7474;
+  --error-surface: #362631;
+  --error-line: #963338;
+  --success-ink: #6ee7b7;
+  --success-surface: #1c4646;
+  --warning-ink: #f7cd4c;
+  --warning-surface: #292d2f;
+  --on-accent: #ffffff;
+}

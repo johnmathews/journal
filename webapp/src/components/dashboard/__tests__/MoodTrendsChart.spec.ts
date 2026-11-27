@@ -535,7 +535,7 @@ describe('MoodTrendsChart', () => {
       '[data-testid="dashboard-drilldown-table"] tbody td',
     )
     // Columns: date, score, rationale — the score cell is index 1.
-    expect(cells[1].classes()).toContain('text-red-600')
+    expect(cells[1].classes()).toContain('text-error-ink')
     expect(cells[1].classes()).not.toContain('text-green-600')
   })
 
@@ -563,7 +563,7 @@ describe('MoodTrendsChart', () => {
       '[data-testid="dashboard-drilldown-table"] tbody td',
     )
     expect(cells[1].classes()).toContain('text-green-600')
-    expect(cells[1].classes()).not.toContain('text-red-600')
+    expect(cells[1].classes()).not.toContain('text-error-ink')
   })
 
   it('renders the drill-down panel when store has drill-down state', async () => {

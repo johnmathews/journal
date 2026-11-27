@@ -1,0 +1,36 @@
+<!-- @dsCard group="Layout" height=140 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; padding: 16px; background: var(--canvas); color: var(--ink); font-family: var(--font-sans); }
+  /* The tab strip from SettingsView.vue. */
+  .strip { border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+  .strip::-webkit-scrollbar { display: none; }
+  nav { display: flex; gap: 24px; margin-bottom: -1px; }
+  nav button { white-space: nowrap; background: none; border: 0; border-bottom: 2px solid transparent; padding: 12px 4px;
+               font: 500 14px/20px var(--font-sans); color: var(--ink-secondary); cursor: pointer; }
+  nav button:hover { color: var(--ink); border-bottom-color: var(--control-border); }
+  nav button[aria-current="page"] { border-bottom-color: var(--accent-fg); color: var(--accent-hover); }
+  /* Active label in dark is accent-400 (#9c8cff for violet). No token holds that step. */
+  [data-theme="dark"] nav button[aria-current="page"] { color: #9c8cff; }
+  nav button:focus-visible, nav button.is-focus { outline: 2px solid var(--focus); outline-offset: -2px; border-radius: 4px; }
+  /* Inset here: the strip scrolls, so an outer ring would be clipped. */
+  .after { margin: 24px 0 0; color: var(--ink-secondary); }
+</style>
+</head>
+<body>
+<div class="strip">
+  <nav aria-label="Settings tabs">
+    <button type="button">Profile</button>
+    <button type="button" class="is-focus">Notifications</button>
+    <button type="button" aria-current="page">Fitness</button>
+    <button type="button">Maintenance</button>
+    <button type="button">Appearance</button>
+  </nav>
+</div>
+<p class="body after">The tab strip scrolls sideways on a phone. The page never does.</p>
+</body>
+</html>

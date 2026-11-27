@@ -1,0 +1,36 @@
+name: Design System
+
+# The gate for brand/design-system (see webapp/docs/brand.md): token shapes, contrast in every
+# theme, and a README and preview for every required component. Its Markdown is checked too,
+# so prose is not excluded here.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "brand/design-system/**"
+      - "scripts/check_design_system.py"
+      - "scripts/design_preview.py"
+      - ".github/workflows/design-system.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "brand/design-system/**"
+      - "scripts/check_design_system.py"
+      - "scripts/design_preview.py"
+      - ".github/workflows/design-system.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Gate selftest
+        run: python3 scripts/check_design_system.py --selftest
+      - name: Gate
+        run: python3 scripts/check_design_system.py brand/design-system --complete
+      - name: Gallery builds
+        run: python3 scripts/design_preview.py brand/design-system

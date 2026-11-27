@@ -1,0 +1,45 @@
+<!-- @dsCard group="Forms" height=330 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; padding: 16px; background: var(--panel); color: var(--ink); font-family: var(--font-sans); }
+  .wrap { display: grid; gap: 16px; max-width: 400px; }
+  label { display: block; margin-bottom: 4px; font: 500 14px/20px var(--font-sans); color: var(--ink-secondary); }
+  /* .form-input / .form-select from webapp/src/assets/utility-patterns.css, with the 2026-11-27 control-border. */
+  .field { display: block; width: 100%; box-sizing: border-box; font: 400 14px/20px var(--font-sans); color: var(--ink);
+           background-color: var(--panel); border: 1px solid var(--control-border); border-radius: var(--radius-md); padding: 8px 12px;
+           box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); appearance: none; }
+  [data-theme="dark"] .field { background-color: color-mix(in srgb, var(--canvas) 30%, var(--panel)); }
+  /* Placeholder: gray-400 (light) / gray-500 (dark). No token: it is hint text, never a label. */
+  .field::placeholder { color: #9ca3af; }
+  [data-theme="dark"] .field::placeholder { color: var(--control-border); }
+  .field:focus-visible, .field.is-focus { border-color: var(--accent-fg); outline: 2px solid var(--focus); outline-offset: 2px; }
+  .field:disabled { opacity: 1; color: var(--ink-secondary); background-color: var(--tile); cursor: not-allowed; }
+  select.field { padding-right: 40px; background-image: linear-gradient(45deg, transparent 50%, var(--ink-secondary) 50%), linear-gradient(135deg, var(--ink-secondary) 50%, transparent 50%);
+                 background-position: calc(100% - 20px) 55%, calc(100% - 15px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }
+</style>
+</head>
+<body>
+<form class="wrap" onsubmit="return false">
+  <div>
+    <label for="tf-email">Email</label>
+    <input id="tf-email" class="field is-focus" type="email" value="you@example.com" autocomplete="off">
+  </div>
+  <div>
+    <label for="tf-password">Password</label>
+    <input id="tf-password" class="field" type="password" placeholder="Enter your password" autocomplete="off">
+  </div>
+  <div>
+    <label for="tf-status">Status</label>
+    <select id="tf-status" class="field"><option>All statuses</option><option>Succeeded</option><option>Failed</option></select>
+  </div>
+  <div>
+    <label for="tf-disabled">Display name</label>
+    <input id="tf-disabled" class="field" type="text" value="Set by your administrator" disabled>
+  </div>
+</form>
+</body>
+</html>

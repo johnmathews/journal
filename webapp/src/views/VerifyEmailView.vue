@@ -122,7 +122,7 @@ onMounted(async () => {
             class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/30"
           >
             <svg
-              class="h-6 w-6 text-red-600 dark:text-red-400"
+              class="h-6 w-6 text-error-ink"
               fill="none"
               viewBox="0 0 24 24"
               stroke-width="2"
@@ -138,7 +138,7 @@ onMounted(async () => {
           <h1 class="mt-4 text-2xl font-bold text-gray-800 dark:text-gray-100">
             Verification Failed
           </h1>
-          <p class="mt-2 text-sm text-red-600 dark:text-red-400">
+          <p class="mt-2 text-sm text-error-ink">
             {{ error }}
           </p>
           <div class="mt-6">

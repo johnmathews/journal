@@ -451,7 +451,7 @@ async function deleteRow(entity: EntitySummary) {
           type="search"
           placeholder="Search entities…"
           data-testid="entity-search"
-          class="form-input w-64 text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          class="form-input w-64 text-sm bg-white dark:bg-gray-800 rounded-md"
         />
         <button
           type="button"
@@ -877,7 +877,7 @@ async function deleteRow(entity: EntitySummary) {
 
     <div
       v-else-if="store.error"
-      class="mb-4 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
+      class="mb-4 bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-4 py-3 text-sm"
       data-testid="error-banner"
     >
       {{ store.error }}
@@ -987,7 +987,7 @@ async function deleteRow(entity: EntitySummary) {
                   <input
                     type="checkbox"
                     :checked="isSelected(entity.id)"
-                    class="form-checkbox h-4 w-4 text-accent-500 rounded border-gray-300 dark:border-gray-600"
+                    class="form-checkbox h-4 w-4 text-accent-500 rounded"
                     data-testid="entity-checkbox"
                     @change="toggleSelect(entity.id)"
                   />
@@ -1091,7 +1091,7 @@ async function deleteRow(entity: EntitySummary) {
             <input
               type="checkbox"
               :checked="isSelected(entity.id)"
-              class="form-checkbox h-4 w-4 mt-0.5 shrink-0 text-accent-500 rounded border-gray-300 dark:border-gray-600"
+              class="form-checkbox h-4 w-4 mt-0.5 shrink-0 text-accent-500 rounded"
               data-testid="entity-card-checkbox"
               @change="toggleSelect(entity.id)"
             />
@@ -1202,7 +1202,7 @@ async function deleteRow(entity: EntitySummary) {
 
         <div
           v-if="mergeError"
-          class="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
+          class="bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
           data-testid="merge-error"
         >
           {{ mergeError }}

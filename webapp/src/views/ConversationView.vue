@@ -91,7 +91,7 @@ async function submit() {
       <!-- Error line -->
       <p
         v-if="store.error"
-        class="text-sm text-red-600 dark:text-red-400"
+        class="text-sm text-error-ink"
         data-testid="conversation-error"
       >
         {{ store.error }}
@@ -108,7 +108,7 @@ async function submit() {
         v-model="draft"
         type="text"
         placeholder="Ask a follow-up…"
-        class="flex-1 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-fg"
+        class="flex-1 rounded border bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-fg border-control-border"
         data-testid="conversation-input"
       />
       <button

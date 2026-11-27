@@ -193,7 +193,7 @@ async function doSave(regenerate: boolean): Promise<void> {
     <!-- Save / cap error -->
     <div
       v-if="store.anchorsError"
-      class="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
+      class="bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
       data-testid="anchor-editor-error"
     >
       {{ store.anchorsError }}
@@ -243,7 +243,7 @@ async function doSave(regenerate: boolean): Promise<void> {
             : 'Search entities to add…'
         "
         :disabled="atCap"
-        class="form-input w-full text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md disabled:opacity-60"
+        class="form-input w-full text-sm bg-white dark:bg-gray-800 rounded-md disabled:opacity-60"
         data-testid="anchor-editor-search"
       />
 
@@ -261,7 +261,7 @@ async function doSave(regenerate: boolean): Promise<void> {
         </div>
         <div
           v-else-if="searchError"
-          class="px-3 py-2 text-xs text-red-600 dark:text-red-400"
+          class="px-3 py-2 text-xs text-error-ink"
           data-testid="anchor-editor-search-error"
         >
           {{ searchError }}
@@ -335,15 +335,13 @@ async function doSave(regenerate: boolean): Promise<void> {
           class="flex flex-wrap items-center gap-1.5"
           data-testid="anchor-diff-removed"
         >
-          <span
-            class="text-xs uppercase font-semibold text-red-700 dark:text-red-400"
-          >
+          <span class="text-xs uppercase font-semibold text-error-ink">
             Removing:
           </span>
           <span
             v-for="entity in removed"
             :key="entity.entity_id"
-            class="inline-flex items-center bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-700/40 rounded-full px-2.5 py-0.5 text-xs text-red-800 dark:text-red-300"
+            class="inline-flex items-center bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-700/40 rounded-full px-2.5 py-0.5 text-xs text-error-ink dark:text-red-300"
           >
             − {{ entity.canonical_name }}
           </span>
@@ -397,9 +395,7 @@ async function doSave(regenerate: boolean): Promise<void> {
           v-if="removed.length > 0"
           class="flex flex-wrap items-center gap-1.5"
         >
-          <span
-            class="text-xs uppercase font-semibold text-red-700 dark:text-red-400"
-          >
+          <span class="text-xs uppercase font-semibold text-error-ink">
             Removing:
           </span>
           <span class="text-gray-800 dark:text-gray-100">

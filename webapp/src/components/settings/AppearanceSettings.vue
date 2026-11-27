@@ -81,7 +81,7 @@ function pick(id: AccentId) {
       class="mt-4 min-h-5 text-xs"
       :class="
         appearance.saveState === 'error'
-          ? 'text-red-800 dark:text-red-400'
+          ? 'text-error-ink'
           : 'text-gray-600 dark:text-gray-300'
       "
       aria-live="polite"

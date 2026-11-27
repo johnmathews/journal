@@ -89,7 +89,7 @@ async function confirmMerge(): Promise<void> {
       </p>
       <div
         v-if="error"
-        class="mb-2 p-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded text-sm"
+        class="mb-2 p-2 bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded text-sm"
         data-testid="alias-collision-error"
       >
         {{ error }}

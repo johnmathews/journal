@@ -196,7 +196,7 @@ function onCancel(): void {
       <!-- Inline error from the store (create failure) -->
       <div
         v-if="store.createError"
-        class="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
+        class="bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
         data-testid="create-error-banner"
       >
         {{ store.createError }}
@@ -251,7 +251,7 @@ function onCancel(): void {
               : 'Search entities…'
           "
           :disabled="atCap"
-          class="form-input w-full text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md disabled:opacity-60"
+          class="form-input w-full text-sm bg-white dark:bg-gray-800 rounded-md disabled:opacity-60"
           data-testid="storyline-entity-search"
         />
 
@@ -268,7 +268,7 @@ function onCancel(): void {
           </div>
           <div
             v-else-if="searchError"
-            class="px-3 py-2 text-xs text-red-600 dark:text-red-400"
+            class="px-3 py-2 text-xs text-error-ink"
             data-testid="storyline-entity-search-error"
           >
             {{ searchError }}
@@ -335,7 +335,7 @@ function onCancel(): void {
           :value="name"
           type="text"
           placeholder="Storyline name"
-          class="form-input w-full text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          class="form-input w-full text-sm bg-white dark:bg-gray-800 rounded-md"
           data-testid="storyline-create-name"
           @input="onNameInput"
         />
@@ -354,7 +354,7 @@ function onCancel(): void {
           v-model="description"
           rows="3"
           placeholder="Optional"
-          class="form-input w-full text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 rounded-md"
+          class="form-input w-full text-sm bg-white dark:bg-gray-800 rounded-md"
           data-testid="storyline-create-description"
         />
       </div>

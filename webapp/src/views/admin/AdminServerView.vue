@@ -127,7 +127,7 @@ function formatTimestamp(iso: string): string {
       </div>
       <div
         v-if="ocr.error"
-        class="mt-4 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/60 px-3 py-2 text-sm text-red-700 dark:text-red-400"
+        class="mt-4 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/60 px-3 py-2 text-sm text-error-ink"
         role="alert"
       >
         {{ ocr.error }}
@@ -201,7 +201,7 @@ function formatTimestamp(iso: string): string {
       </div>
       <div
         v-if="transcription.error"
-        class="mt-4 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/60 px-3 py-2 text-sm text-red-700 dark:text-red-400"
+        class="mt-4 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/60 px-3 py-2 text-sm text-error-ink"
         role="alert"
       >
         {{ transcription.error }}
@@ -274,7 +274,7 @@ function formatTimestamp(iso: string): string {
       </div>
       <div
         v-if="mood.error"
-        class="mt-4 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/60 px-3 py-2 text-sm text-red-700 dark:text-red-400"
+        class="mt-4 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/60 px-3 py-2 text-sm text-error-ink"
         role="alert"
       >
         {{ mood.error }}

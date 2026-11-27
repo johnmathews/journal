@@ -1,0 +1,56 @@
+<!-- @dsCard group="Layout" height=420 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; padding: var(--space-4) var(--space-4) var(--space-4) 0; background: var(--canvas); color: var(--ink); font-family: var(--font-sans); }
+  /* w-64 bg-white dark:bg-gray-800 p-4 rounded-r-2xl shadow-xs */
+  .side { width: 256px; max-width: 100%; box-sizing: border-box; background: var(--panel); border-radius: 0 var(--radius-xl) var(--radius-xl) 0; box-shadow: var(--shadow-sm); padding: var(--space-4); }
+  .home { display: flex; align-items: center; gap: var(--space-3); min-width: 0; margin: 0 12px 40px 8px; text-decoration: none; border-radius: var(--radius-md); }
+  .home:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .logo { width: 32px; height: 32px; flex: none; border-radius: 7px; }
+  .logo .tile { fill: var(--accent); }
+  .logo .glyph { stroke: #fff; fill: none; stroke-linecap: round; stroke-linejoin: round; }   /* white: the mark's own glyph colour */
+  .logo .nib { fill: #fff; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; paint-order: stroke; }
+  .logo .nib-lines { fill: none; stroke: var(--accent); stroke-width: 1.2; }
+  .title { margin: 0; font: 700 20px/1.5 var(--font-sans); letter-spacing: -0.01em; color: var(--ink); }
+  ul { list-style: none; margin: 12px 0 0; padding: 0; }
+  li { border-radius: var(--radius-md); margin-bottom: 2px; }
+  li a { display: flex; align-items: center; padding: 8px 12px 8px 16px; color: var(--ink); text-decoration: none; border-radius: var(--radius-md); }
+  li a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  li svg { flex: none; fill: currentColor; color: var(--ink-secondary); }
+  li span { margin-left: var(--space-4); }
+  /* The active item: bg-linear-to-r from-accent-500/[0.12] dark:from-accent-500/[0.24] to-accent-500/[0.04] */
+  li.on { background: linear-gradient(to right, color-mix(in srgb, var(--accent) 12%, transparent), color-mix(in srgb, var(--accent) 4%, transparent)); }
+  [data-theme="dark"] li.on { background: linear-gradient(to right, color-mix(in srgb, var(--accent) 24%, transparent), color-mix(in srgb, var(--accent) 4%, transparent)); }
+  li.on svg { color: var(--accent-fg); }
+  /* A keyboard-focused item, drawn as focused for the preview. */
+  li a.is-focus { outline: 2px solid var(--focus); outline-offset: 2px; }
+</style>
+</head>
+<body>
+  <nav class="side" aria-label="Sidebar">
+    <a class="home" href="#" aria-label="Journal home">
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+        <rect class="tile" width="32" height="32" rx="7"/>
+                  <rect class="glyph" x="6" y="6" width="15" height="20" rx="2.5" stroke-width="2.2"/>
+          <path class="glyph" d="M9.5 12H17.5M9.5 16H17.5M9.5 20H13" stroke-width="2.2"/>
+          <g transform="translate(21.5 15.5) rotate(40)">
+            <path class="nib" d="M-2.4 -9.5H2.4V3L0 8.5L-2.4 3Z"/>
+            <path class="nib-lines" d="M-2.4 -5.6H2.4M-2.4 3H2.4"/>
+          </g>
+      </svg>
+      <h1 class="title">JOURNAL INSIGHTS TOOL</h1>
+    </a>
+    <ul class="label">
+      <li class="on"><a href="#" aria-current="page"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M0 3a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H1a1 1 0 0 1-1-1V3Zm9 0a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1V3Zm0 7a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-3Z"/></svg><span>Dashboard</span></a></li>
+      <li><a href="#"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 0a1 1 0 0 1 1 1v6h6a1 1 0 1 1 0 2H9v6a1 1 0 1 1-2 0V9H1a1 1 0 0 1 0-2h6V1a1 1 0 0 1 1-1z"/></svg><span>New Entry</span></a></li>
+      <li><a href="#"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M1 3a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H2a1 1 0 0 1-1-1Zm0 5a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H2a1 1 0 0 1-1-1Zm1 4a1 1 0 1 0 0 2h12a1 1 0 1 0 0-2H2Z"/></svg><span>Entries</span></a></li>
+      <li><a href="#" class="is-focus"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M7 14c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7ZM7 2C4.243 2 2 4.243 2 7s2.243 5 5 5 5-2.243 5-5-2.243-5-5-5Z"/><path d="M15.707 14.293 13.314 11.9a8.019 8.019 0 0 1-1.414 1.414l2.393 2.393a.997.997 0 0 0 1.414 0 .999.999 0 0 0 0-1.414Z"/></svg><span>Search</span></a></li>
+      <li><a href="#"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M6.7.3a1 1 0 0 1 2.6 0l.2 1.5a5.5 5.5 0 0 1 1.5.9l1.4-.6a1 1 0 0 1 1.3.5l1.3 2.2a1 1 0 0 1-.3 1.3l-1.2.9a5.5 5.5 0 0 1 0 1.8l1.2.9a1 1 0 0 1 .3 1.3l-1.3 2.2a1 1 0 0 1-1.3.5l-1.4-.6a5.5 5.5 0 0 1-1.5.9l-.2 1.5a1 1 0 0 1-2.6 0l-.2-1.5a5.5 5.5 0 0 1-1.5-.9l-1.4.6a1 1 0 0 1-1.3-.5L1 11.4a1 1 0 0 1 .3-1.3l1.2-.9a5.5 5.5 0 0 1 0-1.8l-1.2-.9A1 1 0 0 1 1 5.2l1.3-2.2a1 1 0 0 1 1.3-.5l1.4.6a5.5 5.5 0 0 1 1.5-.9L6.7.3ZM8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"/></svg><span>Settings</span></a></li>
+    </ul>
+  </nav>
+</body>
+</html>

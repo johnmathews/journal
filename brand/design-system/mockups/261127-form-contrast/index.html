@@ -1,0 +1,207 @@
+<title>Form contrast: borders, errors, focus</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="tokens.css">
+<!--
+  Mockup (design-system skill, references/mockups.md): three small contrast fixes the design
+  system's rules call for, each shown alone on the real sign-in card (LoginView.vue), against
+  today's card. Nothing else changes: layout, type, the accent and the greys stay as they are.
+  Today's values are --candidate-* too, since the tokens hold the rule, not today's drift.
+-->
+<style>
+  body { margin: 0; background: var(--canvas); color: var(--ink); font-family: var(--font-sans); }
+  .mockup-page {
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: var(--space-8, 32px) var(--space-16, 64px);
+    max-width: 1200px; margin: 0 auto; display: grid; gap: var(--space-12, 48px);
+  }
+  .mockup-head { display: grid; gap: var(--space-2, 8px); max-width: 70ch; }
+  .mockup-head h1, .option h2 { margin: 0; text-wrap: balance; }
+  .mockup-head p, .option p { margin: 0; }
+  .mockup-meta { color: var(--ink-secondary); }
+  .option { display: grid; gap: var(--space-4, 16px); }
+  .option-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2, 8px) var(--space-3, 12px); }
+  .option-tag { color: var(--ink-secondary); }
+  .option[data-recommended] .option-tag::after { content: " · Recommended"; color: var(--ink); }
+  .panes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: var(--space-4, 16px); }
+  .pane { min-width: 0; background: var(--canvas); color: var(--ink); border: 1px solid var(--line);
+          border-radius: var(--radius-lg, 10px); padding: var(--space-4, 16px); overflow-x: auto; }
+  .pane-label { color: var(--ink-secondary); margin: 0 0 var(--space-3, 12px); }
+  .measures { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-2, 8px); }
+  .measures li { border: 1px solid var(--line); border-radius: var(--radius-sm, 4px); padding: 2px var(--space-2, 8px); font-variant-numeric: tabular-nums; }
+  .measures li[data-pass="no"] { border-color: currentColor; font-weight: 600; }
+  .mockup-page > header :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  /* ---- Today's values (every option starts here) ---- */
+  .option, .option [data-theme] {
+    --candidate-input-border: #e5e7eb;           /* gray-200 */
+    --candidate-error-ink: #e63939;              /* red-700 */
+    --candidate-error-fill: #ffe8e8;             /* red-50 */
+    --candidate-error-edge: #ffb2b2;             /* red-200 */
+  }
+  .option [data-theme="dark"] {
+    --candidate-input-border: #2d3747;           /* gray-700 at 60% on gray-800 */
+    --candidate-error-ink: #ff7474;              /* red-400 */
+    --candidate-error-fill: #362631;             /* red-900 at 20% on gray-800 */
+    --candidate-error-edge: #963338;             /* red-700 at 60% on gray-800 */
+  }
+  /* Today's focus: the browser's own outline on the button; a focused input only darkens its
+     border one step (focus:border-gray-300 / dark:focus:border-gray-600). */
+  .option .is-focus.btn { outline: auto; outline-offset: 0; }
+  .option .is-focus.field { border-color: #bfc4cd; }
+  .option [data-theme="dark"] .is-focus.field { border-color: #4b5563; }
+
+  /* ---- 1B: control borders at gray-500 (the control-border token, 3:1) ---- */
+  #b1, #b1 [data-theme], #all, #all [data-theme] { --candidate-input-border: var(--control-border); }
+  #b1 .is-focus.field, #b1 [data-theme="dark"] .is-focus.field { border-color: var(--control-border); }
+  /* ---- 2B: error text one step darker in light (red-800, the error-ink token) ---- */
+  #b2, #b2 [data-theme="light"], #all, #all [data-theme="light"] { --candidate-error-ink: var(--error-ink); }
+  /* ---- 3B: a solid 2px ring in the accent, 2px off the edge, on everything focusable ---- */
+  #b3 .is-focus, #all .is-focus { outline: 2px solid var(--a-fg); outline-offset: 2px; }
+  #b3 .is-focus.field, #all .is-focus.field { border-color: var(--a-fg); outline: 2px solid var(--a-fg); outline-offset: 2px; }
+
+  /* The accent, violet (the default): 500 for the button, accent-fg for links and rings. */
+  .pane { --a500: #8470ff; --a600: #755ff8; --a-fg: #8470ff; }
+
+  /* ---- The stage: LoginView.vue's card ---- */
+  .stage { display: grid; place-items: center; padding: 24px 8px; }
+  .card { width: 100%; max-width: 400px; box-sizing: border-box; background: var(--panel); border-radius: 16px;
+          box-shadow: 0 1px 1px 0 rgb(0 0 0 / 0.05), 0 1px 2px 0 rgb(0 0 0 / 0.02); padding: 24px; font: 400 14px/1.5715 var(--font-sans); }
+  .card h3 { margin: 0; text-align: center; font: 700 24px/1.33 var(--font-sans); letter-spacing: -0.01em; color: var(--ink); }
+  .card .sub { margin: 4px 0 24px; text-align: center; color: var(--ink-secondary); }
+  .alert { margin-bottom: 16px; border-radius: 8px; padding: 12px 16px; background: var(--candidate-error-fill);
+           border: 1px solid var(--candidate-error-edge); color: var(--candidate-error-ink); }
+  .fields { display: grid; gap: 16px; }
+  .fields label { display: block; margin-bottom: 4px; font-weight: 500; color: var(--ink-secondary); }
+  .field { display: block; width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: 8px; font: 400 14px/20px var(--font-sans);
+           background: var(--panel); color: var(--ink); border: 1px solid var(--candidate-input-border); }
+  [data-theme="dark"] .field { background: color-mix(in srgb, #111827 30%, var(--panel)); }
+  .field::placeholder { color: #9ca3af; }
+  [data-theme="dark"] .field::placeholder { color: #6b7280; }
+  .btn { margin-top: 24px; width: 100%; border: 1px solid transparent; border-radius: 8px; padding: 8px 12px;
+         font: 500 14px/20px var(--font-sans); background: var(--a500); color: #fff; }
+  .links { margin-top: 20px; text-align: center; display: grid; gap: 8px; }
+  .links a { color: var(--a-fg); text-decoration: none; }
+  .links span { color: var(--ink-secondary); }
+  .links b { font-weight: 500; color: var(--a-fg); }
+</style>
+
+<main class="mockup-page">
+  <header class="mockup-head">
+    <p class="caption mockup-meta">Mockup · 2026-11-27 · Journal · from formalising the design system</p>
+    <h1 class="title-1">Form contrast: borders, errors, focus</h1>
+    <p class="body">Formalising the design system measured today’s colours against its rules. Three form details fall short. Should each one be fixed, or kept as it is? Everything else stays as it is: layout, type, the greys, and violet with its two known misses.</p>
+    <p class="body mockup-meta">Each fix is shown alone on the sign-in card, with the email field and the button drawn as if focused. The three are independent, so any mix works. The last section shows all three together.</p>
+  </header>
+
+  <section class="option" id="today" aria-labelledby="t-h">
+    <div class="option-head"><h2 class="title-2" id="t-h">Today</h2><span class="label option-tag">Option A for all three</span></div>
+    <p class="body">Input borders in gray-200 (1.2:1). Error text in red-700, which reads at 3.6:1 in its pink box. A focused input darkens its border one step, and a focused button gets the browser’s own outline.</p>
+    <div class="panes" data-stage></div>
+    <ul class="measures caption">
+      <li data-fg="var(--candidate-input-border)" data-bg="var(--panel)" data-min="3">Input border on the card</li>
+      <li data-fg="var(--candidate-error-ink)" data-bg="var(--candidate-error-fill)" data-min="4.5">Error text in its box</li>
+    </ul>
+  </section>
+
+  <section class="option" id="b1" data-recommended aria-labelledby="b1-h">
+    <div class="option-head"><h2 class="title-2" id="b1-h">1. Input borders: B. Gray-500</h2><span class="label option-tag">Option 1B</span></div>
+    <p class="body">Every input, select and checkbox border in gray-500 (<code>#6b7280</code>) in both themes, the system’s <code>control-border</code>. Fields read as fields at a glance. Dividers and card edges stay pale.</p>
+    <div class="panes" data-stage></div>
+    <ul class="measures caption">
+      <li data-fg="var(--candidate-input-border)" data-bg="var(--panel)" data-min="3">Input border on the card</li>
+      <li data-fg="var(--candidate-input-border)" data-bg="var(--canvas)" data-min="3">Input border on the page</li>
+    </ul>
+  </section>
+
+  <section class="option" id="b2" data-recommended aria-labelledby="b2-h">
+    <div class="option-head"><h2 class="title-2" id="b2-h">2. Error text: B. Red-800 in light</h2><span class="label option-tag">Option 2B</span></div>
+    <p class="body">Error text in light mode moves one step darker, from red-700 to red-800 (<code>#c52727</code>, the system’s <code>error-ink</code>). Dark mode already passes and stays red-400. About 80 error messages change, all by this one step.</p>
+    <div class="panes" data-stage></div>
+    <ul class="measures caption">
+      <li data-fg="var(--candidate-error-ink)" data-bg="var(--candidate-error-fill)" data-min="4.5">Error text in its box</li>
+      <li data-fg="var(--candidate-error-ink)" data-bg="var(--panel)" data-min="4.5">Error text on the card</li>
+    </ul>
+  </section>
+
+  <section class="option" id="b3" data-recommended aria-labelledby="b3-h">
+    <div class="option-head"><h2 class="title-2" id="b3-h">3. Focus: B. A solid ring in the accent</h2><span class="label option-tag">Option 3B</span></div>
+    <p class="body">Anything reached with the keyboard gets a solid 2px ring in the accent colour, 2px off its edge, so it follows the user’s accent. A focused input’s border takes the accent too. Mouse clicks show no ring (<code>:focus-visible</code>), as today.</p>
+    <div class="panes" data-stage></div>
+    <ul class="measures caption">
+      <li data-fg="var(--a-fg)" data-bg="var(--panel)" data-min="3">Ring on the card (violet)</li>
+      <li data-fg="var(--a-fg)" data-bg="var(--canvas)" data-min="3">Ring on the page (violet)</li>
+    </ul>
+  </section>
+
+  <section class="option" id="all" aria-labelledby="all-h">
+    <div class="option-head"><h2 class="title-2" id="all-h">All three together</h2><span class="label option-tag">1B + 2B + 3B</span></div>
+    <p class="body">The card with every fix applied, to judge the sum.</p>
+    <div class="panes" data-stage></div>
+  </section>
+</main>
+
+<template id="screen">
+  <p class="label pane-label"></p>
+  <div class="stage">
+    <div class="card">
+      <h3>Sign In</h3>
+      <p class="sub">Welcome back to Journal Insights</p>
+      <div class="alert" role="alert">Invalid email or password</div>
+      <div class="fields">
+        <div><label>Email</label><input class="field is-focus" type="email" value="john@example.com" aria-label="Email"></div>
+        <div><label>Password</label><input class="field" type="password" placeholder="Enter your password" aria-label="Password"></div>
+      </div>
+      <button class="btn is-focus" type="button">Sign In</button>
+      <div class="links">
+        <a href="#">Forgot password?</a>
+        <div><span>Don't have an account?</span> <b>Register</b></div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+  for (const panes of document.querySelectorAll('[data-stage]')) {
+    for (const theme of ['light', 'dark']) {
+      const pane = document.createElement('div')
+      pane.className = 'pane'
+      pane.dataset.theme = theme
+      pane.append(document.getElementById('screen').content.cloneNode(true))
+      pane.querySelector('.pane-label').textContent = theme === 'dark' ? 'Dark' : 'Light'
+      if (theme === 'dark') pane.style.setProperty('--a-fg', '#8470ff')
+      panes.append(pane)
+    }
+  }
+</script>
+
+<script>
+  // Measures: for each <li data-fg data-bg data-min>, the WCAG contrast of the two colours in each
+  // theme, resolved inside the option's pane, written after the label.
+  (() => {
+    const rgb = (value, scope, theme) => {
+      const pane = scope.querySelector(`.pane[data-theme="${theme}"]`) || scope
+      const probe = document.createElement('span')
+      probe.dataset.theme = theme
+      probe.style.color = value
+      pane.append(probe)
+      const parts = getComputedStyle(probe).color.match(/[\d.]+/g).map(Number)
+      probe.remove()
+      return parts.slice(0, 3)
+    }
+    const lum = ([r, g, b]) => [r, g, b]
+      .map((c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 })
+      .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0)
+    const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05) }
+    for (const li of document.querySelectorAll('.measures li[data-fg]')) {
+      const scope = li.closest('.option') || document.body
+      const min = Number(li.dataset.min || 0)
+      const results = ['light', 'dark'].map((theme) => {
+        const r = ratio(rgb(li.dataset.fg, scope, theme), rgb(li.dataset.bg, scope, theme))
+        return { theme, r, ok: !min || r >= min }
+      })
+      li.dataset.pass = results.every((x) => x.ok) ? 'yes' : 'no'
+      li.append(`: ${results.map((x) => `${x.theme} ${x.r.toFixed(1)}:1${x.ok ? '' : ' (below ' + min + ':1)'}`).join(', ')}`)
+    }
+  })()
+</script>

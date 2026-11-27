@@ -1,0 +1,37 @@
+<!-- @dsCard group="Forms" height=170 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; padding: 16px; background: var(--panel); color: var(--ink); font-family: var(--font-sans); }
+  .rows { display: grid; gap: 12px; max-width: 420px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .row p { margin: 0; font: 500 14px/20px var(--font-sans); color: var(--ink-secondary); min-width: 0; }
+  /* The switch from NotificationsSettings.vue: h-6 w-11, a 2px transparent border, a 20px white knob. */
+  .sw { position: relative; display: inline-flex; flex: none; width: 44px; height: 24px; box-sizing: border-box; padding: 0; cursor: pointer;
+        border: 2px solid transparent; border-radius: var(--radius-full); background: var(--line); transition: background-color .2s; }
+  /* Off track in dark is gray-600, one step lighter than the line token. */
+  [data-theme="dark"] .sw { background: #4b5563; }
+  .sw[aria-checked="true"] { background: var(--accent); }
+  .sw span { width: 20px; height: 20px; border-radius: var(--radius-full); background: #ffffff; box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1);
+             transform: translateX(0); transition: transform .2s; }
+  .sw[aria-checked="true"] span { transform: translateX(20px); }
+  .sw:focus-visible, .sw.is-focus { outline: 2px solid var(--focus); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="rows">
+  <div class="row"><p id="t1">Image ingestion succeeded</p><button class="sw" type="button" role="switch" aria-checked="true" aria-labelledby="t1"><span></span></button></div>
+  <div class="row"><p id="t2">Audio ingestion succeeded</p><button class="sw" type="button" role="switch" aria-checked="false" aria-labelledby="t2"><span></span></button></div>
+  <div class="row"><p id="t3">Job failed permanently</p><button class="sw is-focus" type="button" role="switch" aria-checked="true" aria-labelledby="t3"><span></span></button></div>
+  <div class="row"><p id="t4">Entry update failed</p><button class="sw" type="button" role="switch" aria-checked="false" aria-labelledby="t4"><span></span></button></div>
+</div>
+<script>
+  for (const sw of document.querySelectorAll('.sw')) {
+    sw.addEventListener('click', () => sw.setAttribute('aria-checked', String(sw.getAttribute('aria-checked') !== 'true')))
+  }
+</script>
+</body>
+</html>

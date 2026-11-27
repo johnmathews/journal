@@ -1,0 +1,29 @@
+<!-- @dsCard group="Actions" height=170 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; padding: 16px; background: var(--panel); color: var(--ink); font-family: var(--font-sans); }
+  .wrap { display: grid; gap: 16px; max-width: 60ch; }
+  p { margin: 0; }
+  .muted { color: var(--ink-secondary); }
+  a { color: var(--accent-fg); text-decoration: none; border-radius: 2px; }
+  a:hover, a.is-hover { color: var(--accent-hover); }
+  a.strong { font-weight: 500; }
+  a:focus-visible, a.is-focus { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .center { text-align: center; display: grid; gap: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="center body">
+    <p><a href="#">Forgot password?</a></p>
+    <p><span class="muted">Don't have an account?</span> <a class="strong" href="#">Register</a></p>
+  </div>
+  <p class="body muted">Your Strava connection expired. <a class="strong" href="#">Reconnect in Settings</a> to keep activities syncing.</p>
+  <p class="body"><a class="is-hover" href="#">Hover</a> &nbsp; <a class="is-focus" href="#">Focused</a></p>
+</div>
+</body>
+</html>

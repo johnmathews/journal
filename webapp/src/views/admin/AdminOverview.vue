@@ -43,7 +43,7 @@ const statusColor = computed(() => {
     case 'degraded':
       return 'text-amber-600 dark:text-amber-400'
     default:
-      return 'text-red-600 dark:text-red-400'
+      return 'text-error-ink'
   }
 })
 
@@ -122,7 +122,7 @@ const audioGrandTotal = computed(() => {
     <!-- Error -->
     <div
       v-else-if="store.error"
-      class="rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/60 p-4 text-red-800 dark:text-red-200"
+      class="rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/60 p-4 text-error-ink dark:text-red-200"
       data-testid="admin-overview-error"
     >
       {{ store.error }}
@@ -203,7 +203,7 @@ const audioGrandTotal = computed(() => {
                   ? 'text-emerald-600 dark:text-emerald-400'
                   : check.status === 'degraded'
                     ? 'text-amber-600 dark:text-amber-400'
-                    : 'text-red-600 dark:text-red-400'
+                    : 'text-error-ink'
               "
             >
               {{ check.status }}
@@ -220,7 +220,7 @@ const audioGrandTotal = computed(() => {
 
         <p
           v-if="ingestionError !== null"
-          class="mt-4 text-sm text-red-600 dark:text-red-400"
+          class="mt-4 text-sm text-error-ink"
           data-testid="ingestion-stats-error"
         >
           Ingestion stats unavailable: {{ ingestionError }}

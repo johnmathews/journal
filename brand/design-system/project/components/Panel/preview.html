@@ -1,0 +1,45 @@
+<!-- @dsCard group="Layout" height=380 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; padding: var(--space-4); background: var(--canvas); color: var(--ink); font-family: var(--font-sans); }
+  .stack { display: grid; gap: var(--space-4); max-width: 640px; }
+  /* bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs p-4 */
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: var(--space-4); }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+  .row > div { flex: 1; min-width: 0; }
+  .panel p { margin: 0; }
+  .name { color: var(--ink-secondary); }
+  .help { color: var(--ink-secondary); }
+  .btn { font: 500 14px/20px var(--font-sans); border: 1px solid transparent; border-radius: var(--radius-md); padding: 4px 8px; background: var(--accent); color: var(--on-accent); cursor: pointer; }
+  .btn:hover { background: var(--accent-hover); }
+  .btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .empty { text-align: center; padding: 64px var(--space-4); color: var(--ink-secondary); }
+  .empty .title-3 { color: var(--ink); font-weight: 500; margin-bottom: var(--space-1); }
+  .empty .hint { margin-top: var(--space-2); }
+  .empty b { font-weight: 600; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+</style>
+</head>
+<body>
+  <div class="stack">
+    <div class="panel">
+      <div class="row">
+        <div>
+          <p class="label name">Mood Backfill</p>
+          <p class="caption help">Score your entries for mood dimensions. Run on new entries or re-score existing ones.</p>
+        </div>
+        <button class="btn" type="button">Run</button>
+      </div>
+    </div>
+    <div class="panel empty">
+      <p class="title-3">Not enough data yet</p>
+      <p class="body">The dashboard needs at least <b>5</b> entries in the selected range to plot a meaningful trend. You currently have <span class="mono">1</span>.</p>
+      <p class="caption hint">Try widening the range or ingesting more entries.</p>
+    </div>
+  </div>
+</body>
+</html>

@@ -245,7 +245,7 @@ async function onMoodJobSucceeded(): Promise<void> {
               </div>
               <p
                 v-if="nameError"
-                class="text-xs text-red-600 dark:text-red-400 mt-1"
+                class="text-xs text-error-ink mt-1"
                 data-testid="display-name-error"
               >
                 {{ nameError }}

@@ -173,7 +173,7 @@ function formatDate(dateStr: string | null): string {
     <!-- Error message -->
     <div
       v-if="error"
-      class="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/60 px-4 py-3 text-sm text-red-700 dark:text-red-400"
+      class="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/60 px-4 py-3 text-sm text-error-ink"
     >
       {{ error }}
     </div>

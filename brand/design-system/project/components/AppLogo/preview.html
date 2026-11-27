@@ -1,0 +1,56 @@
+<!-- @dsCard group="Brand" height=300 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; padding: 16px; background: var(--canvas); color: var(--ink); font-family: var(--font-sans); }
+  .wrap { display: grid; gap: 20px; }
+  .row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 20px; }
+  .item { display: grid; justify-items: center; gap: 6px; color: var(--ink-secondary); }
+  /* The mark, from webapp/src/brand/app-icon.json on its 32-unit grid. */
+  /* Classes are styled directly: <use> clones live in a shadow tree that descendant selectors don't reach. */
+  .tile { fill: var(--accent); }
+  .glyph { fill: none; stroke: #ffffff; stroke-linecap: round; stroke-linejoin: round; } /* white glyph: a fixed part of the mark */
+  .nib { fill: #ffffff; stroke: var(--accent); stroke-linejoin: round; paint-order: stroke; }
+  .band { fill: none; stroke: var(--accent); }
+  .brand { display: flex; align-items: center; gap: 12px; background: var(--panel); border-radius: 0 var(--radius-xl) var(--radius-xl) 0; padding: 16px; max-width: 100%; box-sizing: border-box; }
+  .brand b { font: 700 20px/1.5 var(--font-sans); letter-spacing: -0.01em; color: var(--ink); min-width: 0; }
+  .accents .mark { width: 32px; height: 32px; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="journal-mark" viewBox="0 0 32 32">
+    <rect class="tile" width="32" height="32" rx="7"/>
+    <rect class="glyph" x="6" y="6" width="15" height="20" rx="2.5" stroke-width="2.2"/>
+    <path class="glyph" d="M9.5 12H17.5M9.5 16H17.5M9.5 20H13" stroke-width="2.2"/>
+    <g transform="translate(21.5 15.5) rotate(40)">
+      <path class="nib" d="M-2.4 -9.5H2.4V3L0 8.5L-2.4 3Z" stroke-width="2"/>
+      <path class="band" d="M-2.4 -5.6H2.4M-2.4 3H2.4" stroke-width="1.2"/>
+    </g>
+  </symbol>
+</svg>
+<div class="wrap">
+  <div class="brand">
+    <svg class="mark" width="32" height="32" role="img" aria-label="Journal"><use href="#journal-mark"/></svg>
+    <b>JOURNAL INSIGHTS TOOL</b>
+  </div>
+  <div class="row">
+    <div class="item"><svg class="mark" width="64" height="64" aria-hidden="true"><use href="#journal-mark"/></svg><span class="caption">64px</span></div>
+    <div class="item"><svg class="mark" width="32" height="32" aria-hidden="true"><use href="#journal-mark"/></svg><span class="caption">32px, sidebar</span></div>
+    <div class="item"><svg class="mark" width="16" height="16" aria-hidden="true"><use href="#journal-mark"/></svg><span class="caption">16px, tab</span></div>
+  </div>
+  <div class="row accents" aria-label="The mark in each accent">
+    <!-- The six accents' 500 steps (src/brand/accents.ts) are data here, not tokens. -->
+    <div class="item"><svg class="mark" style="--accent:#8470ff" aria-hidden="true"><use href="#journal-mark"/></svg><span class="caption">Violet</span></div>
+    <div class="item"><svg class="mark" style="--accent:#15803d" aria-hidden="true"><use href="#journal-mark"/></svg><span class="caption">Green</span></div>
+    <div class="item"><svg class="mark" style="--accent:#047857" aria-hidden="true"><use href="#journal-mark"/></svg><span class="caption">Emerald</span></div>
+    <div class="item"><svg class="mark" style="--accent:#2563eb" aria-hidden="true"><use href="#journal-mark"/></svg><span class="caption">Blue</span></div>
+    <div class="item"><svg class="mark" style="--accent:#e11d48" aria-hidden="true"><use href="#journal-mark"/></svg><span class="caption">Rose</span></div>
+    <div class="item"><svg class="mark" style="--accent:#475569" aria-hidden="true"><use href="#journal-mark"/></svg><span class="caption">Graphite</span></div>
+  </div>
+</div>
+</body>
+</html>

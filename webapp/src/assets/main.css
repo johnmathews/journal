@@ -2,6 +2,7 @@
 
 @import 'tailwindcss';
 @import './utility-patterns.css' layer(components);
+@import './tokens.css';
 @import './accents.css';
 
 @plugin "@tailwindcss/forms" {
@@ -29,6 +30,36 @@
   --color-accent-950: var(--accent-950);
   --color-accent-fg: var(--accent-fg);
   --color-accent-heat-low: var(--accent-heat-low);
+}
+
+/*
+ * The design system's colour roles (brand/design-system, webapp/docs/brand.md) as utilities:
+ * bg-canvas, bg-panel, text-ink, text-ink-secondary, border-line, border-control-border,
+ * text-error-ink, … The values are in tokens.css (generated) and, for the accent roles,
+ * accents.css. New code uses these rather than gray-N or red-N.
+ */
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-panel: var(--panel);
+  --color-tile: var(--tile);
+  --color-line: var(--line);
+  --color-control-border: var(--control-border);
+  --color-ink: var(--ink);
+  --color-on-ink: var(--on-ink);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-error-ink: var(--error-ink);
+  --color-error-surface: var(--error-surface);
+  --color-error-line: var(--error-line);
+  --color-success-ink: var(--success-ink);
+  --color-success-surface: var(--success-surface);
+  --color-warning-ink: var(--warning-ink);
+  --color-warning-surface: var(--warning-surface);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-on-accent: var(--on-accent);
+  --color-accent-tint: var(--accent-tint);
+  --color-accent-tint-ink: var(--accent-tint-ink);
+  --color-focus: var(--focus);
 }
 
 @theme {
@@ -167,6 +198,16 @@
   }
 
   body {
-    @apply bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400;
+    @apply bg-canvas text-gray-600 dark:text-gray-400;
+  }
+
+  /*
+   * Keyboard focus: a solid 2px ring in the user's accent, 2px off the edge (decided 2026-11-27,
+   * brand/design-system/mockups/261127-form-contrast, 3B). The doubled [type] outranks the forms
+   * plugin's `[type='text']:focus { outline: 2px solid transparent }`.
+   */
+  :is(*, [type][type]):focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
   }
 }

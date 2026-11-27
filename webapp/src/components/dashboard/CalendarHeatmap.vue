@@ -196,7 +196,7 @@ const WEEKDAY_LABELS = ['Mon', '', 'Wed', '', 'Fri', '', 'Sun']
 
   <div
     v-else-if="error"
-    class="mb-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
+    class="mb-3 bg-red-50 dark:bg-red-900/20 text-error-ink border border-red-200 dark:border-red-800/40 rounded-lg px-3 py-2 text-sm"
     data-testid="dashboard-calendar-error"
   >
     {{ error }}

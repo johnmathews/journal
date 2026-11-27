@@ -46,7 +46,7 @@ async function submit() {
     <textarea
       v-model="text"
       placeholder="Write your journal entry..."
-      class="form-input w-full min-h-[300px] font-mono text-sm resize-y dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100 dark:placeholder-gray-400"
+      class="form-input w-full min-h-[300px] font-mono text-sm resize-y dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
     />
     <div
       class="flex flex-col gap-3 mt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"

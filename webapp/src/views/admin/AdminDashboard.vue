@@ -78,7 +78,7 @@ function formatNumber(n: number): string {
     <!-- Error message -->
     <div
       v-if="error"
-      class="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/60 px-4 py-3 text-sm text-red-700 dark:text-red-400"
+      class="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/60 px-4 py-3 text-sm text-error-ink"
     >
       {{ error }}
     </div>
@@ -148,7 +148,7 @@ function formatNumber(n: number): string {
                   :class="
                     user.is_active
                       ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                      : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                      : 'bg-red-100 dark:bg-red-900/30 text-error-ink'
                   "
                 >
                   {{ user.is_active ? 'Yes' : 'No' }}
