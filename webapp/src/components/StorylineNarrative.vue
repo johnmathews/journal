@@ -317,7 +317,7 @@ function scrollToBodyMarker(n: number): void {
 
 .footnote-marker {
   display: inline-block;
-  color: rgb(124 58 237); /* violet-600 */
+  color: var(--accent-600); /* the accent setting, src/assets/accents.css */
   font-weight: 500;
   font-size: 0.875rem;
   vertical-align: super;
@@ -328,7 +328,7 @@ function scrollToBodyMarker(n: number): void {
   text-decoration: underline;
 }
 :global(.dark) .footnote-marker {
-  color: rgb(167 139 250); /* violet-400 */
+  color: var(--accent-400);
 }
 
 .narrative-footnotes {

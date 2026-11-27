@@ -214,7 +214,7 @@ onUnmounted(() => {
         class="w-full max-w-md mx-auto bg-gray-200 dark:bg-gray-700 rounded-full h-3 mb-3"
       >
         <div
-          class="bg-violet-500 h-3 rounded-full transition-all duration-500"
+          class="bg-accent-500 h-3 rounded-full transition-all duration-500"
           :style="{ width: `${progressPercent}%` }"
         />
       </div>
@@ -241,7 +241,7 @@ onUnmounted(() => {
         notifications bell.
       </p>
       <button
-        class="btn bg-violet-500 hover:bg-violet-600 text-white px-6 py-2 rounded-lg text-sm font-medium"
+        class="btn bg-accent-500 hover:bg-accent-600 text-white px-6 py-2 rounded-lg text-sm font-medium"
         data-testid="acknowledge-button"
         @click="acknowledge"
       >
@@ -253,7 +253,7 @@ onUnmounted(() => {
     <div v-else-if="submitError" class="text-center py-12">
       <p class="text-red-600 dark:text-red-400 mb-4">{{ submitError }}</p>
       <button
-        class="btn bg-violet-500 hover:bg-violet-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
+        class="btn bg-accent-500 hover:bg-accent-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
         @click="retry"
       >
         Try Again
@@ -326,7 +326,7 @@ onUnmounted(() => {
           You can record multiple segments and they will be combined
         </p>
         <button
-          class="btn bg-violet-500 hover:bg-violet-600 text-white px-6 py-2 rounded-lg text-sm font-medium"
+          class="btn bg-accent-500 hover:bg-accent-600 text-white px-6 py-2 rounded-lg text-sm font-medium"
           data-testid="start-button"
           @click="startRecording"
         >
@@ -343,7 +343,7 @@ onUnmounted(() => {
         >
           <div class="flex items-center space-x-3">
             <span
-              class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 text-sm font-bold"
+              class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-accent-100 dark:bg-accent-900/40 text-accent-700 dark:text-accent-300 text-sm font-bold"
             >
               {{ index + 1 }}
             </span>
@@ -359,7 +359,7 @@ onUnmounted(() => {
           </div>
           <div class="flex items-center space-x-2">
             <button
-              class="p-1.5 rounded text-gray-500 hover:text-violet-600 dark:hover:text-violet-400"
+              class="p-1.5 rounded text-gray-500 hover:text-accent-600 dark:hover:text-accent-400"
               :title="playingIndex === index ? 'Stop' : 'Play'"
               :data-testid="`play-button-${index}`"
               @click="togglePlayback(index)"
@@ -394,7 +394,7 @@ onUnmounted(() => {
 
         <!-- Add another recording -->
         <button
-          class="flex items-center justify-center w-full h-12 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-violet-400 transition-colors text-sm text-gray-600 dark:text-gray-300"
+          class="flex items-center justify-center w-full h-12 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-accent-400 transition-colors text-sm text-gray-600 dark:text-gray-300"
           data-testid="add-recording-button"
           @click="startRecording"
         >
@@ -412,7 +412,7 @@ onUnmounted(() => {
           </span>
           <button
             :disabled="entriesStore.creating"
-            class="btn bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg text-sm font-medium w-full sm:w-auto"
+            class="btn bg-accent-500 hover:bg-accent-600 text-white disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg text-sm font-medium w-full sm:w-auto"
             data-testid="submit-button"
             @click="submit"
           >

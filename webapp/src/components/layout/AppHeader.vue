@@ -62,7 +62,7 @@ async function handleSignOut() {
           <RouterLink
             v-if="authStore.isAdmin"
             to="/admin"
-            class="text-sm font-medium text-violet-500 hover:text-violet-600 dark:hover:text-violet-400 transition"
+            class="text-sm font-medium text-accent-fg hover:text-accent-600 dark:hover:text-accent-400 transition"
           >
             Admin
           </RouterLink>
@@ -115,7 +115,7 @@ async function handleSignOut() {
                 <ul>
                   <li>
                     <RouterLink
-                      class="font-medium text-sm text-violet-500 hover:text-violet-600 dark:hover:text-violet-400 flex items-center py-1 px-3"
+                      class="font-medium text-sm text-accent-fg hover:text-accent-600 dark:hover:text-accent-400 flex items-center py-1 px-3"
                       to="/settings"
                       @click="userMenuOpen = false"
                     >
@@ -124,7 +124,7 @@ async function handleSignOut() {
                   </li>
                   <li>
                     <button
-                      class="font-medium text-sm text-violet-500 hover:text-violet-600 dark:hover:text-violet-400 flex items-center py-1 px-3 w-full text-left"
+                      class="font-medium text-sm text-accent-fg hover:text-accent-600 dark:hover:text-accent-400 flex items-center py-1 px-3 w-full text-left"
                       @click="handleSignOut"
                     >
                       Sign Out

@@ -118,7 +118,7 @@ function formatTimestamp(iso: string): string {
         </div>
         <button
           type="button"
-          class="inline-flex items-center gap-2 rounded-md bg-violet-500 hover:bg-violet-600 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-sm font-medium text-white transition"
+          class="inline-flex items-center gap-2 rounded-md bg-accent-500 hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-sm font-medium text-white transition"
           :disabled="ocr.loading"
           @click="onReloadOcr"
         >
@@ -192,7 +192,7 @@ function formatTimestamp(iso: string): string {
         </div>
         <button
           type="button"
-          class="inline-flex items-center gap-2 rounded-md bg-violet-500 hover:bg-violet-600 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-sm font-medium text-white transition"
+          class="inline-flex items-center gap-2 rounded-md bg-accent-500 hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-sm font-medium text-white transition"
           :disabled="transcription.loading"
           @click="onReloadTranscription"
         >
@@ -255,7 +255,7 @@ function formatTimestamp(iso: string): string {
             scoring service. Also refreshes the
             <RouterLink
               to="/admin/moods"
-              class="text-violet-600 dark:text-violet-400 hover:underline"
+              class="text-accent-600 dark:text-accent-400 hover:underline"
               >Moods</RouterLink
             >
             tab — reload that page (or sign out and back in) afterwards so the
@@ -265,7 +265,7 @@ function formatTimestamp(iso: string): string {
         </div>
         <button
           type="button"
-          class="inline-flex items-center gap-2 rounded-md bg-violet-500 hover:bg-violet-600 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-sm font-medium text-white transition"
+          class="inline-flex items-center gap-2 rounded-md bg-accent-500 hover:bg-accent-600 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 text-sm font-medium text-white transition"
           :disabled="mood.loading"
           @click="onReloadMood"
         >

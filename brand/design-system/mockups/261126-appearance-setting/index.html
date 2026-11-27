@@ -1,0 +1,231 @@
+<title>Appearance: accent colour</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="tokens.css">
+<!--
+  Mockup (design-system skill, references/mockups.md): the accent-colour setting.
+  A new Settings tab, "Appearance", in the layout of SettingsView.vue. Two picker layouts (A, B).
+  Every pane is live: picking a colour sets that pane's accent scale (--a50 … --a950), so the tab
+  underline, the sidebar's active item and the sample button all change, as the real setting will.
+  The scales are the candidates; violet is today's Mosaic scale, unchanged.
+-->
+<style>
+  body { margin: 0; background: var(--canvas); color: var(--ink); font-family: var(--font-sans); }
+  .mockup-page {
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: var(--space-8, 32px) var(--space-16, 64px);
+    max-width: 1200px; margin: 0 auto; display: grid; gap: var(--space-12, 48px);
+  }
+  .mockup-head { display: grid; gap: var(--space-2, 8px); max-width: 72ch; }
+  .mockup-head h1, .option h2 { margin: 0; text-wrap: balance; }
+  .mockup-head p, .option p { margin: 0; }
+  .mockup-meta { color: var(--ink-secondary); }
+  .option { display: grid; gap: var(--space-4, 16px); }
+  .option > * { min-width: 0; }
+  .option-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2, 8px) var(--space-3, 12px); }
+  .option-tag { color: var(--ink-secondary); }
+  .option[data-recommended] .option-tag::after { content: " · Recommended"; color: var(--ink); }
+  .panes { display: grid; gap: var(--space-4, 16px); }
+  .pane { position: relative; min-width: 0; background: var(--canvas); color: var(--ink); border: 1px solid var(--line);
+          border-radius: var(--radius-lg, 10px); padding: var(--space-4, 16px); overflow-x: auto; }
+  .pane-label { color: var(--ink-secondary); margin: 0 0 var(--space-3, 12px); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  /* Per-theme meaning of the accent steps, as the views write them. */
+  .pane { --tab-ink: var(--a600); --link: var(--a600); --nav-from: 12%; --edge: var(--a500); }
+  .pane[data-theme="dark"] { --tab-ink: var(--a400); --link: var(--a400); --nav-from: 24%; --edge: var(--edge-dark, var(--a500)); }
+
+  /* The screen: slim sidebar + Settings, from AppSidebar.vue and SettingsView.vue. */
+  .app { display: grid; grid-template-columns: 220px minmax(560px, 1fr); gap: 16px; min-width: 800px; font: 400 14px/20px var(--font-sans); }
+  .side { background: var(--panel); border-radius: 0 16px 16px 0; padding: 16px 12px; display: grid; gap: 24px; align-content: start; }
+  .brand { display: flex; align-items: center; gap: 10px; padding-left: 4px; }
+  .brand b { font: 700 15px/19px var(--font-sans); color: var(--ink); }
+  .icon { width: 32px; height: 32px; flex: none; }
+  .t { fill: #15803d; } .g { stroke: #fff; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .k { fill: #fff; stroke: #15803d; stroke-width: 2; paint-order: stroke; } .x { stroke: #15803d; fill: none; }
+  .nav { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .nav li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; color: var(--ink-secondary); font-weight: 500; }
+  .nav li i { width: 16px; height: 16px; border: 2px solid currentColor; border-radius: 4px; box-sizing: border-box; flex: none; }
+  .nav li.on { color: var(--ink); background: linear-gradient(to right, color-mix(in srgb, var(--a500) var(--nav-from), transparent), color-mix(in srgb, var(--a500) 4%, transparent)); }
+  .nav li.on i { color: var(--a500); }
+  .main { padding: 8px 8px 16px; display: grid; gap: 20px; align-content: start; }
+  .main h3 { margin: 0; font: 700 24px/32px var(--font-sans); color: var(--ink); }
+  .tabs { display: flex; gap: 24px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+  .tabs span { padding: 12px 4px; border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 500; color: var(--ink-secondary); white-space: nowrap; }
+  .tabs span.on { border-color: var(--a500); color: var(--tab-ink); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: grid; gap: 16px; }
+  .card h4 { margin: 0; font: 600 16px/24px var(--font-sans); color: var(--ink); }
+  .card .help { margin: 0; color: var(--ink-secondary); max-width: 60ch; }
+  .foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; color: var(--ink-secondary); }
+  .btn { border: 0; border-radius: 8px; padding: 8px 14px; font: 500 14px/20px var(--font-sans); background: var(--a500); color: #fff; cursor: default; }
+  .foot a { color: var(--link); font-weight: 500; text-decoration: none; }
+  .saved { margin-left: auto; font-size: 12px; }
+
+  /* A: a row of swatches. */
+  .swatches { display: flex; flex-wrap: wrap; gap: 16px 20px; border: 0; margin: 0; padding: 0; }
+  .sw { position: relative; display: grid; justify-items: center; gap: 6px; cursor: pointer; color: var(--ink-secondary); font-size: 13px; }
+  .sw input { position: absolute; opacity: 0; pointer-events: none; }
+  .sw .dot { width: 36px; height: 36px; border-radius: 999px; background: var(--c); box-shadow: 0 0 0 2px var(--panel), 0 0 0 3px transparent; }
+  .sw input:checked + .dot { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--c); }
+  .sw input:checked ~ span { color: var(--ink); font-weight: 600; }
+  .sw input:focus-visible + .dot { outline: 2px solid var(--edge); outline-offset: 5px; }
+
+  /* B: radio cards, each with a sample button in its own colour. */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; border: 0; margin: 0; padding: 0; }
+  .rc { position: relative; display: grid; gap: 10px; padding: 12px; border: 1px solid var(--control-border); border-radius: 10px; cursor: pointer; }
+  .rc input { position: absolute; opacity: 0; pointer-events: none; }
+  .rc .name { display: flex; align-items: center; gap: 8px; font-weight: 500; color: var(--ink); }
+  .rc .name::before { content: ""; width: 16px; height: 16px; border-radius: 999px; border: 2px solid var(--control-border); box-sizing: border-box; flex: none; }
+  .rc:has(input:checked) { border-color: var(--c); box-shadow: 0 0 0 1px var(--c); }
+  .rc:has(input:checked) .name::before { border: 5px solid var(--c); }
+  .rc:has(input:focus-visible) { outline: 2px solid var(--edge); outline-offset: 2px; }
+  .rc .sample { justify-self: start; border-radius: 6px; padding: 4px 10px; font: 500 12px/18px var(--font-sans); background: var(--c); color: #fff; }
+
+  /* Contrast table for every candidate scale. */
+  .ctable { border-collapse: collapse; font: 400 13px/18px var(--font-sans); font-variant-numeric: tabular-nums; }
+  .ctable th, .ctable td { text-align: left; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--line); }
+  .ctable th { color: var(--ink-secondary); font-weight: 600; }
+  .ctable td.miss { font-weight: 700; }
+  .ctable .chip { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+  .wide { overflow-x: auto; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="mark-e" viewBox="0 0 32 32">
+    <rect class="t" width="32" height="32" rx="7"/>
+    <rect class="g" x="6" y="6" width="15" height="20" rx="2.5" stroke-width="2.2"/>
+    <path class="g" d="M9.5 12H17.5M9.5 16H17.5M9.5 20H13" stroke-width="2.2"/>
+    <g transform="translate(21.5 15.5) rotate(40)">
+      <path class="k" d="M-2.4 -9.5H2.4V3L0 8.5L-2.4 3Z"/>
+      <path class="x" d="M-2.4 -5.6H2.4M-2.4 3H2.4" stroke-width="1.2"/>
+    </g>
+  </symbol>
+</svg>
+
+<main class="mockup-page">
+  <header class="mockup-head">
+    <p class="caption mockup-meta">Mockup · 2026-11-26 · Journal · follows <em>App accent</em>: the accent becomes a per-user setting</p>
+    <h1 class="title-1">Appearance: accent colour</h1>
+    <p class="body">How should the accent-colour setting look, and which colours should it offer? It is a new “Appearance” tab in Settings. Violet stays the default and stays exactly as it is today; the icon stays green whatever is picked.</p>
+    <p class="body mockup-meta">Click any colour: the pane recolours the way the app will (tab underline, active sidebar item, button, link). The choice is saved to the account, so it follows the user to every device.</p>
+  </header>
+
+  <section class="option" id="a" data-recommended aria-labelledby="a-h" data-layout="swatches">
+    <div class="option-head"><h2 class="title-2" id="a-h">A. A row of swatches</h2><span class="label option-tag">Option A</span></div>
+    <p class="body">Compact: one circle per colour with its name underneath. The page itself is the preview, since it recolours as soon as a colour is picked.</p>
+  </section>
+
+  <section class="option" id="b" aria-labelledby="b-h" data-layout="cards">
+    <div class="option-head"><h2 class="title-2" id="b-h">B. Cards with a sample</h2><span class="label option-tag">Option B</span></div>
+    <p class="body">A radio card per colour, each with a small button drawn in it, so the colours can be compared before picking one. Takes more room.</p>
+  </section>
+
+  <section class="option" aria-labelledby="m-h">
+    <div class="option-head"><h2 class="title-2" id="m-h">Contrast of each colour</h2></div>
+    <p class="body">Measured for the pairings the views use. Violet is today’s scale, unchanged, so it keeps today’s two small misses (left as is, by choice). The new colours draw focus outlines and checkboxes in dark mode one step lighter (their 400, the “edge”), because their 500 is too dark on the dark panel; violet keeps its 500.</p>
+    <div class="wide"><table class="ctable" id="ctable"></table></div>
+  </section>
+</main>
+
+<template id="screen">
+  <p class="label pane-label"></p>
+  <div class="app">
+    <nav class="side" aria-label="Sidebar">
+      <div class="brand"><svg class="icon"><use href="#mark-e"/></svg><b>JOURNAL INSIGHTS TOOL</b></div>
+      <ul class="nav"><li><i></i>Dashboard</li><li><i></i>Entries</li><li><i></i>Storylines</li><li class="on"><i></i>Settings</li></ul>
+    </nav>
+    <section class="main">
+      <h3>Settings</h3>
+      <div class="tabs"><span>Profile</span><span>Notifications</span><span>Fitness</span><span>Maintenance</span><span class="on">Appearance</span></div>
+      <div class="card">
+        <div>
+          <h4>Accent colour</h4>
+          <p class="help">Buttons, links, the current page in the sidebar and selected items use this colour. It’s saved to your account, so it applies on every device.</p>
+        </div>
+        <fieldset class="picker"><legend class="sr" hidden>Accent colour</legend></fieldset>
+        <div class="foot"><button class="btn" type="button">New entry</button><a href="#">Open the dashboard</a><span class="saved" aria-live="polite">Saved</span></div>
+      </div>
+    </section>
+  </div>
+</template>
+
+<script>
+  // Candidate scales. accent-500 carries white button text; 600 is the light-theme link and tab
+  // colour, 400 the dark-theme one. Violet is today's Mosaic scale, unchanged.
+  const SCALES = {
+    violet:   { name: 'Violet',   note: 'Today’s colour', s: ['#f1eeff','#e6e1ff','#d2cbff','#b7acff','#9c8cff','#8470ff','#755ff8','#5d47de','#4634b1','#2f227c','#1c1357'] },
+    green:    { name: 'Green',    note: 'Matches the icon', s: ['#effaf2','#d7f3df','#b0e6c0','#7fd39b','#4cb874','#15803d','#126b33','#0f5a2b','#0c4723','#08331a','#052412'] },
+    emerald:  { name: 'Emerald',  note: 'Cooler green', s: ['#ecfdf5','#d1fae5','#a7f3d0','#6ee7b7','#34d399','#047857','#065f46','#064e3b','#053d2e','#022c22','#01201a'] },
+    blue:     { name: 'Blue',     note: 'Ink blue', s: ['#eff6ff','#dbeafe','#bfdbfe','#93c5fd','#60a5fa','#2563eb','#1d4ed8','#1e40af','#1e3a8a','#172554','#0f1a3d'] },
+    rose:     { name: 'Rose',     note: 'Close to the error red', s: ['#fff1f2','#ffe4e6','#fecdd3','#fda4af','#fb7185','#e11d48','#be123c','#9f1239','#881337','#4c0519','#33030f'] },
+    graphite: { name: 'Graphite', note: 'Quiet, near-neutral', s: ['#f8fafc','#f1f5f9','#e2e8f0','#cbd5e1','#94a3b8','#475569','#334155','#1e293b','#172033','#0f172a','#0b1120'] },
+  }
+  const STEPS = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]
+  const apply = (pane, key) => {
+    STEPS.forEach((step, i) => pane.style.setProperty(`--a${step}`, SCALES[key].s[i]))
+    pane.style.setProperty('--edge-dark', key === 'violet' ? SCALES[key].s[5] : SCALES[key].s[4])
+  }
+
+  let n = 0
+  for (const option of document.querySelectorAll('.option[data-layout]')) {
+    const panes = document.createElement('div')
+    panes.className = 'panes'
+    for (const theme of ['light', 'dark']) {
+      const pane = document.createElement('div')
+      pane.className = 'pane'
+      pane.dataset.theme = theme
+      pane.append(document.getElementById('screen').content.cloneNode(true))
+      pane.querySelector('.pane-label').textContent = theme === 'dark' ? 'Dark' : 'Light'
+      const picker = pane.querySelector('.picker')
+      picker.className = option.dataset.layout === 'swatches' ? 'picker swatches' : 'picker cards'
+      const group = `accent-${n++}`
+      for (const [key, sc] of Object.entries(SCALES)) {
+        const label = document.createElement('label')
+        label.style.setProperty('--c', sc.s[5])
+        const input = Object.assign(document.createElement('input'), { type: 'radio', name: group, value: key, checked: key === 'violet' })
+        input.addEventListener('change', () => apply(pane, key))
+        if (option.dataset.layout === 'swatches') {
+          label.className = 'sw'
+          const dot = document.createElement('span'); dot.className = 'dot'
+          const name = document.createElement('span'); name.textContent = sc.name
+          label.append(input, dot, name)
+        } else {
+          label.className = 'rc'
+          const name = document.createElement('span'); name.className = 'name'; name.textContent = sc.name
+          const note = document.createElement('span'); note.className = 'caption'; note.style.color = 'var(--ink-secondary)'; note.textContent = sc.note
+          const sample = document.createElement('span'); sample.className = 'sample'; sample.textContent = 'New entry'
+          label.append(input, name, note, sample)
+        }
+        picker.append(label)
+      }
+      apply(pane, 'violet')
+      panes.append(pane)
+    }
+    option.append(panes)
+  }
+
+  // Contrast table.
+  const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
+  const lum = (h) => hex(h).map((c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 })
+    .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0)
+  const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05) }
+  const COLS = [
+    ['White on button (500)', (s) => ratio('#ffffff', s[5]), 4.5],
+    ['Link, light (600 on white)', (s) => ratio(s[6], '#ffffff'), 4.5],
+    ['Link, dark (400 on #1f2937)', (s) => ratio(s[4], '#1f2937'), 4.5],
+    ['Outline, light (500 on white)', (s) => ratio(s[5], '#ffffff'), 3],
+    ['Outline, dark (edge on #1f2937)', (s, key) => ratio(key === 'violet' ? s[5] : s[4], '#1f2937'), 3],
+  ]
+  const table = document.getElementById('ctable')
+  table.innerHTML = '<thead><tr><th>Colour</th>' + COLS.map(([h]) => `<th>${h}</th>`).join('') + '</tr></thead>'
+  const body = document.createElement('tbody')
+  for (const [key, sc] of Object.entries(SCALES)) {
+    const tr = document.createElement('tr')
+    tr.innerHTML = `<td><span class="chip" style="background:${sc.s[5]}"></span>${sc.name}</td>` + COLS.map(([, f, min]) => {
+      const r = f(sc.s, key)
+      return `<td class="${r < min ? 'miss' : ''}">${r.toFixed(1)}:1${r < min ? ' (below ' + min + ')' : ''}</td>`
+    }).join('')
+    body.append(tr)
+  }
+  table.append(body)
+</script>

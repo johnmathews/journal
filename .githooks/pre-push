@@ -52,8 +52,8 @@ else
 fi
 
 if $run_webapp; then
-  echo "pre-push: webapp changed, running contract check, format check, lint, tests with coverage, build..."
-  (cd "$root/webapp" && npm run contract:check && npm run format:check && npm run lint \
+  echo "pre-push: webapp changed, running contract check, icon check, format check, lint, tests with coverage, build..."
+  (cd "$root/webapp" && npm run contract:check && npm run icon:check && npm run format:check && npm run lint \
     && npm run test:coverage && npm run build)
 else
   echo "pre-push: no webapp/ or contract/ code changes, skipping webapp checks."

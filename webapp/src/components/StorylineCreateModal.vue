@@ -219,7 +219,7 @@ function onCancel(): void {
           <span
             v-for="entity in pickedEntities"
             :key="entity.id"
-            class="inline-flex items-center gap-1.5 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700/40 rounded-full px-2.5 py-1 text-xs"
+            class="inline-flex items-center gap-1.5 bg-accent-50 dark:bg-accent-500/10 border border-accent-200 dark:border-accent-700/40 rounded-full px-2.5 py-1 text-xs"
             data-testid="storyline-picked-chip"
           >
             <span class="font-medium text-gray-800 dark:text-gray-100">
@@ -232,7 +232,7 @@ function onCancel(): void {
             </span>
             <button
               type="button"
-              class="text-violet-600 dark:text-violet-400 hover:text-violet-800 dark:hover:text-violet-200 leading-none"
+              class="text-accent-600 dark:text-accent-400 hover:text-accent-800 dark:hover:text-accent-200 leading-none"
               :aria-label="`Remove anchor ${entity.canonical_name}`"
               data-testid="storyline-remove-anchor"
               @click="removePicked(entity.id)"
@@ -295,15 +295,15 @@ function onCancel(): void {
               :class="[
                 'px-3 py-2 text-sm flex items-center justify-between gap-2 cursor-pointer',
                 isPicked(entity)
-                  ? 'bg-violet-50 dark:bg-violet-500/10 font-medium'
-                  : 'hover:bg-violet-50 dark:hover:bg-violet-500/10',
+                  ? 'bg-accent-50 dark:bg-accent-500/10 font-medium'
+                  : 'hover:bg-accent-50 dark:hover:bg-accent-500/10',
               ]"
               data-testid="storyline-entity-result"
               @click="togglePick(entity)"
             >
               <span class="flex items-center gap-2">
                 <span
-                  class="inline-block w-4 text-violet-600 dark:text-violet-400"
+                  class="inline-block w-4 text-accent-600 dark:text-accent-400"
                   aria-hidden="true"
                 >
                   {{ isPicked(entity) ? '✓' : '' }}
@@ -371,7 +371,7 @@ function onCancel(): void {
       </button>
       <button
         type="button"
-        class="btn bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+        class="btn bg-accent-500 hover:bg-accent-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
         :disabled="!canSubmit"
         data-testid="storyline-create-submit"
         @click="onSubmit"

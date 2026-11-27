@@ -1,11 +1,24 @@
 <script setup lang="ts">
 import { RouterView, useRoute } from 'vue-router'
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import DefaultLayout from '@/layouts/DefaultLayout.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useAppearanceStore } from '@/stores/appearance'
 
 const authStore = useAuthStore()
+const appearanceStore = useAppearanceStore()
 const route = useRoute()
+
+// The accent colour follows the signed-in user: load theirs on sign-in, and go back to the
+// default on sign-out so the next person on this browser starts there.
+watch(
+  () => authStore.user?.id,
+  (id, previous) => {
+    if (id !== undefined) appearanceStore.load()
+    else if (previous !== undefined) appearanceStore.reset()
+  },
+  { immediate: true },
+)
 
 const isPublicRoute = computed(() => route.meta.public === true)
 </script>
@@ -18,7 +31,7 @@ const isPublicRoute = computed(() => route.meta.public === true)
   >
     <div class="text-center">
       <svg
-        class="animate-spin h-8 w-8 mx-auto text-violet-500"
+        class="animate-spin h-8 w-8 mx-auto text-accent-fg"
         xmlns="http://www.w3.org/2000/svg"
         fill="none"
         viewBox="0 0 24 24"

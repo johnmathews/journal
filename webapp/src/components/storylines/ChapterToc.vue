@@ -46,7 +46,7 @@ function dateRange(c: ChapterMeta): string {
           class="w-full text-left px-2.5 py-1.5 rounded-md text-sm transition-colors flex items-center gap-2"
           :class="
             c.id === activeId
-              ? 'bg-violet-500/10 text-violet-700 dark:text-violet-300'
+              ? 'bg-accent-500/10 text-accent-700 dark:text-accent-300'
               : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/40'
           "
           :data-testid="`toc-item-${c.id}`"
@@ -55,7 +55,7 @@ function dateRange(c: ChapterMeta): string {
         >
           <span
             v-if="c.state === 'published' && c.read_at === null"
-            class="w-2 h-2 rounded-full bg-violet-500 shrink-0"
+            class="w-2 h-2 rounded-full bg-accent-500 shrink-0"
             data-testid="toc-unread-dot"
             aria-label="Unread"
           />

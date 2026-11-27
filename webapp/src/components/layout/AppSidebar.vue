@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useStorylinesStore } from '@/stores/storylines'
+import AppLogo from '@/components/layout/AppLogo.vue'
 
 const authStore = useAuthStore()
 // Total unread published chapters — the badge on the Storylines link.
@@ -112,11 +113,17 @@ watch(
     >
       <!-- Sidebar header -->
       <div class="flex justify-between mb-10 pr-3 sm:px-2">
-        <!-- Logo / title — hidden when sidebar is collapsed on desktop -->
-        <RouterLink class="block" to="/" aria-label="Journal home">
-          <div>
+        <!-- Logo and title. The logo stays when the sidebar is collapsed on desktop; the title hides. -->
+        <RouterLink
+          class="flex items-center gap-3 min-w-0"
+          to="/"
+          aria-label="Journal home"
+          data-testid="sidebar-home-link"
+        >
+          <AppLogo class="w-8 h-8 shrink-0" />
+          <div class="min-w-0">
             <h1
-              class="text-2xl md:text-xl md:pl-2 text-gray-800 dark:text-gray-100 font-bold lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200 lg:whitespace-nowrap lg:sidebar-expanded:whitespace-normal 2xl:whitespace-normal overflow-hidden"
+              class="text-2xl md:text-xl text-gray-800 dark:text-gray-100 font-bold lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200 lg:whitespace-nowrap lg:sidebar-expanded:whitespace-normal 2xl:whitespace-normal overflow-hidden"
             >
               JOURNAL INSIGHTS TOOL
             </h1>
@@ -141,7 +148,7 @@ watch(
                 class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
                 :class="
                   isExactActive &&
-                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                  'from-accent-500/[0.12] dark:from-accent-500/[0.24] to-accent-500/[0.04]'
                 "
               >
                 <a
@@ -160,7 +167,7 @@ watch(
                       class="shrink-0 fill-current"
                       :class="
                         isExactActive
-                          ? 'text-violet-500'
+                          ? 'text-accent-fg'
                           : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"
@@ -191,7 +198,7 @@ watch(
                 class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
                 :class="
                   isExactActive &&
-                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                  'from-accent-500/[0.12] dark:from-accent-500/[0.24] to-accent-500/[0.04]'
                 "
               >
                 <a
@@ -210,7 +217,7 @@ watch(
                       class="shrink-0 fill-current"
                       :class="
                         isExactActive
-                          ? 'text-violet-500'
+                          ? 'text-accent-fg'
                           : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"
@@ -241,7 +248,7 @@ watch(
                 class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
                 :class="
                   isActive &&
-                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                  'from-accent-500/[0.12] dark:from-accent-500/[0.24] to-accent-500/[0.04]'
                 "
               >
                 <a
@@ -260,7 +267,7 @@ watch(
                       class="shrink-0 fill-current"
                       :class="
                         isActive
-                          ? 'text-violet-500'
+                          ? 'text-accent-fg'
                           : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"
@@ -291,7 +298,7 @@ watch(
                 class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
                 :class="
                   isActive &&
-                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                  'from-accent-500/[0.12] dark:from-accent-500/[0.24] to-accent-500/[0.04]'
                 "
               >
                 <a
@@ -310,7 +317,7 @@ watch(
                       class="shrink-0 fill-current"
                       :class="
                         isActive
-                          ? 'text-violet-500'
+                          ? 'text-accent-fg'
                           : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"
@@ -341,7 +348,7 @@ watch(
                 class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
                 :class="
                   isActive &&
-                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                  'from-accent-500/[0.12] dark:from-accent-500/[0.24] to-accent-500/[0.04]'
                 "
               >
                 <a
@@ -360,7 +367,7 @@ watch(
                       class="shrink-0 fill-current"
                       :class="
                         isActive
-                          ? 'text-violet-500'
+                          ? 'text-accent-fg'
                           : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"
@@ -378,7 +385,7 @@ watch(
                     >
                     <span
                       v-if="storylinesStore.totalUnread > 0"
-                      class="ml-auto inline-flex items-center justify-center rounded-full bg-violet-500 text-white text-[10px] font-semibold px-1.5 py-0.5 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
+                      class="ml-auto inline-flex items-center justify-center rounded-full bg-accent-500 text-white text-[10px] font-semibold px-1.5 py-0.5 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200"
                       data-testid="sidebar-storylines-unread"
                       :aria-label="`${storylinesStore.totalUnread} unread chapters`"
                     >
@@ -399,7 +406,7 @@ watch(
                 class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
                 :class="
                   isActive &&
-                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                  'from-accent-500/[0.12] dark:from-accent-500/[0.24] to-accent-500/[0.04]'
                 "
               >
                 <a
@@ -418,7 +425,7 @@ watch(
                       class="shrink-0 fill-current"
                       :class="
                         isActive
-                          ? 'text-violet-500'
+                          ? 'text-accent-fg'
                           : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"
@@ -452,7 +459,7 @@ watch(
                 class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
                 :class="
                   isActive &&
-                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                  'from-accent-500/[0.12] dark:from-accent-500/[0.24] to-accent-500/[0.04]'
                 "
               >
                 <a
@@ -471,7 +478,7 @@ watch(
                       class="shrink-0 fill-current"
                       :class="
                         isActive
-                          ? 'text-violet-500'
+                          ? 'text-accent-fg'
                           : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"
@@ -502,7 +509,7 @@ watch(
                 class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
                 :class="
                   isActive &&
-                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                  'from-accent-500/[0.12] dark:from-accent-500/[0.24] to-accent-500/[0.04]'
                 "
               >
                 <a
@@ -521,7 +528,7 @@ watch(
                       class="shrink-0 fill-current"
                       :class="
                         isActive
-                          ? 'text-violet-500'
+                          ? 'text-accent-fg'
                           : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"
@@ -548,7 +555,7 @@ watch(
                 class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
                 :class="
                   isActive &&
-                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                  'from-accent-500/[0.12] dark:from-accent-500/[0.24] to-accent-500/[0.04]'
                 "
               >
                 <a
@@ -567,7 +574,7 @@ watch(
                       class="shrink-0 fill-current"
                       :class="
                         isActive
-                          ? 'text-violet-500'
+                          ? 'text-accent-fg'
                           : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"
@@ -598,7 +605,7 @@ watch(
                 class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
                 :class="
                   isActive &&
-                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                  'from-accent-500/[0.12] dark:from-accent-500/[0.24] to-accent-500/[0.04]'
                 "
               >
                 <a
@@ -617,7 +624,7 @@ watch(
                       class="shrink-0 fill-current"
                       :class="
                         isActive
-                          ? 'text-violet-500'
+                          ? 'text-accent-fg'
                           : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"
@@ -648,7 +655,7 @@ watch(
                 class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
                 :class="
                   isActive &&
-                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                  'from-accent-500/[0.12] dark:from-accent-500/[0.24] to-accent-500/[0.04]'
                 "
               >
                 <a
@@ -667,7 +674,7 @@ watch(
                       class="shrink-0 fill-current"
                       :class="
                         isActive
-                          ? 'text-violet-500'
+                          ? 'text-accent-fg'
                           : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"
@@ -699,7 +706,7 @@ watch(
                 class="pl-4 pr-3 py-2 rounded-lg mb-0.5 last:mb-0 bg-linear-to-r"
                 :class="
                   isActive &&
-                  'from-violet-500/[0.12] dark:from-violet-500/[0.24] to-violet-500/[0.04]'
+                  'from-accent-500/[0.12] dark:from-accent-500/[0.24] to-accent-500/[0.04]'
                 "
               >
                 <a
@@ -718,7 +725,7 @@ watch(
                       class="shrink-0 fill-current"
                       :class="
                         isActive
-                          ? 'text-violet-500'
+                          ? 'text-accent-fg'
                           : 'text-gray-600 dark:text-gray-300'
                       "
                       xmlns="http://www.w3.org/2000/svg"

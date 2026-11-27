@@ -150,8 +150,8 @@ function scrollToUncertain(idx: number) {
   currentUncertainIdx.value = clamped
 
   // Remove previous "current" highlight, add to target
-  marks.forEach((m) => m.classList.remove('ring-2', 'ring-violet-500'))
-  marks[clamped].classList.add('ring-2', 'ring-violet-500')
+  marks.forEach((m) => m.classList.remove('ring-2', 'ring-accent-fg'))
+  marks[clamped].classList.add('ring-2', 'ring-accent-fg')
   marks[clamped].scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 
@@ -270,7 +270,7 @@ function applyEntityHighlight(html: string, terms: string[]): string {
       if (tag) return tag
       return (text ?? '').replace(
         regex,
-        '<mark class="bg-violet-200 dark:bg-violet-500/30 rounded-sm">$1</mark>',
+        '<mark class="bg-accent-200 dark:bg-accent-500/30 rounded-sm">$1</mark>',
       )
     },
   )
@@ -475,7 +475,7 @@ async function loadEntryEntities(entryId: number) {
 function entityChipClass(type: EntityType): string {
   switch (type) {
     case 'person':
-      return 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300'
+      return 'bg-accent-100 text-accent-700 dark:bg-accent-500/20 dark:text-accent-300'
     case 'place':
       return 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300'
     case 'activity':
@@ -826,7 +826,7 @@ onBeforeUnmount(() => {
                 @keydown.escape="cancelEditDate"
               />
               <button
-                class="btn bg-violet-500 hover:bg-violet-600 text-white text-sm px-3 py-1"
+                class="btn bg-accent-500 hover:bg-accent-600 text-white text-sm px-3 py-1"
                 :disabled="savingDate"
                 data-testid="date-save-button"
                 @click="saveDate"
@@ -843,7 +843,7 @@ onBeforeUnmount(() => {
             </template>
             <h1
               v-else
-              class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold cursor-pointer hover:text-violet-600 dark:hover:text-violet-400 transition-colors"
+              class="text-2xl md:text-3xl text-gray-800 dark:text-gray-100 font-bold cursor-pointer hover:text-accent-600 dark:hover:text-accent-400 transition-colors"
               title="Click to edit date"
               data-testid="entry-date-heading"
               @click="startEditDate"
@@ -920,7 +920,7 @@ onBeforeUnmount(() => {
             :class="[
               entityChipClass(chip.entity_type),
               selectedEntityId === chip.id
-                ? 'ring-2 ring-violet-500 ring-offset-1 dark:ring-offset-gray-800'
+                ? 'ring-2 ring-accent-fg ring-offset-1 dark:ring-offset-gray-800'
                 : 'hover:opacity-80',
             ]"
             :title="entityChipTooltip(chip)"
@@ -952,7 +952,7 @@ onBeforeUnmount(() => {
               :data-testid="`view-mode-radio-${m}`"
             />
             <span
-              class="inline-block px-3 py-1 rounded text-sm font-medium border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 capitalize peer-checked:bg-violet-500 peer-checked:text-white peer-checked:border-violet-500 peer-focus-visible:ring-2 peer-focus-visible:ring-violet-400"
+              class="inline-block px-3 py-1 rounded text-sm font-medium border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 capitalize peer-checked:bg-accent-500 peer-checked:text-white peer-checked:border-accent-fg peer-focus-visible:ring-2 peer-focus-visible:ring-accent-400"
             >
               {{ m }}
             </span>
@@ -1075,7 +1075,7 @@ onBeforeUnmount(() => {
               <input
                 v-model="showDiff"
                 type="checkbox"
-                class="form-checkbox rounded text-violet-500 focus:ring-violet-500"
+                class="form-checkbox rounded text-accent-fg focus:ring-accent-fg"
                 data-testid="diff-toggle"
               />
               Show diff
@@ -1135,7 +1135,7 @@ onBeforeUnmount(() => {
                   :data-testid="`overlay-radio-${m}`"
                 />
                 <span
-                  class="inline-block px-2 py-0.5 rounded text-xs border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 peer-checked:bg-violet-500 peer-checked:text-white peer-checked:border-violet-500 peer-focus-visible:ring-2 peer-focus-visible:ring-violet-400"
+                  class="inline-block px-2 py-0.5 rounded text-xs border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 peer-checked:bg-accent-500 peer-checked:text-white peer-checked:border-accent-fg peer-focus-visible:ring-2 peer-focus-visible:ring-accent-400"
                 >
                   {{ m }}
                 </span>
@@ -1199,7 +1199,7 @@ onBeforeUnmount(() => {
               Reset
             </button>
             <button
-              class="btn bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              class="btn bg-accent-500 hover:bg-accent-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
               :disabled="!isDirty || saving"
               data-testid="save-button"
               @click="save"
@@ -1313,7 +1313,7 @@ onBeforeUnmount(() => {
                 <textarea
                   v-model="editedText"
                   spellcheck="false"
-                  class="diff-surface [grid-area:1/1] w-full overflow-hidden border-0 bg-transparent text-transparent caret-gray-900 dark:caret-white resize-none focus:outline-none focus:ring-2 focus:ring-violet-500/40 rounded-md px-3 py-2"
+                  class="diff-surface [grid-area:1/1] w-full overflow-hidden border-0 bg-transparent text-transparent caret-gray-900 dark:caret-white resize-none focus:outline-none focus:ring-2 focus:ring-accent-fg/40 rounded-md px-3 py-2"
                   data-testid="corrected-textarea"
                 />
               </template>
@@ -1407,7 +1407,7 @@ onBeforeUnmount(() => {
   they've selected while editing.
 */
 .diff-surface::selection {
-  background: rgba(139, 92, 246, 0.25); /* violet-500 @ 25% */
+  background: color-mix(in srgb, var(--accent-500) 25%, transparent);
   color: transparent;
 }
 

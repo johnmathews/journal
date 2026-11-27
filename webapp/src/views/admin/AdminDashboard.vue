@@ -86,7 +86,7 @@ function formatNumber(n: number): string {
     <div class="rounded-2xl bg-white dark:bg-gray-800 shadow-sm">
       <div v-if="loading" class="p-8 text-center">
         <svg
-          class="animate-spin h-6 w-6 mx-auto text-violet-500"
+          class="animate-spin h-6 w-6 mx-auto text-accent-fg"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"

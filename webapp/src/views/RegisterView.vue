@@ -120,7 +120,7 @@ async function handleRegister() {
           <div class="mt-6">
             <button
               type="submit"
-              class="btn w-full bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              class="btn w-full bg-accent-500 hover:bg-accent-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
               :disabled="authStore.loading"
             >
               <svg
@@ -156,7 +156,7 @@ async function handleRegister() {
           {{ ' ' }}
           <RouterLink
             to="/login"
-            class="text-sm font-medium text-violet-500 hover:text-violet-600 dark:hover:text-violet-400"
+            class="text-sm font-medium text-accent-fg hover:text-accent-600 dark:hover:text-accent-400"
           >
             Sign in
           </RouterLink>

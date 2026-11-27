@@ -35,7 +35,7 @@ async function submit() {
       </h1>
       <RouterLink
         to="/search"
-        class="shrink-0 text-sm text-violet-600 dark:text-violet-300 hover:underline"
+        class="shrink-0 text-sm text-accent-600 dark:text-accent-300 hover:underline"
       >
         ← Back to Search
       </RouterLink>
@@ -56,7 +56,7 @@ async function submit() {
           class="max-w-[80%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap"
           :class="
             m.role === 'user'
-              ? 'bg-violet-600 text-white'
+              ? 'bg-accent-600 text-white'
               : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100'
           "
         >
@@ -66,7 +66,7 @@ async function submit() {
               v-for="c in m.citations"
               :key="c.entry_id"
               :to="`/entries/${c.entry_id}`"
-              class="text-xs px-2 py-0.5 rounded bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/50"
+              class="text-xs px-2 py-0.5 rounded bg-accent-50 dark:bg-accent-900/30 text-accent-700 dark:text-accent-300 hover:bg-accent-100 dark:hover:bg-accent-900/50"
               data-testid="message-citation"
             >
               {{ c.entry_date }}
@@ -108,12 +108,12 @@ async function submit() {
         v-model="draft"
         type="text"
         placeholder="Ask a follow-up…"
-        class="flex-1 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+        class="flex-1 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-fg"
         data-testid="conversation-input"
       />
       <button
         type="submit"
-        class="rounded bg-violet-600 hover:bg-violet-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed"
+        class="rounded bg-accent-600 hover:bg-accent-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed"
         :disabled="store.sending || !draft.trim()"
       >
         Send

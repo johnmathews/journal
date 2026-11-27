@@ -509,7 +509,7 @@ describe('SettingsView', () => {
 
   // --- F3: tabbed layout ---
 
-  it('renders four tabs in order: Profile, Notifications, Fitness, Maintenance', async () => {
+  it('renders five tabs in order: Profile, Notifications, Fitness, Maintenance, Appearance', async () => {
     const wrapper = await mountView()
     const tabs = wrapper.findAll('[data-testid^="settings-tab-"]')
     expect(tabs.map((t) => t.text())).toEqual([
@@ -517,7 +517,20 @@ describe('SettingsView', () => {
       'Notifications',
       'Fitness',
       'Maintenance',
+      'Appearance',
     ])
+  })
+
+  it('the Appearance tab shows the accent colour picker', async () => {
+    const wrapper = await mountView()
+    await wrapper
+      .find('[data-testid="settings-tab-appearance"]')
+      .trigger('click')
+    const section = wrapper.find('[data-testid="appearance-section"]')
+    expect((section.element as HTMLElement).style.display).not.toBe('none')
+    expect(section.find('[data-testid="appearance-accent"]').exists()).toBe(
+      true,
+    )
   })
 
   it('Profile tab is active by default with no hash', async () => {

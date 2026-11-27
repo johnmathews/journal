@@ -2,12 +2,30 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    <link rel="icon" href="/favicon.ico">
+    <!-- The pen-and-paper app icon in the user's accent colour: one set per accent in /icons/<id>/,
+         written by scripts/app-icon.mjs. data-icon names the file; stores/appearance.ts (and the
+         script below, before first paint) points each link at the user's accent. -->
+    <link rel="icon" href="/icons/violet/favicon.ico" sizes="32x32" data-icon="favicon.ico">
+    <link rel="icon" href="/icons/violet/favicon.svg" type="image/svg+xml" data-icon="favicon.svg">
+    <link rel="apple-touch-icon" href="/icons/violet/apple-touch-icon.png" data-icon="apple-touch-icon.png">
+    <link rel="manifest" href="/icons/violet/manifest.webmanifest" data-icon="manifest.webmanifest">
+    <meta name="theme-color" content="#8470ff">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Journal</title>
   </head>
   <body>
     <script>
+      // The user's accent colour (Settings → Appearance), cached by stores/appearance.ts, applied
+      // before first paint so the page doesn't flash violet while the app loads.
+      try {
+        var accent = localStorage.getItem('accent');
+        if (accent && /^[a-z]+$/.test(accent)) {
+          document.documentElement.dataset.accent = accent;
+          document.querySelectorAll('link[data-icon]').forEach(function (link) {
+            link.href = '/icons/' + accent + '/' + link.dataset.icon;
+          });
+        }
+      } catch (e) {}
       if (localStorage.getItem('sidebar-expanded') == 'true') {
         document.querySelector('body').classList.add('sidebar-expanded');
       } else {

@@ -180,7 +180,7 @@ onUnmounted(() => {
           class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
           :class="
             dimension === d.name
-              ? 'bg-violet-500 text-white border-violet-500'
+              ? 'bg-accent-500 text-white border-accent-fg'
               : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
           "
           :data-testid="`dashboard-mood-correlation-dim-${d.name}`"
@@ -209,7 +209,7 @@ onUnmounted(() => {
           class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
           :class="
             entityType === t
-              ? 'bg-violet-500 text-white border-violet-500'
+              ? 'bg-accent-500 text-white border-accent-fg'
               : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
           "
           :data-testid="`dashboard-mood-correlation-type-${t}`"

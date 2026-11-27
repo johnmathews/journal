@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
 import App from '../App.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useAppearanceStore } from '@/stores/appearance'
 
 // Mock the DefaultLayout to avoid pulling in complex children
 vi.mock('@/layouts/DefaultLayout.vue', () => ({
@@ -106,5 +107,32 @@ describe('App', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="default-layout"]').exists()).toBe(true)
+  })
+
+  it('loads the accent colour on sign-in and resets it on sign-out', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const authStore = useAuthStore()
+    authStore.initialized = true
+    const appearance = useAppearanceStore()
+    const load = vi.spyOn(appearance, 'load').mockResolvedValue()
+    const reset = vi.spyOn(appearance, 'reset')
+
+    const router = createTestRouter()
+    router.push('/login')
+    await router.isReady()
+    mount(App, { global: { plugins: [pinia, router] } })
+    await flushPromises()
+    // Signed out from the start: nothing to load, nothing to reset.
+    expect(load).not.toHaveBeenCalled()
+    expect(reset).not.toHaveBeenCalled()
+
+    authStore.user = { id: 7 } as typeof authStore.user
+    await flushPromises()
+    expect(load).toHaveBeenCalledTimes(1)
+
+    authStore.user = null
+    await flushPromises()
+    expect(reset).toHaveBeenCalledTimes(1)
   })
 })

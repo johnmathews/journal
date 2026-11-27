@@ -6,6 +6,8 @@ on:
     paths:
       - "webapp/**"
       - "contract/**"
+      # Written by webapp's `npm run icon:gen`; icon:check fails on a hand edit.
+      - "brand/design-system/project/assets/AppIcon/**"
       - ".github/workflows/webapp.yml"
       # Prose never reaches the image or the tests. Without these, a docs edit
       # rebuilds :latest and WUD redeploys prod for nothing.
@@ -17,6 +19,8 @@ on:
     paths:
       - "webapp/**"
       - "contract/**"
+      # Written by webapp's `npm run icon:gen`; icon:check fails on a hand edit.
+      - "brand/design-system/project/assets/AppIcon/**"
       - ".github/workflows/webapp.yml"
       # Prose never reaches the image or the tests. Without these, a docs edit
       # rebuilds :latest and WUD redeploys prod for nothing.
@@ -48,6 +52,8 @@ jobs:
       - run: npm run test:coverage
       # Fails when src/types/generated/api.ts is stale against contract/api.schema.json.
       - run: npm run contract:check
+      # Fails when the committed favicon set or manifest is stale against src/brand/app-icon.json.
+      - run: npm run icon:check
       - run: npm run build
 
       - name: Upload coverage report

@@ -150,7 +150,7 @@ async function onSyncClick(source: FitnessSource) {
       </dl>
       <button
         type="button"
-        class="btn bg-violet-500 hover:bg-violet-600 text-white text-sm w-full disabled:opacity-50"
+        class="btn bg-accent-500 hover:bg-accent-600 text-white text-sm w-full disabled:opacity-50"
         :disabled="triggeringSync[source]"
         :data-testid="`fitness-${source}-sync-btn`"
         @click="onSyncClick(source)"

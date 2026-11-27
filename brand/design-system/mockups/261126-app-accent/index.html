@@ -1,0 +1,212 @@
+<title>App accent: violet or green</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="tokens.css">
+<!--
+  Mockup (design-system skill, references/mockups.md): the app's accent colour.
+  The screen is drawn once (template #screen) and stamped into each option's light and dark pane.
+  Each option sets an accent scale --a50 … --a900 that stands in for the `violet-N` steps the
+  views use today (bg-violet-500 buttons, text-violet-600/400 links, violet-50/100/200 chips,
+  from-violet-500/12% active nav, ring-violet-500 focus, bg-violet-500 unread badge).
+-->
+<style>
+  body { margin: 0; background: var(--canvas); color: var(--ink); font-family: var(--font-sans); }
+  .mockup-page {
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: var(--space-8, 32px) var(--space-16, 64px);
+    max-width: 1200px; margin: 0 auto; display: grid; gap: var(--space-12, 48px);
+  }
+  .mockup-head { display: grid; gap: var(--space-2, 8px); max-width: 72ch; }
+  .mockup-head h1, .option h2 { margin: 0; text-wrap: balance; }
+  .mockup-head p, .option p { margin: 0; }
+  .mockup-meta { color: var(--ink-secondary); }
+  .option { display: grid; gap: var(--space-4, 16px); }
+  .option-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2, 8px) var(--space-3, 12px); }
+  .option-tag { color: var(--ink-secondary); }
+  .option[data-recommended] .option-tag::after { content: " · Recommended"; color: var(--ink); }
+  .panes { display: grid; gap: var(--space-4, 16px); }
+  .pane { min-width: 0; background: var(--canvas); color: var(--ink); border: 1px solid var(--line);
+          border-radius: var(--radius-lg, 10px); padding: var(--space-4, 16px); overflow-x: auto; }
+  .pane-label { color: var(--ink-secondary); margin: 0 0 var(--space-3, 12px); }
+  .measures { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-2, 8px); }
+  .measures li { border: 1px solid var(--line); border-radius: var(--radius-sm, 4px); padding: 2px var(--space-2, 8px); font-variant-numeric: tabular-nums; }
+  .measures li[data-pass="no"] { border-color: currentColor; font-weight: 600; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  /* ---- Candidates: one accent scale per option. ---- */
+  #v, #v [data-theme] { --icon: #15803d;
+    --a50:#f1eeff; --a100:#e6e1ff; --a200:#d2cbff; --a300:#b7acff; --a400:#9c8cff;
+    --a500:#8470ff; --a600:#755ff8; --a700:#5d47de; --a800:#4634b1; --a900:#2f227c; }
+  #f, #f [data-theme] { --icon: #15803d;
+    --a50:#effaf2; --a100:#d7f3df; --a200:#b0e6c0; --a300:#7fd39b; --a400:#4cb874;
+    --a500:#15803d; --a600:#126b33; --a700:#0f5a2b; --a800:#0c4723; --a900:#08331a; }
+  #e, #e [data-theme] { --icon: #047857;
+    --a50:#ecfdf5; --a100:#d1fae5; --a200:#a7f3d0; --a300:#6ee7b7; --a400:#34d399;
+    --a500:#047857; --a600:#065f46; --a700:#064e3b; --a800:#053d2e; --a900:#022c22; }
+  /* What each class pair resolves to per theme, as the views write it. */
+  .option [data-theme] { --link: var(--a600); --chip-ink: var(--a700); --chip-bg: var(--a50); --chip-line: var(--a200);
+                         --avatar-bg: var(--a100); --avatar-ink: var(--a700); --nav-from: 12%; }
+  .option [data-theme="dark"] { --link: var(--a400); --chip-ink: var(--a300); --chip-bg: color-mix(in srgb, var(--a500) 10%, var(--panel));
+                                --chip-line: color-mix(in srgb, var(--a700) 40%, var(--panel));
+                                --avatar-bg: color-mix(in srgb, var(--a900) 40%, var(--panel)); --avatar-ink: var(--a300); --nav-from: 24%; }
+  /* Outline accent (focus outline, checked checkbox): accent-500, but one step lighter in dark for the greens. */
+  .option [data-theme] { --edge: var(--a500); }
+  #f [data-theme="dark"], #e [data-theme="dark"] { --edge: var(--a400); }
+  /* Success green, unchanged in every option (Mosaic green-50/200/700, dark green-400). */
+  .option [data-theme] { --ok-ink: #239f52; --ok-bg: #d2ffe2; --ok-line: #8bf0b0; }
+  .option [data-theme="dark"] { --ok-ink: #4bd37d; --ok-bg: color-mix(in srgb, #0f5429 20%, var(--panel)); --ok-line: color-mix(in srgb, #239f52 60%, var(--panel)); }
+
+  /* ---- The screen: sidebar + Entries list, from AppSidebar.vue and EntryListView.vue. ---- */
+  .app { display: grid; grid-template-columns: 232px minmax(560px, 1fr); gap: 16px; min-width: 820px; font: 400 14px/20px var(--font-sans); }
+  .side { background: var(--panel); border-radius: 0 16px 16px 0; padding: 16px 12px; display: grid; gap: 24px; align-content: start; }
+  .brand { display: flex; align-items: center; gap: 10px; padding-left: 4px; }
+  .brand b { font: 700 16px/20px var(--font-sans); color: var(--ink); letter-spacing: -0.01em; }
+  .icon { width: 32px; height: 32px; flex: none; }
+  .t { fill: var(--icon); }
+  .g { stroke: #fff; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .k { fill: #fff; stroke: var(--icon); stroke-width: 2; paint-order: stroke; }
+  .x { stroke: var(--icon); fill: none; }
+  .nav { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .nav li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; color: var(--ink-secondary); font-weight: 500; }
+  .nav li i { width: 16px; height: 16px; border: 2px solid currentColor; border-radius: 4px; box-sizing: border-box; flex: none; }
+  .nav li.on { color: var(--ink); background: linear-gradient(to right, color-mix(in srgb, var(--a500) var(--nav-from), transparent), color-mix(in srgb, var(--a500) 4%, transparent)); }
+  .nav li.on i { color: var(--a500); }
+  .badge { margin-left: auto; background: var(--a500); color: #fff; font: 600 10px/14px var(--font-sans); border-radius: 999px; padding: 1px 6px; }
+  .main { background: var(--panel); border-radius: 16px; padding: 20px; display: grid; gap: 16px; align-content: start; }
+  .bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .bar h3 { margin: 0 auto 0 0; font: 700 22px/28px var(--font-sans); color: var(--ink); letter-spacing: -0.01em; }
+  .btn { border-radius: 8px; padding: 8px 14px; font: 500 14px/20px var(--font-sans); border: 1px solid transparent; }
+  .btn.primary { background: var(--a500); color: #fff; }
+  .btn.quiet { background: var(--panel); color: var(--ink); border-color: var(--line); }
+  .search { flex: 1 1 260px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--edge); outline: 2px solid var(--edge); outline-offset: 0;
+            border-radius: 8px; padding: 7px 10px; color: var(--ink); background: var(--panel); }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { border-radius: 999px; padding: 2px 10px; font-size: 12px; line-height: 18px; border: 1px solid var(--line); color: var(--ink-secondary); }
+  .chip.on { background: var(--chip-bg); border-color: var(--chip-line); color: var(--chip-ink); font-weight: 500; }
+  table { border-collapse: collapse; width: 100%; }
+  th { text-align: left; font: 600 12px/16px var(--font-sans); text-transform: uppercase; color: var(--ink-secondary); padding: 8px; background: var(--tile); }
+  td { padding: 10px 8px; border-top: 1px solid var(--line); color: var(--ink-secondary); vertical-align: middle; }
+  td a { color: var(--link); font-weight: 500; text-decoration: none; }
+  .box { display: inline-block; width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--control-border); vertical-align: middle; box-sizing: border-box; }
+  .box.on { background: var(--edge); border-color: var(--edge); background-image: linear-gradient(45deg, transparent 45%, #fff 45% 55%, transparent 55%); }
+  .who { display: inline-flex; width: 24px; height: 24px; border-radius: 999px; align-items: center; justify-content: center; font: 700 11px/1 var(--font-sans); background: var(--avatar-bg); color: var(--avatar-ink); margin-right: 4px; }
+  .ok { display: inline-block; border-radius: 999px; padding: 1px 8px; font: 500 12px/18px var(--font-sans); color: var(--ok-ink); background: var(--ok-bg); border: 1px solid var(--ok-line); }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="mark-e" viewBox="0 0 32 32">
+    <rect class="t" width="32" height="32" rx="7"/>
+    <rect class="g" x="6" y="6" width="15" height="20" rx="2.5" stroke-width="2.2"/>
+    <path class="g" d="M9.5 12H17.5M9.5 16H17.5M9.5 20H13" stroke-width="2.2"/>
+    <g transform="translate(21.5 15.5) rotate(40)">
+      <path class="k" d="M-2.4 -9.5H2.4V3L0 8.5L-2.4 3Z"/>
+      <path class="x" d="M-2.4 -5.6H2.4M-2.4 3H2.4" stroke-width="1.2"/>
+    </g>
+  </symbol>
+</svg>
+
+<main class="mockup-page">
+  <header class="mockup-head">
+    <p class="caption mockup-meta">Mockup · 2026-11-26 · Journal · follows <em>App icon</em> (decided: pen and paper, green #15803d)</p>
+    <h1 class="title-1">App accent: violet or green</h1>
+    <p class="body">Should the app’s accent stay violet or turn green to match the new icon? Only the accent changes: layout, greys, type and the green “Succeeded” status badge stay as they are.</p>
+    <p class="body mockup-meta">The accent is every primary button, the active nav item, unread badges, links, active filter chips, entity avatars, checkboxes and the focus outline: about 400 uses across 57 views, swapped by step (violet-500 → accent-500, and so on).</p>
+  </header>
+
+  <section class="option" id="v" aria-labelledby="v-h">
+    <div class="option-head"><h2 class="title-2" id="v-h">V. Violet, as today (green icon)</h2><span class="label option-tag">Option V</span></div>
+    <p class="body">No restyle. The green icon sits beside a violet app. The primary button stays white on #8470ff, which is 3.6:1, below the 4.5:1 text needs (measured below); that would be fixed on its own.</p>
+  </section>
+
+  <section class="option" id="f" data-recommended aria-labelledby="f-h">
+    <div class="option-head"><h2 class="title-2" id="f-h">F. Forest green, matching the icon</h2><span class="label option-tag">Option F</span></div>
+    <p class="body">Accent-500 is the icon’s own #15803d, so icon and app are one colour. Dark enough for white button text (5.0:1). Close to the success green: “Succeeded” now reads like a link or a selected chip. In dark, the focus outline and checkboxes use accent-400 (#4cb874) to clear 3:1.</p>
+  </section>
+
+  <section class="option" id="e" aria-labelledby="e-h">
+    <div class="option-head"><h2 class="title-2" id="e-h">E. Emerald, a cooler green</h2><span class="label option-tag">Option E</span></div>
+    <p class="body">Accent-500 #047857 leans toward teal, which sets it a little apart from the yellower success green. The icon would move to #047857 too. In dark, outlines and checkboxes use accent-400 (#34d399).</p>
+  </section>
+</main>
+
+<template id="stage">
+  <div class="panes">
+    <div class="pane" data-theme="light"></div>
+    <div class="pane" data-theme="dark"></div>
+  </div>
+  <ul class="measures caption">
+    <li data-fg="#ffffff" data-bg="var(--a500)" data-min="4.5">White text on the primary button</li>
+    <li data-fg="var(--link)" data-bg="var(--panel)" data-min="4.5">Link on a panel</li>
+    <li data-fg="var(--chip-ink)" data-bg="var(--chip-bg)" data-min="4.5">Active chip text</li>
+    <li data-fg="var(--edge)" data-bg="var(--panel)" data-min="3">Focus outline and checkbox on a panel</li>
+  </ul>
+</template>
+
+<template id="screen">
+  <p class="label pane-label"></p>
+  <div class="app">
+    <nav class="side" aria-label="Sidebar">
+      <div class="brand"><svg class="icon"><use href="#mark-e"/></svg><b>JOURNAL INSIGHTS TOOL</b></div>
+      <ul class="nav">
+        <li><i></i>Dashboard</li>
+        <li class="on"><i></i>Entries</li>
+        <li><i></i>Storylines<span class="badge">3</span></li>
+        <li><i></i>Entities</li>
+        <li><i></i>Jobs</li>
+      </ul>
+    </nav>
+    <section class="main">
+      <div class="bar"><h3>Entries</h3><button class="btn quiet" type="button">Import</button><button class="btn primary" type="button">New entry</button></div>
+      <div class="bar"><div class="search">Search entries…</div></div>
+      <div class="chips"><span class="chip on">All</span><span class="chip">Handwritten</span><span class="chip">Voice</span><span class="chip">This month</span></div>
+      <table>
+        <thead><tr><th></th><th>Date</th><th>Entry</th><th>People</th><th>Mood job</th></tr></thead>
+        <tbody>
+          <tr><td><span class="box on"></span></td><td>Tue 24 Nov</td><td><a href="#">Morning pages: settling into Haarlem</a></td><td><span class="who">AM</span><span class="who">JD</span></td><td><span class="ok">Succeeded</span></td></tr>
+          <tr><td><span class="box"></span></td><td>Sun 22 Nov</td><td><a href="#">Long run along the Spaarne</a></td><td><span class="who">RK</span></td><td><span class="ok">Succeeded</span></td></tr>
+          <tr><td><span class="box"></span></td><td>Fri 20 Nov</td><td><a href="#">Voice note: the week in review</a></td><td></td><td><span class="ok">Succeeded</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+</template>
+
+<script>
+  for (const option of document.querySelectorAll('.option')) {
+    const stage = document.getElementById('stage').content.cloneNode(true)
+    for (const pane of stage.querySelectorAll('.pane')) {
+      pane.append(document.getElementById('screen').content.cloneNode(true))
+      pane.querySelector('.pane-label').textContent = pane.dataset.theme === 'dark' ? 'Dark' : 'Light'
+    }
+    option.append(stage)
+  }
+</script>
+
+<script>
+  // Measures: WCAG contrast of each pairing in each theme, resolved inside the option.
+  (() => {
+    const rgb = (value, scope, theme) => {
+      const probe = document.createElement('span')
+      probe.dataset.theme = theme
+      probe.style.color = value
+      scope.append(probe)
+      const parts = getComputedStyle(probe).color.match(/[\d.]+/g).map(Number)
+      probe.remove()
+      return parts.slice(0, 3)
+    }
+    const lum = ([r, g, b]) => [r, g, b]
+      .map((c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 })
+      .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0)
+    const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05) }
+    for (const li of document.querySelectorAll('.measures li[data-fg]')) {
+      const scope = li.closest('.option') || document.body
+      const min = Number(li.dataset.min || 0)
+      const results = ['light', 'dark'].map((theme) => {
+        const r = ratio(rgb(li.dataset.fg, scope, theme), rgb(li.dataset.bg, scope, theme))
+        return { theme, r, ok: !min || r >= min }
+      })
+      li.dataset.pass = results.every((x) => x.ok) ? 'yes' : 'no'
+      li.append(`: ${results.map((x) => `${x.theme} ${x.r.toFixed(1)}:1${x.ok ? '' : ' (below ' + min + ':1)'}`).join(', ')}`)
+    }
+  })()
+</script>

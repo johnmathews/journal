@@ -127,13 +127,13 @@ describe('CalendarHeatmap', () => {
     )
     expect(zeroCell.exists()).toBe(true)
     expect(zeroCell.classes()).toContain('bg-gray-100')
-    // Non-zero cells exist and have violet color classes
+    // Non-zero cells exist and have accent color classes
     const lowCell = wrapper.find(
       '[data-testid="dashboard-calendar-cell-2026-03-02"]',
     )
     expect(lowCell.exists()).toBe(true)
     expect(
-      lowCell.classes().some((c: string) => c.startsWith('bg-violet')),
+      lowCell.classes().some((c: string) => c.startsWith('bg-accent')),
     ).toBe(true)
     // High word-count cell (outlier)
     const highCell = wrapper.find(
@@ -141,7 +141,7 @@ describe('CalendarHeatmap', () => {
     )
     expect(highCell.exists()).toBe(true)
     expect(
-      highCell.classes().some((c: string) => c.startsWith('bg-violet')),
+      highCell.classes().some((c: string) => c.startsWith('bg-accent')),
     ).toBe(true)
   })
 

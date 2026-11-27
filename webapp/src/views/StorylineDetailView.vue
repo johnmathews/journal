@@ -262,7 +262,7 @@ watch(() => props.id, loadAll)
               </h1>
               <button
                 type="button"
-                class="text-gray-400 hover:text-violet-600 dark:hover:text-violet-400"
+                class="text-gray-400 hover:text-accent-600 dark:hover:text-accent-400"
                 data-testid="edit-name-button"
                 aria-label="Edit title"
                 title="Edit title"
@@ -291,7 +291,7 @@ watch(() => props.id, loadAll)
               />
               <button
                 type="submit"
-                class="btn-sm bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                class="btn-sm bg-accent-500 hover:bg-accent-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 :disabled="store.savingName || !nameDraft.trim()"
                 data-testid="save-name-button"
               >
@@ -312,7 +312,7 @@ watch(() => props.id, loadAll)
           <div class="flex flex-wrap items-center gap-2">
             <span
               v-if="store.updating"
-              class="text-sm text-violet-600 dark:text-violet-400 animate-pulse"
+              class="text-sm text-accent-600 dark:text-accent-400 animate-pulse"
               data-testid="storyline-updating"
             >
               Updating…
@@ -343,14 +343,14 @@ watch(() => props.id, loadAll)
               v-for="anchor in store.currentStoryline.anchors"
               :key="anchor.entity_id"
               :to="`/entities/${anchor.entity_id}`"
-              class="inline-flex items-center gap-1 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700/40 rounded-full px-2.5 py-0.5 text-xs text-violet-700 dark:text-violet-300 hover:underline"
+              class="inline-flex items-center gap-1 bg-accent-50 dark:bg-accent-500/10 border border-accent-200 dark:border-accent-700/40 rounded-full px-2.5 py-0.5 text-xs text-accent-700 dark:text-accent-300 hover:underline"
               :data-testid="`storyline-anchor-${anchor.entity_id}`"
             >
               {{ anchor.canonical_name || `#${anchor.entity_id}` }}
             </RouterLink>
             <button
               type="button"
-              class="text-xs text-violet-600 dark:text-violet-400 hover:underline ml-1"
+              class="text-xs text-accent-600 dark:text-accent-400 hover:underline ml-1"
               data-testid="edit-anchors-button"
               @click="editingAnchors = !editingAnchors"
             >
@@ -362,7 +362,7 @@ watch(() => props.id, loadAll)
           </span>
           <span
             v-if="store.currentStoryline.unread_count > 0"
-            class="inline-flex items-center rounded-full bg-violet-500/10 border border-violet-200 dark:border-violet-700/40 px-2 py-0.5 text-xs text-violet-700 dark:text-violet-300"
+            class="inline-flex items-center rounded-full bg-accent-500/10 border border-accent-200 dark:border-accent-700/40 px-2 py-0.5 text-xs text-accent-700 dark:text-accent-300"
             data-testid="storyline-unread-count"
           >
             {{ store.currentStoryline.unread_count }} unread

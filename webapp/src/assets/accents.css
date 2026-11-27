@@ -1,0 +1,114 @@
+/*
+ * Accent colours: the colour of primary buttons, links, the active nav item, unread badges,
+ * selected chips, checkboxes and focus rings. Each user picks one in Settings → Appearance; the
+ * choice is the `accent` user preference, applied as `data-accent` on <html> (stores/appearance.ts,
+ * and an inline script in index.html before first paint). The list of ids lives in
+ * src/brand/accents.ts; a test checks the two agree.
+ *
+ * Views use `accent-N` utilities (bg-accent-500, text-accent-600, …), mapped in main.css's
+ * `@theme inline` block onto these variables. `accent-fg` is the step for a foreground (text,
+ * ring, border) that has no dark: variant of its own: 500 in light; in dark, 500 for violet and
+ * 400 for the darker accents, whose 500 is too dark to read on a dark panel.
+ *
+ * Violet is the default and is the Mosaic template's scale, unchanged. Every other accent's 500
+ * carries white text at 4.5:1 or better. Decided 2026-11-26:
+ * brand/design-system/mockups/261126-appearance-setting.
+ */
+
+:root,
+:root[data-accent='violet'] {
+  --accent-50: #f1eeff;
+  --accent-100: #e6e1ff;
+  --accent-200: #d2cbff;
+  --accent-300: #b7acff;
+  --accent-400: #9c8cff;
+  --accent-500: #8470ff;
+  --accent-600: #755ff8;
+  --accent-700: #5d47de;
+  --accent-800: #4634b1;
+  --accent-900: #2f227c;
+  --accent-950: #1c1357;
+  --accent-fg: var(--accent-500);
+}
+
+/* Green: the app icon's own colour (#15803d). */
+:root[data-accent='green'] {
+  --accent-50: #effaf2;
+  --accent-100: #d7f3df;
+  --accent-200: #b0e6c0;
+  --accent-300: #7fd39b;
+  --accent-400: #4cb874;
+  --accent-500: #15803d;
+  --accent-600: #126b33;
+  --accent-700: #0f5a2b;
+  --accent-800: #0c4723;
+  --accent-900: #08331a;
+  --accent-950: #052412;
+}
+
+:root[data-accent='emerald'] {
+  --accent-50: #ecfdf5;
+  --accent-100: #d1fae5;
+  --accent-200: #a7f3d0;
+  --accent-300: #6ee7b7;
+  --accent-400: #34d399;
+  --accent-500: #047857;
+  --accent-600: #065f46;
+  --accent-700: #064e3b;
+  --accent-800: #053d2e;
+  --accent-900: #022c22;
+  --accent-950: #01201a;
+}
+
+:root[data-accent='blue'] {
+  --accent-50: #eff6ff;
+  --accent-100: #dbeafe;
+  --accent-200: #bfdbfe;
+  --accent-300: #93c5fd;
+  --accent-400: #60a5fa;
+  --accent-500: #2563eb;
+  --accent-600: #1d4ed8;
+  --accent-700: #1e40af;
+  --accent-800: #1e3a8a;
+  --accent-900: #172554;
+  --accent-950: #0f1a3d;
+}
+
+/* Rose sits close to the error red; errors always carry an icon and words, so it stays apart. */
+:root[data-accent='rose'] {
+  --accent-50: #fff1f2;
+  --accent-100: #ffe4e6;
+  --accent-200: #fecdd3;
+  --accent-300: #fda4af;
+  --accent-400: #fb7185;
+  --accent-500: #e11d48;
+  --accent-600: #be123c;
+  --accent-700: #9f1239;
+  --accent-800: #881337;
+  --accent-900: #4c0519;
+  --accent-950: #33030f;
+}
+
+/* Graphite: a quiet, near-neutral slate. */
+:root[data-accent='graphite'] {
+  --accent-50: #f8fafc;
+  --accent-100: #f1f5f9;
+  --accent-200: #e2e8f0;
+  --accent-300: #cbd5e1;
+  --accent-400: #94a3b8;
+  --accent-500: #475569;
+  --accent-600: #334155;
+  --accent-700: #1e293b;
+  --accent-800: #172033;
+  --accent-900: #0f172a;
+  --accent-950: #0b1120;
+}
+
+/* In dark mode the darker accents draw foregrounds one step lighter (see accent-fg above). */
+:root.dark[data-accent='green'],
+:root.dark[data-accent='emerald'],
+:root.dark[data-accent='blue'],
+:root.dark[data-accent='rose'],
+:root.dark[data-accent='graphite'] {
+  --accent-fg: var(--accent-400);
+}

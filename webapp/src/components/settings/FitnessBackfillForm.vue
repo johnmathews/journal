@@ -89,7 +89,7 @@ async function submit(): Promise<void> {
       </label>
       <button
         type="button"
-        class="btn-sm bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50"
+        class="btn-sm bg-accent-500 hover:bg-accent-600 text-white disabled:opacity-50"
         :disabled="submitting || !start"
         :data-testid="`backfill-${source}-submit`"
         @click="submit"

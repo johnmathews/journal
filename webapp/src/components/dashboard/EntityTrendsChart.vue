@@ -189,7 +189,7 @@ onUnmounted(() => {
       class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
       :class="
         entityType === t
-          ? 'bg-violet-500 text-white border-violet-500'
+          ? 'bg-accent-500 text-white border-accent-fg'
           : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
       "
       :data-testid="`dashboard-entity-trends-tab-${t}`"
@@ -286,7 +286,7 @@ onUnmounted(() => {
       All entities hidden.
       <button
         type="button"
-        class="ml-1 text-violet-600 dark:text-violet-400 hover:underline"
+        class="ml-1 text-accent-600 dark:text-accent-400 hover:underline"
         data-testid="dashboard-entity-trends-all-hidden-show-all"
         @click="emit('show-all')"
       >

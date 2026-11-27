@@ -170,6 +170,8 @@ The SQLite DB persists between runs at `server/journal.db`. Delete it to start c
 | `npm run format:check` | Check Prettier formatting without writing (CI/pre-push) |
 | `npm run contract:gen` | Regenerate `src/types/generated/api.ts` from the API contract |
 | `npm run contract:check` | Fail if the generated API types are out of date (CI/pre-push) |
+| `npm run icon:gen` | Write the favicon set, manifest icons and manifest from `src/brand/app-icon.json` (needs `rsvg-convert` and ImageMagick) |
+| `npm run icon:check` | Fail if the committed favicon SVG or manifest is stale (CI/pre-push) |
 
 ## Project Structure
 
@@ -214,7 +216,7 @@ src/
 
 The pre-push hook is tracked at the monorepo root in `.githooks/pre-push`. `npm install` enables it: the `prepare` script runs `git config core.hooksPath .githooks`.
 
-When a push touches `webapp/` (or `contract/`) code, the hook runs `contract:check`, `format:check`, `lint`, `test:coverage` and `build`. If any step fails — `src/types/generated/api.ts` is out of date with `contract/api.schema.json`, Prettier finds drift, ESLint finds errors, tests fail, coverage drops below the minimums defined in `vitest.config.ts`, or `vue-tsc` rejects the build — the push is aborted. Pushes that only change docs, journal entries or Markdown skip the checks. The same hook runs the server's checks when `server/` code changes.
+When a push touches `webapp/` (or `contract/`) code, the hook runs `contract:check`, `icon:check`, `format:check`, `lint`, `test:coverage` and `build`. If any step fails — `src/types/generated/api.ts` is out of date with `contract/api.schema.json`, the icon files are stale, Prettier finds drift, ESLint finds errors, tests fail, coverage drops below the minimums defined in `vitest.config.ts`, or `vue-tsc` rejects the build — the push is aborted. Pushes that only change docs, journal entries or Markdown skip the checks. The same hook runs the server's checks when `server/` code changes.
 
 ## Docker
 

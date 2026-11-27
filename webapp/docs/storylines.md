@@ -18,7 +18,7 @@ chapter editing in the webapp.
 | `/storylines` | `StorylineListView` | Sortable table (cards on mobile) with unread badges, create modal, delete |
 | `/storylines/:id` | `StorylineDetailView` | Book-style reader: TOC + published chapters + draft block |
 
-The sidebar's Storylines link carries a violet badge with the total unread
+The sidebar's Storylines link carries an accent-coloured badge with the total unread
 chapter count (`storylinesStore.totalUnread`).
 
 ## Reading experience
@@ -28,7 +28,7 @@ and the reader put the newest chapter on top:
 
 - **`ChapterToc`** (left at `lg+`, sticky) — one row per chapter, listed
   newest-first (draft's "In progress" row on top): title, derived date range
-  (min/max of the chapter's member entries), a violet unread dot on
+  (min/max of the chapter's member entries), an accent-coloured unread dot on
   published-unread chapters, and a subdued "In progress" row for the draft.
   Selecting a row scrolls the chapter into view and writes `?chapter=<id>` to
   the URL.

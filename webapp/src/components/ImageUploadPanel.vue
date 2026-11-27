@@ -132,7 +132,7 @@ function objectUrl(file: File): string {
         class="w-full max-w-md mx-auto bg-gray-200 dark:bg-gray-700 rounded-full h-3 mb-3"
       >
         <div
-          class="bg-violet-500 h-3 rounded-full transition-all duration-500"
+          class="bg-accent-500 h-3 rounded-full transition-all duration-500"
           :style="{ width: `${progressPercent}%` }"
         />
       </div>
@@ -159,7 +159,7 @@ function objectUrl(file: File): string {
         notifications bell.
       </p>
       <button
-        class="btn bg-violet-500 hover:bg-violet-600 text-white px-6 py-2 rounded-lg text-sm font-medium"
+        class="btn bg-accent-500 hover:bg-accent-600 text-white px-6 py-2 rounded-lg text-sm font-medium"
         data-testid="acknowledge-button"
         @click="acknowledge"
       >
@@ -171,7 +171,7 @@ function objectUrl(file: File): string {
     <div v-else-if="submitError" class="text-center py-12">
       <p class="text-red-600 dark:text-red-400 mb-4">{{ submitError }}</p>
       <button
-        class="btn bg-violet-500 hover:bg-violet-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
+        class="btn bg-accent-500 hover:bg-accent-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
         @click="retry"
       >
         Try Again
@@ -186,8 +186,8 @@ function objectUrl(file: File): string {
         :class="[
           'flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer transition-colors',
           dragOver
-            ? 'border-violet-400 bg-violet-50 dark:bg-violet-900/20'
-            : 'border-gray-300 dark:border-gray-600 hover:border-violet-400 dark:hover:border-violet-500',
+            ? 'border-accent-400 bg-accent-50 dark:bg-accent-900/20'
+            : 'border-gray-300 dark:border-gray-600 hover:border-accent-400 dark:hover:border-accent-500',
         ]"
         @dragover.prevent="dragOver = true"
         @dragleave="dragOver = false"
@@ -230,7 +230,7 @@ function objectUrl(file: File): string {
         >
           <div class="flex items-center space-x-3">
             <span
-              class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 text-sm font-bold"
+              class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-accent-100 dark:bg-accent-900/40 text-accent-700 dark:text-accent-300 text-sm font-bold"
             >
               {{ index + 1 }}
             </span>
@@ -276,7 +276,7 @@ function objectUrl(file: File): string {
         </div>
 
         <label
-          class="flex items-center justify-center w-full h-12 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-violet-400 transition-colors text-sm text-gray-600 dark:text-gray-300"
+          class="flex items-center justify-center w-full h-12 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-accent-400 transition-colors text-sm text-gray-600 dark:text-gray-300"
           @dragover.prevent="dragOver = true"
           @dragleave="dragOver = false"
           @drop.prevent="handleDrop"
@@ -301,7 +301,7 @@ function objectUrl(file: File): string {
           </span>
           <button
             :disabled="entriesStore.creating"
-            class="btn bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg text-sm font-medium w-full sm:w-auto"
+            class="btn bg-accent-500 hover:bg-accent-600 text-white disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg text-sm font-medium w-full sm:w-auto"
             @click="submit"
           >
             {{ entriesStore.creating ? 'Uploading...' : 'Upload & Process' }}

@@ -443,7 +443,7 @@ function cellTestId(col: ColumnDef): string | undefined {
               :key="col.key"
               class="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
               :class="{
-                'border-t-2 border-violet-400':
+                'border-t-2 border-accent-400':
                   dragOverIndex === index &&
                   dragIndex !== null &&
                   dragIndex !== index,
@@ -474,7 +474,7 @@ function cellTestId(col: ColumnDef): string | undefined {
                 <input
                   type="checkbox"
                   :checked="isVisible(col.key)"
-                  class="form-checkbox rounded text-violet-500"
+                  class="form-checkbox rounded text-accent-fg"
                   :data-testid="`col-toggle-${col.key}`"
                   @change="toggleColumn(col.key)"
                 />
@@ -485,7 +485,7 @@ function cellTestId(col: ColumnDef): string | undefined {
               class="border-t border-gray-200 dark:border-gray-700/60 mt-1 pt-1"
             >
               <button
-                class="w-full text-left px-3 py-1.5 text-sm text-violet-600 dark:text-violet-400 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                class="w-full text-left px-3 py-1.5 text-sm text-accent-600 dark:text-accent-400 hover:bg-gray-50 dark:hover:bg-gray-700/50"
                 data-testid="columns-reset"
                 @click="resetColumns"
               >
@@ -497,7 +497,7 @@ function cellTestId(col: ColumnDef): string | undefined {
 
         <RouterLink
           to="/entries/new"
-          class="btn bg-violet-500 hover:bg-violet-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
+          class="btn bg-accent-500 hover:bg-accent-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
           data-testid="new-entry-button"
         >
           New Entry
@@ -525,7 +525,7 @@ function cellTestId(col: ColumnDef): string | undefined {
         data-testid="loading-state"
       >
         <svg
-          class="animate-spin w-6 h-6 mr-3 text-violet-500"
+          class="animate-spin w-6 h-6 mr-3 text-accent-fg"
           viewBox="0 0 24 24"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
@@ -583,7 +583,7 @@ function cellTestId(col: ColumnDef): string | undefined {
               <tr
                 v-for="entry in sortedEntries"
                 :key="entry.id"
-                class="cursor-pointer hover:bg-violet-50 dark:hover:bg-violet-500/[0.08] transition-colors"
+                class="cursor-pointer hover:bg-accent-50 dark:hover:bg-accent-500/[0.08] transition-colors"
                 data-testid="entry-row"
                 @click="onRowClick(entry.id)"
               >
@@ -616,7 +616,7 @@ function cellTestId(col: ColumnDef): string | undefined {
           <li
             v-for="entry in sortedEntries"
             :key="entry.id"
-            class="p-4 cursor-pointer hover:bg-violet-50 dark:hover:bg-violet-500/[0.08] transition-colors"
+            class="p-4 cursor-pointer hover:bg-accent-50 dark:hover:bg-accent-500/[0.08] transition-colors"
             data-testid="entry-card"
             @click="onRowClick(entry.id)"
           >

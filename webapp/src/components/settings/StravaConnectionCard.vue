@@ -108,7 +108,7 @@ function formatDate(iso: string | null): string {
         <button
           v-if="connectionState === 'not-connected'"
           type="button"
-          class="btn-sm bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50"
+          class="btn-sm bg-accent-500 hover:bg-accent-600 text-white disabled:opacity-50"
           :disabled="redirecting"
           data-testid="strava-connect-btn"
           @click="startAuthorize"
@@ -118,7 +118,7 @@ function formatDate(iso: string | null): string {
         <button
           v-if="connectionState === 'broken'"
           type="button"
-          class="btn-sm bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50"
+          class="btn-sm bg-accent-500 hover:bg-accent-600 text-white disabled:opacity-50"
           :disabled="redirecting"
           data-testid="strava-reconnect-btn"
           @click="startAuthorize"

@@ -1,0 +1,223 @@
+<title>App icon</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="tokens.css">
+<!--
+  Mockup (design-system skill, references/mockups.md): the Journal app icon.
+  One mark per option, drawn once as an SVG <symbol> on a 32-unit grid and stamped into every
+  place it lands: the browser tab (16px, real size), the sidebar header beside the existing title,
+  the collapsed desktop sidebar, and the home-screen / manifest sizes.
+-->
+<style>
+  body { margin: 0; background: var(--canvas); color: var(--ink); font-family: var(--font-sans); }
+  .mockup-page {
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: var(--space-8, 32px) var(--space-16, 64px);
+    max-width: 1200px; margin: 0 auto; display: grid; gap: var(--space-12, 48px);
+  }
+  .mockup-head { display: grid; gap: var(--space-2, 8px); max-width: 70ch; }
+  .mockup-head h1, .option h2 { margin: 0; text-wrap: balance; }
+  .mockup-head p, .option p { margin: 0; }
+  .mockup-meta { color: var(--ink-secondary); }
+  .option { display: grid; gap: var(--space-4, 16px); }
+  .option-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2, 8px) var(--space-3, 12px); }
+  .option-tag { color: var(--ink-secondary); }
+  .option[data-recommended] .option-tag::after { content: " · Recommended"; color: var(--ink); }
+  .panes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: var(--space-4, 16px); }
+  .pane { min-width: 0; background: var(--canvas); color: var(--ink); border: 1px solid var(--line);
+          border-radius: var(--radius-lg, 10px); padding: var(--space-4, 16px); overflow-x: auto;
+          display: grid; gap: var(--space-4, 16px); align-content: start; }
+  .pane-label { color: var(--ink-secondary); margin: 0; }
+  .measures { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-2, 8px); }
+  .measures li { border: 1px solid var(--line); border-radius: var(--radius-sm, 4px); padding: 2px var(--space-2, 8px); font-variant-numeric: tabular-nums; }
+  .measures li[data-pass="no"] { border-color: currentColor; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  /* ---- Candidates. The icon is one fixed tile in both themes (a favicon can't follow the
+     app's theme toggle), so tile and glyph have no dark value. ---- */
+  #v, #v [data-theme] { --candidate-tile: #755ff8; --candidate-glyph: #ffffff; }  /* violet-600: today's accent */
+  #b, #b [data-theme] { --candidate-tile: #2563eb; --candidate-glyph: #ffffff; }  /* blue-600 */
+  #g, #g [data-theme] { --candidate-tile: #15803d; --candidate-glyph: #ffffff; }  /* green-700 */
+  .mark { display: block; flex: none; }
+  .t { fill: var(--candidate-tile); }
+  .g { stroke: var(--candidate-glyph); fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .f { fill: var(--candidate-glyph); }
+  .x { stroke: var(--candidate-tile); fill: none; stroke-linecap: butt; }
+  .tf { fill: var(--candidate-tile); }
+  .k { fill: var(--candidate-glyph); stroke: var(--candidate-tile); stroke-width: 2; paint-order: stroke; }
+
+  /* Browser tab strip: real size, so the 16px favicon reads as it will. */
+  .tabs { display: flex; gap: 2px; background: var(--tile); border-radius: 8px 8px 0 0; padding: 6px 6px 0; overflow: hidden; }
+  .tab { display: flex; align-items: center; gap: 8px; width: 180px; min-width: 0; padding: 7px 10px; border-radius: 7px 7px 0 0;
+         font: 400 12px/16px var(--font-sans); color: var(--ink-secondary); white-space: nowrap; }
+  .tab span { overflow: hidden; text-overflow: ellipsis; }
+  .tab.active { background: var(--panel); color: var(--ink); }
+  .tab .other { width: 16px; height: 16px; border-radius: 50%; background: var(--control-border); flex: none; }
+
+  /* Sidebar, copied from AppSidebar.vue: bg-white / gray-800, rounded-r-2xl, title text-xl bold. */
+  .shells { display: flex; gap: var(--space-4, 16px); align-items: flex-start; flex-wrap: wrap; }
+  .sidebar { background: var(--panel); border-radius: 0 16px 16px 0; padding: 16px 16px 16px 16px; display: grid; gap: 28px; }
+  .sidebar.wide { width: 256px; box-sizing: border-box; }
+  .sidebar.narrow { width: 80px; box-sizing: border-box; justify-items: center; }
+  .brand { display: flex; align-items: center; gap: 10px; padding-left: 8px; }
+  .sidebar.narrow .brand { padding-left: 0; }
+  .brand h3 { margin: 0; font: 700 18px/24px var(--font-sans); letter-spacing: -0.01em; color: var(--ink); }
+  .nav { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+  .nav li { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 8px; font: 500 14px/20px var(--font-sans); color: var(--ink-secondary); }
+  .nav li.on { background: linear-gradient(to right, rgb(132 112 255 / .12), rgb(132 112 255 / .04)); color: var(--ink); }
+  [data-theme="dark"] .nav li.on { background: linear-gradient(to right, rgb(132 112 255 / .24), rgb(132 112 255 / .04)); }
+  .nav li.on i { color: #8470ff; }
+  .cta { justify-self: start; border: 0; border-radius: 8px; padding: 8px 12px; background: #8470ff; color: #fff; font: 500 14px/20px var(--font-sans); }
+  .sidebar.narrow .cta { display: none; }
+  .nav i { width: 16px; height: 16px; border-radius: 4px; border: 2px solid currentColor; box-sizing: border-box; flex: none; }
+  .sidebar.narrow .nav span { display: none; }
+
+  /* Sizes: favicon 16/32, touch icon 60 (as iOS shows a 180px file), manifest 128. */
+  .sizes { display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+  .sizes figure { margin: 0; display: grid; justify-items: center; gap: 6px; }
+  .sizes figcaption { color: var(--ink-secondary); }
+  .home { border-radius: 14px; overflow: hidden; }
+  .home-big { border-radius: 28px; overflow: hidden; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- A: a ruled page with a spark at its corner. Writing, then the insight. -->
+  <symbol id="mark-a" viewBox="0 0 32 32">
+    <rect class="t" width="32" height="32" rx="7"/>
+    <rect class="g" x="7" y="7.5" width="13.5" height="18.5" rx="2.5" stroke-width="2.2"/>
+    <path class="g" d="M10.5 13.5H17M10.5 17.5H17M10.5 21.5H14" stroke-width="2.2"/>
+    <path class="k" d="M22.8 4.4C23.3 7.9 24.5 9.1 28 9.6C24.5 10.1 23.3 11.3 22.8 14.8C22.3 11.3 21.1 10.1 17.6 9.6C21.1 9.1 22.3 7.9 22.8 4.4Z"/>
+  </symbol>
+  <!-- D: a fountain-pen nib, tip down-left: slit, breather hole and the shoulder line knocked out. -->
+  <symbol id="mark-d" viewBox="0 0 32 32">
+    <rect class="t" width="32" height="32" rx="7"/>
+    <g transform="rotate(45 16 16)">
+      <path class="f" d="M16 27.5L10.4 15.6C9.9 14.4 10.2 13.1 11.2 12.4L12.8 11.2V5.8H19.2V11.2L20.8 12.4C21.8 13.1 22.1 14.4 21.6 15.6Z"/>
+      <path class="x" d="M16 18.2V27M12.8 10.6H19.2" stroke-width="1.5"/>
+      <circle class="tf" cx="16" cy="16.4" r="1.9"/>
+    </g>
+  </symbol>
+  <!-- E: a ruled page with a pen writing its last line. -->
+  <symbol id="mark-e" viewBox="0 0 32 32">
+    <rect class="t" width="32" height="32" rx="7"/>
+    <rect class="g" x="6" y="6" width="15" height="20" rx="2.5" stroke-width="2.2"/>
+    <path class="g" d="M9.5 12H17.5M9.5 16H17.5M9.5 20H13" stroke-width="2.2"/>
+    <g transform="translate(21.5 15.5) rotate(40)">
+      <path class="k" d="M-2.4 -9.5H2.4V3L0 8.5L-2.4 3Z"/>
+      <path class="x" d="M-2.4 -5.6H2.4M-2.4 3H2.4" stroke-width="1.2"/>
+    </g>
+  </symbol>
+</svg>
+
+<main class="mockup-page">
+  <header class="mockup-head">
+    <p class="caption mockup-meta">Mockup · 2026-11-26 · Journal</p>
+    <h1 class="title-1">App icon: colour</h1>
+    <p class="caption mockup-meta">Round 3. 1. The mark (decided: E, pen and paper). 2. Its colour (open).</p>
+    <p class="body">Which colour should the pen-and-paper icon be? The app keeps its violet accent in every option: the active nav item and the “New entry” button below are drawn in it, so each icon is seen beside it.</p>
+    <p class="body mockup-meta">Moving the whole app’s accent to blue or green is a separate, larger change (violet appears about 400 times across the views).</p>
+  </header>
+
+  <section class="option" id="v" data-recommended aria-labelledby="v-h" data-mark="mark-e">
+    <div class="option-head">
+      <h2 class="title-2" id="v-h">V. Violet, as today</h2>
+      <span class="label option-tag">Option V</span>
+    </div>
+    <p class="body">#755ff8 (violet-600). The icon is the app’s own accent, so it matches the active nav, the buttons and the badges. No other change.</p>
+  </section>
+
+  <section class="option" id="b" aria-labelledby="b-h" data-mark="mark-e">
+    <div class="option-head">
+      <h2 class="title-2" id="b-h">B. Blue</h2>
+      <span class="label option-tag">Option B</span>
+    </div>
+    <p class="body">#2563eb (blue-600). Calmer and more “notebook ink” than violet. The app itself stays violet, so the icon becomes a second brand colour beside it.</p>
+  </section>
+
+  <section class="option" id="g" aria-labelledby="g-h" data-mark="mark-e">
+    <div class="option-head">
+      <h2 class="title-2" id="g-h">G. Green</h2>
+      <span class="label option-tag">Option G</span>
+    </div>
+    <p class="body">#15803d (green-700). Warm and distinct in a row of tabs. The app stays violet, and green already means “succeeded” on the Jobs page, so the icon would borrow a status colour.</p>
+  </section>
+</main>
+
+<template id="stage">
+  <div class="panes">
+    <div class="pane" data-theme="light"></div>
+    <div class="pane" data-theme="dark"></div>
+  </div>
+  <ul class="measures caption">
+    <li data-fg="var(--candidate-glyph)" data-bg="var(--candidate-tile)" data-min="3">Glyph on tile</li>
+    <li data-fg="var(--candidate-tile)" data-bg="var(--panel)" data-min="3">Tile on sidebar</li>
+    <li data-fg="var(--candidate-tile)" data-bg="var(--tile)">Tile on an inactive tab (information: a logo has no contrast duty)</li>
+  </ul>
+</template>
+
+<template id="pane">
+  <p class="label pane-label"></p>
+  <div class="tabs">
+    <div class="tab active"><svg class="mark" width="16" height="16"><use/></svg><span>Journal</span></div>
+    <div class="tab"><i class="other"></i><span>Inbox (3)</span></div>
+  </div>
+  <div class="shells">
+    <nav class="sidebar wide" aria-label="Expanded sidebar">
+      <div class="brand"><svg class="mark" width="32" height="32"><use/></svg><h3>JOURNAL INSIGHTS TOOL</h3></div>
+      <ul class="nav"><li class="on"><i></i><span>Dashboard</span></li><li><i></i><span>Entries</span></li><li><i></i><span>Storylines</span></li></ul>
+      <button class="cta" type="button">New entry</button>
+    </nav>
+    <nav class="sidebar narrow" aria-label="Collapsed sidebar">
+      <div class="brand"><svg class="mark" width="32" height="32"><use/></svg></div>
+      <ul class="nav"><li class="on"><i></i><span>Dashboard</span></li><li><i></i><span>Entries</span></li><li><i></i><span>Storylines</span></li></ul>
+    </nav>
+  </div>
+  <div class="sizes">
+    <figure><svg class="mark" width="16" height="16"><use/></svg><figcaption class="caption">16</figcaption></figure>
+    <figure><svg class="mark" width="32" height="32"><use/></svg><figcaption class="caption">32</figcaption></figure>
+    <figure><svg class="mark home" width="60" height="60"><use/></svg><figcaption class="caption">Home screen</figcaption></figure>
+    <figure><svg class="mark home-big" width="128" height="128"><use/></svg><figcaption class="caption">128</figcaption></figure>
+  </div>
+</template>
+
+<script>
+  // Stamp the stage into each option, pointing every <use> at that option's symbol.
+  for (const option of document.querySelectorAll('.option[data-mark]')) {
+    const stage = document.getElementById('stage').content.cloneNode(true)
+    for (const pane of stage.querySelectorAll('.pane')) {
+      pane.append(document.getElementById('pane').content.cloneNode(true))
+      pane.querySelector('.pane-label').textContent = pane.dataset.theme === 'dark' ? 'Dark' : 'Light'
+    }
+    for (const use of stage.querySelectorAll('use')) use.setAttribute('href', '#' + option.dataset.mark)
+    option.append(stage)
+  }
+</script>
+
+<script>
+  // Measures: WCAG contrast of each pairing in each theme, resolved inside the option.
+  (() => {
+    const rgb = (value, scope, theme) => {
+      const probe = document.createElement('span')
+      probe.dataset.theme = theme
+      probe.style.color = value
+      scope.append(probe)
+      const parts = getComputedStyle(probe).color.match(/[\d.]+/g).map(Number)
+      probe.remove()
+      return parts.slice(0, 3)
+    }
+    const lum = ([r, g, b]) => [r, g, b]
+      .map((c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 })
+      .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0)
+    const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05) }
+    for (const li of document.querySelectorAll('.measures li[data-fg]')) {
+      const scope = li.closest('.option') || document.body
+      const min = Number(li.dataset.min || 0)
+      const results = ['light', 'dark'].map((theme) => {
+        const r = ratio(rgb(li.dataset.fg, scope, theme), rgb(li.dataset.bg, scope, theme))
+        return { theme, r, ok: !min || r >= min }
+      })
+      li.dataset.pass = results.every((x) => x.ok) ? 'yes' : 'no'
+      li.append(`: ${results.map((x) => `${x.theme} ${x.r.toFixed(1)}:1${x.ok ? '' : ' (below ' + min + ':1)'}`).join(', ')}`)
+    }
+  })()
+</script>

@@ -310,7 +310,7 @@ function matchExplanation(item: SearchResultItem): string {
       </div>
       <button
         type="submit"
-        class="btn bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
+        class="btn bg-accent-500 hover:bg-accent-600 text-white disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
         data-testid="search-submit"
         :disabled="store.loading"
       >
@@ -346,11 +346,11 @@ function matchExplanation(item: SearchResultItem): string {
          not another match. -->
     <div
       v-if="showAnswerPanel"
-      class="mb-4 rounded-lg border-2 border-violet-400 dark:border-violet-600 bg-violet-50/60 dark:bg-violet-900/15 p-4 shadow-sm"
+      class="mb-4 rounded-lg border-2 border-accent-400 dark:border-accent-600 bg-accent-50/60 dark:bg-accent-900/15 p-4 shadow-sm"
       data-testid="answer-panel"
     >
       <div
-        class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300"
+        class="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-accent-700 dark:text-accent-300"
       >
         Answer
       </div>
@@ -382,7 +382,7 @@ function matchExplanation(item: SearchResultItem): string {
             v-for="c in store.answerCitations"
             :key="c.entry_id"
             :to="`/entries/${c.entry_id}`"
-            class="text-xs px-2 py-1 rounded bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 hover:bg-violet-100"
+            class="text-xs px-2 py-1 rounded bg-accent-50 dark:bg-accent-900/30 text-accent-700 dark:text-accent-300 hover:bg-accent-100"
             data-testid="answer-citation"
           >
             {{ c.entry_date }}
@@ -391,7 +391,7 @@ function matchExplanation(item: SearchResultItem): string {
         <div v-if="store.answer" class="mt-3">
           <button
             type="button"
-            class="text-sm font-medium text-violet-700 dark:text-violet-300 hover:underline"
+            class="text-sm font-medium text-accent-700 dark:text-accent-300 hover:underline"
             data-testid="continue-conversation"
             @click="continueConversation"
           >
@@ -415,7 +415,7 @@ function matchExplanation(item: SearchResultItem): string {
       data-testid="loading-state"
     >
       <svg
-        class="animate-spin h-8 w-8 text-violet-500"
+        class="animate-spin h-8 w-8 text-accent-fg"
         xmlns="http://www.w3.org/2000/svg"
         fill="none"
         viewBox="0 0 24 24"
@@ -479,7 +479,7 @@ function matchExplanation(item: SearchResultItem): string {
                   ? { chunk: String(topChunkIndex(item)) }
                   : {},
             }"
-            class="text-violet-600 dark:text-violet-400 hover:underline font-medium text-sm"
+            class="text-accent-600 dark:text-accent-400 hover:underline font-medium text-sm"
             data-testid="search-result-link"
           >
             {{ item.entry_date }}
@@ -512,7 +512,7 @@ function matchExplanation(item: SearchResultItem): string {
           data-testid="match-explanation"
         >
           <span
-            class="text-xs font-medium text-violet-500 dark:text-violet-400"
+            class="text-xs font-medium text-accent-500 dark:text-accent-400"
           >
             {{ matchExplanation(item) }}
           </span>

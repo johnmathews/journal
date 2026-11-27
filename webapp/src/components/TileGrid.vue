@@ -126,7 +126,7 @@ function titleFor(id: TId): string {
           v-for="id in hiddenTiles"
           :key="id"
           type="button"
-          class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:border-violet-400 dark:hover:border-violet-500 transition-colors"
+          class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:border-accent-400 dark:hover:border-accent-500 transition-colors"
           :data-testid="`${testIdPrefix}-restore-tile-${id}`"
           @click="emit('show', id)"
         >
@@ -146,7 +146,7 @@ function titleFor(id: TId): string {
         </button>
         <button
           type="button"
-          class="ml-2 text-xs text-violet-500 hover:text-violet-600 dark:text-violet-400 dark:hover:text-violet-300 font-medium"
+          class="ml-2 text-xs text-accent-500 hover:text-accent-600 dark:text-accent-400 dark:hover:text-accent-300 font-medium"
           :data-testid="`${testIdPrefix}-reset-layout`"
           @click="emit('reset')"
         >
