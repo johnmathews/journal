@@ -228,7 +228,10 @@ describe('DashboardView', () => {
     const wrapper = mountView()
     await flushPromises()
     expect(wrapper.find('[data-testid="dashboard-view"]').exists()).toBe(true)
-    expect(mockFetch).toHaveBeenCalledTimes(1)
+    // An empty account: the default range, then the three wider ranges
+    // the first load tries before returning to the default.
+    expect(mockFetch).toHaveBeenCalledTimes(4)
+    expect(useDashboardStore().range).toBe('last_3_months')
   })
 
   it('shows the explicit empty-state message below the threshold', async () => {
@@ -248,6 +251,71 @@ describe('DashboardView', () => {
     expect(
       wrapper.find('[data-testid="dashboard-entry-count-in-range"]').text(),
     ).toBe('2')
+  })
+
+  describe('when the default range is too quiet (option C)', () => {
+    // Prod on 27 Nov 2026: 2 entries in the last 3 months, 32 in the last 6.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2026-11-27T12:00:00Z'))
+      mockFetch.mockImplementation(async (params) => {
+        const n = params?.from === '2026-08-27' ? 2 : 32
+        return {
+          from: params?.from ?? null,
+          to: params?.to ?? null,
+          bin: 'week',
+          bins: Array.from({ length: n }, (_, i) => ({
+            bin_start: `2026-10-${String((i % 4) * 7 + 5).padStart(2, '0')}`,
+            entry_count: 1,
+            total_words: 300,
+          })),
+        }
+      })
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('opens on the last 6 months and says why', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+
+      expect(
+        wrapper
+          .find('[data-testid="dashboard-range-last_6_months"]')
+          .attributes('aria-pressed'),
+      ).toBe('true')
+      const note = wrapper.find('[data-testid="dashboard-range-widened"]')
+      expect(note.exists()).toBe(true)
+      expect(note.text()).toContain(
+        'Showing the last 6 months. The last 3 months have 2 entries, and the charts need 5.',
+      )
+      expect(wrapper.find('[data-testid="dashboard-empty"]').exists()).toBe(
+        false,
+      )
+    })
+
+    it('the note links back to the last 3 months', async () => {
+      const wrapper = mountView()
+      await flushPromises()
+
+      const back = wrapper.find('[data-testid="dashboard-range-widened-undo"]')
+      expect(back.text()).toBe('Show the last 3 months')
+      await back.trigger('click')
+      await flushPromises()
+
+      expect(
+        wrapper
+          .find('[data-testid="dashboard-range-last_3_months"]')
+          .attributes('aria-pressed'),
+      ).toBe('true')
+      expect(
+        wrapper.find('[data-testid="dashboard-range-widened"]').exists(),
+      ).toBe(false)
+      expect(wrapper.find('[data-testid="dashboard-empty"]').exists()).toBe(
+        true,
+      )
+    })
   })
 
   it('renders both chart cards when the threshold is met', async () => {
