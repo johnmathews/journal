@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
@@ -123,9 +123,9 @@ describe('App', () => {
     await router.isReady()
     mount(App, { global: { plugins: [pinia, router] } })
     await flushPromises()
-    // Signed out from the start: nothing to load, nothing to reset.
+    // Signed out from the start: nothing to load, and back to the default.
     expect(load).not.toHaveBeenCalled()
-    expect(reset).not.toHaveBeenCalled()
+    expect(reset).toHaveBeenCalledTimes(1)
 
     authStore.user = { id: 7 } as typeof authStore.user
     await flushPromises()
@@ -133,6 +133,60 @@ describe('App', () => {
 
     authStore.user = null
     await flushPromises()
-    expect(reset).toHaveBeenCalledTimes(1)
+    expect(reset).toHaveBeenCalledTimes(2)
+  })
+
+  describe('a cached accent on a shared browser', () => {
+    beforeEach(() => {
+      // What index.html's pre-paint script did for the previous user.
+      localStorage.setItem('accent', 'graphite')
+      document.documentElement.dataset.accent = 'graphite'
+    })
+    afterEach(() => {
+      localStorage.clear()
+      delete document.documentElement.dataset.accent
+    })
+
+    it('goes back to violet when the session turns out to have expired', async () => {
+      const pinia = createPinia()
+      setActivePinia(pinia)
+      const authStore = useAuthStore()
+      const router = createTestRouter()
+      router.push('/login')
+      await router.isReady()
+      mount(App, { global: { plugins: [pinia, router] } })
+      await flushPromises()
+
+      // /api/auth/me answered 401: the auth check ends with nobody signed in.
+      authStore.initialized = true
+      await flushPromises()
+
+      expect(document.documentElement.dataset.accent).toBe('violet')
+      expect(localStorage.getItem('accent')).toBeNull()
+    })
+
+    it("keeps a returning user's accent while their session is checked", async () => {
+      const pinia = createPinia()
+      setActivePinia(pinia)
+      const authStore = useAuthStore()
+      const appearance = useAppearanceStore()
+      const load = vi.spyOn(appearance, 'load').mockResolvedValue()
+      const reset = vi.spyOn(appearance, 'reset')
+      const router = createTestRouter()
+      router.push('/')
+      await router.isReady()
+      mount(App, { global: { plugins: [pinia, router] } })
+      await flushPromises()
+      // Before the auth check answers, the cached colour stays: no violet flash.
+      expect(reset).not.toHaveBeenCalled()
+      expect(document.documentElement.dataset.accent).toBe('graphite')
+
+      authStore.user = { id: 7 } as typeof authStore.user
+      authStore.initialized = true
+      await flushPromises()
+      expect(load).toHaveBeenCalledTimes(1)
+      expect(reset).not.toHaveBeenCalled()
+      expect(document.documentElement.dataset.accent).toBe('graphite')
+    })
   })
 })

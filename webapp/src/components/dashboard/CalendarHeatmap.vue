@@ -141,13 +141,24 @@ const heatmapThresholds = computed(() => {
   return { p25: pct(0.25), p50: pct(0.5), p75: pct(0.75) }
 })
 
+/** A day with no words. */
+const EMPTY_COLOUR = 'bg-gray-100 dark:bg-gray-700'
+
+/** One colour per quantile bucket, fewest words first. The legend draws these same classes. */
+const BUCKET_COLOURS = [
+  'bg-accent-heat-low dark:bg-accent-300/40', // ≤ p25 (the 200; graphite's 300, accents.css)
+  'bg-accent-400 dark:bg-accent-400/60', // ≤ p50
+  'bg-accent-500 dark:bg-accent-500/70', // ≤ p75
+  'bg-accent-700 dark:bg-accent-400', // above p75
+] as const
+
 function heatmapColor(words: number): string {
-  if (words === 0) return '' // handled by class
+  if (words === 0) return EMPTY_COLOUR
   const { p25, p50, p75 } = heatmapThresholds.value
-  if (words <= p25) return 'bg-accent-200 dark:bg-accent-300/40'
-  if (words <= p50) return 'bg-accent-400 dark:bg-accent-400/60'
-  if (words <= p75) return 'bg-accent-500 dark:bg-accent-500/70'
-  return 'bg-accent-700 dark:bg-accent-400'
+  if (words <= p25) return BUCKET_COLOURS[0]
+  if (words <= p50) return BUCKET_COLOURS[1]
+  if (words <= p75) return BUCKET_COLOURS[2]
+  return BUCKET_COLOURS[3]
 }
 
 function heatmapTooltip(cell: HeatmapCell): string {
@@ -248,18 +259,13 @@ const WEEKDAY_LABELS = ['Mon', '', 'Wed', '', 'Fri', '', 'Sun']
                 )
               "
               class="w-[18px] h-[18px] rounded-sm"
-              :class="[
+              :class="
                 heatmapColor(
                   calendarGrid.cells.find(
                     (c) => c.weekIndex === w - 1 && c.dayOfWeek === dow - 1,
                   )!.total_words,
-                ),
-                calendarGrid.cells.find(
-                  (c) => c.weekIndex === w - 1 && c.dayOfWeek === dow - 1,
-                )!.total_words === 0
-                  ? 'bg-gray-100 dark:bg-gray-700'
-                  : '',
-              ]"
+                )
+              "
               :title="
                 heatmapTooltip(
                   calendarGrid.cells.find(
@@ -282,16 +288,10 @@ const WEEKDAY_LABELS = ['Mon', '', 'Wed', '', 'Fri', '', 'Sun']
     >
       <span>Fewer words</span>
       <div
-        class="w-[18px] h-[18px] rounded-sm bg-gray-100 dark:bg-gray-700"
-      ></div>
-      <div
-        class="w-[18px] h-[18px] rounded-sm bg-accent-200 dark:bg-accent-300/40"
-      ></div>
-      <div
-        class="w-[18px] h-[18px] rounded-sm bg-accent-400 dark:bg-accent-400/60"
-      ></div>
-      <div
-        class="w-[18px] h-[18px] rounded-sm bg-accent-600 dark:bg-accent-500/80"
+        v-for="colour in [EMPTY_COLOUR, ...BUCKET_COLOURS]"
+        :key="colour"
+        class="w-[18px] h-[18px] rounded-sm"
+        :class="colour"
       ></div>
       <span>More words</span>
     </div>

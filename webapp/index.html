@@ -16,10 +16,12 @@
   <body>
     <script>
       // The user's accent colour (Settings → Appearance), cached by stores/appearance.ts, applied
-      // before first paint so the page doesn't flash violet while the app loads.
+      // before first paint so the page doesn't flash violet while the app loads. Only the ids in
+      // src/brand/accents.ts apply (a test keeps this copy in step); anything else stays violet.
       try {
+        var accents = ['violet', 'green', 'emerald', 'blue', 'rose', 'graphite'];
         var accent = localStorage.getItem('accent');
-        if (accent && /^[a-z]+$/.test(accent)) {
+        if (accents.indexOf(accent) !== -1) {
           document.documentElement.dataset.accent = accent;
           document.querySelectorAll('link[data-icon]').forEach(function (link) {
             link.href = '/icons/' + accent + '/' + link.dataset.icon;

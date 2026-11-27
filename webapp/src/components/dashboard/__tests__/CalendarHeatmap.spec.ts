@@ -145,6 +145,43 @@ describe('CalendarHeatmap', () => {
     ).toBe(true)
   })
 
+  it('has one legend swatch per cell colour, in the same order, top bucket included', async () => {
+    // Non-zero words 50/100/300/800/2000 → p25=100, p50=300, p75=800: one day per bucket.
+    mockCalendar.mockResolvedValue({
+      from: '2026-03-02',
+      to: '2026-03-09',
+      days: [
+        { date: '2026-03-02', entry_count: 1, total_words: 50 },
+        { date: '2026-03-03', entry_count: 1, total_words: 100 },
+        { date: '2026-03-04', entry_count: 1, total_words: 300 },
+        { date: '2026-03-05', entry_count: 1, total_words: 800 },
+        { date: '2026-03-06', entry_count: 1, total_words: 2000 },
+        { date: '2026-03-07', entry_count: 0, total_words: 0 },
+      ],
+    })
+    const wrapper = await mountWithCalendar()
+    const colours = (classes: string[]) =>
+      classes.filter((c) => /^(dark:)?bg-/.test(c)).join(' ')
+    const cellColours = [
+      '2026-03-07', // empty
+      '2026-03-02', // ≤ p25
+      '2026-03-04', // ≤ p50
+      '2026-03-05', // ≤ p75
+      '2026-03-06', // top
+    ].map((date) =>
+      colours(
+        wrapper
+          .find(`[data-testid="dashboard-calendar-cell-${date}"]`)
+          .classes(),
+      ),
+    )
+    expect(new Set(cellColours).size).toBe(5)
+    const legendColours = wrapper
+      .findAll('[data-testid="dashboard-calendar-legend"] > div')
+      .map((swatch) => colours(swatch.classes()))
+    expect(legendColours).toEqual(cellColours)
+  })
+
   it('shows word count in tooltip text', async () => {
     mockCalendar.mockResolvedValue({
       from: '2026-03-02',

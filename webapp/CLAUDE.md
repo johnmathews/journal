@@ -58,7 +58,7 @@ way. Plain `id`s are only for form fields a `<label for>` points at. Rules and p
 
 ## Git Hooks
 
-The repo's tracked pre-push hook lives at the monorepo root (`../.githooks/pre-push`); `npm install` enables it via the `prepare` script. When a push touches `webapp/` or `contract/` code, it runs `contract:check` (generated API types up to date) + `format:check` (Prettier) + lint + `test:coverage` + build.
+The repo's tracked pre-push hook lives at the monorepo root (`../.githooks/pre-push`); `npm install` enables it via the `prepare` script. When a push touches `webapp/`, `contract/` or `../brand/design-system/project/assets/AppIcon/` code, it runs `contract:check` (generated API types up to date) + `icon:check` (app icon set up to date) + `format:check` (Prettier) + lint + `test:coverage` + build.
 
 ## Coverage Thresholds
 

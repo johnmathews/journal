@@ -1,6 +1,7 @@
 // The accent colours a user can pick in Settings → Appearance. Each id has a block of
-// `--accent-*` variables in src/assets/accents.css (a test checks the two agree); `swatch` is the
-// scale's 500 step, drawn in the picker. Violet, the Mosaic template's colour, is the default.
+// `--accent-*` variables in src/assets/accents.css, and index.html's pre-paint script carries a
+// copy of the ids (tests check both agree); `swatch` is the scale's 500 step, drawn in the picker.
+// Violet, the Mosaic template's colour, is the default.
 
 export const ACCENTS = [
   { id: 'violet', name: 'Violet', swatch: '#8470ff' },

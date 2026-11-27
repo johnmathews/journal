@@ -10,6 +10,10 @@
  * ring, border) that has no dark: variant of its own: 500 in light; in dark, 500 for violet and
  * 400 for the darker accents, whose 500 is too dark to read on a dark panel.
  *
+ * `accent-heat-low` is the writing heatmap's lowest step on light (CalendarHeatmap.vue): the 200,
+ * except graphite's 300. Graphite's near-neutral 200 sits at 1.12:1 against the empty-day gray-100;
+ * its 300 is 1.35:1, about violet's 1.39:1. (Dark mode, 300 at 40%, is already 1.99:1.)
+ *
  * Violet is the default and is the Mosaic template's scale, unchanged. Every other accent's 500
  * carries white text at 4.5:1 or better. Decided 2026-11-26:
  * brand/design-system/mockups/261126-appearance-setting.
@@ -29,6 +33,7 @@
   --accent-900: #2f227c;
   --accent-950: #1c1357;
   --accent-fg: var(--accent-500);
+  --accent-heat-low: var(--accent-200);
 }
 
 /* Green: the app icon's own colour (#15803d). */
@@ -102,6 +107,7 @@
   --accent-800: #172033;
   --accent-900: #0f172a;
   --accent-950: #0b1120;
+  --accent-heat-low: var(--accent-300);
 }
 
 /* In dark mode the darker accents draw foregrounds one step lighter (see accent-fg above). */

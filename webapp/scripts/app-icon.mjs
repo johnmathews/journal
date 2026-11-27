@@ -9,7 +9,8 @@
 // links at the user's. The root files (favicon.ico, favicon.svg, apple-touch-icon.png,
 // manifest.webmanifest) are the default accent's, for requests made before the app runs.
 // Writing the PNGs and .ico files needs rsvg-convert and ImageMagick
-// (`brew install librsvg imagemagick`); --check needs neither.
+// (`brew install librsvg imagemagick`); icon:gen checks for both before it writes anything, so a
+// missing tool leaves the set as it was. --check needs neither.
 
 import { execFileSync } from 'node:child_process'
 import {
@@ -67,6 +68,21 @@ export function sources() {
   return files
 }
 
+/** The raster tools rasterise() runs. */
+const RASTER_TOOLS = ['rsvg-convert', 'magick']
+
+/** The raster tools that can't be run from this PATH. */
+function missingTools() {
+  return RASTER_TOOLS.filter((cmd) => {
+    try {
+      execFileSync(cmd, ['--version'], { stdio: 'ignore' })
+      return false
+    } catch {
+      return true
+    }
+  })
+}
+
 function rasterise() {
   const run = (cmd, args) => execFileSync(cmd, args, { stdio: 'inherit' })
   const png = (svg, out, px) =>
@@ -109,6 +125,13 @@ function main() {
       )
     }
     return stale.length ? 1 : 0
+  }
+  const missing = missingTools()
+  if (missing.length) {
+    console.error(
+      `app-icon: ${missing.join(' and ')} not found, nothing written (brew install librsvg imagemagick)`,
+    )
+    return 1
   }
   mkdirSync(ASSETS, { recursive: true })
   for (const { id } of ACCENTS) mkdirSync(dirOf(id), { recursive: true })
