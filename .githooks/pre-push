@@ -3,8 +3,12 @@
 #
 # Runs the checks for each part the push touches:
 #   server/ or contract/  -> ruff + unit tests (integration tests need ChromaDB; CI runs them)
-#   webapp/ or contract/  -> generated API types up to date (contract:check), prettier check,
-#                            eslint, vitest with coverage thresholds, build
+#   webapp/, contract/ or brand/design-system/project/assets/AppIcon/
+#                         -> generated API types up to date (contract:check), app icon set up to
+#                            date (icon:check), prettier check, eslint, vitest with coverage
+#                            thresholds, build
+# The AppIcon folder holds master SVGs written by webapp's `npm run icon:gen`; webapp CI
+# (.github/workflows/webapp.yml) watches the same paths.
 # Docs, journal entries, Markdown and root files (.github/, CLAUDE.md) run nothing locally;
 # CI covers workflows.
 #
@@ -42,7 +46,7 @@ code="$(grep -vE '^(server|webapp)/(docs|journal)/|\.md$' <<<"$changed" || true)
 run_server=false
 run_webapp=false
 grep -qE '^(server|contract)/' <<<"$code" && run_server=true
-grep -qE '^(webapp|contract)/' <<<"$code" && run_webapp=true
+grep -qE '^(webapp|contract)/|^brand/design-system/project/assets/AppIcon/' <<<"$code" && run_webapp=true
 
 if $run_server; then
   echo "pre-push: server changed, running ruff and unit tests..."
@@ -56,7 +60,7 @@ if $run_webapp; then
   (cd "$root/webapp" && npm run contract:check && npm run icon:check && npm run format:check && npm run lint \
     && npm run test:coverage && npm run build)
 else
-  echo "pre-push: no webapp/ or contract/ code changes, skipping webapp checks."
+  echo "pre-push: no webapp/, contract/ or AppIcon changes, skipping webapp checks."
 fi
 
 echo "pre-push: all checks passed."

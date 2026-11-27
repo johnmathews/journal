@@ -28,6 +28,7 @@
   --color-accent-900: var(--accent-900);
   --color-accent-950: var(--accent-950);
   --color-accent-fg: var(--accent-fg);
+  --color-accent-heat-low: var(--accent-heat-low);
 }
 
 @theme {

@@ -125,7 +125,7 @@ Pinia stores for server state management.
 - **notifications** — Per-user notification preferences (Pushover etc.) backed by `/api/notifications/preferences`.
 - **settings** — Runtime settings + pricing config consumed by the admin pages. Also the source of the server-driven feature flags: `ensureLoaded()` loads settings at most once (joining any in-flight load) so co-mounted panels can read `settings.features.strava_enabled` (Strava mothball, 2026-07-14) with a single fetch; flag readers fail closed (unknown = disabled).
 - **auth** — Cookie-session authentication state. See `docs/auth.md`.
-- **appearance** — The user's accent colour, which also colours the app icon. `load()` reads the `accent` preference (unknown or missing means violet), `setAccent(id)` applies it at once and saves it, going back to the last accent the account confirmed if the save fails (a load that answers after a pick is ignored), and `reset()` returns to violet on sign-out. `App.vue` calls `load` / `reset` as the signed-in user changes. Each change sets `data-accent` on `<html>`, points the icon links and theme colour at the accent's icon set, and keeps a `localStorage` copy for the pre-paint script in `index.html`.
+- **appearance** — The user's accent colour, which also colours the app icon. `load()` reads the `accent` preference (unknown or missing means violet), `setAccent(id)` applies it at once and saves it, going back to the last accent the account confirmed if the save fails (a load that answers after a pick is ignored), and `reset()` returns to violet. Once the auth check has answered, `App.vue` calls `load` when a user is signed in and `reset` when nobody is (sign-out, expired session). Each change sets `data-accent` on `<html>`, points the icon links and theme colour at the accent's icon set, and keeps a `localStorage` copy for the pre-paint script in `index.html`.
 - **storylines** — Storyline list + detail state with a `loading` / `detailLoading` split, a `chapterCache` (per-chapter content, valid because published chapters are immutable), a computed `totalUnread` (sidebar badge), a single `updating` flag tied to in-flight `storyline_update` jobs, and per-action flags/errors (`creating`, `savingAnchors`, `savingName`, `actionError`). Actions wrap `src/api/storylines.ts`: load list/detail/chapter, `createStoryline` (tracks the bootstrap job), `refresh`, `unpublishNewest`, optimistic `markRead` (+`markUnread`), `renameChapter`, `setAnchors` (server response authoritative; chain `refresh()` for a fresh draft), rename/delete storyline.
 - **fitness** — `/fitness` dashboard state: activities and daily-wellness series for the selected range/bin (with `dedupActivities` collapsing the same workout uploaded via both Garmin and Strava), per-source sync status + `startSync` with a scheduled status refresh, and the tile-layout preferences (width/order/visibility, debounce-persisted via the same preferences endpoint as the dashboard). Connect/disconnect/OAuth actions are not in the store — the Settings cards and `StravaCallbackView` call `src/api/fitness.ts` directly.
 - **dashboard** — Dashboard filter state (range + bin) and the most recently fetched writing-stats bins, plus a parallel mood surface: `moodDimensions` (fetched once from `/api/dashboard/mood-dimensions` on mount), `moodBins` (fetched from `/api/dashboard/mood-trends` on every range/bin change), and `selectedMoodDimensions: Set<string>` for per-session facet toggles. Empty selection means "show every dimension" (the user-visible "no selection = show all" mental model); non-empty selects a subset. Default on first load is `Set(['agency'])` so the chart lands on a single line. Group-level bulk actions are powered by `moodGroupSelectionState(memberNames)` (returns `'all' | 'some' | 'none'`) and `toggleMoodGroup(memberNames)` — clicking a group chip adds every member when none are selected, otherwise removes every member. Group definitions live in `src/utils/mood-groups.ts` (mirrors the comment in `mood-dimensions.toml`). Includes drill-down state (`drillPeriod`, `drillDimension`, `drillEntries`) and actions (`loadDrillDown`, `clearDrillDown`, `periodEndDate`) so clicking a mood chart data point on the dashboard shows the same entry-level detail as the Insights page. `loadMoodDimensions()` swallows errors (dimension-load failure is interpreted as "mood scoring not configured" and hides the card; it's not a loud error). `loadMoodTrends()` surfaces `ApiRequestError.message` verbatim like `loadWritingStats`. `toggleMoodDimension(name)` flips a single dimension's selection state and creates a new Set instance so Vue reactivity fires on the change. Initial state is `last_3_months` + `week`. A pure `rangeToDates(range, now)` helper (also exported for tests) converts a `DashboardRange` option into a concrete ISO `{from, to}` pair against an injectable clock.
@@ -207,8 +207,11 @@ gray-600 `#4b5563`, gray-800 `#1f2937`, gray-900 `#111827`.
 
 **Accent.** Every accent-coloured element (primary buttons, links, the active nav item, unread
 badges, selected chips, checkboxes, focus rings) uses an `accent-N` utility, never `violet-N` or
-another fixed hue, so it follows the user's choice. A test fails on any `*-violet-N` class in
-`src/`.
+another fixed hue, so it follows the user's choice. A test (`src/brand/__tests__/brand.spec.ts`)
+fails on a violet utility in any `.vue`, `.ts` or `.css` file under `src/`: every colour prefix
+(`bg`, `text`, `border-*`, `ring`, `ring-offset`, `outline`, `divide`, `placeholder`, `fill`,
+`stroke`, gradient stops, `decoration`, `accent`, `caret`, the shadows), any variant chain
+(`dark:hover:`), and `--color-violet-N`.
 
 - The scales live in `src/assets/accents.css`, one `:root[data-accent='…']` block per colour;
   the ids, names and swatches in `src/brand/accents.ts`. A test checks the two agree.
@@ -217,10 +220,18 @@ another fixed hue, so it follows the user's choice. A test fails on any `*-viole
 - Colours: violet (default, the Mosaic scale, unchanged, including its 3.7:1 white-on-500 button
   text), green, emerald, blue, rose, graphite. Every accent except violet carries white button
   text at 4.5:1 or better.
+- `accent-heat-low` is the writing heatmap's lowest step on light (`CalendarHeatmap.vue`): each
+  accent's 200, except graphite's 300, because graphite's near-neutral 200 was 1.12:1 against the
+  empty-day `gray-100` (its 300 is 1.35:1; violet's 200 is 1.39:1). A test holds graphite at 1.3:1
+  or better in light and dark. The heatmap's legend draws the same bucket classes as its cells.
 - `accent-fg` is for a foreground (text, ring, border) with no `dark:` variant of its own: 500 in
   light; in dark, 500 for violet and 400 for the darker accents, whose 500 is too dark on a dark
   panel. Give a new foreground either a `dark:` variant or `accent-fg`.
 - Saved per user as the `accent` preference (`PATCH /api/users/me/preferences`); no server change.
+- The accent belongs to a signed-in user. `App.vue` waits for the auth check, then loads the user's
+  accent, or resets to violet (and drops the cached copy) when nobody is signed in: sign-out, a 401
+  from an expired session, or a page load whose session has gone. Until the check answers, the
+  cached colour stays, so a returning user sees no violet flash.
 - Chart series colours (`#8b5cf6` and friends in `components/dashboard/shared.ts`) are data
   colours, not the accent, and stay fixed.
 
@@ -235,10 +246,14 @@ colour, so it follows the setting too.
   per accent in `public/icons/<id>/` (`favicon.svg`, `favicon.ico` at 16/32/48,
   `apple-touch-icon.png`, manifest icons, `manifest.webmanifest`), master SVGs in
   `../brand/design-system/project/assets/AppIcon/`, and the default accent's copies at the
-  `public/` root for requests made before the app runs. `npm run icon:check` fails when a text
-  file is stale; CI and the pre-push hook run it.
+  `public/` root for requests made before the app runs. It checks for both tools first and writes
+  nothing if either is missing. `npm run icon:check` fails when a text file is stale; CI and the
+  pre-push hook run it, also for a push that touches only the AppIcon folder.
 - `index.html` links the violet set with `data-icon` attributes. The pre-paint script and the
-  appearance store point them, and `<meta name="theme-color">`, at the user's accent.
+  appearance store point them, and `<meta name="theme-color">`, at the user's accent. The
+  pre-paint script carries its own copy of the accent ids (it runs before any module) and applies
+  only those; a test checks the copy matches `accents.ts` and runs the script on known and unknown
+  ids.
 - A phone copies the icon when Journal is added to the home screen, so an icon already installed
   keeps the colour it had then.
 

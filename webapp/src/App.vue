@@ -10,12 +10,16 @@ const appearanceStore = useAppearanceStore()
 const route = useRoute()
 
 // The accent colour follows the signed-in user: load theirs on sign-in, and go back to the
-// default on sign-out so the next person on this browser starts there.
+// default whenever nobody is signed in (sign-out, a 401 from an expired session, or an auth check
+// that finds no session), so the login page on a shared browser doesn't keep the last user's
+// colour. Nothing happens until the auth check answers: a returning user keeps the cached colour
+// index.html painted, with no violet flash.
 watch(
-  () => authStore.user?.id,
-  (id, previous) => {
-    if (id !== undefined) appearanceStore.load()
-    else if (previous !== undefined) appearanceStore.reset()
+  () => (authStore.initialized ? (authStore.user?.id ?? null) : undefined),
+  (id) => {
+    if (id === undefined) return
+    if (id === null) appearanceStore.reset()
+    else appearanceStore.load()
   },
   { immediate: true },
 )
