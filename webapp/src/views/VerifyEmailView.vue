@@ -57,7 +57,7 @@ onMounted(async () => {
         <!-- Loading state -->
         <div v-if="loading">
           <svg
-            class="animate-spin h-8 w-8 mx-auto text-violet-500"
+            class="animate-spin h-8 w-8 mx-auto text-accent-fg"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
@@ -109,7 +109,7 @@ onMounted(async () => {
           <div class="mt-6">
             <RouterLink
               to="/"
-              class="btn bg-violet-500 hover:bg-violet-600 text-white"
+              class="btn bg-accent-500 hover:bg-accent-600 text-white"
             >
               Go to Dashboard
             </RouterLink>
@@ -144,7 +144,7 @@ onMounted(async () => {
           <div class="mt-6">
             <RouterLink
               to="/login"
-              class="btn bg-violet-500 hover:bg-violet-600 text-white"
+              class="btn bg-accent-500 hover:bg-accent-600 text-white"
             >
               Go to Sign In
             </RouterLink>

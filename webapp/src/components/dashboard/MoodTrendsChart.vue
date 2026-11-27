@@ -410,9 +410,9 @@ onUnmounted(() => {
           <span
             class="inline-block w-2.5 h-2.5 rounded-full border border-gray-400 dark:border-gray-500"
             :class="{
-              'bg-violet-500 border-violet-500':
+              'bg-accent-500 border-accent-fg':
                 groupSelectionState(g.group.members) === 'all',
-              'bg-gradient-to-r from-violet-500 from-50% to-transparent to-50% border-violet-500':
+              'bg-gradient-to-r from-accent-500 from-50% to-transparent to-50% border-accent-fg':
                 groupSelectionState(g.group.members) === 'some',
             }"
             aria-hidden="true"

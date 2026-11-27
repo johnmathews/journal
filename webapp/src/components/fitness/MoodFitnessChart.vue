@@ -337,7 +337,7 @@ onBeforeUnmount(() => chart?.destroy())
           class="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors capitalize"
           :class="
             metric === opt
-              ? 'bg-violet-500 text-white border-violet-500'
+              ? 'bg-accent-500 text-white border-accent-fg'
               : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
           "
           :data-testid="`mood-fitness-metric-${opt}`"

@@ -539,7 +539,7 @@ function statusBadgeClass(status: JobStatus): string {
     case 'queued':
       return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
     case 'running':
-      return 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300'
+      return 'bg-accent-100 text-accent-700 dark:bg-accent-500/20 dark:text-accent-300'
     case 'succeeded':
       return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
     case 'failed':
@@ -705,7 +705,7 @@ function isExpandable(job: Job): boolean {
 
       <button
         type="button"
-        class="text-sm text-violet-600 dark:text-violet-400 hover:underline"
+        class="text-sm text-accent-600 dark:text-accent-400 hover:underline"
         data-testid="refresh-button"
         @click="load"
       >
@@ -744,7 +744,7 @@ function isExpandable(job: Job): boolean {
             :key="col.key"
             class="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
             :class="{
-              'border-t-2 border-violet-400':
+              'border-t-2 border-accent-400':
                 dragOverIndex === index &&
                 dragIndex !== null &&
                 dragIndex !== index,
@@ -775,7 +775,7 @@ function isExpandable(job: Job): boolean {
               <input
                 type="checkbox"
                 :checked="isVisible(col.key)"
-                class="form-checkbox rounded text-violet-500"
+                class="form-checkbox rounded text-accent-fg"
                 :data-testid="`col-toggle-${col.key}`"
                 @change="toggleColumn(col.key)"
               />
@@ -786,7 +786,7 @@ function isExpandable(job: Job): boolean {
             class="border-t border-gray-200 dark:border-gray-700/60 mt-1 pt-1"
           >
             <button
-              class="w-full text-left px-3 py-1.5 text-sm text-violet-600 dark:text-violet-400 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              class="w-full text-left px-3 py-1.5 text-sm text-accent-600 dark:text-accent-400 hover:bg-gray-50 dark:hover:bg-gray-700/50"
               data-testid="columns-reset"
               @click="resetColumns"
             >
@@ -902,7 +902,7 @@ function isExpandable(job: Job): boolean {
                       name: 'entry-detail',
                       params: { id: String(entryId(job)) },
                     }"
-                    class="text-violet-600 dark:text-violet-400 hover:underline"
+                    class="text-accent-600 dark:text-accent-400 hover:underline"
                     data-testid="entry-link"
                   >
                     #{{ entryId(job) }}
@@ -930,7 +930,7 @@ function isExpandable(job: Job): boolean {
                     :class="
                       isStuck(job)
                         ? 'text-amber-600 dark:text-amber-400'
-                        : 'text-violet-600 dark:text-violet-400'
+                        : 'text-accent-600 dark:text-accent-400'
                     "
                     :data-testid="`live-duration-${job.id}`"
                   >
@@ -988,7 +988,7 @@ function isExpandable(job: Job): boolean {
                     <span v-if="job.progress_total > 0"
                       >{{ job.progress_current }}/{{ job.progress_total }}</span
                     >
-                    <span v-else class="text-violet-500">Running...</span>
+                    <span v-else class="text-accent-fg">Running...</span>
                   </template>
                   <template
                     v-else-if="job.status === 'succeeded' && job.result"
@@ -1015,7 +1015,7 @@ function isExpandable(job: Job): boolean {
                       >
                         {{ resultSummary(job.result, job.type as JobType) }}
                         <span
-                          class="ml-1 text-xs text-gray-400 dark:text-gray-500 group-hover:text-violet-500"
+                          class="ml-1 text-xs text-gray-400 dark:text-gray-500 group-hover:text-accent-fg"
                           >...</span
                         >
                       </div>
@@ -1117,7 +1117,7 @@ function isExpandable(job: Job): boolean {
                   name: 'entry-detail',
                   params: { id: String(entryId(job)) },
                 }"
-                class="text-violet-600 dark:text-violet-400 hover:underline"
+                class="text-accent-600 dark:text-accent-400 hover:underline"
                 data-testid="card-entry-link"
               >
                 #{{ entryId(job) }}
@@ -1136,7 +1136,7 @@ function isExpandable(job: Job): boolean {
               :class="
                 isStuck(job)
                   ? 'text-amber-600 dark:text-amber-400'
-                  : 'text-violet-600 dark:text-violet-400'
+                  : 'text-accent-600 dark:text-accent-400'
               "
               :data-testid="`card-live-duration-${job.id}`"
             >
@@ -1209,7 +1209,7 @@ function isExpandable(job: Job): boolean {
                 class="text-gray-600 dark:text-gray-300"
                 >{{ job.progress_current }}/{{ job.progress_total }}</span
               >
-              <span v-else class="text-violet-500">Running...</span>
+              <span v-else class="text-accent-fg">Running...</span>
             </template>
             <template v-else-if="job.status === 'succeeded' && job.result">
               <span class="text-gray-600 dark:text-gray-300 break-words">{{

@@ -82,7 +82,7 @@ describe('FileUploadPanel', () => {
     const wrapper = mountPanel()
     const label = wrapper.find('label')
     await label.trigger('dragover')
-    expect(label.classes()).toContain('border-violet-400')
+    expect(label.classes()).toContain('border-accent-400')
   })
 
   it('removes highlight on dragleave', async () => {
@@ -90,7 +90,7 @@ describe('FileUploadPanel', () => {
     const label = wrapper.find('label')
     await label.trigger('dragover')
     await label.trigger('dragleave')
-    expect(label.classes()).not.toContain('border-violet-400')
+    expect(label.classes()).not.toContain('border-accent-400')
   })
 
   it('accepts dropped image files', async () => {

@@ -29,6 +29,7 @@ src/
 - `npm run format` — Format with Prettier
 - `npm run contract:gen` — Regenerate `src/types/generated/api.ts` from `../contract/api.schema.json`
 - `npm run contract:check` — Fail if the generated API types are out of date (CI and the pre-push hook run it)
+- `npm run icon:gen` / `npm run icon:check` — Write / verify the favicon set and manifest from `src/brand/app-icon.json`
 
 ## Tech Stack
 
@@ -42,6 +43,12 @@ src/
 - Vue Router — routing
 - Vitest + Vue Test Utils + happy-dom — testing
 - Chart.js 4 — charts via `src/utils/chartjs-config.ts` (direct, no wrapper). When adding a new chart, read [`docs/chart-style-guide.md`](docs/chart-style-guide.md) first — it documents the shared `buildLineChartOptions` helper and the bold-MA-over-faded-daily pattern.
+
+## Accent colour
+
+Accent-coloured UI uses `accent-N` utilities (`bg-accent-500`, `text-accent-600`), never `violet-N`: each user picks the
+accent in Settings → Appearance, and a test fails on any `*-violet-N` class. A foreground with no `dark:` variant uses
+`accent-fg`. Details: [`docs/architecture.md`](docs/architecture.md#accent-colour-and-app-icon).
 
 ## Element names
 

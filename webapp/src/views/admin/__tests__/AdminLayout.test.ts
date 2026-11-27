@@ -130,7 +130,7 @@ describe('AdminLayout', () => {
       .findAll('a')
       .find((l) => l.text() === 'Overview')
     expect(overviewLink).toBeDefined()
-    expect(overviewLink!.classes().join(' ')).toContain('border-violet-500')
+    expect(overviewLink!.classes().join(' ')).toContain('border-accent-fg')
   })
 
   it('highlights the Users tab when at /admin/users', async () => {
@@ -140,7 +140,7 @@ describe('AdminLayout', () => {
     const wrapper = mountComponent(router)
 
     const usersLink = wrapper.findAll('a').find((l) => l.text() === 'Users')
-    expect(usersLink!.classes().join(' ')).toContain('border-violet-500')
+    expect(usersLink!.classes().join(' ')).toContain('border-accent-fg')
   })
 
   it('contains a RouterView slot for child routes', async () => {

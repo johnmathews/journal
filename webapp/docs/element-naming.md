@@ -65,3 +65,18 @@ expired keys in a closed section below). The form fields keep plain `id`s (`key-
 | `api-key-revoke-<id>`       | A working key's Revoke button                             |
 | `api-key-revoked-<id>`      | "Revoked <date>" in the Ended column                      |
 | `api-key-expired-<id>`      | "Expired <date>" in the Ended column                      |
+
+## 1.4 Sidebar brand and Settings → Appearance — key names
+
+Added 2026-11-26 with the app icon and the accent-colour setting:
+
+| `data-testid`              | Element                                                     |
+| -------------------------- | ----------------------------------------------------------- |
+| `sidebar-home-link`        | Sidebar header link: the logo and the app title             |
+| `app-logo`                 | The app icon drawn by `AppLogo.vue`                         |
+| `app-logo-tile`            | The logo's accent-coloured tile                             |
+| `settings-tab-appearance`  | The Appearance tab button                                   |
+| `appearance-section`       | The Appearance tab's section                                |
+| `appearance-accent`        | The accent-colour card                                      |
+| `accent-option-<id>`       | One swatch (`violet`, `green`, `emerald`, `blue`, `rose`, `graphite`) |
+| `appearance-status`        | The save status line ("Saved", or what to do when it fails) |

@@ -4,6 +4,8 @@ One git repo (`johnmathews/journal`) holding the Journal Insights and Analysis T
 
 - `server/` — Python backend (MCP server + REST API + CLI). Python 3.13, `uv`, pytest, SQLite + ChromaDB.
 - `webapp/` — Vue 3 + TypeScript frontend (Vite, Pinia, Tailwind CSS 4 / Cruip Mosaic shell).
+- `brand/design-system/` — the brand: colour tokens, the app icon's master SVGs, and the mockups each visual
+  change was decided on ([README](brand/design-system/README.md)). Visual changes start there as a mockup.
 
 The webapp calls the backend's REST API. In dev, Vite (port 5173) proxies `/api/*` to the server on `localhost:8400`.
 

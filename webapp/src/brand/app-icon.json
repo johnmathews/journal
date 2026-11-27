@@ -1,0 +1,28 @@
+{
+  "name": "Journal",
+  "glyph": "#ffffff",
+  "radius": 7,
+  "page": {
+    "x": 6,
+    "y": 6,
+    "width": 15,
+    "height": 20,
+    "rx": 2.5,
+    "stroke": 2.2
+  },
+  "lines": {
+    "d": "M9.5 12H17.5M9.5 16H17.5M9.5 20H13",
+    "stroke": 2.2
+  },
+  "pen": {
+    "transform": "translate(21.5 15.5) rotate(40)",
+    "body": "M-2.4 -9.5H2.4V3L0 8.5L-2.4 3Z",
+    "knockout": 2,
+    "bands": "M-2.4 -5.6H2.4M-2.4 3H2.4",
+    "bandStroke": 1.2
+  },
+  "centre": {
+    "x": 17.7,
+    "y": 16
+  }
+}

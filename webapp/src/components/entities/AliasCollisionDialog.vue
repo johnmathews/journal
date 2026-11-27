@@ -107,7 +107,7 @@ async function confirmMerge(): Promise<void> {
       </button>
       <button
         type="button"
-        class="btn-sm bg-violet-500 text-white hover:bg-violet-600 disabled:opacity-50"
+        class="btn-sm bg-accent-500 text-white hover:bg-accent-600 disabled:opacity-50"
         :disabled="merging"
         data-testid="alias-collision-confirm"
         @click="confirmMerge"

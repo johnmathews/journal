@@ -70,7 +70,7 @@ const chips = computed<Chip[]>(() => {
       key: 'notify_strategy',
       label: `notify: ${String(p.notify_strategy)}`,
       classes:
-        'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300',
+        'bg-accent-100 text-accent-700 dark:bg-accent-500/20 dark:text-accent-300',
     })
   }
 
@@ -110,7 +110,7 @@ const hasAnyParams = computed(() => Object.keys(props.job.params).length > 0)
       :content="job.params"
       title="Raw params"
       trigger-label="{ }"
-      trigger-class="!border-0 !px-1 !py-0 !text-gray-400 dark:!text-gray-500 hover:!bg-transparent hover:!text-violet-500 dark:hover:!text-violet-400 !font-mono"
+      trigger-class="!border-0 !px-1 !py-0 !text-gray-400 dark:!text-gray-500 hover:!bg-transparent hover:!text-accent-fg dark:hover:!text-accent-400 !font-mono"
       data-testid="job-params-raw-popover"
     />
   </div>

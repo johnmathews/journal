@@ -223,7 +223,7 @@ async function onMoodCorrelationTypeChange(
           class="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
           :class="
             store.editingLayout
-              ? 'bg-violet-500 text-white border-violet-500'
+              ? 'bg-accent-500 text-white border-accent-fg'
               : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600'
           "
           data-testid="dashboard-edit-layout-toggle"

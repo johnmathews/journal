@@ -42,7 +42,7 @@ const registry = computed(() =>
       </h2>
       <button
         type="button"
-        class="btn-sm bg-white dark:bg-gray-800 border-violet-200 dark:border-violet-800/60 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+        class="btn-sm bg-white dark:bg-gray-800 border-accent-200 dark:border-accent-800/60 text-accent-600 dark:text-accent-400 hover:bg-accent-50 dark:hover:bg-accent-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
         :disabled="updating"
         data-testid="draft-refresh-button"
         @click="emit('refresh')"

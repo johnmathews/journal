@@ -236,7 +236,7 @@ const adminTopics = () => store.topics.filter((t) => t.group === 'admin')
         <div class="flex gap-2">
           <button
             type="button"
-            class="btn-sm bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50"
+            class="btn-sm bg-accent-500 hover:bg-accent-600 text-white disabled:opacity-50"
             :disabled="store.validating || !store.apiToken || !store.userKey"
             data-testid="validate-button"
             @click="store.validate()"
@@ -303,9 +303,9 @@ const adminTopics = () => store.topics.filter((t) => t.group === 'admin')
               <button
                 type="button"
                 :class="[
-                  'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900',
+                  'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-accent-fg focus:ring-offset-2 dark:focus:ring-offset-gray-900',
                   topic.enabled
-                    ? 'bg-violet-500'
+                    ? 'bg-accent-500'
                     : 'bg-gray-200 dark:bg-gray-600',
                 ]"
                 role="switch"
@@ -343,9 +343,9 @@ const adminTopics = () => store.topics.filter((t) => t.group === 'admin')
               <button
                 type="button"
                 :class="[
-                  'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900',
+                  'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-accent-fg focus:ring-offset-2 dark:focus:ring-offset-gray-900',
                   topic.enabled
-                    ? 'bg-violet-500'
+                    ? 'bg-accent-500'
                     : 'bg-gray-200 dark:bg-gray-600',
                 ]"
                 role="switch"
@@ -383,9 +383,9 @@ const adminTopics = () => store.topics.filter((t) => t.group === 'admin')
               <button
                 type="button"
                 :class="[
-                  'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900',
+                  'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-accent-fg focus:ring-offset-2 dark:focus:ring-offset-gray-900',
                   topic.enabled
-                    ? 'bg-violet-500'
+                    ? 'bg-accent-500'
                     : 'bg-gray-200 dark:bg-gray-600',
                 ]"
                 role="switch"

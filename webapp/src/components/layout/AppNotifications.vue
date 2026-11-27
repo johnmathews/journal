@@ -134,7 +134,7 @@ function statusClass(job: Job): string {
     case 'queued':
       return 'text-gray-600 dark:text-gray-300'
     case 'running':
-      return 'text-violet-500 dark:text-violet-400 animate-spin-slow'
+      return 'text-accent-500 dark:text-accent-400 animate-spin-slow'
     case 'succeeded':
       return 'text-emerald-500 dark:text-emerald-400'
     case 'failed':
@@ -159,7 +159,7 @@ function closeDropdown() {
     <button
       type="button"
       class="relative flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400 transition-colors"
-      :class="{ 'text-violet-500 dark:text-violet-400': badgeCount > 0 }"
+      :class="{ 'text-accent-500 dark:text-accent-400': badgeCount > 0 }"
       aria-label="Notifications"
       data-testid="notifications-bell"
       @click="open = !open"
@@ -181,7 +181,7 @@ function closeDropdown() {
       <!-- Badge -->
       <span
         v-if="badgeCount > 0"
-        class="absolute -top-0.5 -right-0.5 flex items-center justify-center w-4 h-4 text-[0.6rem] font-bold leading-none text-white bg-violet-500 rounded-full"
+        class="absolute -top-0.5 -right-0.5 flex items-center justify-center w-4 h-4 text-[0.6rem] font-bold leading-none text-white bg-accent-500 rounded-full"
         data-testid="notifications-badge"
       >
         {{ badgeCount }}

@@ -920,13 +920,13 @@ describe('JobHistoryView live metrics and polling', () => {
     ).toContain('3s')
   })
 
-  it('uses violet for a fresh running job and amber for a stuck one', async () => {
+  it('uses the accent for a fresh running job and amber for a stuck one', async () => {
     const fresh = await mountView([
       runningJob({ id: 'j-run', started_at: NOW }),
     ])
     expect(
       fresh.find('[data-testid="live-duration-j-run"]').classes(),
-    ).toContain('text-violet-600')
+    ).toContain('text-accent-600')
 
     vi.clearAllMocks()
     const stuck = await mountView([
@@ -937,7 +937,7 @@ describe('JobHistoryView live metrics and polling', () => {
       .find('[data-testid="live-duration-j-run"]')
       .classes()
     expect(stuckClasses).toContain('text-amber-600')
-    expect(stuckClasses).not.toContain('text-violet-600')
+    expect(stuckClasses).not.toContain('text-accent-600')
   })
 
   it('renders token and cost cells with formatted values', async () => {

@@ -175,7 +175,7 @@ function saveRename(): void {
         />
         <button
           type="submit"
-          class="btn-sm bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50"
+          class="btn-sm bg-accent-500 hover:bg-accent-600 text-white disabled:opacity-50"
           :disabled="!titleDraft.trim()"
           data-testid="chapter-rename-save"
         >
@@ -232,7 +232,7 @@ function saveRename(): void {
           <button
             v-if="isNewest"
             type="button"
-            class="block w-full text-left px-3 py-1.5 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20"
+            class="block w-full text-left px-3 py-1.5 text-accent-600 dark:text-accent-400 hover:bg-accent-50 dark:hover:bg-accent-900/20"
             data-testid="chapter-menu-unpublish"
             @click="onMenuUnpublish"
           >
@@ -258,11 +258,11 @@ function saveRename(): void {
     <section
       v-for="(addendum, idx) in chapter.addenda"
       :key="`addendum-${idx}`"
-      class="mt-4 border-l-4 border-violet-200 dark:border-violet-800/60 bg-violet-50/50 dark:bg-violet-900/10 rounded-r-lg px-4 py-3"
+      class="mt-4 border-l-4 border-accent-200 dark:border-accent-800/60 bg-accent-50/50 dark:bg-accent-900/10 rounded-r-lg px-4 py-3"
       :data-testid="`chapter-addendum-${idx}`"
     >
       <div
-        class="text-xs font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400 mb-2"
+        class="text-xs font-semibold uppercase tracking-wider text-accent-600 dark:text-accent-400 mb-2"
       >
         Later — {{ formatDate(addendum.added_at) }}
       </div>

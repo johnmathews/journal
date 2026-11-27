@@ -296,7 +296,7 @@ function formatDate(iso: string | null): string {
         <button
           v-if="connectionState === 'not-connected' && mode === 'idle'"
           type="button"
-          class="btn-sm bg-violet-500 hover:bg-violet-600 text-white"
+          class="btn-sm bg-accent-500 hover:bg-accent-600 text-white"
           data-testid="garmin-connect-btn"
           @click="openCredentialsForm"
         >
@@ -314,7 +314,7 @@ function formatDate(iso: string | null): string {
             (mode === 'idle' || mode === 'reconnecting')
           "
           type="button"
-          class="btn-sm bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50"
+          class="btn-sm bg-accent-500 hover:bg-accent-600 text-white disabled:opacity-50"
           :disabled="mode === 'reconnecting'"
           data-testid="garmin-reconnect-saved-btn"
           @click="reconnectWithSaved"
@@ -330,7 +330,7 @@ function formatDate(iso: string | null): string {
             connectionState === 'broken' && credentialsSaved && mode === 'idle'
           "
           type="button"
-          class="text-xs text-violet-600 dark:text-violet-400 underline hover:no-underline"
+          class="text-xs text-accent-600 dark:text-accent-400 underline hover:no-underline"
           data-testid="garmin-use-different-creds"
           @click="openCredentialsForm"
         >
@@ -341,7 +341,7 @@ function formatDate(iso: string | null): string {
             connectionState === 'broken' && !credentialsSaved && mode === 'idle'
           "
           type="button"
-          class="btn-sm bg-violet-500 hover:bg-violet-600 text-white"
+          class="btn-sm bg-accent-500 hover:bg-accent-600 text-white"
           data-testid="garmin-reconnect-btn"
           @click="openCredentialsForm"
         >
@@ -402,7 +402,7 @@ function formatDate(iso: string | null): string {
       <div class="flex gap-2">
         <button
           type="button"
-          class="btn-sm bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50"
+          class="btn-sm bg-accent-500 hover:bg-accent-600 text-white disabled:opacity-50"
           :disabled="mode === 'submitting'"
           data-testid="garmin-credentials-submit"
           @click="submitCredentials"
@@ -445,7 +445,7 @@ function formatDate(iso: string | null): string {
       <div class="flex gap-2">
         <button
           type="button"
-          class="btn-sm bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50"
+          class="btn-sm bg-accent-500 hover:bg-accent-600 text-white disabled:opacity-50"
           :disabled="mode === 'submitting'"
           data-testid="garmin-mfa-submit"
           @click="submitMfa"

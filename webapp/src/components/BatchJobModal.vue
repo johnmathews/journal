@@ -225,7 +225,7 @@ const moodResult = computed<MoodResultSummary | null>(() => {
             v-model="mode"
             type="radio"
             value="stale-only"
-            class="form-radio mt-0.5 text-violet-500"
+            class="form-radio mt-0.5 text-accent-fg"
             data-testid="batch-modal-mode-stale"
           />
           <span class="text-sm">
@@ -242,7 +242,7 @@ const moodResult = computed<MoodResultSummary | null>(() => {
             v-model="mode"
             type="radio"
             value="force"
-            class="form-radio mt-0.5 text-violet-500"
+            class="form-radio mt-0.5 text-accent-fg"
             data-testid="batch-modal-mode-force"
           />
           <span class="text-sm">
@@ -311,10 +311,10 @@ const moodResult = computed<MoodResultSummary | null>(() => {
       >
         <div
           v-if="!isIndeterminate"
-          class="bg-violet-500 h-2 transition-all"
+          class="bg-accent-500 h-2 transition-all"
           :style="{ width: `${progressPercent}%` }"
         />
-        <div v-else class="bg-violet-500/60 h-2 w-1/3 animate-pulse" />
+        <div v-else class="bg-accent-500/60 h-2 w-1/3 animate-pulse" />
       </div>
       <div
         class="flex items-center justify-between text-xs text-gray-600 dark:text-gray-300"
@@ -397,7 +397,7 @@ const moodResult = computed<MoodResultSummary | null>(() => {
         </button>
         <button
           type="button"
-          class="btn bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          class="btn bg-accent-500 hover:bg-accent-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
           data-testid="batch-modal-run"
           :disabled="submitting"
           @click="onRun"
@@ -418,7 +418,7 @@ const moodResult = computed<MoodResultSummary | null>(() => {
       <template v-else-if="stage === 'done'">
         <button
           type="button"
-          class="btn bg-violet-500 hover:bg-violet-600 text-white"
+          class="btn bg-accent-500 hover:bg-accent-600 text-white"
           data-testid="batch-modal-close-done"
           @click="onCloseDone"
         >
@@ -428,7 +428,7 @@ const moodResult = computed<MoodResultSummary | null>(() => {
       <template v-else-if="stage === 'error'">
         <button
           type="button"
-          class="btn bg-violet-500 hover:bg-violet-600 text-white"
+          class="btn bg-accent-500 hover:bg-accent-600 text-white"
           data-testid="batch-modal-close-error"
           @click="onCloseError"
         >

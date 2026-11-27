@@ -289,7 +289,7 @@ const audioGrandTotal = computed(() => {
       >
         <RouterLink
           to="/admin/pricing"
-          class="flex items-center justify-between gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs hover:border-violet-400 dark:hover:border-violet-500"
+          class="flex items-center justify-between gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-xl shadow-xs hover:border-accent-400 dark:hover:border-accent-500"
           data-testid="cost-teaser-link"
         >
           <div class="min-w-0">
@@ -315,7 +315,7 @@ const audioGrandTotal = computed(() => {
             </p>
           </div>
           <span
-            class="text-xs text-violet-600 dark:text-violet-400 whitespace-nowrap shrink-0"
+            class="text-xs text-accent-600 dark:text-accent-400 whitespace-nowrap shrink-0"
             >See breakdown →</span
           >
         </RouterLink>
@@ -330,7 +330,7 @@ const audioGrandTotal = computed(() => {
           <li>
             <RouterLink
               to="/admin/users"
-              class="block p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-xs hover:border-violet-400 dark:hover:border-violet-500"
+              class="block p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-xs hover:border-accent-400 dark:hover:border-accent-500"
               data-testid="link-admin-users"
             >
               <span class="font-medium text-gray-900 dark:text-gray-100"
@@ -344,7 +344,7 @@ const audioGrandTotal = computed(() => {
           <li>
             <RouterLink
               to="/admin/runtime"
-              class="block p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-xs hover:border-violet-400 dark:hover:border-violet-500"
+              class="block p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-xs hover:border-accent-400 dark:hover:border-accent-500"
               data-testid="link-admin-runtime"
             >
               <span class="font-medium text-gray-900 dark:text-gray-100"
@@ -358,7 +358,7 @@ const audioGrandTotal = computed(() => {
           <li>
             <RouterLink
               to="/admin/pricing"
-              class="block p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-xs hover:border-violet-400 dark:hover:border-violet-500"
+              class="block p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-xs hover:border-accent-400 dark:hover:border-accent-500"
               data-testid="link-admin-pricing"
             >
               <span class="font-medium text-gray-900 dark:text-gray-100"
@@ -372,7 +372,7 @@ const audioGrandTotal = computed(() => {
           <li>
             <RouterLink
               to="/admin/server"
-              class="block p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-xs hover:border-violet-400 dark:hover:border-violet-500"
+              class="block p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-lg shadow-xs hover:border-accent-400 dark:hover:border-accent-500"
               data-testid="link-admin-server"
             >
               <span class="font-medium text-gray-900 dark:text-gray-100"

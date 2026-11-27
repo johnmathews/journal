@@ -66,7 +66,7 @@ const goBack = useBackNavigation({ name: 'entities' })
 function typeBadgeClass(type: EntityType): string {
   switch (type) {
     case 'person':
-      return 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300'
+      return 'bg-accent-100 text-accent-700 dark:bg-accent-500/20 dark:text-accent-300'
     case 'place':
       return 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300'
     case 'activity':
@@ -395,7 +395,7 @@ async function confirmDelete() {
           </div>
           <div class="flex items-center gap-2">
             <button
-              class="btn bg-violet-500 hover:bg-violet-600 text-white"
+              class="btn bg-accent-500 hover:bg-accent-600 text-white"
               data-testid="save-edit-button"
               :disabled="saving || !editName.trim()"
               @click="saveEdit"
@@ -508,7 +508,7 @@ async function confirmDelete() {
               />
               <button
                 type="submit"
-                class="btn-sm bg-violet-500 text-white hover:bg-violet-600 disabled:opacity-50"
+                class="btn-sm bg-accent-500 text-white hover:bg-accent-600 disabled:opacity-50"
                 :disabled="addingAlias || !newAliasInput.trim()"
                 data-testid="entity-alias-add"
               >
@@ -586,7 +586,7 @@ async function confirmDelete() {
                   name: 'entity-detail',
                   params: { id: rel.object_entity_id },
                 }"
-                class="text-violet-600 dark:text-violet-400 hover:underline"
+                class="text-accent-600 dark:text-accent-400 hover:underline"
               >
                 {{ rel.object_name }}
               </RouterLink>
@@ -609,7 +609,7 @@ async function confirmDelete() {
                   name: 'entity-detail',
                   params: { id: rel.subject_entity_id },
                 }"
-                class="text-violet-600 dark:text-violet-400 hover:underline"
+                class="text-accent-600 dark:text-accent-400 hover:underline"
               >
                 {{ rel.subject_name }}
               </RouterLink>
@@ -658,7 +658,7 @@ async function confirmDelete() {
                 class="flex items-center justify-between mb-2 group"
               >
                 <span
-                  class="text-violet-600 dark:text-violet-400 group-hover:underline font-medium"
+                  class="text-accent-600 dark:text-accent-400 group-hover:underline font-medium"
                 >
                   {{
                     group.entry_date

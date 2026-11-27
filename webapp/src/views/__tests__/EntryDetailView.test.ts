@@ -1369,7 +1369,7 @@ describe('EntryDetailView', () => {
       const backdrop = wrapper.find('[data-testid="corrected-textarea"]')
         .element.previousElementSibling as HTMLElement
       const html = backdrop?.innerHTML ?? ''
-      expect(html).toContain('bg-violet-200')
+      expect(html).toContain('bg-accent-200')
     })
 
     it('single-char alias does not match inside words (word boundary)', async () => {

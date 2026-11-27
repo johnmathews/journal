@@ -129,7 +129,7 @@ onUnmounted(() => {
       class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
       :class="
         entityType === t
-          ? 'bg-violet-500 text-white border-violet-500'
+          ? 'bg-accent-500 text-white border-accent-fg'
           : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
       "
       :data-testid="`dashboard-entity-tab-${t}`"
@@ -202,7 +202,7 @@ onUnmounted(() => {
       <button
         v-if="hiddenCount > 0"
         type="button"
-        class="mt-2 text-xs text-violet-500 hover:text-violet-600 dark:text-violet-400 dark:hover:text-violet-300 font-medium"
+        class="mt-2 text-xs text-accent-500 hover:text-accent-600 dark:text-accent-400 dark:hover:text-accent-300 font-medium"
         data-testid="dashboard-entity-legend-toggle"
         @click="legendExpanded = !legendExpanded"
       >

@@ -560,7 +560,7 @@ function widthTitleForFitnessTile(id: FitnessTileId): string {
           class="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors h-9"
           :class="
             store.editingLayout
-              ? 'bg-violet-500 text-white border-violet-500'
+              ? 'bg-accent-500 text-white border-accent-fg'
               : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600'
           "
           data-testid="fitness-edit-layout-toggle"
@@ -579,7 +579,7 @@ function widthTitleForFitnessTile(id: FitnessTileId): string {
         >
           <svg
             v-if="syncBusy[source]"
-            class="animate-spin w-4 h-4 mr-1.5 -ml-0.5 text-violet-500"
+            class="animate-spin w-4 h-4 mr-1.5 -ml-0.5 text-accent-fg"
             :data-testid="`fitness-sync-${source}-spinner`"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
@@ -604,7 +604,7 @@ function widthTitleForFitnessTile(id: FitnessTileId): string {
         <button
           type="button"
           data-testid="fitness-reload"
-          class="btn bg-violet-500 hover:bg-violet-600 text-white text-sm h-9"
+          class="btn bg-accent-500 hover:bg-accent-600 text-white text-sm h-9"
           @click="reloadAll"
         >
           Reload
@@ -663,7 +663,7 @@ function widthTitleForFitnessTile(id: FitnessTileId): string {
             class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
             :class="
               maWindow === w
-                ? 'bg-violet-500 text-white border-violet-500'
+                ? 'bg-accent-500 text-white border-accent-fg'
                 : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
             "
             :data-testid="`fitness-ma-window-${w}`"
@@ -705,7 +705,7 @@ function widthTitleForFitnessTile(id: FitnessTileId): string {
     <p class="text-xs text-gray-500 dark:text-gray-400">
       <RouterLink
         to="/settings#fitness"
-        class="text-violet-500 hover:text-violet-600 dark:hover:text-violet-400"
+        class="text-accent-fg hover:text-accent-600 dark:hover:text-accent-400"
         data-testid="fitness-manage-sync-link"
       >
         Manage sync → Settings · Fitness
@@ -778,7 +778,7 @@ function widthTitleForFitnessTile(id: FitnessTileId): string {
                 class="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors capitalize"
                 :class="
                   weeklyMetric === opt
-                    ? 'bg-violet-500 text-white border-violet-500'
+                    ? 'bg-accent-500 text-white border-accent-fg'
                     : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
                 "
                 :data-testid="`fitness-weekly-metric-${opt}`"

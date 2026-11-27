@@ -173,6 +173,8 @@ npm run lint           # ESLint
 npm run format         # Prettier
 npm run contract:gen   # Regenerate API types from ../contract/api.schema.json
 npm run contract:check # Fail if the generated API types are stale
+npm run icon:gen       # Write the favicon set and manifest from src/brand/app-icon.json
+npm run icon:check     # Fail if the committed icon files are stale
 ```
 
 See [docs/development.md](docs/development.md) for detailed development guide.

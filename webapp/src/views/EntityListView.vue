@@ -186,7 +186,7 @@ async function undoDismissal(decisionId: number): Promise<void> {
 function typeBadgeClass(type: EntityType): string {
   switch (type) {
     case 'person':
-      return 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300'
+      return 'bg-accent-100 text-accent-700 dark:bg-accent-500/20 dark:text-accent-300'
     case 'place':
       return 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300'
     case 'activity':
@@ -455,7 +455,7 @@ async function deleteRow(entity: EntitySummary) {
         />
         <button
           type="button"
-          class="btn bg-violet-500 hover:bg-violet-600 text-white"
+          class="btn bg-accent-500 hover:bg-accent-600 text-white"
           data-testid="run-extraction-button"
           @click="showBatchModal = true"
         >
@@ -553,7 +553,7 @@ async function deleteRow(entity: EntitySummary) {
               </span>
             </div>
             <button
-              class="btn text-xs py-1 bg-violet-500 hover:bg-violet-600 text-white"
+              class="btn text-xs py-1 bg-accent-500 hover:bg-accent-600 text-white"
               data-testid="accept-candidate"
               @click="
                 acceptCandidate(
@@ -587,7 +587,7 @@ async function deleteRow(entity: EntitySummary) {
               <div class="flex items-baseline gap-2 mb-2">
                 <RouterLink
                   :to="{ name: 'entity-detail', params: { id: side.id } }"
-                  class="font-medium text-violet-600 dark:text-violet-400 hover:underline"
+                  class="font-medium text-accent-600 dark:text-accent-400 hover:underline"
                 >
                   {{ side.canonical_name }}
                 </RouterLink>
@@ -753,14 +753,14 @@ async function deleteRow(entity: EntitySummary) {
     <!-- Selection toolbar -->
     <div
       v-if="selectedCount > 0"
-      class="mb-4 flex items-center gap-3 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700/40 rounded-lg px-4 py-2 text-sm"
+      class="mb-4 flex items-center gap-3 bg-accent-50 dark:bg-accent-500/10 border border-accent-200 dark:border-accent-700/40 rounded-lg px-4 py-2 text-sm"
       data-testid="selection-toolbar"
     >
-      <span class="text-violet-700 dark:text-violet-300 font-medium">
+      <span class="text-accent-700 dark:text-accent-300 font-medium">
         {{ selectedCount }} selected
       </span>
       <button
-        class="btn bg-violet-500 hover:bg-violet-600 text-white text-xs py-1"
+        class="btn bg-accent-500 hover:bg-accent-600 text-white text-xs py-1"
         :disabled="!canMerge"
         data-testid="merge-button"
         @click="openMergeModal"
@@ -768,7 +768,7 @@ async function deleteRow(entity: EntitySummary) {
         Merge selected
       </button>
       <button
-        class="text-violet-600 dark:text-violet-400 hover:underline text-xs"
+        class="text-accent-600 dark:text-accent-400 hover:underline text-xs"
         data-testid="clear-selection"
         @click="clearSelection"
       >
@@ -788,7 +788,7 @@ async function deleteRow(entity: EntitySummary) {
         class="px-3 py-1 rounded-full text-xs font-medium border transition-colors flex items-center gap-2"
         :class="
           listMode === 'active'
-            ? 'bg-violet-500 text-white border-violet-500'
+            ? 'bg-accent-500 text-white border-accent-500'
             : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60 hover:text-gray-800 dark:hover:text-gray-100'
         "
         data-testid="mode-tab-active"
@@ -830,7 +830,7 @@ async function deleteRow(entity: EntitySummary) {
         class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
         :class="
           selectedType === 'all'
-            ? 'bg-violet-500 text-white border-violet-500'
+            ? 'bg-accent-500 text-white border-accent-500'
             : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60 hover:text-gray-800 dark:hover:text-gray-100'
         "
         :data-testid="`entity-type-all`"
@@ -844,7 +844,7 @@ async function deleteRow(entity: EntitySummary) {
         class="px-3 py-1 rounded-full text-xs font-medium border transition-colors capitalize"
         :class="
           selectedType === t
-            ? 'bg-violet-500 text-white border-violet-500'
+            ? 'bg-accent-500 text-white border-accent-fg'
             : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60 hover:text-gray-800 dark:hover:text-gray-100'
         "
         :data-testid="`entity-type-${t}`"
@@ -979,7 +979,7 @@ async function deleteRow(entity: EntitySummary) {
                 :key="entity.id"
                 class="hover:bg-gray-50 dark:hover:bg-gray-700/30"
                 :class="{
-                  'bg-violet-50/50 dark:bg-violet-500/5': isSelected(entity.id),
+                  'bg-accent-50/50 dark:bg-accent-500/5': isSelected(entity.id),
                 }"
                 data-testid="entity-row"
               >
@@ -987,7 +987,7 @@ async function deleteRow(entity: EntitySummary) {
                   <input
                     type="checkbox"
                     :checked="isSelected(entity.id)"
-                    class="form-checkbox h-4 w-4 text-violet-500 rounded border-gray-300 dark:border-gray-600"
+                    class="form-checkbox h-4 w-4 text-accent-500 rounded border-gray-300 dark:border-gray-600"
                     data-testid="entity-checkbox"
                     @change="toggleSelect(entity.id)"
                   />
@@ -998,7 +998,7 @@ async function deleteRow(entity: EntitySummary) {
                       name: 'entity-detail',
                       params: { id: entity.id },
                     }"
-                    class="text-violet-600 dark:text-violet-400 hover:underline font-medium"
+                    class="text-accent-600 dark:text-accent-400 hover:underline font-medium"
                   >
                     {{ entity.canonical_name }}
                   </RouterLink>
@@ -1081,7 +1081,7 @@ async function deleteRow(entity: EntitySummary) {
           :key="entity.id"
           class="rounded-xl border bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700/60 p-4"
           :class="{
-            'ring-1 ring-violet-300 dark:ring-violet-500/40': isSelected(
+            'ring-1 ring-accent-300 dark:ring-accent-500/40': isSelected(
               entity.id,
             ),
           }"
@@ -1091,7 +1091,7 @@ async function deleteRow(entity: EntitySummary) {
             <input
               type="checkbox"
               :checked="isSelected(entity.id)"
-              class="form-checkbox h-4 w-4 mt-0.5 shrink-0 text-violet-500 rounded border-gray-300 dark:border-gray-600"
+              class="form-checkbox h-4 w-4 mt-0.5 shrink-0 text-accent-500 rounded border-gray-300 dark:border-gray-600"
               data-testid="entity-card-checkbox"
               @change="toggleSelect(entity.id)"
             />
@@ -1099,7 +1099,7 @@ async function deleteRow(entity: EntitySummary) {
               <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <RouterLink
                   :to="{ name: 'entity-detail', params: { id: entity.id } }"
-                  class="text-violet-600 dark:text-violet-400 hover:underline font-medium"
+                  class="text-accent-600 dark:text-accent-400 hover:underline font-medium"
                 >
                   {{ entity.canonical_name }}
                 </RouterLink>
@@ -1215,7 +1215,7 @@ async function deleteRow(entity: EntitySummary) {
             class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
             :class="
               survivorId === entity.id
-                ? 'border-violet-400 dark:border-violet-500/60 bg-violet-50 dark:bg-violet-500/10'
+                ? 'border-accent-400 dark:border-accent-500/60 bg-accent-50 dark:bg-accent-500/10'
                 : 'border-gray-200 dark:border-gray-700/60 hover:bg-gray-50 dark:hover:bg-gray-700/30'
             "
             :data-testid="`survivor-option-${entity.id}`"
@@ -1224,7 +1224,7 @@ async function deleteRow(entity: EntitySummary) {
               v-model="survivorId"
               type="radio"
               :value="entity.id"
-              class="form-radio text-violet-500"
+              class="form-radio text-accent-500"
               name="survivor"
             />
             <div class="flex-1">
@@ -1243,7 +1243,7 @@ async function deleteRow(entity: EntitySummary) {
             </div>
             <span
               v-if="survivorId === entity.id"
-              class="text-xs text-violet-600 dark:text-violet-400 font-medium"
+              class="text-xs text-accent-600 dark:text-accent-400 font-medium"
             >
               Keep
             </span>
@@ -1262,7 +1262,7 @@ async function deleteRow(entity: EntitySummary) {
           Cancel
         </button>
         <button
-          class="btn bg-violet-500 hover:bg-violet-600 text-white"
+          class="btn bg-accent-500 hover:bg-accent-600 text-white"
           :disabled="merging || survivorId === null"
           data-testid="confirm-merge-button"
           @click="executeMerge"

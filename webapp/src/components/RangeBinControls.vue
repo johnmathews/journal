@@ -101,7 +101,7 @@ function selectBin(b: DashboardBin) {
           class="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
           :class="
             range === r
-              ? 'bg-violet-500 text-white border-violet-500'
+              ? 'bg-accent-500 text-white border-accent-fg'
               : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
           "
           :data-testid="`${testIdPrefix}-range-${r}`"
@@ -130,7 +130,7 @@ function selectBin(b: DashboardBin) {
           class="px-3 py-1 rounded-full text-xs font-medium border transition-colors capitalize"
           :class="
             bin === b
-              ? 'bg-violet-500 text-white border-violet-500'
+              ? 'bg-accent-500 text-white border-accent-fg'
               : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700/60'
           "
           :data-testid="`${testIdPrefix}-bin-${b}`"

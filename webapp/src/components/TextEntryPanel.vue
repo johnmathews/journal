@@ -56,7 +56,7 @@ async function submit() {
       </span>
       <button
         :disabled="!text.trim() || entriesStore.creating"
-        class="btn bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg text-sm font-medium w-full sm:w-auto"
+        class="btn bg-accent-500 hover:bg-accent-600 text-white disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg text-sm font-medium w-full sm:w-auto"
         @click="submit"
       >
         {{ entriesStore.creating ? 'Creating...' : 'Create Entry' }}

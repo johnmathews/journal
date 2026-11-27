@@ -15,6 +15,8 @@
     "format:check": "prettier --check src/",
     "contract:gen": "node scripts/gen-api-types.mjs",
     "contract:check": "node scripts/gen-api-types.mjs --check",
+    "icon:gen": "node scripts/app-icon.mjs",
+    "icon:check": "node scripts/app-icon.mjs --check",
     "prepare": "git config core.hooksPath .githooks || true"
   },
   "repository": {

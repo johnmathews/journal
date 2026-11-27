@@ -246,7 +246,7 @@ async function onBulkDelete(): Promise<void> {
         />
         <button
           type="button"
-          class="btn bg-violet-500 hover:bg-violet-600 text-white"
+          class="btn bg-accent-500 hover:bg-accent-600 text-white"
           data-testid="new-storyline-button"
           @click="openCreateModal"
         >
@@ -276,10 +276,10 @@ async function onBulkDelete(): Promise<void> {
     <!-- Selection toolbar -->
     <div
       v-if="selectedCount > 0"
-      class="mb-4 flex items-center gap-3 bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700/40 rounded-lg px-4 py-2 text-sm"
+      class="mb-4 flex items-center gap-3 bg-accent-50 dark:bg-accent-500/10 border border-accent-200 dark:border-accent-700/40 rounded-lg px-4 py-2 text-sm"
       data-testid="selection-toolbar"
     >
-      <span class="text-violet-700 dark:text-violet-300 font-medium">
+      <span class="text-accent-700 dark:text-accent-300 font-medium">
         {{ selectedCount }} selected
       </span>
       <button
@@ -292,7 +292,7 @@ async function onBulkDelete(): Promise<void> {
       </button>
       <button
         type="button"
-        class="text-violet-600 dark:text-violet-400 hover:underline text-xs"
+        class="text-accent-600 dark:text-accent-400 hover:underline text-xs"
         data-testid="clear-selection"
         @click="clearSelection"
       >
@@ -312,7 +312,7 @@ async function onBulkDelete(): Promise<void> {
         data-testid="loading-state"
       >
         <svg
-          class="animate-spin w-6 h-6 mr-3 text-violet-500"
+          class="animate-spin w-6 h-6 mr-3 text-accent-fg"
           viewBox="0 0 24 24"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
@@ -357,7 +357,7 @@ async function onBulkDelete(): Promise<void> {
                   <input
                     type="checkbox"
                     :checked="allOnPageSelected"
-                    class="form-checkbox h-4 w-4 text-violet-500 rounded border-gray-300 dark:border-gray-600"
+                    class="form-checkbox h-4 w-4 text-accent-500 rounded border-gray-300 dark:border-gray-600"
                     data-testid="select-all-checkbox"
                     @change="toggleSelectAllOnPage"
                     @click.stop
@@ -405,9 +405,9 @@ async function onBulkDelete(): Promise<void> {
               <tr
                 v-for="storyline in sortedStorylines"
                 :key="storyline.id"
-                class="cursor-pointer hover:bg-violet-50 dark:hover:bg-violet-500/[0.08] transition-colors"
+                class="cursor-pointer hover:bg-accent-50 dark:hover:bg-accent-500/[0.08] transition-colors"
                 :class="{
-                  'bg-violet-50/50 dark:bg-violet-500/5': isSelected(
+                  'bg-accent-50/50 dark:bg-accent-500/5': isSelected(
                     storyline.id,
                   ),
                 }"
@@ -418,7 +418,7 @@ async function onBulkDelete(): Promise<void> {
                   <input
                     type="checkbox"
                     :checked="isSelected(storyline.id)"
-                    class="form-checkbox h-4 w-4 text-violet-500 rounded border-gray-300 dark:border-gray-600"
+                    class="form-checkbox h-4 w-4 text-accent-500 rounded border-gray-300 dark:border-gray-600"
                     data-testid="storyline-checkbox"
                     @click.stop
                     @change="toggleSelect(storyline.id)"
@@ -431,7 +431,7 @@ async function onBulkDelete(): Promise<void> {
                   {{ storyline.name }}
                   <span
                     v-if="storyline.unread_count > 0"
-                    class="ml-2 inline-flex items-center justify-center rounded-full bg-violet-500 text-white text-[10px] font-semibold px-1.5 py-0.5 align-middle"
+                    class="ml-2 inline-flex items-center justify-center rounded-full bg-accent-500 text-white text-[10px] font-semibold px-1.5 py-0.5 align-middle"
                     data-testid="storyline-unread-badge"
                     :aria-label="`${storyline.unread_count} unread chapters`"
                   >
@@ -447,7 +447,7 @@ async function onBulkDelete(): Promise<void> {
                       v-for="anchor in storyline.anchors"
                       :key="anchor.entity_id"
                       :to="`/entities/${anchor.entity_id}`"
-                      class="inline-block bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700/40 rounded-full px-2 py-0.5 text-xs text-violet-700 dark:text-violet-300 hover:underline"
+                      class="inline-block bg-accent-50 dark:bg-accent-500/10 border border-accent-200 dark:border-accent-700/40 rounded-full px-2 py-0.5 text-xs text-accent-700 dark:text-accent-300 hover:underline"
                       :data-testid="`storyline-anchor-chip-${anchor.entity_id}`"
                       @click.stop
                     >
@@ -493,9 +493,9 @@ async function onBulkDelete(): Promise<void> {
           <li
             v-for="storyline in sortedStorylines"
             :key="storyline.id"
-            class="p-4 cursor-pointer hover:bg-violet-50 dark:hover:bg-violet-500/[0.08] transition-colors"
+            class="p-4 cursor-pointer hover:bg-accent-50 dark:hover:bg-accent-500/[0.08] transition-colors"
             :class="{
-              'bg-violet-50/50 dark:bg-violet-500/5': isSelected(storyline.id),
+              'bg-accent-50/50 dark:bg-accent-500/5': isSelected(storyline.id),
             }"
             data-testid="storyline-card"
             @click="onRowClick(storyline.id)"
@@ -504,7 +504,7 @@ async function onBulkDelete(): Promise<void> {
               <input
                 type="checkbox"
                 :checked="isSelected(storyline.id)"
-                class="form-checkbox h-4 w-4 mt-0.5 shrink-0 text-violet-500 rounded border-gray-300 dark:border-gray-600"
+                class="form-checkbox h-4 w-4 mt-0.5 shrink-0 text-accent-fg rounded border-gray-300 dark:border-gray-600"
                 data-testid="storyline-card-checkbox"
                 @click.stop
                 @change="toggleSelect(storyline.id)"
@@ -517,7 +517,7 @@ async function onBulkDelete(): Promise<void> {
                   {{ storyline.name }}
                   <span
                     v-if="storyline.unread_count > 0"
-                    class="ml-2 inline-flex items-center justify-center rounded-full bg-violet-500 text-white text-[10px] font-semibold px-1.5 py-0.5 align-middle"
+                    class="ml-2 inline-flex items-center justify-center rounded-full bg-accent-500 text-white text-[10px] font-semibold px-1.5 py-0.5 align-middle"
                     data-testid="storyline-card-unread-badge"
                   >
                     {{ storyline.unread_count }}
@@ -530,7 +530,7 @@ async function onBulkDelete(): Promise<void> {
                     v-for="anchor in storyline.anchors"
                     :key="anchor.entity_id"
                     :to="`/entities/${anchor.entity_id}`"
-                    class="inline-block bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-700/40 rounded-full px-2 py-0.5 text-xs text-violet-700 dark:text-violet-300 hover:underline"
+                    class="inline-block bg-accent-50 dark:bg-accent-500/10 border border-accent-200 dark:border-accent-700/40 rounded-full px-2 py-0.5 text-xs text-accent-700 dark:text-accent-300 hover:underline"
                     :data-testid="`storyline-card-anchor-chip-${anchor.entity_id}`"
                     @click.stop
                   >

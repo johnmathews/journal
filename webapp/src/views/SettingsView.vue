@@ -10,6 +10,7 @@ import BatchJobModal from '@/components/BatchJobModal.vue'
 import NotificationsSettings from '@/components/NotificationsSettings.vue'
 import FitnessConnectionsPanel from '@/components/settings/FitnessConnectionsPanel.vue'
 import FitnessSyncPanels from '@/components/settings/FitnessSyncPanels.vue'
+import AppearanceSettings from '@/components/settings/AppearanceSettings.vue'
 
 const authStore = useAuthStore()
 const jobsStore = useJobsStore()
@@ -34,13 +35,19 @@ const moodScoringEnabled = computed(
 // keep mounted, so we use v-show rather than v-if to avoid remounting
 // on every tab switch.
 
-type TabId = 'profile' | 'notifications' | 'fitness' | 'maintenance'
+type TabId =
+  | 'profile'
+  | 'notifications'
+  | 'fitness'
+  | 'maintenance'
+  | 'appearance'
 
 const tabs: { id: TabId; label: string }[] = [
   { id: 'profile', label: 'Profile' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'fitness', label: 'Fitness' },
   { id: 'maintenance', label: 'Maintenance' },
+  { id: 'appearance', label: 'Appearance' },
 ]
 
 function tabFromHash(hash: string): TabId {
@@ -161,7 +168,7 @@ async function onMoodJobSucceeded(): Promise<void> {
           class="whitespace-nowrap border-b-2 py-3 px-1 text-sm font-medium transition"
           :class="
             activeTab === tab.id
-              ? 'border-violet-500 text-violet-600 dark:text-violet-400'
+              ? 'border-accent-fg text-accent-600 dark:text-accent-400'
               : 'border-transparent text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
           "
           :data-testid="`settings-tab-${tab.id}`"
@@ -199,7 +206,7 @@ async function onMoodJobSucceeded(): Promise<void> {
                 authStore.displayName
               }}</span>
               <button
-                class="ml-2 text-xs text-violet-500 hover:text-violet-600 dark:hover:text-violet-400"
+                class="ml-2 text-xs text-accent-fg hover:text-accent-600 dark:hover:text-accent-400"
                 data-testid="display-name-edit-btn"
                 @click="startEditingName"
               >
@@ -296,6 +303,14 @@ async function onMoodJobSucceeded(): Promise<void> {
       <FitnessSyncPanels />
     </section>
 
+    <!-- Appearance -->
+    <section
+      v-show="activeTab === 'appearance'"
+      data-testid="appearance-section"
+    >
+      <AppearanceSettings />
+    </section>
+
     <!-- Maintenance -->
     <section
       v-show="activeTab === 'maintenance'"
@@ -321,7 +336,7 @@ async function onMoodJobSucceeded(): Promise<void> {
             </div>
             <button
               type="button"
-              class="btn-sm bg-violet-500 hover:bg-violet-600 text-white"
+              class="btn-sm bg-accent-500 hover:bg-accent-600 text-white"
               :disabled="!moodScoringEnabled"
               :title="
                 moodScoringEnabled
@@ -351,7 +366,7 @@ async function onMoodJobSucceeded(): Promise<void> {
             </div>
             <button
               type="button"
-              class="btn-sm bg-violet-500 hover:bg-violet-600 text-white"
+              class="btn-sm bg-accent-500 hover:bg-accent-600 text-white"
               data-testid="run-entity-extraction-button"
               @click="showEntityExtractionModal = true"
             >

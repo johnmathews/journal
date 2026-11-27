@@ -418,7 +418,7 @@ async function savePricing(model: string, category: string) {
                     entry.last_verified
                   }}</span>
                   <button
-                    class="text-violet-500 hover:text-violet-600 dark:hover:text-violet-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                    class="text-accent-fg hover:text-accent-600 dark:hover:text-accent-400 opacity-0 group-hover:opacity-100 transition-opacity"
                     :data-testid="`pricing-edit-${entry.model}`"
                     @click="startEditingPricing(entry)"
                   >

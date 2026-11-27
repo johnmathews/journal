@@ -54,7 +54,7 @@ async function submit() {
   >
     <div v-if="!selectedFile">
       <label
-        class="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-violet-400 dark:hover:border-violet-500 transition-colors"
+        class="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-accent-400 dark:hover:border-accent-500 transition-colors"
       >
         <svg
           class="w-8 h-8 text-gray-400 mb-2"
@@ -86,7 +86,7 @@ async function submit() {
       <div class="flex items-center justify-between mb-4">
         <div class="flex items-center space-x-3">
           <span
-            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-violet-100 dark:bg-violet-900/40 text-violet-800 dark:text-violet-300"
+            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-accent-100 dark:bg-accent-900/40 text-accent-800 dark:text-accent-300"
           >
             {{ fileType }}
           </span>
@@ -113,7 +113,7 @@ async function submit() {
       <div class="flex justify-end mt-4">
         <button
           :disabled="entriesStore.creating"
-          class="btn bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg text-sm font-medium"
+          class="btn bg-accent-500 hover:bg-accent-600 text-white disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg text-sm font-medium"
           @click="submit"
         >
           {{ entriesStore.creating ? 'Importing...' : 'Import File' }}
